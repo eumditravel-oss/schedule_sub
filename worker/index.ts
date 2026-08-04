@@ -34,26 +34,48 @@ function getEditorName(body: any, request: Request): string {
   return '';
 }
 
-async function requireActiveWorker(db: any, editorName: string): Promise<boolean> {
-  if (!editorName || !editorName.trim()) return false;
+async function getActiveWorkerProfile(db: any, editorName: string): Promise<any | null> {
+  if (!editorName || !editorName.trim()) return null;
+  const trimmed = editorName.trim();
   try {
     const worker = await db
-      .prepare(`SELECT id FROM workers WHERE name = ? AND is_active = 1`)
-      .bind(editorName.trim())
+      .prepare(`SELECT * FROM workers WHERE (id = ? OR name = ?) AND is_active = 1`)
+      .bind(trimmed, trimmed)
       .first();
-    return !!worker;
-  } catch {
-    const actualWorkers = [
-      'CEO',
-      'COO',
-      '유종욱 실장',
-      '박용진 수석',
-      'Thanh Phuong(탄 프엉)',
-      'Manh Cuong(끄엉)',
-      'Quoc Nhut(꾸옥 느엿)',
-    ];
-    return actualWorkers.includes(editorName.trim());
+    if (worker) return worker;
+  } catch {}
+
+  const hardcoded: Record<string, any> = {
+    'wrk_00_ceo': { id: 'wrk_00_ceo', name: 'CEO', access_role: 'VIEWER', ui_language: 'ko', country_code: 'KR', workweek_profile: 'MON_FRI' },
+    'CEO': { id: 'wrk_00_ceo', name: 'CEO', access_role: 'VIEWER', ui_language: 'ko', country_code: 'KR', workweek_profile: 'MON_FRI' },
+    'wrk_00_coo': { id: 'wrk_00_coo', name: 'COO', access_role: 'VIEWER', ui_language: 'ko', country_code: 'KR', workweek_profile: 'MON_FRI' },
+    'COO': { id: 'wrk_00_coo', name: 'COO', access_role: 'VIEWER', ui_language: 'ko', country_code: 'KR', workweek_profile: 'MON_FRI' },
+    'wrk_01': { id: 'wrk_01', name: '유종욱 실장', access_role: 'EDITOR', ui_language: 'ko', country_code: 'KR', workweek_profile: 'MON_FRI' },
+    '유종욱 실장': { id: 'wrk_01', name: '유종욱 실장', access_role: 'EDITOR', ui_language: 'ko', country_code: 'KR', workweek_profile: 'MON_FRI' },
+    'wrk_02': { id: 'wrk_02', name: '박용진 수석', access_role: 'EDITOR', ui_language: 'ko', country_code: 'KR', workweek_profile: 'MON_FRI' },
+    '박용진 수석': { id: 'wrk_02', name: '박용진 수석', access_role: 'EDITOR', ui_language: 'ko', country_code: 'KR', workweek_profile: 'MON_FRI' },
+    'wrk_03': { id: 'wrk_03', name: 'Thanh Phuong(탄 프엉)', access_role: 'EDITOR', ui_language: 'vi', country_code: 'VN', workweek_profile: 'MON_SAT' },
+    'Thanh Phuong(탄 프엉)': { id: 'wrk_03', name: 'Thanh Phuong(탄 프엉)', access_role: 'EDITOR', ui_language: 'vi', country_code: 'VN', workweek_profile: 'MON_SAT' },
+    'wrk_04': { id: 'wrk_04', name: 'Manh Cuong(끄엉)', access_role: 'EDITOR', ui_language: 'vi', country_code: 'VN', workweek_profile: 'MON_SAT' },
+    'Manh Cuong(끄엉)': { id: 'wrk_04', name: 'Manh Cuong(끄엉)', access_role: 'EDITOR', ui_language: 'vi', country_code: 'VN', workweek_profile: 'MON_SAT' },
+    'wrk_05': { id: 'wrk_05', name: 'Quoc Nhut(꾸옥 느엿)', access_role: 'EDITOR', ui_language: 'vi', country_code: 'VN', workweek_profile: 'MON_SAT' },
+    'Quoc Nhut(꾸옥 느엿)': { id: 'wrk_05', name: 'Quoc Nhut(꾸옥 느엿)', access_role: 'EDITOR', ui_language: 'vi', country_code: 'VN', workweek_profile: 'MON_SAT' },
+  };
+  return hardcoded[trimmed] || null;
+}
+
+async function requireEditableWorker(db: any, editorName: string): Promise<{ allowed: boolean; worker?: any; errorMsg?: string; errorCode?: string }> {
+  if (!editorName || !editorName.trim()) {
+    return { allowed: false, errorMsg: '현재 접속자를 먼저 선택하세요.', errorCode: 'INVALID_EDITOR' };
   }
+  const worker = await getActiveWorkerProfile(db, editorName);
+  if (!worker) {
+    return { allowed: false, errorMsg: '지정된 개발팀 작업자만 편집할 수 있습니다.', errorCode: 'INVALID_EDITOR' };
+  }
+  if (worker.access_role !== 'EDITOR') {
+    return { allowed: false, errorMsg: '경영진 계정은 일정을 조회할 수만 있습니다.', errorCode: 'EXECUTIVE_READ_ONLY' };
+  }
+  return { allowed: true, worker };
 }
 
 function getKoreaDateString(): string {
@@ -207,7 +229,7 @@ export default {
       // 1. GET /api/workers
       if (method === 'GET' && path === '/api/workers') {
         const workers = await db
-          .prepare(`SELECT * FROM workers WHERE is_active = 1 ORDER BY sort_order ASC`)
+          .prepare(`SELECT id, name, is_active, sort_order, country_code, workweek_profile, access_role, ui_language FROM workers WHERE is_active = 1 ORDER BY sort_order ASC`)
           .all();
         return jsonResponse(workers.results || []);
       }
@@ -257,8 +279,9 @@ export default {
       if (method === 'POST' && path === '/api/projects') {
         const body: any = await request.json();
         const editor = getEditorName(body, request);
-        if (!(await requireActiveWorker(db, editor))) {
-          return errorResponse('지정된 개발팀 작업자만 편집할 수 있습니다.', 403, 'INVALID_EDITOR');
+        const editCheck = await requireEditableWorker(db, editor);
+        if (!editCheck.allowed) {
+          return errorResponse(editCheck.errorMsg!, 403, editCheck.errorCode!);
         }
 
         const validated = projectSchema.parse({ ...body, editor_name: editor });
@@ -368,8 +391,9 @@ export default {
 
         const body: any = await request.json();
         const editor = getEditorName(body, request);
-        if (!(await requireActiveWorker(db, editor))) {
-          return errorResponse('지정된 개발팀 작업자만 편집할 수 있습니다.', 403, 'INVALID_EDITOR');
+        const editCheck = await requireEditableWorker(db, editor);
+        if (!editCheck.allowed) {
+          return errorResponse(editCheck.errorMsg!, 403, editCheck.errorCode!);
         }
 
         const validated = updateProjectSchema.parse({ ...body, editor_name: editor });
@@ -418,8 +442,9 @@ export default {
       if (method === 'DELETE' && delPrjMatch) {
         const projectId = delPrjMatch[1];
         const editor = request.headers.get('x-editor-name');
-        if (!(await requireActiveWorker(db, editor ? decodeURIComponent(editor) : ''))) {
-          return errorResponse('지정된 개발팀 작업자만 편집할 수 있습니다.', 403, 'INVALID_EDITOR');
+        const editCheck = await requireEditableWorker(db, editor ? decodeURIComponent(editor) : '');
+        if (!editCheck.allowed) {
+          return errorResponse(editCheck.errorMsg!, 403, editCheck.errorCode!);
         }
 
         const taskIds = await db
@@ -443,8 +468,9 @@ export default {
         const projectId = completeMatch[1];
         const body: any = await request.json();
         const editor = getEditorName(body, request);
-        if (!(await requireActiveWorker(db, editor))) {
-          return errorResponse('지정된 개발팀 작업자만 편집할 수 있습니다.', 403, 'INVALID_EDITOR');
+        const editCheck = await requireEditableWorker(db, editor);
+        if (!editCheck.allowed) {
+          return errorResponse(editCheck.errorMsg!, 403, editCheck.errorCode!);
         }
 
         const todayStr = getKoreaDateString();
@@ -470,8 +496,9 @@ export default {
         const projectId = reopenMatch[1];
         const body: any = await request.json();
         const editor = getEditorName(body, request);
-        if (!(await requireActiveWorker(db, editor))) {
-          return errorResponse('지정된 개발팀 작업자만 편집할 수 있습니다.', 403, 'INVALID_EDITOR');
+        const editCheck = await requireEditableWorker(db, editor);
+        if (!editCheck.allowed) {
+          return errorResponse(editCheck.errorMsg!, 403, editCheck.errorCode!);
         }
 
         await db
@@ -516,8 +543,9 @@ export default {
       if (method === 'POST' && path === '/api/calendar/holidays/sync') {
         const body: any = await request.json();
         const editor = getEditorName(body, request);
-        if (!(await requireActiveWorker(db, editor))) {
-          return errorResponse('지정된 개발팀 작업자만 편집할 수 있습니다.', 403, 'INVALID_EDITOR');
+        const editCheck = await requireEditableWorker(db, editor);
+        if (!editCheck.allowed) {
+          return errorResponse(editCheck.errorMsg!, 403, editCheck.errorCode!);
         }
 
         const country_code = (body.country_code || 'KR') as 'KR' | 'VN';
@@ -565,8 +593,9 @@ export default {
       if (method === 'POST' && path === '/api/calendar/overrides') {
         const body: any = await request.json();
         const editor = getEditorName(body, request);
-        if (!(await requireActiveWorker(db, editor))) {
-          return errorResponse('지정된 개발팀 작업자만 편집할 수 있습니다.', 403, 'INVALID_EDITOR');
+        const editCheck = await requireEditableWorker(db, editor);
+        if (!editCheck.allowed) {
+          return errorResponse(editCheck.errorMsg!, 403, editCheck.errorCode!);
         }
 
         const scope_type = body.scope_type || 'WORKER';
@@ -580,6 +609,14 @@ export default {
 
         if (!scope_key || !start_date) {
           return errorResponse('scope_key 및 start_date는 필수입니다.', 400);
+        }
+
+        // Restriction: EDITOR can only alter their own worker schedule!
+        if (scope_type === 'WORKER') {
+          const editorWorker = editCheck.worker!;
+          if (scope_key !== editorWorker.id && scope_key !== editorWorker.name) {
+            return errorResponse('본인의 휴일·휴가 일정만 변경할 수 있습니다.', 403, 'CALENDAR_SELF_ONLY');
+          }
         }
 
         const created: any[] = [];
@@ -622,8 +659,18 @@ export default {
       if (method === 'DELETE' && delOverrideMatch) {
         const ovrId = delOverrideMatch[1];
         const editor = request.headers.get('x-editor-name');
-        if (!(await requireActiveWorker(db, editor ? decodeURIComponent(editor) : ''))) {
-          return errorResponse('지정된 개발팀 작업자만 편집할 수 있습니다.', 403, 'INVALID_EDITOR');
+        const editCheck = await requireEditableWorker(db, editor ? decodeURIComponent(editor) : '');
+        if (!editCheck.allowed) {
+          return errorResponse(editCheck.errorMsg!, 403, editCheck.errorCode!);
+        }
+
+        // Check if override belongs to current worker
+        const ovr = await db.prepare(`SELECT * FROM calendar_overrides WHERE id = ?`).bind(ovrId).first();
+        if (ovr && ovr.scope_type === 'WORKER') {
+          const editorWorker = editCheck.worker!;
+          if (ovr.scope_key !== editorWorker.id && ovr.scope_key !== editorWorker.name) {
+            return errorResponse('본인의 휴일·휴가 일정만 변경할 수 있습니다.', 403, 'CALENDAR_SELF_ONLY');
+          }
         }
 
         await db.prepare(`DELETE FROM calendar_overrides WHERE id = ?`).bind(ovrId).run();
@@ -673,8 +720,9 @@ export default {
         if (await isProjectCompleted(db, body.project_id)) {
           return errorResponse('완료된 프로젝트는 읽기 전용입니다. 수정하려면 진행 프로젝트로 복귀해 주세요.', 403, 'PROJECT_COMPLETED_READ_ONLY');
         }
-        if (!(await requireActiveWorker(db, editor))) {
-          return errorResponse('지정된 개발팀 작업자만 편집할 수 있습니다.', 403, 'INVALID_EDITOR');
+        const editCheck = await requireEditableWorker(db, editor);
+        if (!editCheck.allowed) {
+          return errorResponse(editCheck.errorMsg!, 403, editCheck.errorCode!);
         }
 
         const validated = taskSchema.parse({ ...body, editor_name: editor });
@@ -754,8 +802,9 @@ export default {
 
         const body: any = await request.json();
         const editor = getEditorName(body, request);
-        if (!(await requireActiveWorker(db, editor))) {
-          return errorResponse('지정된 개발팀 작업자만 편집할 수 있습니다.', 403, 'INVALID_EDITOR');
+        const editCheck = await requireEditableWorker(db, editor);
+        if (!editCheck.allowed) {
+          return errorResponse(editCheck.errorMsg!, 403, editCheck.errorCode!);
         }
 
         const validated = updateTaskSchema.parse({ ...body, editor_name: editor });
@@ -823,8 +872,9 @@ export default {
             return errorResponse('완료된 프로젝트는 읽기 전용입니다. 수정하려면 진행 프로젝트로 복귀해 주세요.', 403, 'PROJECT_COMPLETED_READ_ONLY');
           }
           const editor = request.headers.get('x-editor-name');
-          if (!(await requireActiveWorker(db, editor ? decodeURIComponent(editor) : ''))) {
-            return errorResponse('지정된 개발팀 작업자만 편집할 수 있습니다.', 403, 'INVALID_EDITOR');
+          const editCheck = await requireEditableWorker(db, editor ? decodeURIComponent(editor) : '');
+          if (!editCheck.allowed) {
+            return errorResponse(editCheck.errorMsg!, 403, editCheck.errorCode!);
           }
           await db.prepare(`DELETE FROM daily_status WHERE task_id = ?`).bind(taskId).run();
           await db.prepare(`DELETE FROM tasks WHERE id = ?`).bind(taskId).run();
@@ -846,8 +896,9 @@ export default {
 
         const body: any = await request.json();
         const editor = getEditorName(body, request);
-        if (!(await requireActiveWorker(db, editor))) {
-          return errorResponse('지정된 개발팀 작업자만 편집할 수 있습니다.', 403, 'INVALID_EDITOR');
+        const editCheck = await requireEditableWorker(db, editor);
+        if (!editCheck.allowed) {
+          return errorResponse(editCheck.errorMsg!, 403, editCheck.errorCode!);
         }
 
         const validated = dailyStatusSchema.parse({ ...body, editor_name: editor });

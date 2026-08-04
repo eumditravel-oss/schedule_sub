@@ -1,8 +1,8 @@
 // src/pages/ProjectDetailPage.tsx
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Project, Task, Worker, CountryHoliday, CalendarOverride, DailyStatusType, WorkDayStatus } from '../types';
-import { api, getCurrentWorkerName } from '../services/api';
+import { Project, Task, Worker, CountryHoliday, CalendarOverride, DailyStatusType, WorkDayStatus, isExecutiveViewer, isEditableWorker } from '../types';
+import { api, getCurrentWorkerId, setCurrentWorker as setCurrentWorkerApi } from '../services/api';
 import { calculateVisibleGanttSpan } from '../utils/dateUtils';
 import { resolveWorkDayStatus } from '../utils/workCalendar';
 import { useGanttDateRange } from '../hooks/useGanttDateRange';
@@ -16,7 +16,6 @@ import {
 import { TaskModal } from '../components/modals/TaskModal';
 import { StatusPopover } from '../components/modals/StatusPopover';
 import { WorkerSelector } from '../components/common/WorkerSelector';
-import { LanguageSelector } from '../components/common/LanguageSelector';
 import { WorkerPromptModal } from '../components/modals/WorkerPromptModal';
 import { GanttViewControls } from '../components/common/GanttViewControls';
 import { MobileAppHeader } from '../components/mobile/MobileAppHeader';
@@ -34,12 +33,13 @@ import {
   CheckCircle,
   RotateCcw,
   Calendar,
+  Lock,
 } from 'lucide-react';
 
 export const ProjectDetailPage: React.FC = () => {
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
-  const { t, lang } = useI18n();
+  const { t, lang, setLanguage } = useI18n();
   const { isMobile } = useResponsiveLayout();
 
   const [project, setProject] = useState<Project | null>(null);
@@ -66,7 +66,7 @@ export const ProjectDetailPage: React.FC = () => {
   };
 
   // Worker & Modal States
-  const [currentWorker, setCurrentWorker] = useState<string>(getCurrentWorkerName());
+  const [currentWorker, setCurrentWorker] = useState<Worker | null>(null);
   const [isWorkerPromptOpen, setIsWorkerPromptOpen] = useState(false);
   const [isMobileWorkerSheetOpen, setIsMobileWorkerSheetOpen] = useState(false);
   const [isCalendarModalOpen, setIsCalendarModalOpen] = useState(false);
@@ -130,9 +130,19 @@ export const ProjectDetailPage: React.FC = () => {
         api.getHolidays('VN', currentYear),
         api.getOverrides(),
       ]);
-      setWorkers(wData || []);
+      const workerList = wData || [];
+      setWorkers(workerList);
       setCountryHolidays([...(krData || []), ...(vnData || [])]);
       setCalendarOverrides(ovrData || []);
+
+      const savedId = getCurrentWorkerId();
+      const found = workerList.find((w) => w.id === savedId || w.name === savedId);
+      if (found) {
+        setCurrentWorker(found);
+        setLanguage(found.ui_language || (found.country_code === 'VN' ? 'vi' : 'ko'));
+      } else {
+        setIsWorkerPromptOpen(true);
+      }
     } catch (err) {
       console.error('Failed to fetch calendar data in detail:', err);
     }
@@ -156,13 +166,17 @@ export const ProjectDetailPage: React.FC = () => {
   useEffect(() => {
     fetchCalendarData();
     fetchProjectDetail();
-    const saved = getCurrentWorkerName();
-    if (saved) setCurrentWorker(saved);
   }, [projectId]);
 
+  const handleSelectWorkerProfile = (w: Worker) => {
+    setCurrentWorker(w);
+    setCurrentWorkerApi(w);
+    const targetLang = w.ui_language || (w.country_code === 'VN' ? 'vi' : 'ko');
+    setLanguage(targetLang);
+  };
+
   const requireWorkerSelection = (): boolean => {
-    const active = currentWorker || getCurrentWorkerName();
-    if (!active) {
+    if (!currentWorker) {
       if (isMobile) {
         setIsMobileWorkerSheetOpen(true);
       } else {
@@ -174,8 +188,13 @@ export const ProjectDetailPage: React.FC = () => {
   };
 
   const isCompleted = project?.status === 'COMPLETED';
+  const isViewer = isExecutiveViewer(currentWorker);
 
   const handleOpenAddTask = () => {
+    if (isViewer) {
+      alert(lang === 'vi' ? 'Tài khoản quản lý chỉ có quyền xem lịch trình.' : '경영진 계정은 일정을 조회할 수만 있습니다.');
+      return;
+    }
     if (isCompleted) {
       alert(t('readOnlyCompletedNotice'));
       return;
@@ -186,6 +205,10 @@ export const ProjectDetailPage: React.FC = () => {
   };
 
   const handleSaveTask = async (data: Partial<Task>) => {
+    if (isViewer) {
+      alert(lang === 'vi' ? 'Tài khoản quản lý chỉ có quyền xem lịch trình.' : '경영진 계정은 일정을 조회할 수만 있습니다.');
+      return;
+    }
     if (isCompleted) {
       alert(t('readOnlyCompletedNotice'));
       return;
@@ -204,6 +227,10 @@ export const ProjectDetailPage: React.FC = () => {
   };
 
   const handleEditTask = (taskItem: Task) => {
+    if (isViewer) {
+      alert(lang === 'vi' ? 'Tài khoản quản lý chỉ có quyền xem lịch trình.' : '경영진 계정은 일정을 조회할 수만 있습니다.');
+      return;
+    }
     if (isCompleted) {
       alert(t('readOnlyCompletedNotice'));
       return;
@@ -214,6 +241,10 @@ export const ProjectDetailPage: React.FC = () => {
   };
 
   const handleDeleteTask = async (taskItem: Task) => {
+    if (isViewer) {
+      alert(lang === 'vi' ? 'Tài khoản quản lý chỉ có quyền xem lịch trình.' : '경영진 계정은 일정을 조회할 수만 있습니다.');
+      return;
+    }
     if (isCompleted) {
       alert(t('readOnlyCompletedNotice'));
       return;
@@ -231,6 +262,10 @@ export const ProjectDetailPage: React.FC = () => {
 
   const handleCompleteProject = async () => {
     if (!project) return;
+    if (isViewer) {
+      alert(lang === 'vi' ? 'Tài khoản quản lý chỉ có quyền xem lịch trình.' : '경영진 계정은 일정을 조회할 수만 있습니다.');
+      return;
+    }
     if (!requireWorkerSelection()) return;
     const displayName = getProjectDisplayName(project);
     const confirmMsg = t('completeConfirmMsg', { name: displayName });
@@ -246,6 +281,10 @@ export const ProjectDetailPage: React.FC = () => {
 
   const handleReopenProject = async () => {
     if (!project) return;
+    if (isViewer) {
+      alert(lang === 'vi' ? 'Tài khoản quản lý chỉ có quyền xem lịch trình.' : '경영진 계정은 일정을 조회할 수만 있습니다.');
+      return;
+    }
     if (!requireWorkerSelection()) return;
     if (!window.confirm(t('reopenConfirmMsg'))) return;
 
@@ -259,6 +298,10 @@ export const ProjectDetailPage: React.FC = () => {
 
   // Status Cell Handler
   const handleCellClick = (e: React.MouseEvent, taskId: string, dateStr: string, currentStatus: DailyStatusType) => {
+    if (isViewer) {
+      alert(lang === 'vi' ? 'Tài khoản quản lý chỉ có quyền xem lịch trình.' : '경영진 계정은 일정을 조회할 수만 있습니다.');
+      return;
+    }
     if (isCompleted) {
       alert(t('readOnlyCompletedNotice'));
       return;
@@ -275,6 +318,10 @@ export const ProjectDetailPage: React.FC = () => {
   };
 
   const handleMobileCellClick = (taskId: string, dateStr: string, currentStatus: DailyStatusType, workStatus?: WorkDayStatus) => {
+    if (isViewer) {
+      alert(lang === 'vi' ? 'Tài khoản quản lý chỉ có quyền xem lịch trình.' : '경영진 계정은 일정을 조회할 수만 있습니다.');
+      return;
+    }
     if (isCompleted) {
       alert(t('readOnlyCompletedNotice'));
       return;
@@ -293,6 +340,7 @@ export const ProjectDetailPage: React.FC = () => {
   };
 
   const handleSelectStatus = async (status: DailyStatusType) => {
+    if (isViewer) return;
     const targetTaskId = popoverState.isOpen ? popoverState.taskId : mobileStatusSheetState.taskId;
     const targetDateStr = popoverState.isOpen ? popoverState.dateStr : mobileStatusSheetState.dateStr;
 
@@ -308,13 +356,15 @@ export const ProjectDetailPage: React.FC = () => {
   };
 
   const getProjectDisplayName = (prj: Project): string => {
-    if (lang === 'vi') return prj.name_vi || prj.name;
-    return prj.name_ko || prj.name;
+    const currentLang = currentWorker?.ui_language || lang;
+    if (currentLang === 'vi') return prj.name_vi || prj.name_ko || prj.name;
+    return prj.name_ko || prj.name_vi || prj.name;
   };
 
   const getTaskDisplayName = (tItem: Task): string => {
-    if (lang === 'vi') return tItem.task_name_vi || tItem.task_name;
-    return tItem.task_name_ko || tItem.task_name;
+    const currentLang = currentWorker?.ui_language || lang;
+    if (currentLang === 'vi') return tItem.task_name_vi || tItem.task_name_ko || tItem.task_name;
+    return tItem.task_name_ko || tItem.task_name_vi || tItem.task_name;
   };
 
   const tasksByWorker = tasks.reduce((acc, tItem) => {
@@ -406,23 +456,32 @@ export const ProjectDetailPage: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-3 shrink-0">
-            <button
-              type="button"
-              data-testid="manage-holidays-btn"
-              onClick={() => setIsCalendarModalOpen(true)}
-              className="h-9 px-3 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-xs font-bold text-slate-700 flex items-center gap-1.5 transition"
-            >
-              <Calendar className="w-4 h-4 text-blue-600" />
-              <span>{t('manageHolidays')}</span>
-            </button>
+            {isViewer ? (
+              <div
+                data-testid="viewer-readonly-badge"
+                className="h-9 px-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-xs font-extrabold flex items-center gap-1.5 shrink-0 shadow-xs"
+              >
+                <Lock className="w-4 h-4 text-red-600" />
+                <span>{lang === 'vi' ? 'Chỉ xem' : '보기 전용'}</span>
+              </div>
+            ) : (
+              <button
+                type="button"
+                data-testid="manage-holidays-btn"
+                onClick={() => setIsCalendarModalOpen(true)}
+                className="h-9 px-3 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-xs font-bold text-slate-700 flex items-center gap-1.5 transition shadow-xs"
+              >
+                <Calendar className="w-4 h-4 text-blue-600" />
+                <span>{t('manageHolidays')}</span>
+              </button>
+            )}
 
-            <LanguageSelector />
             <WorkerSelector
               currentWorker={currentWorker}
-              onWorkerChange={(name) => setCurrentWorker(name)}
+              onWorkerChange={handleSelectWorkerProfile}
             />
 
-            {!isCompleted ? (
+            {!isViewer && (!isCompleted ? (
               <>
                 <button
                   type="button"
@@ -453,7 +512,7 @@ export const ProjectDetailPage: React.FC = () => {
                 <RotateCcw className="w-4 h-4" />
                 <span>{t('reopenProject')}</span>
               </button>
-            )}
+            ))}
           </div>
         </header>
       )}
@@ -588,7 +647,7 @@ export const ProjectDetailPage: React.FC = () => {
                           onCellClick={handleMobileCellClick}
                           onEdit={(tData) => handleEditTask(tData)}
                           onDelete={(tData) => handleDeleteTask(tData)}
-                          isReadOnly={isCompleted}
+                          isReadOnly={isCompleted || isViewer}
                         />
                       );
                     })}
@@ -686,24 +745,26 @@ export const ProjectDetailPage: React.FC = () => {
                               </div>
                             </div>
 
-                            <div className="flex items-center gap-1 shrink-0">
-                              <button
-                                type="button"
-                                data-testid={`task-edit-btn-${task.id}`}
-                                onClick={() => handleEditTask(task)}
-                                className="w-6 h-6 flex items-center justify-center rounded text-slate-400 hover:text-slate-700 hover:bg-slate-100"
-                              >
-                                <Edit2 className="w-3 h-3" />
-                              </button>
-                              <button
-                                type="button"
-                                data-testid={`task-delete-btn-${task.id}`}
-                                onClick={() => handleDeleteTask(task)}
-                                className="w-6 h-6 flex items-center justify-center rounded text-slate-400 hover:text-red-600 hover:bg-red-50"
-                              >
-                                <Trash2 className="w-3 h-3" />
-                              </button>
-                            </div>
+                            {!isViewer && !isCompleted && (
+                              <div className="flex items-center gap-1 shrink-0">
+                                <button
+                                  type="button"
+                                  data-testid={`task-edit-btn-${task.id}`}
+                                  onClick={() => handleEditTask(task)}
+                                  className="w-6 h-6 flex items-center justify-center rounded text-slate-400 hover:text-slate-700 hover:bg-slate-100"
+                                >
+                                  <Edit2 className="w-3 h-3" />
+                                </button>
+                                <button
+                                  type="button"
+                                  data-testid={`task-delete-btn-${task.id}`}
+                                  onClick={() => handleDeleteTask(task)}
+                                  className="w-6 h-6 flex items-center justify-center rounded text-slate-400 hover:text-red-600 hover:bg-red-50"
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                </button>
+                              </div>
+                            )}
                           </div>
                         </td>
 
@@ -725,9 +786,9 @@ export const ProjectDetailPage: React.FC = () => {
                               title={tooltipText}
                               style={{ width: `${GANTT_DAY_WIDTH_PX}px`, minWidth: `${GANTT_DAY_WIDTH_PX}px`, maxWidth: `${GANTT_DAY_WIDTH_PX}px` }}
                               data-testid={`status-cell-${task.id}-${col.dateStr}`}
-                              onClick={(e) => isInTaskSpan && handleCellClick(e, task.id, col.dateStr, status)}
+                              onClick={(e) => isInTaskSpan && !isViewer && !isCompleted && handleCellClick(e, task.id, col.dateStr, status)}
                               className={`p-0 relative border-r border-slate-200 align-middle ${holidayBgClass} ${
-                                isInTaskSpan && !isCompleted ? 'cursor-pointer hover:brightness-95' : ''
+                                isInTaskSpan && !isCompleted && !isViewer ? 'cursor-pointer hover:brightness-95' : ''
                               }`}
                             >
                               {isInTaskSpan && (
@@ -751,52 +812,50 @@ export const ProjectDetailPage: React.FC = () => {
       </main>
 
       {/* Popovers & Modals */}
-      <StatusPopover
-        isOpen={popoverState.isOpen}
-        position={popoverState.anchorRect ? { x: popoverState.anchorRect.left + popoverState.anchorRect.width / 2, y: popoverState.anchorRect.bottom } : null}
-        triggerRect={popoverState.anchorRect}
-        dateStr={popoverState.dateStr}
-        currentStatus={popoverState.currentStatus}
-        onSelect={handleSelectStatus}
-        onClose={() => setPopoverState((prev) => ({ ...prev, isOpen: false }))}
-      />
+      {!isViewer && (
+        <>
+          <StatusPopover
+            isOpen={popoverState.isOpen}
+            position={popoverState.anchorRect ? { x: popoverState.anchorRect.left + popoverState.anchorRect.width / 2, y: popoverState.anchorRect.bottom } : null}
+            triggerRect={popoverState.anchorRect}
+            dateStr={popoverState.dateStr}
+            currentStatus={popoverState.currentStatus}
+            onSelect={handleSelectStatus}
+            onClose={() => setPopoverState((prev) => ({ ...prev, isOpen: false }))}
+          />
 
-      <MobileStatusSheet
-        isOpen={mobileStatusSheetState.isOpen}
-        dateStr={mobileStatusSheetState.dateStr}
-        taskName={mobileStatusSheetState.taskName}
-        currentStatus={mobileStatusSheetState.currentStatus}
-        workStatus={mobileStatusSheetState.workStatus}
-        onSelect={handleSelectStatus}
-        onClose={() => setMobileStatusSheetState((prev) => ({ ...prev, isOpen: false }))}
-      />
+          <MobileStatusSheet
+            isOpen={mobileStatusSheetState.isOpen}
+            dateStr={mobileStatusSheetState.dateStr}
+            taskName={mobileStatusSheetState.taskName}
+            currentStatus={mobileStatusSheetState.currentStatus}
+            workStatus={mobileStatusSheetState.workStatus}
+            onSelect={handleSelectStatus}
+            onClose={() => setMobileStatusSheetState((prev) => ({ ...prev, isOpen: false }))}
+          />
 
-      <TaskModal
-        isOpen={isTaskModalOpen}
-        projectId={projectId || ''}
-        task={selectedTask}
-        currentWorkerName={currentWorker}
-        onClose={() => setIsTaskModalOpen(false)}
-        onSave={handleSaveTask}
-      />
+          <TaskModal
+            isOpen={isTaskModalOpen}
+            projectId={projectId || ''}
+            task={selectedTask}
+            currentWorker={currentWorker}
+            onClose={() => setIsTaskModalOpen(false)}
+            onSave={handleSaveTask}
+          />
+        </>
+      )}
 
       <WorkerPromptModal
         isOpen={isWorkerPromptOpen}
         onClose={() => setIsWorkerPromptOpen(false)}
-        onSelectWorker={(name) => {
-          setCurrentWorker(name);
-          setIsWorkerPromptOpen(false);
-        }}
+        onSelectWorker={handleSelectWorkerProfile}
       />
 
       <MobileWorkerSheet
         isOpen={isMobileWorkerSheetOpen}
         onClose={() => setIsMobileWorkerSheetOpen(false)}
         currentWorker={currentWorker}
-        onSelectWorker={(name) => {
-          setCurrentWorker(name);
-          setIsMobileWorkerSheetOpen(false);
-        }}
+        onSelectWorker={handleSelectWorkerProfile}
       />
 
       <CalendarManagerModal

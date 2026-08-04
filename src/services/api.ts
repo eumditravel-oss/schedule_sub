@@ -1,7 +1,8 @@
 // src/services/api.ts
 import { ApiResponse, Project, Task, Worker, DailyStatusType, CountryHoliday, CalendarOverride } from '../types';
 
-const WORKER_STORAGE_KEY = 'schedule_current_worker_id';
+const WORKER_ID_KEY = 'schedule_current_worker_id';
+const WORKER_NAME_KEY = 'schedule_current_worker_name';
 
 export const ACTUAL_WORKERS = [
   'CEO',
@@ -13,25 +14,52 @@ export const ACTUAL_WORKERS = [
   'Quoc Nhut(꾸옥 느엿)',
 ];
 
-export function getCurrentWorkerName(): string {
+export function getCurrentWorkerId(): string {
   try {
-    const saved = localStorage.getItem(WORKER_STORAGE_KEY) || '';
-    if (saved && !ACTUAL_WORKERS.includes(saved)) {
-      localStorage.removeItem(WORKER_STORAGE_KEY);
-      return '';
+    const id = localStorage.getItem(WORKER_ID_KEY) || '';
+    if (id && (ACTUAL_WORKERS.includes(id) || id.startsWith('wrk_'))) return id;
+    const legacyName = localStorage.getItem(WORKER_NAME_KEY) || '';
+    if (legacyName && ACTUAL_WORKERS.includes(legacyName)) {
+      return legacyName;
     }
-    return saved;
+    return '';
   } catch {
     return '';
   }
 }
 
-export function setCurrentWorkerName(name: string): void {
+export function getCurrentWorkerName(): string {
   try {
-    if (name && !ACTUAL_WORKERS.includes(name)) {
+    const name = localStorage.getItem(WORKER_NAME_KEY) || '';
+    if (name && ACTUAL_WORKERS.includes(name)) return name;
+    const id = localStorage.getItem(WORKER_ID_KEY) || '';
+    if (id && ACTUAL_WORKERS.includes(id)) return id;
+    return '';
+  } catch {
+    return '';
+  }
+}
+
+export function setCurrentWorker(worker: Worker | string): void {
+  try {
+    const targetName = typeof worker === 'string' ? worker : worker.name;
+    if (targetName && !ACTUAL_WORKERS.includes(targetName) && !targetName.startsWith('wrk_')) {
       return;
     }
-    localStorage.setItem(WORKER_STORAGE_KEY, name);
+    if (typeof worker === 'string') {
+      localStorage.setItem(WORKER_ID_KEY, worker);
+      localStorage.setItem(WORKER_NAME_KEY, worker);
+    } else {
+      localStorage.setItem(WORKER_ID_KEY, worker.id);
+      localStorage.setItem(WORKER_NAME_KEY, worker.name);
+    }
+  } catch {}
+}
+
+export function clearCurrentWorker(): void {
+  try {
+    localStorage.removeItem(WORKER_ID_KEY);
+    localStorage.removeItem(WORKER_NAME_KEY);
   } catch {}
 }
 

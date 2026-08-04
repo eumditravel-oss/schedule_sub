@@ -1,6 +1,6 @@
 // src/components/modals/TaskModal.tsx
 import React, { useState, useEffect } from 'react';
-import { Task } from '../../types';
+import { Task, Worker } from '../../types';
 import { useI18n } from '../../hooks/useI18n';
 import { useAutoTranslation } from '../../hooks/useAutoTranslation';
 import { X, Sparkles, RefreshCw } from 'lucide-react';
@@ -9,7 +9,7 @@ interface TaskModalProps {
   isOpen: boolean;
   projectId: string;
   task: Task | null;
-  currentWorkerName: string;
+  currentWorker: Worker | null;
   onClose: () => void;
   onSave: (data: Partial<Task>) => Promise<void>;
 }
@@ -18,13 +18,14 @@ export const TaskModal: React.FC<TaskModalProps> = ({
   isOpen,
   projectId,
   task,
-  currentWorkerName,
+  currentWorker,
   onClose,
   onSave,
 }) => {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
 
-  const [inputLang, setInputLang] = useState<'ko' | 'vi'>('ko');
+  const workerLang: 'ko' | 'vi' = currentWorker?.ui_language || (lang === 'vi' ? 'vi' : 'ko');
+  const [inputLang, setInputLang] = useState<'ko' | 'vi'>(workerLang);
   const [taskNameInput, setTaskNameInput] = useState('');
   const [targetText, setTargetText] = useState('');
   const [startDate, setStartDate] = useState('');
@@ -54,9 +55,10 @@ export const TaskModal: React.FC<TaskModalProps> = ({
   }, [autoTranslatedText, autoStatus]);
 
   useEffect(() => {
+    const src = currentWorker?.ui_language || (task?.source_language as 'ko' | 'vi') || workerLang;
+    setInputLang(src);
+
     if (task) {
-      const src = (task.source_language as 'ko' | 'vi') || 'ko';
-      setInputLang(src);
       const initialSourceText = src === 'vi' ? (task.task_name_vi || task.task_name) : (task.task_name_ko || task.task_name);
       const initialTransText = src === 'vi' ? (task.task_name_ko || '') : (task.task_name_vi || '');
 
@@ -71,24 +73,18 @@ export const TaskModal: React.FC<TaskModalProps> = ({
       futureDate.setDate(futureDate.getDate() + 7);
       const futureStr = futureDate.toISOString().slice(0, 10);
 
-      setInputLang('ko');
       setTaskNameInput('');
       setTargetText('');
       setStartDate(todayStr);
       setEndDate(futureStr);
       setProgress(0);
     }
-  }, [task, isOpen]);
+  }, [task, isOpen, currentWorker]);
 
   if (!isOpen) return null;
 
   const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setTaskNameInput(e.target.value);
-  };
-
-  const handleInputLangChange = (newLang: 'ko' | 'vi') => {
-    if (newLang === inputLang) return;
-    setInputLang(newLang);
   };
 
   const handleTargetTextChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -111,9 +107,11 @@ export const TaskModal: React.FC<TaskModalProps> = ({
     try {
       setSaving(true);
 
+      const workerName = task ? task.worker_name : currentWorker ? currentWorker.name : '';
+
       const payload: Partial<Task> = {
         project_id: projectId,
-        worker_name: task ? task.worker_name : currentWorkerName,
+        worker_name: workerName,
         task_name: taskNameInput.trim(),
         start_date: startDate,
         end_date: endDate,
@@ -138,6 +136,8 @@ export const TaskModal: React.FC<TaskModalProps> = ({
       setSaving(false);
     }
   };
+
+  const currentWorkerName = task ? task.worker_name : currentWorker ? currentWorker.name : '';
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4">
@@ -165,41 +165,16 @@ export const TaskModal: React.FC<TaskModalProps> = ({
           <div>
             <label className="block font-bold text-slate-700 mb-1">{t('worker')}</label>
             <div className="px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg text-blue-700 font-bold">
-              {task ? task.worker_name : currentWorkerName}
+              {currentWorkerName}
             </div>
           </div>
 
-          {/* Input Language Selector */}
-          <div>
-            <label className="block font-bold text-slate-700 mb-1">
-              {t('inputLanguage')}
-            </label>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                data-testid="task-lang-ko-btn"
-                onClick={() => handleInputLangChange('ko')}
-                className={`flex-1 py-2 rounded-lg font-bold border transition ${
-                  inputLang === 'ko'
-                    ? 'bg-blue-50 border-blue-200 text-blue-700'
-                    : 'bg-slate-50 border-slate-200 text-slate-600'
-                }`}
-              >
-                {t('koText')}
-              </button>
-              <button
-                type="button"
-                data-testid="task-lang-vi-btn"
-                onClick={() => handleInputLangChange('vi')}
-                className={`flex-1 py-2 rounded-lg font-bold border transition ${
-                  inputLang === 'vi'
-                    ? 'bg-blue-50 border-blue-200 text-blue-700'
-                    : 'bg-slate-50 border-slate-200 text-slate-600'
-                }`}
-              >
-                {t('viText')}
-              </button>
-            </div>
+          {/* Read-only Input Language Label */}
+          <div className="bg-slate-50 border border-slate-200 p-2.5 rounded-lg text-slate-700 font-bold text-xs flex items-center justify-between">
+            <span>{inputLang === 'ko' ? '입력 언어: 한국어' : 'Ngôn ngữ nhập: Tiếng Việt'}</span>
+            <span className="text-[10px] font-extrabold px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 uppercase">
+              {inputLang}
+            </span>
           </div>
 
           {/* Source Text Input */}
@@ -213,7 +188,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
               value={taskNameInput}
               onChange={handleNameChange}
               required
-              placeholder="작업 내용을 입력하세요"
+              placeholder={inputLang === 'ko' ? '작업 내용을 입력하세요' : 'Nhập nội dung công việc'}
               className="w-full h-10 px-3 rounded-lg border border-slate-300 focus:outline-none focus:border-blue-500 font-medium text-slate-900 bg-white"
             />
           </div>

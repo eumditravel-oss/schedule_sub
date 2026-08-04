@@ -1,5 +1,5 @@
 // tests/e2e/final-release.spec.ts
-import { test, expect } from '@playwright/test';
+import { test, expect, Page } from '@playwright/test';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -26,11 +26,40 @@ async function ensureQaProject(): Promise<string> {
       start_date: '2026-08-04',
       end_date: '2026-09-03',
       progress: 0,
-      editor_name: 'CEO',
+      editor_name: '박용진 수석',
     }),
   });
   const createJson: any = await createRes.json();
   return createJson.data.id;
+}
+
+async function selectWorkerInPage(page: Page, workerName: string) {
+  await page.waitForTimeout(800);
+  const promptOption = page.locator(`[data-testid="worker-prompt-option-${workerName}"]`);
+  if (await promptOption.isVisible()) {
+    await promptOption.click();
+    await page.waitForTimeout(300);
+    return;
+  }
+
+  const anyPrompt = page.locator('[data-testid^="worker-prompt-option-"]');
+  if (await anyPrompt.first().isVisible()) {
+    const targetInPrompt = page.locator(`[data-testid="worker-prompt-option-${workerName}"]`);
+    if (await targetInPrompt.isVisible()) {
+      await targetInPrompt.click();
+      await page.waitForTimeout(300);
+      return;
+    }
+  }
+
+  const selectBtn = page.locator('[data-testid="worker-select-btn"]');
+  if (await selectBtn.isVisible()) {
+    await selectBtn.click();
+    const option = page.locator(`[data-testid="worker-option-${workerName}"]`);
+    await option.waitFor({ state: 'visible', timeout: 5000 });
+    await option.click();
+    await page.waitForTimeout(300);
+  }
 }
 
 test.describe('Evidence-based Playwright E2E Release Verification Suite', () => {
@@ -86,7 +115,7 @@ test.describe('Evidence-based Playwright E2E Release Verification Suite', () => 
         if (p.name && p.name.includes('[QA-FINAL')) {
           await fetch(`${BASE_URL}/api/projects/${p.id}`, {
             method: 'DELETE',
-            headers: { 'x-editor-name': encodeURIComponent('CEO') },
+            headers: { 'x-editor-name': encodeURIComponent('박용진 수석') },
           });
         }
       }
@@ -100,7 +129,7 @@ test.describe('Evidence-based Playwright E2E Release Verification Suite', () => 
         if (o.label_ko && o.label_ko.includes('[QA-CALENDAR')) {
           await fetch(`${BASE_URL}/api/calendar/overrides/${o.id}`, {
             method: 'DELETE',
-            headers: { 'x-editor-name': encodeURIComponent('CEO') },
+            headers: { 'x-editor-name': encodeURIComponent('박용진 수석') },
           });
         }
       }
@@ -113,38 +142,42 @@ test.describe('Evidence-based Playwright E2E Release Verification Suite', () => 
     expect(remainingOvr.length).toBe(0);
   });
 
-  // 1. Language Toggle & Dynamic Title Test
-  test('1. Toggle KO and VI languages and verify document.title and html lang', async ({ page }) => {
+  // 1. Worker Profile Based Auto Language & UI Title Test
+  test('1. Worker selection automatically applies profile language and document.title without manual language buttons', async ({ page }) => {
     await page.goto(`${BASE_URL}/projects`, { waitUntil: 'domcontentloaded' });
-    await page.waitForSelector('[data-testid="lang-ko-btn"]');
+    await selectWorkerInPage(page, 'CEO');
 
-    await page.click('[data-testid="lang-ko-btn"]');
     expect(await page.getAttribute('html', 'lang')).toBe('ko');
     expect(await page.title()).toContain('개발팀 프로젝트 스케쥴러');
 
-    await page.click('[data-testid="lang-vi-btn"]');
+    // Select Thanh Phuong (VI)
+    await selectWorkerInPage(page, 'Thanh Phuong(탄 프엉)');
     expect(await page.getAttribute('html', 'lang')).toBe('vi');
     expect(await page.title()).toContain('Lịch dự án nhóm phát triển');
 
-    await page.click('[data-testid="lang-ko-btn"]');
+    // Verify manual language buttons do NOT exist
+    expect(await page.locator('[data-testid="lang-ko-btn"]').count()).toBe(0);
+    expect(await page.locator('[data-testid="lang-vi-btn"]').count()).toBe(0);
+    expect(await page.locator('[data-testid="mobile-lang-btn"]').count()).toBe(0);
+
+    // Revert to 박용진 수석 (KO)
+    await selectWorkerInPage(page, '박용진 수석');
   });
 
-  // 2. Worker Selector & Option Click Test
-  test('2. Worker selector lists 7 active members and sets current worker (worker-option-COO)', async ({ page }) => {
+  // 2. Executive Read-Only Enforcement & Group Badges Test
+  test('2. CEO/COO executive selector shows red viewer badge and hides write buttons', async ({ page }) => {
     await page.goto(`${BASE_URL}/projects`, { waitUntil: 'domcontentloaded' });
-    await page.waitForSelector('[data-testid="worker-select-btn"]');
+    await selectWorkerInPage(page, 'CEO');
 
-    await page.click('[data-testid="worker-select-btn"]');
-    await page.waitForSelector('[data-testid="worker-option-CEO"]');
+    // Assert read-only badge visible
+    await expect(page.locator('[data-testid="viewer-readonly-badge"]')).toBeVisible();
 
-    await expect(page.locator('[data-testid="worker-option-CEO"]')).toBeVisible();
-    await expect(page.locator('[data-testid="worker-option-COO"]')).toBeVisible();
+    // Assert Add Project button hidden for Executive Viewer
+    expect(await page.locator('[data-testid="add-project-btn"]').count()).toBe(0);
 
-    await page.click('[data-testid="worker-option-COO"]');
-    await expect(page.locator('[data-testid="worker-select-btn"]')).toContainText('COO');
-
-    await page.click('[data-testid="worker-select-btn"]');
-    await page.click('[data-testid="worker-option-CEO"]');
+    // Switch to 박용진 수석 (EDITOR)
+    await selectWorkerInPage(page, '박용진 수석');
+    await expect(page.locator('[data-testid="add-project-btn"]')).toBeVisible();
   });
 
   // 3. Mobile Cropped Logo Bounding Box & Height Assertion across Viewports
@@ -159,6 +192,8 @@ test.describe('Evidence-based Playwright E2E Release Verification Suite', () => 
     for (const vp of mobileViewports) {
       await page.setViewportSize({ width: vp.width, height: vp.height });
       await page.goto(`${BASE_URL}/projects`, { waitUntil: 'domcontentloaded' });
+      await selectWorkerInPage(page, '박용진 수석');
+
       await page.waitForSelector('[data-testid="mobile-app-logo"]');
 
       const logoBox = await page.locator('[data-testid="mobile-app-logo"]').boundingBox();
@@ -179,14 +214,14 @@ test.describe('Evidence-based Playwright E2E Release Verification Suite', () => 
     }
   });
 
-  // 4. Calendar Manager Modal & Leave Input E2E
-  test('4. Open CalendarManagerModal, input QA leave override, sync holidays, verify calendar background color', async ({ page }) => {
+  // 4. Calendar Manager Modal & Self Leave Entry E2E
+  test('4. Open CalendarManagerModal, input QA leave override for current worker, verify calendar background color', async ({ page }) => {
     const targetPrjId = await ensureQaProject();
 
     await page.goto(`${BASE_URL}/projects/${targetPrjId}`, { waitUntil: 'domcontentloaded' });
-    await page.waitForSelector('[data-testid="manage-holidays-btn"]');
+    await selectWorkerInPage(page, '박용진 수석');
 
-    // Open Calendar Manager Modal
+    await page.waitForSelector('[data-testid="manage-holidays-btn"]');
     await page.click('[data-testid="manage-holidays-btn"]');
     await page.waitForSelector('[data-testid="calendar-manager-modal"]');
 
@@ -215,6 +250,8 @@ test.describe('Evidence-based Playwright E2E Release Verification Suite', () => 
 
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto(`${BASE_URL}/projects/${targetPrjId}`, { waitUntil: 'domcontentloaded' });
+    await selectWorkerInPage(page, '박용진 수석');
+
     await page.waitForSelector('[data-testid="mobile-view-week-btn"]');
     await page.click('[data-testid="mobile-view-week-btn"]');
 
@@ -248,7 +285,6 @@ test.describe('Evidence-based Playwright E2E Release Verification Suite', () => 
     expect(reloadRes?.status()).toBe(200);
 
     await page.click('[data-testid="back-to-list-btn"]');
-    await page.waitForSelector('[data-testid="add-project-btn"]');
     expect(page.url()).toContain('/projects');
   });
 

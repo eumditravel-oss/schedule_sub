@@ -1,14 +1,14 @@
 // src/components/modals/CalendarManagerModal.tsx
 import React, { useState, useEffect } from 'react';
 import { useI18n } from '../../hooks/useI18n';
-import { Worker, CalendarOverride } from '../../types';
-import { X, Calendar, Plus, Trash2, RefreshCw, CheckCircle, AlertCircle } from 'lucide-react';
+import { Worker, CalendarOverride, isExecutiveViewer } from '../../types';
+import { X, Calendar, Plus, Trash2, CheckCircle, AlertCircle, Lock } from 'lucide-react';
 
 interface CalendarManagerModalProps {
   isOpen: boolean;
   onClose: () => void;
   workers: Worker[];
-  currentWorker: string;
+  currentWorker: Worker | null;
   onRefreshCalendar: () => void;
 }
 
@@ -31,14 +31,14 @@ export const CalendarManagerModal: React.FC<CalendarManagerModalProps> = ({
 
   const [overrides, setOverrides] = useState<CalendarOverride[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
-  const [syncing, setSyncing] = useState<boolean>(false);
   const [msg, setMsg] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
+
+  const isViewer = isExecutiveViewer(currentWorker);
 
   useEffect(() => {
     if (isOpen) {
-      const activeW = workers.find((w) => w.name === currentWorker);
-      if (activeW) {
-        setSelectedWorkerId(activeW.id);
+      if (currentWorker) {
+        setSelectedWorkerId(currentWorker.id);
       } else if (workers.length > 0) {
         setSelectedWorkerId(workers[0].id);
       }
@@ -67,9 +67,23 @@ export const CalendarManagerModal: React.FC<CalendarManagerModalProps> = ({
 
   const handleCreateOverride = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedWorkerId || !startDate) return;
+    if (!currentWorker) {
+      setMsg({
+        text: lang === 'vi' ? 'Vui lòng chọn người dùng hiện tại trước.' : '현재 접속자를 먼저 선택하세요.',
+        type: 'error',
+      });
+      return;
+    }
+    if (isViewer) {
+      setMsg({
+        text: lang === 'vi' ? 'Tài khoản quản lý chỉ có quyền xem lịch trình.' : '경영진 계정은 일정을 조회할 수만 있습니다.',
+        type: 'error',
+      });
+      return;
+    }
 
-    const editorName = currentWorker || 'CEO';
+    const targetWorkerId = currentWorker.id;
+    const editorName = currentWorker.name;
 
     const defaultLabelKo =
       overrideType === 'LEAVE' ? '개인 휴가' : overrideType === 'OFF' ? '수동 휴무' : '근무일 지정';
@@ -85,7 +99,7 @@ export const CalendarManagerModal: React.FC<CalendarManagerModalProps> = ({
         },
         body: JSON.stringify({
           scope_type: 'WORKER',
-          scope_key: selectedWorkerId,
+          scope_key: targetWorkerId,
           start_date: startDate,
           end_date: endDate || startDate,
           override_type: overrideType,
@@ -113,7 +127,8 @@ export const CalendarManagerModal: React.FC<CalendarManagerModalProps> = ({
   };
 
   const handleDeleteOverride = async (id: string) => {
-    const editorName = currentWorker || 'CEO';
+    if (!currentWorker || isViewer) return;
+    const editorName = currentWorker.name;
     try {
       const res = await fetch(`/api/calendar/overrides/${id}`, {
         method: 'DELETE',
@@ -123,45 +138,11 @@ export const CalendarManagerModal: React.FC<CalendarManagerModalProps> = ({
       if (json.success) {
         await loadOverrides();
         onRefreshCalendar();
+      } else {
+        alert(json.error?.message || 'Delete failed');
       }
     } catch (e) {
       console.error('Failed to delete override', e);
-    }
-  };
-
-  const handleSyncHolidays = async (countryCode: 'KR' | 'VN') => {
-    setSyncing(true);
-    setMsg(null);
-    const editorName = currentWorker || 'CEO';
-    try {
-      const year = new Date().getFullYear();
-      const res = await fetch('/api/calendar/holidays/sync', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-editor-name': encodeURIComponent(editorName),
-        },
-        body: JSON.stringify({
-          country_code: countryCode,
-          year,
-          editor_name: editorName,
-        }),
-      });
-
-      const json: any = await res.json();
-      if (json.success) {
-        setMsg({
-          text: `${countryCode} ${t('syncSuccess')} (${json.data.synced_count} items, source: ${json.data.source})`,
-          type: 'success',
-        });
-        onRefreshCalendar();
-      } else {
-        setMsg({ text: t('holidaySyncFailedNotice'), type: 'error' });
-      }
-    } catch (e) {
-      setMsg({ text: t('holidaySyncFailedNotice'), type: 'error' });
-    } finally {
-      setSyncing(false);
     }
   };
 
@@ -192,6 +173,13 @@ export const CalendarManagerModal: React.FC<CalendarManagerModalProps> = ({
 
         {/* Content Body */}
         <div className="p-5 overflow-y-auto space-y-6 flex-1 text-slate-900">
+          {isViewer && (
+            <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-xs font-bold text-red-700 flex items-center gap-2">
+              <Lock className="w-4 h-4 text-red-600 shrink-0" />
+              <span>{lang === 'vi' ? 'Tài khoản quản lý chỉ có quyền xem lịch trình.' : '경영진 계정은 일정을 조회할 수만 있습니다.'}</span>
+            </div>
+          )}
+
           {msg && (
             <div
               className={`p-3 rounded-xl text-xs font-semibold flex items-center gap-2 ${
@@ -205,141 +193,106 @@ export const CalendarManagerModal: React.FC<CalendarManagerModalProps> = ({
             </div>
           )}
 
-          {/* Sync Public Holidays Toolbar */}
-          <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 flex flex-wrap items-center justify-between gap-2">
-            <div>
-              <h3 className="text-xs font-bold text-slate-900">{t('syncHolidays')}</h3>
-              <p className="text-[11px] text-slate-500">{t('publicHoliday')} (KR & VN)</p>
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                data-testid="sync-kr-holidays-btn"
-                disabled={syncing}
-                onClick={() => handleSyncHolidays('KR')}
-                className="h-8 px-3 rounded-lg bg-white border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-100 flex items-center gap-1.5 transition disabled:opacity-50"
-              >
-                <RefreshCw className={`w-3.5 h-3.5 text-blue-600 ${syncing ? 'animate-spin' : ''}`} />
-                <span>KR 동기화</span>
-              </button>
+          {/* Form: Add Personal Leave / Override (EDITOR only) */}
+          {!isViewer && currentWorker && (
+            <form onSubmit={handleCreateOverride} className="bg-blue-50/50 border border-blue-100 rounded-xl p-4 space-y-3">
+              <h3 className="text-xs font-bold text-blue-900 flex items-center gap-1.5">
+                <Plus className="w-4 h-4 text-blue-600" />
+                <span>{t('leaveSchedule')}</span>
+              </h3>
 
-              <button
-                type="button"
-                data-testid="sync-vn-holidays-btn"
-                disabled={syncing}
-                onClick={() => handleSyncHolidays('VN')}
-                className="h-8 px-3 rounded-lg bg-white border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-100 flex items-center gap-1.5 transition disabled:opacity-50"
-              >
-                <RefreshCw className={`w-3.5 h-3.5 text-rose-600 ${syncing ? 'animate-spin' : ''}`} />
-                <span>VN Đồng bộ</span>
-              </button>
-            </div>
-          </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {/* Target Worker (Locked to current worker) */}
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">{t('worker')}</label>
+                  <input
+                    type="text"
+                    readOnly
+                    value={`${currentWorker.name} (${currentWorker.country_code || 'KR'})`}
+                    className="w-full h-9 px-3 bg-slate-100 border border-slate-200 rounded-lg text-xs font-bold text-slate-700 cursor-not-allowed"
+                  />
+                </div>
 
-          {/* Form: Add Personal Leave / Override */}
-          <form onSubmit={handleCreateOverride} className="bg-blue-50/50 border border-blue-100 rounded-xl p-4 space-y-3">
-            <h3 className="text-xs font-bold text-blue-900 flex items-center gap-1.5">
-              <Plus className="w-4 h-4 text-blue-600" />
-              <span>{t('leaveSchedule')}</span>
-            </h3>
+                {/* Type */}
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">{t('scopeType')}</label>
+                  <select
+                    data-testid="override-type-select"
+                    value={overrideType}
+                    onChange={(e) => setOverrideType(e.target.value as any)}
+                    className="w-full h-9 px-3 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-800"
+                  >
+                    <option value="LEAVE">{t('leaveTypePersonal')}</option>
+                    <option value="OFF">{t('leaveTypeManualOff')}</option>
+                    <option value="WORK">{t('leaveTypeWorkOverride')}</option>
+                  </select>
+                </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {/* Target Worker */}
-              <div>
-                <label className="block text-[11px] font-bold text-slate-700 mb-1">{t('worker')}</label>
-                <select
-                  data-testid="override-worker-select"
-                  value={selectedWorkerId}
-                  onChange={(e) => setSelectedWorkerId(e.target.value)}
-                  className="w-full h-9 px-3 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-800"
+                {/* Start Date */}
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">{t('startDate')}</label>
+                  <input
+                    type="date"
+                    data-testid="override-start-date-input"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    required
+                    className="w-full h-9 px-3 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-800"
+                  />
+                </div>
+
+                {/* End Date */}
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">{t('endDate')}</label>
+                  <input
+                    type="date"
+                    data-testid="override-end-date-input"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    required
+                    className="w-full h-9 px-3 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-800"
+                  />
+                </div>
+              </div>
+
+              {/* Label KO / VI Inputs */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">명칭 (한국어)</label>
+                  <input
+                    type="text"
+                    data-testid="override-label-ko-input"
+                    placeholder={overrideType === 'LEAVE' ? '개인 휴가' : '수동 휴무'}
+                    value={labelKo}
+                    onChange={(e) => setLabelKo(e.target.value)}
+                    className="w-full h-9 px-3 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-800"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">명칭 (Tiếng Việt)</label>
+                  <input
+                    type="text"
+                    data-testid="override-label-vi-input"
+                    placeholder={overrideType === 'LEAVE' ? 'Nghỉ phép' : 'Ngày nghỉ thủ công'}
+                    value={labelVi}
+                    onChange={(e) => setLabelVi(e.target.value)}
+                    className="w-full h-9 px-3 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-800"
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end">
+                <button
+                  type="submit"
+                  data-testid="override-save-btn"
+                  className="h-9 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition shadow-xs flex items-center gap-1"
                 >
-                  {workers.map((w) => (
-                    <option key={w.id} value={w.id}>
-                      {w.name} ({w.country_code || 'KR'})
-                    </option>
-                  ))}
-                </select>
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>{t('save')}</span>
+                </button>
               </div>
-
-              {/* Type */}
-              <div>
-                <label className="block text-[11px] font-bold text-slate-700 mb-1">{t('scopeType')}</label>
-                <select
-                  data-testid="override-type-select"
-                  value={overrideType}
-                  onChange={(e) => setOverrideType(e.target.value as any)}
-                  className="w-full h-9 px-3 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-800"
-                >
-                  <option value="LEAVE">{t('leaveTypePersonal')}</option>
-                  <option value="OFF">{t('leaveTypeManualOff')}</option>
-                  <option value="WORK">{t('leaveTypeWorkOverride')}</option>
-                </select>
-              </div>
-
-              {/* Start Date */}
-              <div>
-                <label className="block text-[11px] font-bold text-slate-700 mb-1">{t('startDate')}</label>
-                <input
-                  type="date"
-                  data-testid="override-start-date-input"
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                  required
-                  className="w-full h-9 px-3 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-800"
-                />
-              </div>
-
-              {/* End Date */}
-              <div>
-                <label className="block text-[11px] font-bold text-slate-700 mb-1">{t('endDate')}</label>
-                <input
-                  type="date"
-                  data-testid="override-end-date-input"
-                  value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
-                  required
-                  className="w-full h-9 px-3 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-800"
-                />
-              </div>
-            </div>
-
-            {/* Label KO / VI Inputs */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <div>
-                <label className="block text-[11px] font-bold text-slate-700 mb-1">명칭 (한국어)</label>
-                <input
-                  type="text"
-                  data-testid="override-label-ko-input"
-                  placeholder={overrideType === 'LEAVE' ? '개인 휴가' : '수동 휴무'}
-                  value={labelKo}
-                  onChange={(e) => setLabelKo(e.target.value)}
-                  className="w-full h-9 px-3 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-800"
-                />
-              </div>
-              <div>
-                <label className="block text-[11px] font-bold text-slate-700 mb-1">명칭 (Tiếng Việt)</label>
-                <input
-                  type="text"
-                  data-testid="override-label-vi-input"
-                  placeholder={overrideType === 'LEAVE' ? 'Nghỉ phép' : 'Ngày nghỉ thủ công'}
-                  value={labelVi}
-                  onChange={(e) => setLabelVi(e.target.value)}
-                  className="w-full h-9 px-3 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-800"
-                />
-              </div>
-            </div>
-
-            <div className="flex justify-end">
-              <button
-                type="submit"
-                data-testid="override-save-btn"
-                className="h-9 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition shadow-xs flex items-center gap-1"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span>{t('save')}</span>
-              </button>
-            </div>
-          </form>
+            </form>
+          )}
 
           {/* List of Registered Overrides */}
           <div>
@@ -352,9 +305,10 @@ export const CalendarManagerModal: React.FC<CalendarManagerModalProps> = ({
             ) : (
               <div className="border border-slate-200 rounded-xl overflow-hidden divide-y divide-slate-100 max-h-52 overflow-y-auto">
                 {overrides.map((ovr) => {
-                  const targetWorker = workers.find((w) => w.id === ovr.scope_key);
+                  const targetWorker = workers.find((w) => w.id === ovr.scope_key || w.name === ovr.scope_key);
                   const displayWorker = targetWorker ? targetWorker.name : ovr.scope_key;
                   const displayLabel = lang === 'vi' ? ovr.label_vi || ovr.label_ko : ovr.label_ko || ovr.label_vi;
+                  const isDeletable = !isViewer && currentWorker && (ovr.scope_key === currentWorker.id || ovr.scope_key === currentWorker.name);
 
                   return (
                     <div key={ovr.id} className="px-3 py-2.5 flex items-center justify-between text-xs hover:bg-slate-50">
@@ -375,14 +329,16 @@ export const CalendarManagerModal: React.FC<CalendarManagerModalProps> = ({
                         <span className="text-slate-700 truncate font-semibold">({displayLabel})</span>
                       </div>
 
-                      <button
-                        type="button"
-                        data-testid={`delete-override-btn-${ovr.id}`}
-                        onClick={() => handleDeleteOverride(ovr.id)}
-                        className="w-6 h-6 flex items-center justify-center rounded text-slate-400 hover:text-red-600 hover:bg-red-50 transition"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+                      {isDeletable && (
+                        <button
+                          type="button"
+                          data-testid={`delete-override-btn-${ovr.id}`}
+                          onClick={() => handleDeleteOverride(ovr.id)}
+                          className="w-6 h-6 flex items-center justify-center rounded text-slate-400 hover:text-red-600 hover:bg-red-50 transition"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                     </div>
                   );
                 })}

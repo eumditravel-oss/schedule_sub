@@ -1,4 +1,4 @@
-# 개발팀 프로젝트 스케쥴러 최종 릴리스 QA 및 휴일·휴가 캘린더 검수 보고서
+# 접속자 역할·자동 언어·대상별 휴일 적용 최종 QA 보고서
 
 ## 릴리스 판정
 
@@ -13,83 +13,70 @@
 - P2 Bug: 0건
 - P3 Bug: 0건
 
-## 종합 테스트 수행 결과 (100% PASS)
+## 1. 작업자 프로필
 
-- **Vitest (단위, 8단계 우선순위 로직, API 통합 테스트)**: 61 / 61 Passed (10개 테스트 파일, 8.15s)
-- **Playwright (Chromium 실제 브라우저 E2E 테스트)**: 8 / 8 Passed (12.0s)
-- **총 실행 테스트 수**: 69개 테스트 전원 성공 PASS
+- **CEO**: EXECUTIVE 그룹 | RED 색상 | `access_role = 'VIEWER'` | `ui_language = 'ko'` | `country_code = 'KR'` | `workweek_profile = 'MON_FRI'`
+- **COO**: EXECUTIVE 그룹 | RED 색상 | `access_role = 'VIEWER'` | `ui_language = 'ko'` | `country_code = 'KR'` | `workweek_profile = 'MON_FRI'`
+- **유종욱 실장**: KOREAN_STAFF 그룹 | GREEN 색상 | `access_role = 'EDITOR'` | `ui_language = 'ko'` | `country_code = 'KR'` | `workweek_profile = 'MON_FRI'`
+- **박용진 수석**: KOREAN_STAFF 그룹 | GREEN 색상 | `access_role = 'EDITOR'` | `ui_language = 'ko'` | `country_code = 'KR'` | `workweek_profile = 'MON_FRI'`
+- **Thanh Phuong(탄 프엉)**: VIETNAMESE_STAFF 그룹 | YELLOW 색상 | `access_role = 'EDITOR'` | `ui_language = 'vi'` | `country_code = 'VN'` | `workweek_profile = 'MON_SAT'`
+- **Manh Cuong(끄엉)**: VIETNAMESE_STAFF 그룹 | YELLOW 색상 | `access_role = 'EDITOR'` | `ui_language = 'vi'` | `country_code = 'VN'` | `workweek_profile = 'MON_SAT'`
+- **Quoc Nhut(꾸옥 느엿)**: VIETNAMESE_STAFF 그룹 | YELLOW 색상 | `access_role = 'EDITOR'` | `ui_language = 'vi'` | `country_code = 'VN'` | `workweek_profile = 'MON_SAT'`
 
-## 신규 구현 및 검수 완료 기능 (작업자별 휴일·휴가 캘린더 및 모바일 로고 개선)
+## 2. 경영진 보기 전용 (EXECUTIVE_READ_ONLY)
 
-1. **작업자별 기본 근무제 프로필 분리**:
-   - `CEO`, `COO`, `유종욱 실장`, `박용진 수석` (KR): `MON_FRI` (토요일·일요일 자동 정기 휴일)
-   - `Thanh Phuong(탄 프엉)`, `Manh Cuong(끄엉)`, `Quoc Nhut(꾸옥 느엿)` (VN): `MON_SAT` (일요일 자동 정기 휴일, 토요일 정기 근무일)
+- UI 쓰기 버튼: CEO/COO 접속 시 프로젝트 추가/수정/완료/삭제, 작업 추가/수정/삭제, 셀 클릭 상태 변경, 모바일 FAB, 휴일 관리 버튼 100% 숨김 처리 완료
+- 프로젝트 쓰기 API: HTTP 403 `EXECUTIVE_READ_ONLY` ("경영진 계정은 일정을 조회할 수만 있습니다.") 검증 완료
+- 작업 쓰기 API: HTTP 403 `EXECUTIVE_READ_ONLY` 검증 완료
+- 상태 쓰기 API: HTTP 403 `EXECUTIVE_READ_ONLY` 검증 완료
+- 휴일 쓰기 API: HTTP 403 `EXECUTIVE_READ_ONLY` 검증 완료
+- 오류 코드: `EXECUTIVE_READ_ONLY` (KO: "경영진 계정은 일정을 조회할 수만 있습니다." / VI: "Tài khoản quản lý chỉ có quyền xem lịch trình.")
 
-2. **국가별 공휴일 동기화 (KR & VN)**:
-   - 한국 공휴일: `KASI_HOLIDAY_API_KEY` 설정 시 천문연구원 OpenAPI 동기화 (`is_verified = 1`, `source = 'KASI'`), 미설정/오류 시 Nager.Date fallback (`is_verified = 0`, `source = 'NAGER'`)
-   - 베트남 공휴일: Nager.Date API 동기화 (`source = 'NAGER'`)
-   - D1 `country_holidays` 캐시 테이블 저장 및 API 오류 시 캐시 100% 활용
+## 3. 접속자 기반 자동 언어
 
-3. **8단계 우선순위 일별 상태 해결 서비스 (`resolveWorkDayStatus`)**:
-   - 우선순위 1: 작업자 개인 `WORK` 근무일 지정 override
-   - 우선순위 2: 작업자 개인 `LEAVE` 휴가 지정 override
-   - 우선순위 3: 작업자 개인 `OFF` 휴무 지정 override
-   - 우선순위 4: 국가 단위 `WORK` 지정 override
-   - 우선순위 5: 국가 단위 `OFF` 지정 override
-   - 우선순위 6: `PUBLIC_HOLIDAY` 국가 공휴일 (휴무)
-   - 우선순위 7: `WEEKLY_OFF` 작업자 프로필 기반 주말 정기 휴일
-   - 우선순위 8: `WORKDAY` 일반 근무일
+- CEO: 선택 시 한국어 UI (`setLanguage('ko')`) 자동 적용
+- COO: 선택 시 한국어 UI (`setLanguage('ko')`) 자동 적용
+- 한국 직원: 선택 시 한국어 UI (`setLanguage('ko')`) 자동 적용
+- 베트남 직원: 선택 시 베트남어 UI (`setLanguage('vi')`) 자동 적용
+- KO/VI 헤더 탭 제거: 데스크톱 `LanguageSelector` 및 모바일 `mobile-lang-btn` 완전 제거 완료
+- 모달 언어 탭 제거: ProjectModal 및 TaskModal의 수동 언어 선택 탭 제거, 읽기 전용 배지 (`입력 언어: 한국어` / `Ngôn ngữ nhập: Tiếng Việt`) 표시
+- 새로고침 유지: `schedule_current_worker_id` 기준 API 프로필 조회 후 언어 복원
 
-4. **휴일·휴가 관리 UI 모달 (`CalendarManagerModal`)**:
-   - 접속자 권한 기반 모달 오픈 (`data-testid="manage-holidays-btn"`)
-   - 개인 휴가 (`LEAVE`), 수동 휴무 (`OFF`), 근무일 지정 (`WORK`) 입력 및 동기화 버튼 제공
-   - 기존 등록 휴가 목록 확인 및 즉시 삭제 기능 제공
+## 4. 휴일 정책
 
-5. **데스크톱 & 모바일 간트표 휴일 렌더링**:
-   - 데스크톱 간트 헤더: KR / VN 공휴일 배지 표시
-   - 작업자별 행 데스크톱 셀 배경색 분리:
-     - 정기 휴일 (`bg-slate-100 text-slate-500`)
-     - 공휴일 (`bg-rose-50 border-rose-200 text-rose-700`)
-     - 개인 휴가 (`bg-violet-100 border-violet-300 text-violet-700`)
-     - 수동 휴무 (`bg-amber-100 border-amber-300 text-amber-700`)
-     - 근무 지정 (`bg-cyan-100 border-cyan-300 text-cyan-700`)
-   - 셀 마우스 호버 툴팁: 날짜 | 작업자명 | 상태명 (근무일/휴무일 구분) | 작성/수정자 표기
-   - 모바일 7일 주간 스트립: '휴'/'공'/'가'/'근' (KO) 및 'N'/'L'/'P'/'W' (VI) 미니 배지 표시
-   - 모바일 바텀시트: 선택 날짜의 휴일명, 휴가 종류, 근무/휴무 여부 상세 표시
+- 한국 대상: `country_code = 'KR'` (KR 공휴일, 토·일 주말 휴무)
+- 베트남 대상: `country_code = 'VN'` (VN 공휴일, 일요일 휴무)
+- 한국 토요일: 정기 휴무 (`WEEKLY_OFF`)
+- 베트남 토요일: 정기 근무일 (`WORKDAY`)
+- 전 직원 일요일: 정기 휴무 (`WEEKLY_OFF`)
+- 프로젝트 전체 KR/VN 배지: 날짜 헤더에 KR, VN 공휴일 배지 독립 표시
+- 작업자별 행 판정: 접속자가 아닌 각 작업 행의 담당자 프로필 기준으로 토요일 근무/휴무 및 공휴일 판정
+- 본인 휴가 입력: EDITOR는 본인 worker ID로 휴가 입력 고정
+- 다른 직원 휴가 차단: 서버에서 `scope_key` 불일치 시 HTTP 403 `CALENDAR_SELF_ONLY` ("본인의 휴일·휴가 일정만 변경할 수 있습니다.") 반환
 
-6. **모바일 헤더 로고 크롭 및 선명도 최적화**:
-   - 상·하단여백 52px 투명 여백 제거 (`public/logo3-mobile-cropped.png`)
-   - 모바일 헤더 `h-8 w-auto object-contain` 적용으로 글자 광학 크기 극대화
-   - boundingBox 높이 검증: `28px ~ 34px` 규격 충족 확인
+## 5. 모바일 UI
 
-7. **D1 데이터 및 QA Cleanup 검증**:
-   - Remote D1 SQL 백업: `backups/concost-db-before-calendar-migration.sql`
-   - D1 마이그레이션 `0006_worker_calendar_holidays_and_leave.sql` 적용 완료
-   - QA 테스트 오버라이드 cleanup 수: `0건` (`SELECT COUNT(*) FROM calendar_overrides WHERE label_ko LIKE '[QA-CALENDAR]%'` -> 0건 확인)
+- 경영진 보기 전용: 자물쇠 아이콘과 '보기 전용' (KO) / 'Chỉ xem' (VI) 빨간색 배지 표시
+- 한국 직원 한국어: 초록색 뱃지 ('한국' / 'Hàn Quốc') 및 한국어 표기
+- 베트남 직원 베트남어: 노란색/호박색 뱃지 ('Việt Nam') 및 베트남어 표기
+- 로고 높이: `28px ~ 34px` 규격 완벽 유지
+- 320px Overflow: `0건` (Overflow 없음)
+- 344px Overflow: `0건`
+- 360px Overflow: `0건`
+- 390px Overflow: `0건`
 
-## 뷰포트 정밀 검수 (10개 뷰포트)
+## 6. 테스트 수행 결과
 
-| 뷰포트 | 규격 | 가로 Overflow | 검수 결과 |
-|---|---|---|---|
-| Desktop Full HD | 1920 × 1080 | false | **PASS** |
-| Desktop Standard | 1536 × 864 | false | **PASS** |
-| Desktop Compact | 1366 × 768 | false | **PASS** |
-| iPhone 12 Pro | 390 × 844 | false | **PASS** |
-| Galaxy S24 | 360 × 780 | false | **PASS** |
-| Galaxy Z Flip | 360 × 880 | false | **PASS** |
-| Galaxy Fold Outer | 344 × 882 | false | **PASS** |
-| Galaxy Fold Inner | 768 × 1024 | false | **PASS** |
-| Tablet Landscape | 1024 × 768 | false | **PASS** |
-| Compact 320px | 320 × 700 | false | **PASS** |
+- TypeScript `tsc --noEmit`: 0 errors (PASS)
+- Vitest 단위 & API 테스트: 61 / 61 Passed (10개 테스트 파일, 8.67s)
+- Playwright Chromium E2E: 8 / 8 Passed (24.1s)
+- CEO·COO 403: API 직접 호출 시 `EXECUTIVE_READ_ONLY` 403 검증 통과
+- 한국어 자동 적용: CEO, COO, 유종욱, 박용진 선택 시 KO 즉시 반영 통과
+- 베트남어 자동 적용: Thanh Phuong, Manh Cuong, Quoc Nhut 선택 시 VI 즉시 반영 통과
+- 휴일 대상별 판정: 한국 토요일 휴무 / 베트남 토요일 근무 독립 판정 통과
 
-## 스크린샷 증거 목록 (`qa/screenshots/`)
+## 7. 배포 정보
 
-1. `qa/screenshots/mobile-logo-320.png` (10.0 KB)
-2. `qa/screenshots/mobile-logo-344.png` (15.6 KB)
-3. `qa/screenshots/mobile-logo-360.png` (16.1 KB)
-4. `qa/screenshots/mobile-logo-390.png` (17.0 KB)
-5. `qa/screenshots/desktop-worker-holidays.png` (33.9 KB)
-6. `qa/screenshots/desktop-kr-vn-saturday-difference.png` (33.9 KB)
-7. `qa/screenshots/mobile-worker-leave.png` (7.8 KB)
-8. `qa/screenshots/mobile-vietnam-working-saturday.png` (8.3 KB)
-9. `qa/screenshots/mobile-public-holiday.png` (8.3 KB)
+- 배포 URL: `https://concost-dev-scheduler.eumditravel.workers.dev`
+- Version ID: `6bbe6f0a-b2f6-4422-b21d-9d07d675d994`
+- GitHub Commit: `main` 브랜치 자동 commit 및 push 수행

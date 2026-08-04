@@ -1,6 +1,6 @@
 // src/components/modals/ProjectModal.tsx
 import React, { useState, useEffect } from 'react';
-import { Project } from '../../types';
+import { Project, Worker } from '../../types';
 import { useI18n } from '../../hooks/useI18n';
 import { useAutoTranslation } from '../../hooks/useAutoTranslation';
 import { X, Sparkles, RefreshCw } from 'lucide-react';
@@ -8,6 +8,7 @@ import { X, Sparkles, RefreshCw } from 'lucide-react';
 interface ProjectModalProps {
   isOpen: boolean;
   project: Project | null;
+  currentWorker: Worker | null;
   onClose: () => void;
   onSave: (data: Partial<Project>) => Promise<void>;
 }
@@ -15,12 +16,14 @@ interface ProjectModalProps {
 export const ProjectModal: React.FC<ProjectModalProps> = ({
   isOpen,
   project,
+  currentWorker,
   onClose,
   onSave,
 }) => {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
 
-  const [inputLang, setInputLang] = useState<'ko' | 'vi'>('ko');
+  const workerLang: 'ko' | 'vi' = currentWorker?.ui_language || (lang === 'vi' ? 'vi' : 'ko');
+  const [inputLang, setInputLang] = useState<'ko' | 'vi'>(workerLang);
   const [nameInput, setNameInput] = useState('');
   const [targetText, setTargetText] = useState('');
   const [startDate, setStartDate] = useState('');
@@ -50,9 +53,10 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
   }, [autoTranslatedText, autoStatus]);
 
   useEffect(() => {
+    const src = currentWorker?.ui_language || (project?.source_language as 'ko' | 'vi') || workerLang;
+    setInputLang(src);
+
     if (project) {
-      const src = (project.source_language as 'ko' | 'vi') || 'ko';
-      setInputLang(src);
       const initialSourceText = src === 'vi' ? (project.name_vi || project.name) : (project.name_ko || project.name);
       const initialTransText = src === 'vi' ? (project.name_ko || '') : (project.name_vi || '');
 
@@ -67,24 +71,18 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
       futureDate.setDate(futureDate.getDate() + 30);
       const futureStr = futureDate.toISOString().slice(0, 10);
 
-      setInputLang('ko');
       setNameInput('');
       setTargetText('');
       setStartDate(todayStr);
       setEndDate(futureStr);
       setProgress(0);
     }
-  }, [project, isOpen]);
+  }, [project, isOpen, currentWorker]);
 
   if (!isOpen) return null;
 
   const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setNameInput(e.target.value);
-  };
-
-  const handleInputLangChange = (newLang: 'ko' | 'vi') => {
-    if (newLang === inputLang) return;
-    setInputLang(newLang);
   };
 
   const handleTargetTextChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -155,37 +153,12 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
         </div>
 
         <form onSubmit={handleSubmit} className="p-5 space-y-4 text-xs">
-          {/* Input Language Selector */}
-          <div>
-            <label className="block font-bold text-slate-700 mb-1">
-              {t('inputLanguage')}
-            </label>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                data-testid="project-lang-ko-btn"
-                onClick={() => handleInputLangChange('ko')}
-                className={`flex-1 py-2 rounded-lg font-bold border transition ${
-                  inputLang === 'ko'
-                    ? 'bg-blue-50 border-blue-200 text-blue-700'
-                    : 'bg-slate-50 border-slate-200 text-slate-600'
-                }`}
-              >
-                {t('koText')}
-              </button>
-              <button
-                type="button"
-                data-testid="project-lang-vi-btn"
-                onClick={() => handleInputLangChange('vi')}
-                className={`flex-1 py-2 rounded-lg font-bold border transition ${
-                  inputLang === 'vi'
-                    ? 'bg-blue-50 border-blue-200 text-blue-700'
-                    : 'bg-slate-50 border-slate-200 text-slate-600'
-                }`}
-              >
-                {t('viText')}
-              </button>
-            </div>
+          {/* Read-only Input Language Label */}
+          <div className="bg-slate-50 border border-slate-200 p-2.5 rounded-lg text-slate-700 font-bold text-xs flex items-center justify-between">
+            <span>{inputLang === 'ko' ? '입력 언어: 한국어' : 'Ngôn ngữ nhập: Tiếng Việt'}</span>
+            <span className="text-[10px] font-extrabold px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 uppercase">
+              {inputLang}
+            </span>
           </div>
 
           {/* Source Text Input */}
@@ -199,7 +172,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
               value={nameInput}
               onChange={handleNameChange}
               required
-              placeholder="프로젝트명을 입력하세요"
+              placeholder={inputLang === 'ko' ? '프로젝트명을 입력하세요' : 'Nhập tên dự án'}
               className="w-full h-10 px-3 rounded-lg border border-slate-300 focus:outline-none focus:border-blue-500 font-medium text-slate-900 bg-white"
             />
           </div>

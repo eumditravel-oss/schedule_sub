@@ -1,6 +1,6 @@
 // tests/actualWorkersAndArchive.test.ts
 import { describe, it, expect, beforeEach } from 'vitest';
-import { ACTUAL_WORKERS, getCurrentWorkerName, setCurrentWorkerName } from '../src/services/api';
+import { ACTUAL_WORKERS, getCurrentWorkerName, setCurrentWorker, clearCurrentWorker } from '../src/services/api';
 import { getLocalizedErrorMessage } from '../src/i18n';
 import { ko } from '../src/i18n/ko';
 import { vi } from '../src/i18n/vi';
@@ -47,7 +47,7 @@ describe('Executives & Actual Workers List Verification (7 Members)', () => {
     ]);
   });
 
-  it('3. CEO and COO must be authorized active workers for write operations', () => {
+  it('3. CEO and COO must be present in ACTUAL_WORKERS list', () => {
     expect(ACTUAL_WORKERS.includes('CEO')).toBe(true);
     expect(ACTUAL_WORKERS.includes('COO')).toBe(true);
   });
@@ -60,17 +60,21 @@ describe('Executives & Actual Workers List Verification (7 Members)', () => {
   });
 
   it('5. localStorage must retain valid worker (CEO/COO) and reject invalid names', () => {
-    setCurrentWorkerName('CEO');
+    setCurrentWorker('CEO');
     expect(getCurrentWorkerName()).toBe('CEO');
 
-    setCurrentWorkerName('COO');
+    setCurrentWorker('COO');
     expect(getCurrentWorkerName()).toBe('COO');
 
-    setCurrentWorkerName('김개발');
+    setCurrentWorker('김개발');
     expect(getCurrentWorkerName()).toBe('COO'); // rejected!
 
-    localStorage.setItem('schedule_current_worker_id', 'UnknownUser');
+    clearCurrentWorker();
     expect(getCurrentWorkerName()).toBe(''); // cleared!
+
+    localStorage.setItem('schedule_current_worker_id', 'UnknownUser');
+    localStorage.setItem('schedule_current_worker_name', 'UnknownUser');
+    expect(getCurrentWorkerName()).toBe(''); // rejected invalid user!
   });
 
   it('6. Localized API Error Codes map correctly in KO and VI', () => {

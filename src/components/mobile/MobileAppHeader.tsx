@@ -1,13 +1,14 @@
 // src/components/mobile/MobileAppHeader.tsx
 import React, { useState } from 'react';
+import { Worker, isExecutiveViewer, isEditableWorker, getWorkerColorGroup } from '../../types';
 import { useI18n } from '../../hooks/useI18n';
-import { ArrowLeft, Globe, User, Calendar } from 'lucide-react';
+import { ArrowLeft, User, Calendar, Lock } from 'lucide-react';
 
 interface MobileAppHeaderProps {
   title?: string;
   isDetailPage?: boolean;
   onBack?: () => void;
-  currentWorker: string;
+  currentWorker: Worker | null;
   onOpenWorkerSheet: () => void;
   onOpenCalendarModal?: () => void;
 }
@@ -20,8 +21,26 @@ export const MobileAppHeader: React.FC<MobileAppHeaderProps> = ({
   onOpenWorkerSheet,
   onOpenCalendarModal,
 }) => {
-  const { t, lang, setLanguage } = useI18n();
+  const { t, lang } = useI18n();
   const [logoSrc, setLogoSrc] = useState('/logo3-mobile-cropped.png');
+
+  const isViewer = isExecutiveViewer(currentWorker);
+  const isEditor = isEditableWorker(currentWorker);
+
+  const getWorkerBtnStyles = () => {
+    if (!currentWorker) return 'bg-slate-100 border-slate-200 text-slate-600';
+    const group = getWorkerColorGroup(currentWorker);
+    switch (group) {
+      case 'EXECUTIVE':
+        return 'bg-red-50 border-red-200 text-red-700';
+      case 'KOREAN_STAFF':
+        return 'bg-emerald-50 border-emerald-200 text-emerald-700';
+      case 'VIETNAMESE_STAFF':
+        return 'bg-amber-50 border-amber-200 text-amber-800';
+      default:
+        return 'bg-blue-50 border-blue-200 text-blue-700';
+    }
+  };
 
   return (
     <header className="sticky top-0 z-30 bg-white border-b border-slate-200 px-3 h-14 flex items-center justify-between gap-2 shadow-xs shrink-0 pt-[env(safe-area-inset-top)]">
@@ -47,7 +66,7 @@ export const MobileAppHeader: React.FC<MobileAppHeaderProps> = ({
               if (logoSrc !== '/logo3.png') setLogoSrc('/logo3.png');
             }}
             alt="CON-COST × VIETQS"
-            className="h-8 w-auto object-contain shrink-0 max-w-[115px] sm:max-w-[155px]"
+            className="h-8 w-auto object-contain shrink-0 max-w-[130px] sm:max-w-[170px]"
           />
           {title && (
             <span className="text-xs font-bold text-slate-900 truncate min-w-0">
@@ -59,8 +78,19 @@ export const MobileAppHeader: React.FC<MobileAppHeaderProps> = ({
 
       {/* Right Controls */}
       <div className="flex items-center gap-1.5 shrink-0">
-        {/* Calendar Management Button */}
-        {onOpenCalendarModal && (
+        {/* Read-only Badge for Executive Viewers */}
+        {isViewer && (
+          <div
+            data-testid="viewer-readonly-badge"
+            className="h-8 px-2 bg-red-50 border border-red-200 text-red-700 rounded-lg text-[10px] font-extrabold flex items-center gap-1 shrink-0"
+          >
+            <Lock className="w-3 h-3 text-red-600" />
+            <span>{lang === 'vi' ? 'Chỉ xem' : '보기 전용'}</span>
+          </div>
+        )}
+
+        {/* Calendar Management Button - EDITOR only */}
+        {isEditor && onOpenCalendarModal && (
           <button
             type="button"
             data-testid="mobile-manage-holidays-btn"
@@ -72,36 +102,26 @@ export const MobileAppHeader: React.FC<MobileAppHeaderProps> = ({
           </button>
         )}
 
-        {/* Compact Lang Switcher */}
-        <button
-          type="button"
-          data-testid="mobile-lang-btn"
-          onClick={() => setLanguage(lang === 'ko' ? 'vi' : 'ko')}
-          aria-label={t('inputLanguage')}
-          className="h-8 px-2 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-lg text-xs font-bold text-slate-700 flex items-center gap-1 transition"
-        >
-          <Globe className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-          <span>{lang === 'ko' ? 'KO' : 'VI'}</span>
-        </button>
-
         {/* Compact Worker Switcher */}
         <button
           type="button"
           data-testid="mobile-worker-btn"
           onClick={onOpenWorkerSheet}
           aria-label={t('selectWorkerTitle')}
-          className={`h-8 px-2.5 rounded-lg border text-xs font-bold transition flex items-center gap-1.5 max-w-[105px] ${
-            currentWorker
-              ? 'bg-blue-50 border-blue-200 text-blue-700'
-              : 'bg-slate-100 border-slate-200 text-slate-600'
-          }`}
+          className={`h-8 px-2.5 rounded-lg border text-xs font-bold transition flex items-center gap-1.5 max-w-[115px] ${getWorkerBtnStyles()}`}
         >
           <div className={`w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold shrink-0 ${
-            currentWorker ? 'bg-blue-600 text-white' : 'bg-slate-300 text-slate-700'
+            isViewer
+              ? 'bg-red-600 text-white'
+              : currentWorker && getWorkerColorGroup(currentWorker) === 'KOREAN_STAFF'
+              ? 'bg-emerald-600 text-white'
+              : currentWorker
+              ? 'bg-amber-500 text-white'
+              : 'bg-slate-300 text-slate-700'
           }`}>
-            {currentWorker ? currentWorker[0] : <User className="w-2.5 h-2.5" />}
+            {currentWorker ? currentWorker.name[0] : <User className="w-2.5 h-2.5" />}
           </div>
-          <span className="truncate">{currentWorker || t('selectWorker')}</span>
+          <span className="truncate">{currentWorker ? currentWorker.name : t('selectWorker')}</span>
         </button>
       </div>
     </header>

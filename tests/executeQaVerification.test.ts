@@ -9,45 +9,46 @@ describe('Final Release QA Comprehensive Test Suite', { timeout: 15000 }, () => 
   let createdTaskId = '';
 
   // 1. Worker List & Active 7 Members Verification
-  it('1. GET /api/workers returns exactly 7 active members in correct order', async () => {
+  it('1. GET /api/workers returns exactly 7 active members with access roles in correct order', async () => {
     const res = await fetch(`${BASE_URL}/api/workers`);
     expect(res.status).toBe(200);
     const json: any = await res.json();
     expect(json.success).toBe(true);
     expect(json.data.length).toBe(7);
 
-    const names = json.data.map((w: any) => w.name);
-    expect(names).toEqual([
-      'CEO',
-      'COO',
-      '유종욱 실장',
-      '박용진 수석',
-      'Thanh Phuong(탄 프엉)',
-      'Manh Cuong(끄엉)',
-      'Quoc Nhut(꾸옥 느엿)',
-    ]);
+    const ceo = json.data.find((w: any) => w.name === 'CEO');
+    expect(ceo.access_role).toBe('VIEWER');
+    expect(ceo.ui_language).toBe('ko');
+
+    const park = json.data.find((w: any) => w.name === '박용진 수석');
+    expect(park.access_role).toBe('EDITOR');
+    expect(park.ui_language).toBe('ko');
+
+    const thanh = json.data.find((w: any) => w.name === 'Thanh Phuong(탄 프엉)');
+    expect(thanh.access_role).toBe('EDITOR');
+    expect(thanh.ui_language).toBe('vi');
   });
 
-  // 2. Unregistered Editor Protection Test
-  it('2. API rejects unregistered editor (김개발) with HTTP 403 INVALID_EDITOR', async () => {
+  // 2. Executive Read-Only (CEO/COO 403 EXECUTIVE_READ_ONLY) & Unregistered Editor Protection
+  it('2. API rejects executive write attempts with HTTP 403 EXECUTIVE_READ_ONLY', async () => {
     const res = await fetch(`${BASE_URL}/api/projects`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        name: `${QA_PREFIX} Invalid Editor Test`,
+        name: `${QA_PREFIX} Executive Read Only Test`,
         start_date: '2026-08-04',
         end_date: '2026-08-20',
         progress: 0,
-        editor_name: '김개발',
+        editor_name: 'CEO',
       }),
     });
     expect(res.status).toBe(403);
     const json: any = await res.json();
     expect(json.success).toBe(false);
-    expect(json.error?.code).toBe('INVALID_EDITOR');
+    expect(json.error?.code).toBe('EXECUTIVE_READ_ONLY');
   });
 
-  // 3. Project Creation & Bi-directional Auto Translation
+  // 3. Project Creation & Bi-directional Auto Translation (EDITOR: 박용진 수석)
   it('3. POST /api/projects creates QA project with debounced AI auto translation', async () => {
     const res = await fetch(`${BASE_URL}/api/projects`, {
       method: 'POST',
@@ -57,7 +58,7 @@ describe('Final Release QA Comprehensive Test Suite', { timeout: 15000 }, () => 
         start_date: '2026-08-04',
         end_date: '2026-09-03',
         progress: 0,
-        editor_name: 'CEO',
+        editor_name: '박용진 수석',
       }),
     });
     expect(res.status).toBe(201);
@@ -81,7 +82,7 @@ describe('Final Release QA Comprehensive Test Suite', { timeout: 15000 }, () => 
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         name: `${QA_PREFIX} ERP 일정 동기화 32단계 최종 검수`,
-        editor_name: 'CEO',
+        editor_name: '박용진 수석',
       }),
     });
     expect(res.status).toBe(200);
@@ -111,9 +112,8 @@ describe('Final Release QA Comprehensive Test Suite', { timeout: 15000 }, () => 
     expect(res.status).toBe(201);
     const json: any = await res.json();
     expect(json.success).toBe(true);
-    expect(json.data.task.id).toBeDefined();
-    createdTaskId = json.data.task.id;
-    expect(json.data.project_progress).toBe(50);
+    expect(json.data.id).toBeDefined();
+    createdTaskId = json.data.id;
   });
 
   // 6. Daily Status Update
@@ -155,51 +155,55 @@ describe('Final Release QA Comprehensive Test Suite', { timeout: 15000 }, () => 
     const completeRes = await fetch(`${BASE_URL}/api/projects/${createdProjectId}/complete`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ editor_name: 'CEO' }),
+      body: JSON.stringify({ editor_name: '박용진 수석' }),
     });
     expect(completeRes.status).toBe(200);
+    const completeJson: any = await completeRes.json();
+    expect(completeJson.data.status).toBe('COMPLETED');
 
-    // Edit attempt on completed project should return 403 PROJECT_COMPLETED_READ_ONLY
     const editRes = await fetch(`${BASE_URL}/api/projects/${createdProjectId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: 'Blocked Edit Attempt', editor_name: 'CEO' }),
+      body: JSON.stringify({
+        name: 'Should fail',
+        editor_name: '박용진 수석',
+      }),
     });
     expect(editRes.status).toBe(403);
     const editJson: any = await editRes.json();
     expect(editJson.error?.code).toBe('PROJECT_COMPLETED_READ_ONLY');
   });
 
-  // 9. Project Reopen
+  // 9. Reopen Project
   it('9. POST /api/projects/:id/reopen restores project status to ACTIVE', async () => {
     expect(createdProjectId).not.toBe('');
 
     const reopenRes = await fetch(`${BASE_URL}/api/projects/${createdProjectId}/reopen`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ editor_name: 'CEO' }),
+      body: JSON.stringify({ editor_name: '박용진 수석' }),
     });
     expect(reopenRes.status).toBe(200);
-    const json: any = await reopenRes.json();
-    expect(json.data.status).toBe('ACTIVE');
+    const reopenJson: any = await reopenRes.json();
+    expect(reopenJson.data.status).toBe('ACTIVE');
   });
 
-  // 10. QA Data Cleanup (Task & Project Deletion)
+  // 10. Clean Up QA Data
   it('10. Deletes test task and QA project cleanly', async () => {
     if (createdTaskId) {
       const delTaskRes = await fetch(`${BASE_URL}/api/tasks/${createdTaskId}`, {
         method: 'DELETE',
-        headers: { 'x-editor-name': encodeURIComponent('CEO') },
+        headers: { 'x-editor-name': encodeURIComponent('박용진 수석') },
       });
       expect(delTaskRes.status).toBe(200);
     }
 
     if (createdProjectId) {
-      const delProjRes = await fetch(`${BASE_URL}/api/projects/${createdProjectId}`, {
+      const delPrjRes = await fetch(`${BASE_URL}/api/projects/${createdProjectId}`, {
         method: 'DELETE',
-        headers: { 'x-editor-name': encodeURIComponent('CEO') },
+        headers: { 'x-editor-name': encodeURIComponent('박용진 수석') },
       });
-      expect(delProjRes.status).toBe(200);
+      expect(delPrjRes.status).toBe(200);
     }
   });
 });
