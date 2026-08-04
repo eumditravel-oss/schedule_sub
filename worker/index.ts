@@ -31,7 +31,6 @@ function getEditorName(body: any, request: Request): string {
   return '';
 }
 
-// Server-side active editor validation
 async function requireActiveWorker(db: any, editorName: string): Promise<boolean> {
   if (!editorName || !editorName.trim()) return false;
   try {
@@ -41,7 +40,6 @@ async function requireActiveWorker(db: any, editorName: string): Promise<boolean
       .first();
     return !!worker;
   } catch {
-    // If workers table does not exist or fails, check hardcoded actual 5 team members
     const actualWorkers = [
       '유종욱 실장',
       '박용진 수석',
@@ -126,7 +124,7 @@ export default {
         return jsonResponse(actualWorkers);
       }
 
-      // 2. POST /api/workers (BLOCKED)
+      // 2. POST /api/workers
       if (method === 'POST' && path === '/api/workers') {
         return errorResponse(
           '작업자 목록은 지정된 개발팀 인원만 사용할 수 있습니다.',
@@ -189,7 +187,7 @@ export default {
         }
       }
 
-      // 5. GET /api/projects?status=ACTIVE|COMPLETED&year=YYYY
+      // 5. GET /api/projects
       if (method === 'GET' && path === '/api/projects') {
         const statusFilter = url.searchParams.get('status') || 'ACTIVE';
         const yearFilter = url.searchParams.get('year');
@@ -344,7 +342,8 @@ export default {
           .bind(todayStr, editor, projectId)
           .run();
 
-        return jsonResponse({ id: projectId, status: 'COMPLETED', completed_at: todayStr, completed_by_name: editor });
+        const updated = await db.prepare(`SELECT * FROM projects WHERE id = ?`).bind(projectId).first();
+        return jsonResponse(updated);
       }
 
       // 8. POST /api/projects/:id/reopen
@@ -369,7 +368,8 @@ export default {
           .bind(projectId)
           .run();
 
-        return jsonResponse({ id: projectId, status: 'ACTIVE' });
+        const updated = await db.prepare(`SELECT * FROM projects WHERE id = ?`).bind(projectId).first();
+        return jsonResponse(updated);
       }
 
       async function isProjectCompleted(projId: string): Promise<boolean> {
@@ -393,28 +393,34 @@ export default {
         const id = `prj_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
         const srcLang = (validated.source_language === 'vi' ? 'vi' : 'ko') as 'ko' | 'vi';
 
-        let name_ko = validated.name_ko || (srcLang === 'ko' ? validated.name : undefined);
-        let name_vi = validated.name_vi || (srcLang === 'vi' ? validated.name : undefined);
+        let name_ko = validated.name_ko ? validated.name_ko.trim() : (srcLang === 'ko' ? validated.name.trim() : '');
+        let name_vi = validated.name_vi ? validated.name_vi.trim() : (srcLang === 'vi' ? validated.name.trim() : '');
         let transStatus = validated.translation_status || 'PENDING';
         let transError: string | null = null;
 
-        if (!name_ko || !name_vi) {
+        // Perform translation if missing
+        if ((srcLang === 'ko' && !name_vi) || (srcLang === 'vi' && !name_ko)) {
           try {
             const targetLang = srcLang === 'ko' ? 'vi' : 'ko';
-            const res = await translateText({ text: validated.name, sourceLanguage: srcLang, targetLanguage: targetLang, env });
+            const res = await translateText({ text: validated.name.trim(), sourceLanguage: srcLang, targetLanguage: targetLang, env });
             if (srcLang === 'ko') {
+              name_ko = validated.name.trim();
               name_vi = res.translatedText;
-              name_ko = validated.name;
             } else {
+              name_vi = validated.name.trim();
               name_ko = res.translatedText;
-              name_vi = validated.name;
             }
             transStatus = 'COMPLETED';
           } catch (err: any) {
             transStatus = 'FAILED';
             transError = err.message || '번역 실패';
-            if (srcLang === 'ko') name_ko = validated.name;
-            else name_vi = validated.name;
+            if (srcLang === 'ko') {
+              name_ko = validated.name.trim();
+              name_vi = '';
+            } else {
+              name_vi = validated.name.trim();
+              name_ko = '';
+            }
           }
         }
 
@@ -424,19 +430,20 @@ export default {
               INSERT INTO projects (id, name, start_date, end_date, progress, status, name_ko, name_vi, source_language, translation_status, translation_error)
               VALUES (?, ?, ?, ?, ?, 'ACTIVE', ?, ?, ?, ?, ?)
             `)
-            .bind(id, validated.name, validated.start_date, validated.end_date, validated.progress, name_ko || validated.name, name_vi || validated.name, srcLang, transStatus, transError)
+            .bind(id, validated.name.trim(), validated.start_date, validated.end_date, validated.progress, name_ko || validated.name.trim(), name_vi || validated.name.trim(), srcLang, transStatus, transError)
             .run();
         } catch {
           await db
             .prepare(`INSERT INTO projects (id, name, start_date, end_date, progress) VALUES (?, ?, ?, ?, ?)`)
-            .bind(id, validated.name, validated.start_date, validated.end_date, validated.progress)
+            .bind(id, validated.name.trim(), validated.start_date, validated.end_date, validated.progress)
             .run();
         }
 
-        return jsonResponse({ id }, 201);
+        const newPrj = await db.prepare(`SELECT * FROM projects WHERE id = ?`).bind(id).first();
+        return jsonResponse(newPrj || { id }, 201);
       }
 
-      // 10. PATCH /api/projects/:id
+      // 10. PATCH /api/projects/:id (RE-TRANSLATION FIX)
       const patchProjMatch = path.match(/^\/api\/projects\/([^/]+)$/);
       if (method === 'PATCH' && patchProjMatch) {
         const projectId = patchProjMatch[1];
@@ -455,26 +462,60 @@ export default {
         const existing = await db.prepare(`SELECT * FROM projects WHERE id = ?`).bind(projectId).first();
         if (!existing) return errorResponse('프로젝트를 찾을 수 없습니다.', 404);
 
-        const name = validated.name ?? existing.name;
-        const start_date = validated.start_date ?? existing.start_date;
-        const end_date = validated.end_date ?? existing.end_date;
-        const progress = validated.progress ?? existing.progress;
+        const srcLang = (validated.source_language || existing.source_language || 'ko') as 'ko' | 'vi';
 
-        let name_ko = validated.name_ko ?? existing.name_ko;
-        let name_vi = validated.name_vi ?? existing.name_vi;
-        let srcLang = validated.source_language ?? existing.source_language ?? 'ko';
-        let transStatus = validated.translation_status ?? existing.translation_status ?? 'PENDING';
-        let transError = validated.translation_error ?? existing.translation_error ?? null;
+        const incomingName = (validated.name || '').trim();
+        const existingName = (existing.name || '').trim();
 
-        if (validated.name && validated.name !== existing.name && !validated.name_ko && !validated.name_vi) {
+        const incomingKo = validated.name_ko !== undefined ? validated.name_ko.trim() : (srcLang === 'ko' && incomingName ? incomingName : (existing.name_ko || '').trim());
+        const existingKo = (existing.name_ko || '').trim();
+
+        const incomingVi = validated.name_vi !== undefined ? validated.name_vi.trim() : (srcLang === 'vi' && incomingName ? incomingName : (existing.name_vi || '').trim());
+        const existingVi = (existing.name_vi || '').trim();
+
+        // Source changed check
+        let sourceChanged = false;
+        if (srcLang === 'ko') {
+          const curKo = incomingKo || incomingName;
+          const oldKo = existingKo || existingName;
+          sourceChanged = curKo !== oldKo;
+        } else {
+          const curVi = incomingVi || incomingName;
+          const oldVi = existingVi || existingName;
+          sourceChanged = curVi !== oldVi;
+        }
+
+        if (validated.source_language && validated.source_language !== existing.source_language) {
+          sourceChanged = true;
+        }
+        if (validated.translation_status === 'PENDING' || validated.translation_status === 'FAILED' || body.force_translation) {
+          sourceChanged = true;
+        }
+
+        let name = incomingName || existingName;
+        let start_date = validated.start_date ?? existing.start_date;
+        let end_date = validated.end_date ?? existing.end_date;
+        let progress = validated.progress ?? existing.progress;
+
+        let name_ko = incomingKo;
+        let name_vi = incomingVi;
+        let transStatus = validated.translation_status ?? existing.translation_status ?? 'COMPLETED';
+        let transError: string | null = null;
+
+        // If source changed, MUST discard old translation and re-translate!
+        if (sourceChanged) {
           try {
             const targetLang = srcLang === 'ko' ? 'vi' : 'ko';
-            const res = await translateText({ text: validated.name, sourceLanguage: srcLang as any, targetLanguage: targetLang, env });
+            const sourceText = srcLang === 'ko' ? (incomingKo || name) : (incomingVi || name);
+
+            const res = await translateText({ text: sourceText, sourceLanguage: srcLang, targetLanguage: targetLang, env });
             if (srcLang === 'ko') {
-              name_ko = validated.name;
+              name = sourceText;
+              name_ko = sourceText;
               name_vi = res.translatedText;
             } else {
-              name_vi = validated.name;
+              name = sourceText;
+              name_vi = sourceText;
               name_ko = res.translatedText;
             }
             transStatus = 'COMPLETED';
@@ -482,6 +523,20 @@ export default {
           } catch (err: any) {
             transStatus = 'FAILED';
             transError = err.message || '번역 실패';
+            if (srcLang === 'ko') {
+              name_ko = incomingKo || name;
+              name_vi = ''; // Clear stale translation on failure!
+            } else {
+              name_vi = incomingVi || name;
+              name_ko = ''; // Clear stale translation on failure!
+            }
+          }
+        } else {
+          // Source didn't change: check if user manually updated opposite field
+          if (srcLang === 'ko' && validated.name_vi !== undefined && validated.name_vi !== existing.name_vi) {
+            transStatus = 'MANUAL';
+          } else if (srcLang === 'vi' && validated.name_ko !== undefined && validated.name_ko !== existing.name_ko) {
+            transStatus = 'MANUAL';
           }
         }
 
@@ -501,7 +556,8 @@ export default {
             .run();
         }
 
-        return jsonResponse({ id: projectId });
+        const updated = await db.prepare(`SELECT * FROM projects WHERE id = ?`).bind(projectId).first();
+        return jsonResponse(updated || { id: projectId });
       }
 
       // 11. DELETE /api/projects/:id
@@ -540,28 +596,33 @@ export default {
         const id = `tsk_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
         const srcLang = (validated.source_language === 'vi' ? 'vi' : 'ko') as 'ko' | 'vi';
 
-        let task_name_ko = validated.task_name_ko || (srcLang === 'ko' ? validated.task_name : undefined);
-        let task_name_vi = validated.task_name_vi || (srcLang === 'vi' ? validated.task_name : undefined);
+        let task_name_ko = validated.task_name_ko ? validated.task_name_ko.trim() : (srcLang === 'ko' ? validated.task_name.trim() : '');
+        let task_name_vi = validated.task_name_vi ? validated.task_name_vi.trim() : (srcLang === 'vi' ? validated.task_name.trim() : '');
         let transStatus = validated.translation_status || 'PENDING';
         let transError: string | null = null;
 
-        if (!task_name_ko || !task_name_vi) {
+        if ((srcLang === 'ko' && !task_name_vi) || (srcLang === 'vi' && !task_name_ko)) {
           try {
             const targetLang = srcLang === 'ko' ? 'vi' : 'ko';
-            const res = await translateText({ text: validated.task_name, sourceLanguage: srcLang, targetLanguage: targetLang, env });
+            const res = await translateText({ text: validated.task_name.trim(), sourceLanguage: srcLang, targetLanguage: targetLang, env });
             if (srcLang === 'ko') {
+              task_name_ko = validated.task_name.trim();
               task_name_vi = res.translatedText;
-              task_name_ko = validated.task_name;
             } else {
+              task_name_vi = validated.task_name.trim();
               task_name_ko = res.translatedText;
-              task_name_vi = validated.task_name;
             }
             transStatus = 'COMPLETED';
           } catch (err: any) {
             transStatus = 'FAILED';
             transError = err.message || '번역 실패';
-            if (srcLang === 'ko') task_name_ko = validated.task_name;
-            else task_name_vi = validated.task_name;
+            if (srcLang === 'ko') {
+              task_name_ko = validated.task_name.trim();
+              task_name_vi = '';
+            } else {
+              task_name_vi = validated.task_name.trim();
+              task_name_ko = '';
+            }
           }
         }
 
@@ -571,7 +632,7 @@ export default {
               INSERT INTO tasks (id, project_id, worker_name, task_name, start_date, end_date, progress, created_by_name, updated_by_name, task_name_ko, task_name_vi, source_language, translation_status, translation_error)
               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `)
-            .bind(id, validated.project_id, validated.worker_name, validated.task_name, validated.start_date, validated.end_date, validated.progress, editor, editor, task_name_ko || validated.task_name, task_name_vi || validated.task_name, srcLang, transStatus, transError)
+            .bind(id, validated.project_id, validated.worker_name, validated.task_name.trim(), validated.start_date, validated.end_date, validated.progress, editor, editor, task_name_ko || validated.task_name.trim(), task_name_vi || validated.task_name.trim(), srcLang, transStatus, transError)
             .run();
         } catch {
           await db
@@ -579,15 +640,16 @@ export default {
               INSERT INTO tasks (id, project_id, worker_name, task_name, start_date, end_date, progress, created_by_name, updated_by_name)
               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             `)
-            .bind(id, validated.project_id, validated.worker_name, validated.task_name, validated.start_date, validated.end_date, validated.progress, editor, editor)
+            .bind(id, validated.project_id, validated.worker_name, validated.task_name.trim(), validated.start_date, validated.end_date, validated.progress, editor, editor)
             .run();
         }
 
         const newAvg = await updateProjectAverageProgress(db, validated.project_id);
-        return jsonResponse({ id, project_progress: newAvg }, 201);
+        const newTsk = await db.prepare(`SELECT * FROM tasks WHERE id = ?`).bind(id).first();
+        return jsonResponse({ task: newTsk, project_progress: newAvg }, 201);
       }
 
-      // 13. PATCH /api/tasks/:id
+      // 13. PATCH /api/tasks/:id (RE-TRANSLATION FIX)
       const patchTaskMatch = path.match(/^\/api\/tasks\/([^/]+)$/);
       if (method === 'PATCH' && patchTaskMatch) {
         const taskId = patchTaskMatch[1];
@@ -606,27 +668,59 @@ export default {
 
         const validated = updateTaskSchema.parse({ ...body, editor_name: editor });
 
+        const srcLang = (validated.source_language || existing.source_language || 'ko') as 'ko' | 'vi';
+
+        const incomingTaskName = (validated.task_name || '').trim();
+        const existingTaskName = (existing.task_name || '').trim();
+
+        const incomingKo = validated.task_name_ko !== undefined ? validated.task_name_ko.trim() : (srcLang === 'ko' && incomingTaskName ? incomingTaskName : (existing.task_name_ko || '').trim());
+        const existingKo = (existing.task_name_ko || '').trim();
+
+        const incomingVi = validated.task_name_vi !== undefined ? validated.task_name_vi.trim() : (srcLang === 'vi' && incomingTaskName ? incomingTaskName : (existing.task_name_vi || '').trim());
+        const existingVi = (existing.task_name_vi || '').trim();
+
+        let sourceChanged = false;
+        if (srcLang === 'ko') {
+          const curKo = incomingKo || incomingTaskName;
+          const oldKo = existingKo || existingTaskName;
+          sourceChanged = curKo !== oldKo;
+        } else {
+          const curVi = incomingVi || incomingTaskName;
+          const oldVi = existingVi || existingTaskName;
+          sourceChanged = curVi !== oldVi;
+        }
+
+        if (validated.source_language && validated.source_language !== existing.source_language) {
+          sourceChanged = true;
+        }
+        if (validated.translation_status === 'PENDING' || validated.translation_status === 'FAILED' || body.force_translation) {
+          sourceChanged = true;
+        }
+
         const worker_name = validated.worker_name ?? existing.worker_name;
-        const task_name = validated.task_name ?? existing.task_name;
+        let task_name = incomingTaskName || existingTaskName;
         const start_date = validated.start_date ?? existing.start_date;
         const end_date = validated.end_date ?? existing.end_date;
         const progress = validated.progress ?? existing.progress;
 
-        let task_name_ko = validated.task_name_ko ?? existing.task_name_ko;
-        let task_name_vi = validated.task_name_vi ?? existing.task_name_vi;
-        let srcLang = validated.source_language ?? existing.source_language ?? 'ko';
-        let transStatus = validated.translation_status ?? existing.translation_status ?? 'PENDING';
-        let transError = validated.translation_error ?? existing.translation_error ?? null;
+        let task_name_ko = incomingKo;
+        let task_name_vi = incomingVi;
+        let transStatus = validated.translation_status ?? existing.translation_status ?? 'COMPLETED';
+        let transError: string | null = null;
 
-        if (validated.task_name && validated.task_name !== existing.task_name && !validated.task_name_ko && !validated.task_name_vi) {
+        if (sourceChanged) {
           try {
             const targetLang = srcLang === 'ko' ? 'vi' : 'ko';
-            const res = await translateText({ text: validated.task_name, sourceLanguage: srcLang as any, targetLanguage: targetLang, env });
+            const sourceText = srcLang === 'ko' ? (incomingKo || task_name) : (incomingVi || task_name);
+
+            const res = await translateText({ text: sourceText, sourceLanguage: srcLang, targetLanguage: targetLang, env });
             if (srcLang === 'ko') {
-              task_name_ko = validated.task_name;
+              task_name = sourceText;
+              task_name_ko = sourceText;
               task_name_vi = res.translatedText;
             } else {
-              task_name_vi = validated.task_name;
+              task_name = sourceText;
+              task_name_vi = sourceText;
               task_name_ko = res.translatedText;
             }
             transStatus = 'COMPLETED';
@@ -634,6 +728,19 @@ export default {
           } catch (err: any) {
             transStatus = 'FAILED';
             transError = err.message || '번역 실패';
+            if (srcLang === 'ko') {
+              task_name_ko = incomingKo || task_name;
+              task_name_vi = ''; // Clear stale translation on failure!
+            } else {
+              task_name_vi = incomingVi || task_name;
+              task_name_ko = ''; // Clear stale translation on failure!
+            }
+          }
+        } else {
+          if (srcLang === 'ko' && validated.task_name_vi !== undefined && validated.task_name_vi !== existing.task_name_vi) {
+            transStatus = 'MANUAL';
+          } else if (srcLang === 'vi' && validated.task_name_ko !== undefined && validated.task_name_ko !== existing.task_name_ko) {
+            transStatus = 'MANUAL';
           }
         }
 
@@ -654,7 +761,8 @@ export default {
         }
 
         const newAvg = await updateProjectAverageProgress(db, existing.project_id);
-        return jsonResponse({ id: taskId, project_progress: newAvg });
+        const updated = await db.prepare(`SELECT * FROM tasks WHERE id = ?`).bind(taskId).first();
+        return jsonResponse({ task: updated, project_progress: newAvg });
       }
 
       // 14. DELETE /api/tasks/:id

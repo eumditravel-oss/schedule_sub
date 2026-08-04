@@ -2,9 +2,10 @@
 import React, { useState, useEffect } from 'react';
 import { Project } from '../../types';
 import { useI18n } from '../../hooks/useI18n';
-import { api } from '../../services/api';
+import { useAutoTranslation } from '../../hooks/useAutoTranslation';
+import { getLocalizedErrorMessage } from '../../i18n';
 import { getKoreaDateString } from '../../utils/dateUtils';
-import { X, Languages, RefreshCw } from 'lucide-react';
+import { X, Languages, RefreshCw, CheckCircle2, AlertCircle } from 'lucide-react';
 
 interface ProjectModalProps {
   isOpen: boolean;
@@ -22,89 +23,121 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
   const { t, lang } = useI18n();
 
   const [inputLang, setInputLang] = useState<'ko' | 'vi'>(lang);
-  const [name, setName] = useState('');
-  const [nameKo, setNameKo] = useState('');
-  const [nameVi, setNameVi] = useState('');
+  const [sourceText, setSourceText] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [progress, setProgress] = useState(0);
   const [loading, setLoading] = useState(false);
-  const [translating, setTranslating] = useState(false);
-  const [transStatus, setTransStatus] = useState<'PENDING' | 'COMPLETED' | 'FAILED' | 'MANUAL'>('PENDING');
+
+  const initialTargetText = project
+    ? (inputLang === 'ko' ? project.name_vi : project.name_ko) || ''
+    : '';
+
+  const {
+    translatedText,
+    status,
+    isSourceChanged,
+    setManualText,
+    translateNow,
+    cancelTranslation,
+  } = useAutoTranslation({
+    sourceText,
+    sourceLanguage: inputLang,
+    initialTargetText,
+    initialStatus: project?.translation_status || 'COMPLETED',
+    debounceMs: 700,
+  });
 
   useEffect(() => {
     if (project) {
-      setName(project.name || '');
-      setNameKo(project.name_ko || project.name || '');
-      setNameVi(project.name_vi || project.name || '');
+      const srcL = (project.source_language as 'ko' | 'vi') || lang;
+      setInputLang(srcL);
+      const srcT = srcL === 'ko' ? (project.name_ko || project.name || '') : (project.name_vi || project.name || '');
+      setSourceText(srcT);
       setStartDate(project.start_date || '');
       setEndDate(project.end_date || '');
       setProgress(project.progress || 0);
-      setInputLang((project.source_language as any) || lang);
-      setTransStatus(project.translation_status || 'COMPLETED');
     } else {
       const today = getKoreaDateString();
-      setName('');
-      setNameKo('');
-      setNameVi('');
+      setInputLang(lang);
+      setSourceText('');
       setStartDate(today);
       setEndDate(today);
       setProgress(0);
-      setInputLang(lang);
-      setTransStatus('PENDING');
     }
   }, [project, isOpen, lang]);
 
   if (!isOpen) return null;
 
-  const handleTranslateManual = async () => {
-    const activeText = inputLang === 'ko' ? (nameKo || name) : (nameVi || name);
-    if (!activeText.trim()) return;
-
-    setTranslating(true);
-    try {
-      const targetLang = inputLang === 'ko' ? 'vi' : 'ko';
-      const res = await api.translate(activeText, inputLang, targetLang);
-      if (inputLang === 'ko') {
-        setNameKo(activeText);
-        setNameVi(res.translated_text);
-      } else {
-        setNameVi(activeText);
-        setNameKo(res.translated_text);
-      }
-      setTransStatus('COMPLETED');
-    } catch (err: any) {
-      alert(err.message || t('translationFailed'));
-      setTransStatus('FAILED');
-    } finally {
-      setTranslating(false);
-    }
+  const handleClose = () => {
+    cancelTranslation();
+    onClose();
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!startDate || !endDate) return;
-
-    const primaryName = inputLang === 'ko' ? (nameKo || name) : (nameVi || name);
-    if (!primaryName.trim()) return;
+    if (!sourceText.trim()) return;
 
     setLoading(true);
     try {
+      let finalTargetText = translatedText;
+      if (status === 'PENDING' || status === 'TRANSLATING') {
+        finalTargetText = await translateNow();
+      }
+
+      const nameKo = inputLang === 'ko' ? sourceText.trim() : finalTargetText.trim();
+      const nameVi = inputLang === 'vi' ? sourceText.trim() : finalTargetText.trim();
+
       await onSave({
-        name: primaryName.trim(),
-        name_ko: nameKo.trim() || (inputLang === 'ko' ? primaryName.trim() : undefined),
-        name_vi: nameVi.trim() || (inputLang === 'vi' ? primaryName.trim() : undefined),
+        name: sourceText.trim(),
+        name_ko: nameKo || sourceText.trim(),
+        name_vi: nameVi || sourceText.trim(),
         source_language: inputLang,
         start_date: startDate,
         end_date: endDate,
         progress: Number(progress),
-        translation_status: transStatus,
-      });
-      onClose();
+        translation_status: status === 'MANUAL' ? 'MANUAL' : 'COMPLETED',
+        force_translation: isSourceChanged,
+      } as any);
+
+      handleClose();
     } catch (err: any) {
-      alert(err.message || t('projectSaveFailed'));
+      alert(getLocalizedErrorMessage(err, t));
     } finally {
       setLoading(false);
+    }
+  };
+
+  const getStatusBadge = () => {
+    switch (status) {
+      case 'PENDING':
+        return <span className="text-[11px] font-medium text-amber-400">{t('translationPending')}</span>;
+      case 'TRANSLATING':
+        return (
+          <span className="text-[11px] font-medium text-blue-400 flex items-center gap-1">
+            <RefreshCw className="w-3 h-3 animate-spin" />
+            <span>{t('translating')}</span>
+          </span>
+        );
+      case 'COMPLETED':
+        return (
+          <span className="text-[11px] font-medium text-emerald-400 flex items-center gap-1">
+            <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+            <span>{t('translationCompleted')}</span>
+          </span>
+        );
+      case 'FAILED':
+        return (
+          <span className="text-[11px] font-medium text-red-400 flex items-center gap-1">
+            <AlertCircle className="w-3 h-3 text-red-400" />
+            <span>{t('translationFailed')}</span>
+          </span>
+        );
+      case 'MANUAL':
+        return <span className="text-[11px] font-medium text-purple-400">{t('manualTranslation')}</span>;
+      default:
+        return null;
     }
   };
 
@@ -117,7 +150,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
           <h2 className="text-base font-bold text-white">
             {project ? t('editProject') : t('addProject')}
           </h2>
-          <button onClick={onClose} className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-700 transition">
+          <button onClick={handleClose} className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-700 transition">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -147,7 +180,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
             </div>
           </div>
 
-          {/* Primary Name Input */}
+          {/* Primary Source Title Input */}
           <div>
             <label className="block text-xs font-semibold text-slate-400 mb-1">
               {t('projectInfo')} ({inputLang === 'ko' ? t('koText') : t('viText')}) *
@@ -155,41 +188,36 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
             <input
               type="text"
               required
-              value={inputLang === 'ko' ? nameKo : nameVi}
-              onChange={(e) => {
-                if (inputLang === 'ko') setNameKo(e.target.value);
-                else setNameVi(e.target.value);
-                setName(e.target.value);
-              }}
-              placeholder="BIM Data System"
+              value={sourceText}
+              onChange={(e) => setSourceText(e.target.value)}
+              placeholder="ERP 그룹웨어 구축 20단계"
               className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm text-white focus:outline-none focus:border-blue-500"
             />
           </div>
 
-          {/* Secondary Name / Manual Translation */}
+          {/* Secondary Translated Title Input & Realtime Status */}
           <div>
             <div className="flex justify-between items-center mb-1">
               <label className="block text-xs font-semibold text-slate-400">
                 {secondaryLabel}
               </label>
-              <button
-                type="button"
-                onClick={handleTranslateManual}
-                disabled={translating}
-                className="text-[11px] font-bold text-blue-400 hover:text-blue-300 flex items-center gap-1 transition disabled:opacity-50"
-              >
-                <RefreshCw className={`w-3 h-3 ${translating ? 'animate-spin' : ''}`} />
-                <span>{translating ? t('translating') : t('retryTranslation')}</span>
-              </button>
+              <div className="flex items-center gap-2">
+                {getStatusBadge()}
+                <button
+                  type="button"
+                  onClick={() => translateNow()}
+                  disabled={status === 'TRANSLATING'}
+                  className="text-[11px] font-bold text-blue-400 hover:text-blue-300 flex items-center gap-1 transition disabled:opacity-50"
+                >
+                  <RefreshCw className={`w-3 h-3 ${status === 'TRANSLATING' ? 'animate-spin' : ''}`} />
+                  <span>{t('retryTranslation')}</span>
+                </button>
+              </div>
             </div>
             <input
               type="text"
-              value={inputLang === 'ko' ? nameVi : nameKo}
-              onChange={(e) => {
-                if (inputLang === 'ko') setNameVi(e.target.value);
-                else setNameKo(e.target.value);
-                setTransStatus('MANUAL');
-              }}
+              value={translatedText}
+              onChange={(e) => setManualText(e.target.value)}
               placeholder={t('automaticTranslationPlaceholder')}
               className="w-full px-3 py-2 bg-slate-900/80 border border-slate-700/80 rounded-lg text-sm text-slate-200 focus:outline-none focus:border-blue-500"
             />
@@ -236,7 +264,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
           <div className="flex justify-end gap-3 pt-4 border-t border-slate-700">
             <button
               type="button"
-              onClick={onClose}
+              onClick={handleClose}
               className="px-4 py-2 text-sm font-medium text-slate-300 hover:bg-slate-700 rounded-lg transition"
             >
               {t('cancel')}

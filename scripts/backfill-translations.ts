@@ -5,6 +5,7 @@ import * as path from 'path';
 
 const args = process.argv.slice(2);
 const isDryRun = args.includes('--dry-run');
+const refreshAuto = args.includes('--refresh-auto');
 
 const DEPLOYED_TRANSLATE_URL = 'https://concost-dev-scheduler.eumditravel.workers.dev/api/translate';
 
@@ -27,14 +28,21 @@ async function translateTextRemote(text: string, sourceLang: 'ko' | 'vi', target
 
 async function runBackfill() {
   console.log(`\n==================================================`);
-  console.log(`[Translation Backfill] Mode: ${isDryRun ? 'DRY-RUN' : 'LIVE EXECUTION'}`);
+  console.log(`[Translation Backfill] Mode: ${isDryRun ? 'DRY-RUN' : 'LIVE EXECUTION'} | Refresh Auto: ${refreshAuto}`);
   console.log(`==================================================\n`);
 
-  // Step 1: Query PENDING or FAILED projects
-  console.log('fetching pending or failed records from remote Cloudflare D1 database...');
+  console.log('fetching records from remote Cloudflare D1 database...');
 
-  const queryProjectsCmd = `npx wrangler d1 execute concost-db --remote --command="SELECT id, name, source_language, name_ko, name_vi, translation_status FROM projects WHERE translation_status IN ('PENDING', 'FAILED') OR translation_status IS NULL;" --json`;
-  const queryTasksCmd = `npx wrangler d1 execute concost-db --remote --command="SELECT id, task_name, source_language, task_name_ko, task_name_vi, translation_status FROM tasks WHERE translation_status IN ('PENDING', 'FAILED') OR translation_status IS NULL;" --json`;
+  const whereClauseProjects = refreshAuto
+    ? "WHERE translation_status != 'MANUAL' OR translation_status IS NULL"
+    : "WHERE translation_status IN ('PENDING', 'FAILED') OR translation_status IS NULL";
+
+  const whereClauseTasks = refreshAuto
+    ? "WHERE translation_status != 'MANUAL' OR translation_status IS NULL"
+    : "WHERE translation_status IN ('PENDING', 'FAILED') OR translation_status IS NULL";
+
+  const queryProjectsCmd = `npx wrangler d1 execute concost-db --remote --command="SELECT id, name, source_language, name_ko, name_vi, translation_status FROM projects ${whereClauseProjects};" --json`;
+  const queryTasksCmd = `npx wrangler d1 execute concost-db --remote --command="SELECT id, task_name, source_language, task_name_ko, task_name_vi, translation_status FROM tasks ${whereClauseTasks};" --json`;
 
   let pendingProjects: any[] = [];
   let pendingTasks: any[] = [];
@@ -55,18 +63,18 @@ async function runBackfill() {
     console.warn('Could not query tasks from D1:', err.message);
   }
 
-  console.log(`Found ${pendingProjects.length} projects and ${pendingTasks.length} tasks requiring backfill.\n`);
+  console.log(`Found ${pendingProjects.length} projects and ${pendingTasks.length} tasks requiring processing.\n`);
 
   if (isDryRun) {
     console.log('[DRY-RUN SUMMARY]');
-    console.log('Project Target IDs:', pendingProjects.map((p) => p.id));
-    console.log('Task Target IDs:', pendingTasks.map((t) => t.id));
+    console.log('Project Target IDs:', pendingProjects.map((p) => ({ id: p.id, name: p.name })));
+    console.log('Task Target IDs:', pendingTasks.map((t) => ({ id: t.id, task_name: t.task_name })));
     console.log(`\nDry run completed successfully. No records were modified.`);
     return;
   }
 
   if (pendingProjects.length === 0 && pendingTasks.length === 0) {
-    console.log('All records are already translated (COMPLETED/MANUAL). Nothing to do.');
+    console.log('No records found for backfill. Nothing to do.');
     return;
   }
 
@@ -76,21 +84,21 @@ async function runBackfill() {
 
   // Process Projects
   for (const prj of pendingProjects) {
-    const srcLang = prj.source_language === 'vi' ? 'vi' : 'ko';
+    const srcLang = (prj.source_language === 'vi' ? 'vi' : 'ko') as 'ko' | 'vi';
     const targetLang = srcLang === 'ko' ? 'vi' : 'ko';
-    const textToTranslate = prj.name || '';
+    const sourceText = (srcLang === 'ko' ? (prj.name_ko || prj.name) : (prj.name_vi || prj.name)) || '';
 
-    if (!textToTranslate) continue;
+    if (!sourceText.trim()) continue;
 
     try {
-      console.log(`Translating project [${prj.id}]: "${textToTranslate}" (${srcLang} -> ${targetLang})...`);
-      const translated = await translateTextRemote(textToTranslate, srcLang, targetLang);
+      console.log(`Translating project [${prj.id}]: "${sourceText.trim()}" (${srcLang} -> ${targetLang})...`);
+      const translated = await translateTextRemote(sourceText.trim(), srcLang, targetLang);
 
-      const nameKo = srcLang === 'ko' ? textToTranslate : translated;
-      const nameVi = srcLang === 'vi' ? textToTranslate : translated;
+      const nameKo = srcLang === 'ko' ? sourceText.trim() : translated;
+      const nameVi = srcLang === 'vi' ? sourceText.trim() : translated;
 
       sqlStatements.push(
-        `UPDATE projects SET name_ko = '${escapeSqlString(nameKo)}', name_vi = '${escapeSqlString(nameVi)}', translation_status = 'COMPLETED', translation_error = NULL WHERE id = '${escapeSqlString(prj.id)}';`
+        `UPDATE projects SET name = '${escapeSqlString(sourceText.trim())}', name_ko = '${escapeSqlString(nameKo)}', name_vi = '${escapeSqlString(nameVi)}', translation_status = 'COMPLETED', translation_error = NULL WHERE id = '${escapeSqlString(prj.id)}';`
       );
       successCount++;
     } catch (err: any) {
@@ -104,21 +112,21 @@ async function runBackfill() {
 
   // Process Tasks
   for (const tsk of pendingTasks) {
-    const srcLang = tsk.source_language === 'vi' ? 'vi' : 'ko';
+    const srcLang = (tsk.source_language === 'vi' ? 'vi' : 'ko') as 'ko' | 'vi';
     const targetLang = srcLang === 'ko' ? 'vi' : 'ko';
-    const textToTranslate = tsk.task_name || '';
+    const sourceText = (srcLang === 'ko' ? (tsk.task_name_ko || tsk.task_name) : (tsk.task_name_vi || tsk.task_name)) || '';
 
-    if (!textToTranslate) continue;
+    if (!sourceText.trim()) continue;
 
     try {
-      console.log(`Translating task [${tsk.id}]: "${textToTranslate}" (${srcLang} -> ${targetLang})...`);
-      const translated = await translateTextRemote(textToTranslate, srcLang, targetLang);
+      console.log(`Translating task [${tsk.id}]: "${sourceText.trim()}" (${srcLang} -> ${targetLang})...`);
+      const translated = await translateTextRemote(sourceText.trim(), srcLang, targetLang);
 
-      const taskNameKo = srcLang === 'ko' ? textToTranslate : translated;
-      const taskNameVi = srcLang === 'vi' ? textToTranslate : translated;
+      const taskNameKo = srcLang === 'ko' ? sourceText.trim() : translated;
+      const taskNameVi = srcLang === 'vi' ? sourceText.trim() : translated;
 
       sqlStatements.push(
-        `UPDATE tasks SET task_name_ko = '${escapeSqlString(taskNameKo)}', task_name_vi = '${escapeSqlString(taskNameVi)}', translation_status = 'COMPLETED', translation_error = NULL WHERE id = '${escapeSqlString(tsk.id)}';`
+        `UPDATE tasks SET task_name = '${escapeSqlString(sourceText.trim())}', task_name_ko = '${escapeSqlString(taskNameKo)}', task_name_vi = '${escapeSqlString(taskNameVi)}', translation_status = 'COMPLETED', translation_error = NULL WHERE id = '${escapeSqlString(tsk.id)}';`
       );
       successCount++;
     } catch (err: any) {
