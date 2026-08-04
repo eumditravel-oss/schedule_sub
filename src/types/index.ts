@@ -103,9 +103,88 @@ export interface Task {
   translation_status?: TranslationStatus;
   translation_error?: string | null;
 
+  // Revision tracking
+  schedule_revision?: number;
+
   // Frontend dynamic statuses
   daily_statuses?: Record<string, DailyStatusType>;
   daily_status_details?: Record<string, DailyStatusDetail>;
+}
+
+export interface CalendarOverrideGroup {
+  id: string;
+  worker_id: string;
+  override_type: OverrideType;
+  start_date: string;
+  end_date: string;
+  label_ko?: string;
+  label_vi?: string;
+  note?: string;
+  status: 'ACTIVE' | 'DELETED';
+  created_by_name: string;
+  updated_by_name: string;
+  deleted_by_name?: string;
+  deleted_at?: string;
+  created_at: string;
+  updated_at: string;
+  working_leave_days?: number;
+  affected_task_count?: number;
+  affected_project_count?: number;
+  event_status?: LeaveShiftEventStatus;
+  restore_token?: string;
+}
+
+export type LeaveShiftEventStatus =
+  | 'ACTIVE'
+  | 'LEAVE_DELETED_PENDING_DECISION'
+  | 'LEAVE_DELETED_SCHEDULE_KEPT'
+  | 'RESTORED'
+  | 'RESTORE_CONFLICT';
+
+export type TaskRestoreStatus =
+  | 'RESTORABLE'
+  | 'RESTORED'
+  | 'MANUAL_CHANGED'
+  | 'COMPLETED'
+  | 'PROJECT_COMPLETED'
+  | 'CONFLICT';
+
+export interface LeaveShiftEvent {
+  id: string;
+  override_group_id: string;
+  worker_id: string;
+  leave_start_date: string;
+  leave_end_date: string;
+  working_leave_days: number;
+  affected_project_count: number;
+  affected_task_count: number;
+  shifted_future_status_count: number;
+  event_status: LeaveShiftEventStatus;
+  restore_token?: string;
+  changed_by_name: string;
+  created_at: string;
+  leave_deleted_at?: string;
+  restored_at?: string;
+}
+
+export interface LeaveShiftTaskLog {
+  id: string;
+  event_id: string;
+  project_id: string;
+  task_id: string;
+  old_start_date: string;
+  old_end_date: string;
+  new_start_date: string;
+  new_end_date: string;
+  shift_mode: 'EXTEND_END_ONLY' | 'SHIFT_START_AND_END';
+  task_revision_after_shift?: number;
+  restore_status: TaskRestoreStatus;
+  conflict_reason?: string;
+  created_at: string;
+  project_name?: string;
+  task_name?: string;
+  current_start_date?: string;
+  current_end_date?: string;
 }
 
 export interface CountryHoliday {
@@ -126,11 +205,24 @@ export interface CalendarOverride {
   scope_key: string;
   work_date: string;
   override_type: OverrideType;
+  override_group_id?: string;
   label_ko?: string;
   label_vi?: string;
   note?: string;
   created_by_name?: string;
   updated_by_name?: string;
+}
+
+export interface LeaveDeleteResponse {
+  deleted_group_id: string;
+  restore_available: boolean;
+  working_leave_days: number;
+  affected_project_count: number;
+  affected_task_count: number;
+  restorable_task_count: number;
+  conflict_task_count: number;
+  restore_token?: string;
+  task_preview: LeaveShiftTaskLog[];
 }
 
 export interface WorkDayStatus {

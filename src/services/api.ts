@@ -249,4 +249,36 @@ export const api = {
     });
     return handleResponse<{ id: string }>(res);
   },
+
+  async getOverrideGroups(workerId?: string): Promise<any[]> {
+    const url = workerId ? `/api/calendar/override-groups?worker_id=${encodeURIComponent(workerId)}` : '/api/calendar/override-groups';
+    const res = await fetch(url);
+    return handleResponse<any[]>(res);
+  },
+
+  async deleteOverrideGroup(groupId: string): Promise<any> {
+    const res = await fetch(`/api/calendar/override-groups/${groupId}`, {
+      method: 'DELETE',
+      headers: getWriteHeaders(),
+    });
+    return handleResponse<any>(res);
+  },
+
+  async keepLeaveSchedule(groupId: string, restoreToken: string): Promise<any> {
+    const res = await fetch(`/api/calendar/override-groups/${groupId}/keep-schedule`, {
+      method: 'POST',
+      headers: getWriteHeaders(),
+      body: JSON.stringify({ restore_token: restoreToken, confirm_keep: true }),
+    });
+    return handleResponse<any>(res);
+  },
+
+  async restoreLeaveSchedule(groupId: string, restoreToken: string): Promise<any> {
+    const res = await fetch(`/api/calendar/override-groups/${groupId}/restore-schedule`, {
+      method: 'POST',
+      headers: getWriteHeaders(),
+      body: JSON.stringify({ restore_token: restoreToken, confirm_restore: true }),
+    });
+    return handleResponse<any>(res);
+  },
 };

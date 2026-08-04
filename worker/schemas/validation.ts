@@ -46,3 +46,30 @@ export const dailyStatusSchema = z.object({
 export const workerSchema = z.object({
   name: z.string().min(1, '작업자 이름을 입력해 주세요.').max(50),
 });
+
+export const calendarOverrideSchema = z.object({
+  scope_type: z.enum(['COUNTRY', 'WORKER']),
+  scope_key: z.string().min(1, '대상 식별자가 필요합니다.'),
+  start_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, '시작일 형식이 올바르지 않습니다.').optional(),
+  end_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, '종료일 형식이 올바르지 않습니다.').optional(),
+  work_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, '날짜 형식이 올바르지 않습니다.').optional(),
+  override_type: z.enum(['WORK', 'OFF', 'LEAVE']),
+  label_ko: z.string().optional(),
+  label_vi: z.string().optional(),
+  note: z.string().optional(),
+  confirm_leave_schedule_cascade: z.boolean().optional(),
+  save_leave_without_schedule_shift: z.boolean().optional(),
+  editor_name: z.string().optional(),
+});
+
+export const restoreScheduleSchema = z.object({
+  restore_token: z.string().min(1, '복원 토큰이 필요합니다.'),
+  confirm_restore: z.boolean().optional(),
+  editor_name: z.string().optional(),
+});
+
+export const keepScheduleSchema = z.object({
+  restore_token: z.string().min(1, '복원 토큰이 필요합니다.'),
+  confirm_keep: z.boolean().optional(),
+  editor_name: z.string().optional(),
+});
