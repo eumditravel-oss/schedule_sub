@@ -19,6 +19,9 @@ import { GanttViewControls } from '../components/common/GanttViewControls';
 import { MobileAppHeader } from '../components/mobile/MobileAppHeader';
 import { MobileWorkerSheet } from '../components/mobile/MobileWorkerSheet';
 import { CalendarManagerModal } from '../components/modals/CalendarManagerModal';
+import { MobileSummaryView } from '../components/mobile/MobileSummaryView';
+import { MobileWeekView } from '../components/mobile/MobileWeekView';
+import { MobileThirtyDayGanttView } from '../components/mobile/MobileThirtyDayGanttView';
 import { Plus, ChevronRight, Calendar, Lock } from 'lucide-react';
 
 export type MobileViewMode = 'SUMMARY' | 'WEEK' | 'GANTT';
@@ -206,29 +209,76 @@ export const ProjectOverviewPage: React.FC = () => {
     return !project.name_ko;
   };
 
+  const handleCompleteProject = async (project: Project) => {
+    if (isExecutiveViewer(currentWorker)) {
+      alert(lang === 'vi' ? 'Tài khoản quản lý chỉ có quyền xem lịch trình.' : '경영진 계정은 일정을 조회할 수만 있습니다.');
+      return;
+    }
+    if (!requireWorkerSelection()) return;
+    if (!confirm(t('completeConfirmText'))) return;
+    try {
+      await api.completeProject(project.id);
+      await fetchProjects();
+      await fetchCompletedYears();
+    } catch (err: any) {
+      alert(getLocalizedErrorMessage(err, t));
+    }
+  };
+
+  const handleEditProject = (project: Project) => {
+    if (isExecutiveViewer(currentWorker)) {
+      alert(lang === 'vi' ? 'Tài khoản quản lý chỉ có quyền xem lịch trình.' : '경영진 계정은 일정을 조회할 수만 있습니다.');
+      return;
+    }
+    if (!requireWorkerSelection()) return;
+    setSelectedProject(project);
+    setIsModalOpen(true);
+  };
+
+  const handleDeleteProject = async (project: Project) => {
+    if (isExecutiveViewer(currentWorker)) {
+      alert(lang === 'vi' ? 'Tài khoản quản lý chỉ có quyền xem lịch trình.' : '경영진 계정은 일정을 조회할 수만 있습니다.');
+      return;
+    }
+    if (!requireWorkerSelection()) return;
+    if (!confirm(t('deleteConfirmText'))) return;
+    try {
+      await api.deleteProject(project.id);
+      await fetchProjects();
+      await fetchCompletedYears();
+    } catch (err: any) {
+      alert(getLocalizedErrorMessage(err, t));
+    }
+  };
+
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans max-w-full overflow-x-hidden">
-      {/* Header */}
+    <div className="min-h-screen bg-slate-100 flex flex-col font-sans text-slate-900">
+      {/* Mobile App Header */}
       {isMobile ? (
         <MobileAppHeader
           currentWorker={currentWorker}
           onOpenWorkerSheet={() => setIsMobileWorkerSheetOpen(true)}
-          onOpenCalendarModal={() => setIsCalendarModalOpen(true)}
         />
       ) : (
-        <header className="sticky top-0 z-30 bg-white border-b border-slate-200 px-5 h-16 flex items-center justify-between gap-4 shadow-sm shrink-0 flex-nowrap">
-          <div className="flex items-center gap-3.5 min-w-0">
-            <div className="flex items-center shrink-0">
-              <img src="/logo3.png" alt="CON-COST × VIETQS" className="h-8 md:h-9 object-contain max-w-[210px]" />
-            </div>
-            <div className="min-w-0">
-              <h1 className="text-base font-bold tracking-tight text-slate-900 truncate">
-                {t('headerTitle')}
+        /* Desktop App Header */
+        <header className="bg-white border-b border-slate-200 px-4 md:px-6 py-3 flex items-center justify-between shadow-2xs">
+          <div className="flex items-center gap-3">
+            <img
+              src="/logo3-mobile-cropped.png"
+              alt="Logo"
+              className="h-8 object-contain"
+            />
+            <div>
+              <h1 className="font-extrabold text-base md:text-lg text-slate-900 tracking-tight leading-none">
+                {t('appTitle')}
               </h1>
+              <p className="text-[11px] text-slate-500 font-medium mt-0.5">
+                {t('appSubtitle')}
+              </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-3 shrink-0">
+          <div className="flex items-center gap-3">
             {isExecutiveViewer(currentWorker) ? (
               <div
                 data-testid="viewer-readonly-badge"
@@ -254,7 +304,7 @@ export const ProjectOverviewPage: React.FC = () => {
               onWorkerChange={handleSelectWorkerProfile}
             />
 
-            {activeTab === 'ACTIVE' && isEditableWorker(currentWorker) && (
+            {!isExecutiveViewer(currentWorker) && (
               <button
                 type="button"
                 data-testid="add-project-btn"
@@ -269,72 +319,95 @@ export const ProjectOverviewPage: React.FC = () => {
         </header>
       )}
 
-      {/* Tabs & Controls */}
-      <div className="bg-slate-50 border-b border-slate-200 px-3 md:px-5 py-2 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 shrink-0 w-full">
-        <div className="flex items-center gap-2 w-full sm:w-auto">
-          <button
-            type="button"
-            data-testid="active-tab-btn"
-            onClick={() => setActiveTab('ACTIVE')}
-            className={`flex-1 sm:flex-none h-9 px-4 rounded-lg font-bold text-xs transition ${
-              activeTab === 'ACTIVE'
-                ? 'bg-blue-600 text-white shadow-sm'
-                : 'bg-white text-slate-600 hover:text-slate-900 border border-slate-300'
-            }`}
-          >
-            {t('activeProjectsTab')}
-          </button>
-          <button
-            type="button"
-            data-testid="completed-tab-btn"
-            onClick={() => setActiveTab('COMPLETED')}
-            className={`flex-1 sm:flex-none h-9 px-4 rounded-lg font-bold text-xs transition ${
-              activeTab === 'COMPLETED'
-                ? 'bg-emerald-600 text-white shadow-sm'
-                : 'bg-white text-slate-600 hover:text-slate-900 border border-slate-300'
-            }`}
-          >
-            {t('completedProjectsYear', { year: selectedYear })}
-          </button>
+      {/* Navigation / Tab Controls */}
+      <div className="bg-white border-b border-slate-200 px-3 md:px-5 py-2.5 flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-2xs">
+        {/* Left: Active vs Completed Tabs */}
+        <div className="flex items-center gap-2">
+          <div className="flex p-0.5 bg-slate-100 rounded-lg border border-slate-200/80 text-xs font-semibold">
+            <button
+              type="button"
+              data-testid="active-tab-btn"
+              onClick={() => setActiveTab('ACTIVE')}
+              className={`px-3 py-1.5 rounded-md transition font-bold ${
+                activeTab === 'ACTIVE'
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              {t('activeProjects')}
+            </button>
+            <button
+              type="button"
+              data-testid="completed-tab-btn"
+              onClick={() => setActiveTab('COMPLETED')}
+              className={`px-3 py-1.5 rounded-md transition font-bold ${
+                activeTab === 'COMPLETED'
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              {t('completedProjects')}
+            </button>
+          </div>
+
+          {activeTab === 'COMPLETED' && (
+            <select
+              value={selectedYear}
+              onChange={(e) => setSelectedYear(e.target.value)}
+              className="h-8 text-xs font-bold bg-white border border-slate-200 rounded-lg px-2 text-slate-700 shadow-2xs focus:ring-1 focus:ring-blue-500"
+            >
+              {completedYears.map((yr) => (
+                <option key={yr} value={yr}>
+                  {yr}{lang === 'vi' ? '' : '년'}
+                </option>
+              ))}
+            </select>
+          )}
         </div>
 
         {/* Mobile View Mode Controls */}
         {isMobile ? (
           <div className="flex flex-col gap-2 w-full">
             {activeTab === 'ACTIVE' && (
-              <div className="flex items-center p-0.5 bg-slate-200/80 rounded-lg text-xs font-semibold w-full">
+              <div role="tablist" aria-label="Mobile View Modes" className="flex items-center p-0.5 bg-slate-200/80 rounded-lg text-xs font-semibold w-full">
                 <button
                   type="button"
+                  role="tab"
+                  aria-selected={mobileViewMode === 'SUMMARY'}
                   data-testid="mobile-view-summary-btn"
                   onClick={() => handleMobileViewChange('SUMMARY')}
                   className={`flex-1 h-8 rounded-md transition font-bold ${
                     mobileViewMode === 'SUMMARY'
-                      ? 'bg-white text-blue-700 shadow-xs'
-                      : 'text-slate-600'
+                      ? 'bg-blue-600 text-white shadow-xs'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                   }`}
                 >
                   {t('summaryView')}
                 </button>
                 <button
                   type="button"
+                  role="tab"
+                  aria-selected={mobileViewMode === 'WEEK'}
                   data-testid="mobile-view-week-btn"
                   onClick={() => handleMobileViewChange('WEEK')}
                   className={`flex-1 h-8 rounded-md transition font-bold ${
                     mobileViewMode === 'WEEK'
-                      ? 'bg-white text-blue-700 shadow-xs'
-                      : 'text-slate-600'
+                      ? 'bg-blue-600 text-white shadow-xs'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                   }`}
                 >
                   {t('week7View')}
                 </button>
                 <button
                   type="button"
+                  role="tab"
+                  aria-selected={mobileViewMode === 'GANTT'}
                   data-testid="mobile-view-gantt-btn"
                   onClick={() => handleMobileViewChange('GANTT')}
                   className={`flex-1 h-8 rounded-md transition font-bold ${
                     mobileViewMode === 'GANTT'
-                      ? 'bg-white text-blue-700 shadow-xs'
-                      : 'text-slate-600'
+                      ? 'bg-blue-600 text-white shadow-xs'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                   }`}
                 >
                   {t('gantt30View')}
@@ -354,163 +427,197 @@ export const ProjectOverviewPage: React.FC = () => {
         )}
       </div>
 
-      {/* Main Content */}
+      {/* Main Content Area */}
       <main className="flex-1 p-3 md:p-5 overflow-x-hidden flex flex-col">
-        <div
-          ref={scrollContainerRef}
-          className="flex-1 bg-white border border-slate-200 rounded-xl shadow-sm overflow-x-auto overflow-y-auto custom-scrollbar relative max-w-full"
-        >
-          <table className="w-full border-collapse text-left min-w-max">
-            <thead className="sticky top-0 z-20 bg-slate-100 text-xs uppercase tracking-wider text-slate-700">
-              <tr className="border-b border-slate-200">
-                <th
-                  rowSpan={2}
-                  className="sticky left-0 z-30 bg-slate-100 px-3 py-2.5 font-bold text-slate-800 border-r border-slate-200 w-[160px] md:w-[270px] min-w-[160px] md:min-w-[270px] max-w-[270px]"
-                >
-                  <div className="flex justify-between items-center text-xs font-bold text-slate-900">
-                    <span>{t('projectInfo')}</span>
-                    <span className="hidden md:inline text-[10px] text-slate-500 font-normal">{t('progress')}</span>
-                  </div>
-                </th>
-                {monthGroups.map((mg, idx) => (
+        {isMobile ? (
+          /* Dedicated Mutually Exclusive Mobile Views */
+          <div className="w-full flex-1 flex flex-col">
+            {mobileViewMode === 'SUMMARY' && (
+              <MobileSummaryView
+                mode="OVERVIEW"
+                projects={projects}
+                isCompletedTab={activeTab === 'COMPLETED'}
+                onProjectClick={(p) => navigate(`/projects/${p.id}`)}
+                onEditProject={handleEditProject}
+                onCompleteProject={handleCompleteProject}
+                onDeleteProject={handleDeleteProject}
+                isReadOnly={isExecutiveViewer(currentWorker)}
+              />
+            )}
+            {mobileViewMode === 'WEEK' && (
+              <MobileWeekView
+                mode="OVERVIEW"
+                projects={projects}
+                onProjectClick={(p) => navigate(`/projects/${p.id}`)}
+              />
+            )}
+            {mobileViewMode === 'GANTT' && (
+              <MobileThirtyDayGanttView
+                mode="OVERVIEW"
+                projects={projects}
+                dateColumns={dateColumns}
+                onProjectClick={(p) => navigate(`/projects/${p.id}`)}
+              />
+            )}
+          </div>
+        ) : (
+          /* Desktop Table View */
+          <div
+            ref={scrollContainerRef}
+            className="flex-1 bg-white border border-slate-200 rounded-xl shadow-sm overflow-x-auto overflow-y-auto custom-scrollbar relative max-w-full"
+          >
+            <table className="w-full border-collapse text-left min-w-max">
+              <thead className="sticky top-0 z-20 bg-slate-100 text-xs uppercase tracking-wider text-slate-700">
+                <tr className="border-b border-slate-200">
                   <th
-                    key={idx}
-                    colSpan={mg.span}
-                    className="text-center font-bold py-1.5 border-r border-slate-200 bg-slate-100 text-blue-700 text-xs"
+                    rowSpan={2}
+                    className="sticky left-0 z-30 bg-slate-100 px-3 py-2.5 font-bold text-slate-800 border-r border-slate-200 w-[160px] md:w-[270px] min-w-[160px] md:min-w-[270px] max-w-[270px]"
                   >
-                    {mg.monthStr}
+                    <div className="flex justify-between items-center text-xs font-bold text-slate-900">
+                      <span>{t('projectInfo')}</span>
+                      <span className="hidden md:inline text-[10px] text-slate-500 font-normal">{t('progress')}</span>
+                    </div>
                   </th>
-                ))}
-              </tr>
-
-              <tr className="border-b border-slate-200">
-                {dateColumns.map((col, idx) => {
-                  const krHol = krHolidays.find((h) => h.holiday_date === col.dateStr);
-                  const vnHol = vnHolidays.find((h) => h.holiday_date === col.dateStr);
-                  const tooltip = [
-                    krHol ? `KR: ${krHol.name_ko || krHol.name_local}` : null,
-                    vnHol ? `VN: ${vnHol.name_vi || vnHol.name_local}` : null,
-                  ]
-                    .filter(Boolean)
-                    .join(' / ');
-
-                  return (
+                  {monthGroups.map((mg, idx) => (
                     <th
                       key={idx}
-                      title={tooltip || undefined}
-                      style={{ width: `${GANTT_DAY_WIDTH_PX}px`, minWidth: `${GANTT_DAY_WIDTH_PX}px`, maxWidth: `${GANTT_DAY_WIDTH_PX}px` }}
-                      className={`text-center py-1 border-r border-slate-200 text-[11px] font-medium ${
-                        col.isToday
-                          ? 'bg-blue-100 text-blue-800 font-bold'
-                          : krHol || vnHol
-                          ? 'bg-rose-50/80 text-rose-700 font-bold'
-                          : col.isWeekend
-                          ? 'bg-slate-50 text-slate-400'
-                          : 'bg-white text-slate-600'
-                      }`}
+                      colSpan={mg.span}
+                      className="text-center font-bold py-1.5 border-r border-slate-200 bg-slate-100 text-blue-700 text-xs"
                     >
-                      <div>{col.dayNum}</div>
-                      <div className="text-[9px] scale-90">{col.dayName}</div>
-                      <div className="flex items-center justify-center gap-0.5 mt-0.5">
-                        {krHol && <span className="text-[8px] font-extrabold px-0.5 rounded bg-rose-100 text-rose-700 border border-rose-200">KR</span>}
-                        {vnHol && <span className="text-[8px] font-extrabold px-0.5 rounded bg-rose-100 text-rose-700 border border-rose-200">VN</span>}
-                      </div>
+                      {mg.monthStr}
                     </th>
-                  );
-                })}
-              </tr>
-            </thead>
-
-            <tbody className="divide-y divide-slate-200 text-sm">
-              {loading ? (
-                <tr>
-                  <td colSpan={dateColumns.length + 1} className="py-12 text-center text-slate-500 font-medium">
-                    {t('loading')}
-                  </td>
+                  ))}
                 </tr>
-              ) : projects.length === 0 ? (
-                <tr>
-                  <td colSpan={dateColumns.length + 1} className="py-12 text-center text-slate-500 font-medium">
-                    {t('noData')}
-                  </td>
-                </tr>
-              ) : (
-                projects.map((project) => {
-                  const { isVisible, startIndex, durationDays } = calculateVisibleGanttSpan(
-                    project.start_date,
-                    project.end_date,
-                    startDate,
-                    endDate
-                  );
-                  const barWidthPx = durationDays * GANTT_DAY_WIDTH_PX - 4;
-                  const displayName = getDisplayName(project);
-                  const isFallback = isFallbackOriginal(project);
 
-                  return (
-                    <tr
-                      key={project.id}
-                      data-testid={`project-row-${project.id}`}
-                      onClick={() => navigate(`/projects/${project.id}`)}
-                      className="hover:bg-blue-50/50 transition cursor-pointer group"
-                    >
-                      <td className="sticky left-0 z-10 bg-white group-hover:bg-blue-50/50 px-3 py-3 border-r border-slate-200 w-[160px] md:w-[270px] min-w-[160px] md:min-w-[270px] max-w-[270px] align-middle">
-                        <div className="flex items-center justify-between">
-                          <div className="pr-1 overflow-hidden min-w-0">
-                            <div className="font-bold text-slate-900 group-hover:text-blue-600 transition truncate flex items-center gap-1 text-xs" title={displayName}>
-                              <span className="truncate">{displayName}</span>
-                              {isFallback && (
-                                <span className="text-[9px] text-slate-500 bg-slate-100 px-1 rounded shrink-0 border border-slate-200 font-normal">
-                                  {t('originalTag')}
-                                </span>
-                              )}
-                              <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                            </div>
-                            <div className="mt-0.5 text-[10px] text-slate-500 truncate">
-                              {project.start_date} ~ {project.end_date}
-                            </div>
-                          </div>
+                <tr className="border-b border-slate-200">
+                  {dateColumns.map((col, idx) => {
+                    const krHol = krHolidays.find((h) => h.holiday_date === col.dateStr);
+                    const vnHol = vnHolidays.find((h) => h.holiday_date === col.dateStr);
+                    const tooltip = [
+                      krHol ? `KR: ${krHol.name_ko || krHol.name_local}` : null,
+                      vnHol ? `VN: ${vnHol.name_vi || vnHol.name_local}` : null,
+                    ]
+                      .filter(Boolean)
+                      .join(' / ');
 
-                          <div className="flex flex-col items-end gap-1 shrink-0">
-                            <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
-                              {project.progress}%
-                            </span>
-                          </div>
+                    return (
+                      <th
+                        key={idx}
+                        title={tooltip || undefined}
+                        style={{ width: `${GANTT_DAY_WIDTH_PX}px`, minWidth: `${GANTT_DAY_WIDTH_PX}px`, maxWidth: `${GANTT_DAY_WIDTH_PX}px` }}
+                        className={`text-center py-1 border-r border-slate-200 text-[11px] font-medium ${
+                          col.isToday
+                            ? 'bg-blue-100 text-blue-800 font-bold'
+                            : krHol || vnHol
+                            ? 'bg-rose-50/80 text-rose-700 font-bold'
+                            : col.isWeekend
+                            ? 'bg-slate-50 text-slate-400'
+                            : 'bg-white text-slate-600'
+                        }`}
+                      >
+                        <div>{col.dayNum}</div>
+                        <div className="text-[9px] scale-90">{col.dayName}</div>
+                        <div className="flex items-center justify-center gap-0.5 mt-0.5">
+                          {krHol && <span className="text-[8px] font-extrabold px-0.5 rounded bg-rose-100 text-rose-700 border border-rose-200">KR</span>}
+                          {vnHol && <span className="text-[8px] font-extrabold px-0.5 rounded bg-rose-100 text-rose-700 border border-rose-200">VN</span>}
                         </div>
-                      </td>
+                      </th>
+                    );
+                  })}
+                </tr>
+              </thead>
 
-                      {dateColumns.map((col, cIdx) => {
-                        const isBarStart = isVisible && cIdx === startIndex;
+              <tbody className="divide-y divide-slate-200 text-sm">
+                {loading ? (
+                  <tr>
+                    <td colSpan={dateColumns.length + 1} className="py-12 text-center text-slate-500 font-medium">
+                      {t('loading')}
+                    </td>
+                  </tr>
+                ) : projects.length === 0 ? (
+                  <tr>
+                    <td colSpan={dateColumns.length + 1} className="py-12 text-center text-slate-500 font-medium">
+                      {t('noData')}
+                    </td>
+                  </tr>
+                ) : (
+                  projects.map((project) => {
+                    const { isVisible, startIndex, durationDays } = calculateVisibleGanttSpan(
+                      project.start_date,
+                      project.end_date,
+                      startDate,
+                      endDate
+                    );
+                    const barWidthPx = durationDays * GANTT_DAY_WIDTH_PX - 4;
+                    const displayName = getDisplayName(project);
+                    const isFallback = isFallbackOriginal(project);
 
-                        return (
-                          <td
-                            key={cIdx}
-                            style={{ width: `${GANTT_DAY_WIDTH_PX}px`, minWidth: `${GANTT_DAY_WIDTH_PX}px`, maxWidth: `${GANTT_DAY_WIDTH_PX}px` }}
-                            className={`p-0 relative border-r border-slate-200 align-middle ${
-                              col.isToday
-                                ? 'bg-blue-50/60'
-                                : col.isWeekend
-                                ? 'bg-slate-50/60'
-                                : 'bg-white'
-                            }`}
-                          >
-                            {isBarStart && (
-                              <div
-                                style={{ width: `${barWidthPx}px` }}
-                                className="absolute left-0.5 top-1/2 -translate-y-1/2 h-7 bg-gradient-to-r from-blue-600 to-cyan-500 rounded-md shadow-xs text-white text-xs font-bold flex items-center px-2 z-10 transition-all truncate"
-                              >
-                                <span className="truncate">{displayName} ({project.progress}%)</span>
+                    return (
+                      <tr
+                        key={project.id}
+                        data-testid={`project-row-${project.id}`}
+                        onClick={() => navigate(`/projects/${project.id}`)}
+                        className="hover:bg-blue-50/50 transition cursor-pointer group"
+                      >
+                        <td className="sticky left-0 z-10 bg-white group-hover:bg-blue-50/50 px-3 py-3 border-r border-slate-200 w-[160px] md:w-[270px] min-w-[160px] md:min-w-[270px] max-w-[270px] align-middle">
+                          <div className="flex items-center justify-between">
+                            <div className="pr-1 overflow-hidden min-w-0">
+                              <div className="font-bold text-slate-900 group-hover:text-blue-600 transition truncate flex items-center gap-1 text-xs" title={displayName}>
+                                <span className="truncate">{displayName}</span>
+                                {isFallback && (
+                                  <span className="text-[9px] text-slate-500 bg-slate-100 px-1 rounded shrink-0 border border-slate-200 font-normal">
+                                    {t('originalTag')}
+                                  </span>
+                                )}
+                                <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                               </div>
-                            )}
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
+                              <div className="mt-0.5 text-[10px] text-slate-500 truncate">
+                                {project.start_date} ~ {project.end_date}
+                              </div>
+                            </div>
+
+                            <div className="flex flex-col items-end gap-1 shrink-0">
+                              <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                                {project.progress}%
+                              </span>
+                            </div>
+                          </div>
+                        </td>
+
+                        {dateColumns.map((col, cIdx) => {
+                          const isBarStart = isVisible && cIdx === startIndex;
+
+                          return (
+                            <td
+                              key={cIdx}
+                              style={{ width: `${GANTT_DAY_WIDTH_PX}px`, minWidth: `${GANTT_DAY_WIDTH_PX}px`, maxWidth: `${GANTT_DAY_WIDTH_PX}px` }}
+                              className={`p-0 relative border-r border-slate-200 align-middle ${
+                                col.isToday
+                                  ? 'bg-blue-50/60'
+                                  : col.isWeekend
+                                  ? 'bg-slate-50/60'
+                                  : 'bg-white'
+                              }`}
+                            >
+                              {isBarStart && (
+                                <div
+                                  style={{ width: `${barWidthPx}px` }}
+                                  className="absolute left-0.5 top-1/2 -translate-y-1/2 h-7 bg-gradient-to-r from-blue-600 to-cyan-500 rounded-md shadow-xs text-white text-xs font-bold flex items-center px-2 z-10 transition-all truncate"
+                                >
+                                  <span className="truncate">{displayName} ({project.progress}%)</span>
+                                </div>
+                              )}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
       </main>
 
       {/* Modals */}

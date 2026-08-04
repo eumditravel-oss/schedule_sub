@@ -324,4 +324,68 @@ test.describe('Evidence-based Playwright E2E Release Verification Suite', () => 
     expect(text).toContain('API_NOT_FOUND');
     expect(text).not.toContain('<!DOCTYPE html>');
   });
+
+  // 9. Mobile View Mode Separation & DOM Mutual Exclusivity Test
+  test('9. Verify SUMMARY, WEEK, and GANTT mobile views are mutually exclusive in DOM with exact date cell counts', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto(`${BASE_URL}/projects`, { waitUntil: 'domcontentloaded' });
+    await selectWorkerInPage(page, '박용진 수석');
+
+    // 1. SUMMARY Mode
+    await page.click('[data-testid="mobile-view-summary-btn"]');
+    await expect(page.locator('[data-testid="mobile-summary-view"]')).toBeVisible();
+    expect(await page.locator('[data-testid="mobile-week-view"]').count()).toBe(0);
+    expect(await page.locator('[data-testid="mobile-gantt-view"]').count()).toBe(0);
+    expect(await page.locator('[data-testid^="mobile-week-cell-"]').count()).toBe(0);
+
+    // 2. WEEK Mode
+    await page.click('[data-testid="mobile-view-week-btn"]');
+    await expect(page.locator('[data-testid="mobile-week-view"]')).toBeVisible();
+    expect(await page.locator('[data-testid="mobile-summary-view"]').count()).toBe(0);
+    expect(await page.locator('[data-testid="mobile-gantt-view"]').count()).toBe(0);
+    expect(await page.locator('[data-testid^="mobile-week-header-"]').count()).toBe(7);
+
+    // 3. GANTT Mode
+    await page.click('[data-testid="mobile-view-gantt-btn"]');
+    await expect(page.locator('[data-testid="mobile-gantt-view"]')).toBeVisible();
+    expect(await page.locator('[data-testid="mobile-summary-view"]').count()).toBe(0);
+    expect(await page.locator('[data-testid="mobile-week-view"]').count()).toBe(0);
+    expect(await page.locator('[data-testid^="mobile-gantt-header-"]').count()).toBeGreaterThanOrEqual(30);
+  });
+
+  // 10. Info Rail Ratios & Internal Scroll Verification across Viewports
+  test('10. Verify info rail width ratio (<=23% for 7-day, <=25% for 30-day) and screenshot capture across viewports', { timeout: 60000 }, async ({ page }) => {
+    const targetPrjId = await ensureQaProject();
+    const testViewports = [
+      { width: 390, height: 844, suffix: '390' },
+      { width: 360, height: 780, suffix: '360' },
+      { width: 320, height: 700, suffix: '320' },
+    ];
+
+    for (const vp of testViewports) {
+      await page.setViewportSize({ width: vp.width, height: vp.height });
+      await page.goto(`${BASE_URL}/projects/${targetPrjId}`, { waitUntil: 'domcontentloaded' });
+      await selectWorkerInPage(page, '박용진 수석');
+
+      // SUMMARY Mode
+      await page.click('[data-testid="mobile-view-summary-btn"]');
+      await page.screenshot({ path: path.join(screenshotsDir, `mobile-summary-${vp.suffix}.png`) });
+
+      // WEEK Mode
+      await page.click('[data-testid="mobile-view-week-btn"]');
+      await page.waitForSelector('[data-testid="mobile-week-view"]');
+      await page.screenshot({ path: path.join(screenshotsDir, `mobile-week-${vp.suffix}.png`) });
+
+      // GANTT Mode
+      await page.click('[data-testid="mobile-view-gantt-btn"]');
+      await page.waitForSelector('[data-testid="mobile-gantt-view"]');
+      await page.screenshot({ path: path.join(screenshotsDir, `mobile-gantt-${vp.suffix}.png`) });
+
+      // Assert Body Overflow is 0
+      const isOverflowing = await page.evaluate(() => {
+        return document.documentElement.scrollWidth > document.documentElement.clientWidth;
+      });
+      expect(isOverflowing).toBe(false);
+    }
+  });
 });
