@@ -57,8 +57,33 @@ export const CalendarManagerModal: React.FC<CalendarManagerModalProps> = ({
       setStartDate(todayStr);
       setEndDate(todayStr);
       loadOverrideGroups();
+      checkPendingDecisions();
     }
   }, [isOpen, currentWorker, workers]);
+
+  const checkPendingDecisions = async () => {
+    if (!currentWorker || isViewer) return;
+    try {
+      const pds = await api.getPendingScheduleDecisions();
+      if (pds && pds.length > 0) {
+        const pd = pds[0];
+        setDeleteResponse({
+          deleted_group_id: pd.groupId,
+          restore_available: true,
+          working_leave_days: pd.working_leave_days,
+          affected_project_count: pd.affected_project_count,
+          affected_task_count: pd.affected_task_count,
+          restorable_task_count: pd.restorable_task_count,
+          conflict_task_count: pd.conflict_task_count,
+          restore_token: pd.restore_token,
+          task_preview: pd.task_preview,
+        });
+        setShowRestorePreview(false);
+      }
+    } catch (e) {
+      console.error('Failed to check pending schedule decisions', e);
+    }
+  };
 
   const loadOverrideGroups = async () => {
     setLoading(true);
@@ -220,11 +245,36 @@ export const CalendarManagerModal: React.FC<CalendarManagerModalProps> = ({
     }
   };
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (deleteResponse) {
+          handleKeepSchedule();
+        } else {
+          onClose();
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [deleteResponse, onClose]);
+
+  const handleBackdropClick = (e: React.MouseEvent) => {
+    if (e.target === e.currentTarget) {
+      if (deleteResponse) {
+        handleKeepSchedule();
+      } else {
+        onClose();
+      }
+    }
+  };
+
   if (!isOpen) return null;
 
   return (
     <div
       data-testid="calendar-manager-modal"
+      onClick={handleBackdropClick}
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200 overflow-y-auto"
     >
       {/* 1. Leave Registration Impact Preview Modal */}

@@ -657,18 +657,10 @@ function addPureCalendarDays(dateStr: string, deltaDays: number): string {
           const futureSts = stList.filter((st) => st.work_date >= todayStr);
 
           if (futureSts.length > 0) {
-            batchStatements.push(
-              db.prepare(`DELETE FROM daily_status WHERE task_id = ? AND work_date >= ?`).bind(t.id, todayStr)
-            );
-
             for (const fSt of futureSts) {
               const nWorkDate = addPureCalendarDays(fSt.work_date, deltaDays);
-              const newStId = `st_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
               batchStatements.push(
-                db.prepare(
-                  `INSERT INTO daily_status (id, task_id, work_date, status, updated_by_name, updated_at)
-                   VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`
-                ).bind(newStId, t.id, nWorkDate, fSt.status, editor)
+                db.prepare(`UPDATE daily_status SET work_date = ? WHERE id = ?`).bind(nWorkDate, fSt.id)
               );
             }
           }
@@ -882,8 +874,8 @@ function addPureCalendarDays(dateStr: string, deltaDays: number): string {
         const params: any[] = [];
 
         if (workerId) {
-          query += ` AND (scope_type = 'WORKER' AND scope_key = ?)`;
-          params.push(workerId);
+          query += ` AND (scope_type = 'WORKER' AND (scope_key = ? OR scope_key = (SELECT name FROM workers WHERE id = ?)))`;
+          params.push(workerId, workerId);
         }
         if (countryCode) {
           query += ` AND (scope_type = 'COUNTRY' AND scope_key = ?)`;
@@ -910,7 +902,7 @@ function addPureCalendarDays(dateStr: string, deltaDays: number): string {
         const workerId = url.searchParams.get('worker_id');
         let query = `SELECT g.*,
           (SELECT COUNT(*) FROM calendar_overrides WHERE override_group_id = g.id) as date_count,
-          e.working_leave_days, e.affected_project_count, e.affected_task_count, e.event_status, e.restore_token
+          e.working_leave_days, e.affected_project_count, e.affected_task_count, e.event_status
           FROM calendar_override_groups g
           LEFT JOIN leave_schedule_shift_events e ON g.id = e.override_group_id
           WHERE g.status = 'ACTIVE'`;
@@ -926,7 +918,92 @@ function addPureCalendarDays(dateStr: string, deltaDays: number): string {
         return jsonResponse(res.results || []);
       }
 
-      // 14. POST /api/calendar/overrides
+      // 14. GET /api/calendar/pending-schedule-decisions
+      if (method === 'GET' && path === '/api/calendar/pending-schedule-decisions') {
+        const editor = getEditorName(null, request);
+        const editCheck = await requireEditableWorker(db, editor);
+        if (!editCheck.allowed) {
+          return errorResponse(editCheck.errorMsg!, 403, editCheck.errorCode!);
+        }
+
+        const worker = editCheck.worker!;
+        const eventsRes = await db
+          .prepare(
+            `SELECT e.*, g.start_date as leave_start_date, g.end_date as leave_end_date, g.label_ko, g.label_vi
+             FROM leave_schedule_shift_events e
+             JOIN calendar_override_groups g ON e.override_group_id = g.id
+             WHERE (e.worker_id = ? OR e.worker_id = ?) AND e.event_status = 'LEAVE_DELETED_PENDING_DECISION'`
+          )
+          .bind(worker.id, worker.name)
+          .all();
+
+        const events: any[] = eventsRes.results || [];
+        const pendingDecisions: any[] = [];
+
+        for (const event of events) {
+          const taskLogsRes = await db
+            .prepare(
+              `SELECT ltl.*, t.task_name, t.start_date as current_start_date, t.end_date as current_end_date, t.schedule_revision, t.progress, p.name as project_name, p.start_date as project_start_date, p.end_date as project_end_date, p.status as project_status
+               FROM leave_schedule_shift_task_logs ltl
+               JOIN tasks t ON ltl.task_id = t.id
+               JOIN projects p ON ltl.project_id = p.id
+               WHERE ltl.event_id = ?`
+            )
+            .bind(event.id)
+            .all();
+
+          const taskLogs: any[] = taskLogsRes.results || [];
+          let restorableCount = 0;
+          let conflictCount = 0;
+          const previews: any[] = [];
+
+          for (const tl of taskLogs) {
+            let restoreStatus = 'RESTORABLE';
+            let conflictReason: string | undefined = undefined;
+
+            if (tl.progress === 100) {
+              restoreStatus = 'COMPLETED';
+              conflictReason = '완료된 작업';
+              conflictCount++;
+            } else if (tl.project_status === 'COMPLETED') {
+              restoreStatus = 'PROJECT_COMPLETED';
+              conflictReason = '완료된 프로젝트';
+              conflictCount++;
+            } else if (tl.schedule_revision !== tl.task_revision_after_shift || tl.current_start_date !== tl.new_start_date || tl.current_end_date !== tl.new_end_date) {
+              restoreStatus = 'MANUAL_CHANGED';
+              conflictReason = '휴가 등록 후 작업 일정이 수동 수정됨';
+              conflictCount++;
+            } else if (tl.old_start_date < tl.project_start_date || tl.old_end_date > tl.project_end_date || tl.old_start_date > tl.old_end_date) {
+              restoreStatus = 'CONFLICT';
+              conflictReason = '복원 후 프로젝트 기간 초과';
+              conflictCount++;
+            } else {
+              restorableCount++;
+            }
+
+            previews.push({
+              ...tl,
+              restore_status: restoreStatus,
+              conflict_reason: conflictReason,
+            });
+          }
+
+          pendingDecisions.push({
+            groupId: event.override_group_id,
+            working_leave_days: event.working_leave_days,
+            restore_token: event.restore_token,
+            affected_project_count: event.affected_project_count,
+            affected_task_count: event.affected_task_count,
+            restorable_task_count: restorableCount,
+            conflict_task_count: conflictCount,
+            task_preview: previews,
+          });
+        }
+
+        return jsonResponse(pendingDecisions);
+      }
+
+      // 15. POST /api/calendar/overrides
       if (method === 'POST' && path === '/api/calendar/overrides') {
         const body: any = await request.json();
         const editor = getEditorName(body, request);
@@ -1108,18 +1185,17 @@ function addPureCalendarDays(dateStr: string, deltaDays: number): string {
           body.save_leave_without_schedule_shift !== true
         ) {
           const eventId = `lse_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
-          const restoreToken = `rst_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
 
-          // Insert Event Log
+          // Insert Event Log with restore_token = NULL initially (Section 3 requirement)
           batchStatements.push(
             db.prepare(
               `INSERT INTO leave_schedule_shift_events (
                 id, override_group_id, worker_id, leave_start_date, leave_end_date, working_leave_days,
                 affected_project_count, affected_task_count, shifted_future_status_count, event_status, restore_token, changed_by_name
-              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE', ?, ?)`
+              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE', NULL, ?)`
             ).bind(
               eventId, groupId, targetWorker.id, start_date, end_date, impact.working_leave_days,
-              impact.affected_project_count, impact.affected_task_count, impact.shifted_future_status_count, restoreToken, editor
+              impact.affected_project_count, impact.affected_task_count, impact.shifted_future_status_count, editor
             )
           );
 
@@ -1147,10 +1223,41 @@ function addPureCalendarDays(dateStr: string, deltaDays: number): string {
                 ti.shift_mode, nextRev
               )
             );
+
+            // Section 11: Multi-leave active log coordination
+            // If previous active leave events exist for this worker, update their task log target dates
+            const activeLogsRes = await db
+              .prepare(
+                `SELECT ltl.* FROM leave_schedule_shift_task_logs ltl
+                 JOIN leave_schedule_shift_events lse ON ltl.event_id = lse.id
+                 WHERE ltl.task_id = ? AND lse.event_status IN ('ACTIVE', 'LEAVE_DELETED_PENDING_DECISION')`
+              )
+              .bind(ti.task.id)
+              .all();
+            const activeLogs: any[] = activeLogsRes.results || [];
+            for (const activeLog of activeLogs) {
+              batchStatements.push(
+                db.prepare(
+                  `UPDATE leave_schedule_shift_task_logs
+                   SET new_start_date = ?, new_end_date = ?
+                   WHERE id = ?`
+                ).bind(ti.new_start_date, ti.new_end_date, activeLog.id)
+              );
+            }
           }
 
-          // Shift Future Daily Statuses & Preserve Metadata (id, status, updated_by_name, created_at, updated_at)
+          // Shift Future Daily Statuses & Pre-validate conflicts
           for (const si of impact.status_impacts) {
+            // Check for conflict before shifting
+            const existingOther = await db
+              .prepare(`SELECT id FROM daily_status WHERE task_id = ? AND work_date = ? AND id != ?`)
+              .bind(si.task_id, si.new_work_date, si.daily_status_id)
+              .first();
+
+            if (existingOther) {
+              return errorResponse('일별 상태 이동 중 날짜 충돌이 발생하였습니다.', 409, 'DAILY_STATUS_SHIFT_CONFLICT');
+            }
+
             batchStatements.push(
               db.prepare(`DELETE FROM daily_status WHERE id = ?`).bind(si.daily_status_id)
             );
@@ -1194,7 +1301,7 @@ function addPureCalendarDays(dateStr: string, deltaDays: number): string {
         }, 201);
       }
 
-      // 15. DELETE /api/calendar/override-groups/:groupId
+      // 16. DELETE /api/calendar/override-groups/:groupId
       const delGroupMatch = path.match(/^\/api\/calendar\/override-groups\/([^/]+)$/);
       if (method === 'DELETE' && delGroupMatch) {
         const groupId = delGroupMatch[1];
@@ -1213,14 +1320,30 @@ function addPureCalendarDays(dateStr: string, deltaDays: number): string {
           return errorResponse('본인의 휴일·휴가 일정만 변경할 수 있습니다.', 403, 'CALENDAR_SELF_ONLY');
         }
 
+        // Section 4: Deletion State Transition Validation
+        if (group.status !== 'ACTIVE') {
+          return errorResponse('이미 삭제된 휴가 항목입니다.', 409, 'LEAVE_GROUP_ALREADY_DELETED');
+        }
+
+        const event = await db.prepare(`SELECT * FROM leave_schedule_shift_events WHERE override_group_id = ?`).bind(groupId).first();
+
+        if (event) {
+          if (event.event_status === 'LEAVE_DELETED_SCHEDULE_KEPT') {
+            return errorResponse('이미 일정 유지가 확정된 항목입니다.', 409, 'LEAVE_SCHEDULE_DECISION_FINALIZED');
+          }
+          if (event.event_status === 'RESTORED') {
+            return errorResponse('이미 일정이 원복 완료된 항목입니다.', 409, 'LEAVE_SCHEDULE_ALREADY_RESTORED');
+          }
+          if (event.event_status !== 'ACTIVE') {
+            return errorResponse('휴가 이벤트 상태가 올바르지 않습니다.', 409, 'INVALID_LEAVE_EVENT_STATE');
+          }
+        }
+
         // Soft delete group & delete date overrides
         await db.batch([
           db.prepare(`UPDATE calendar_override_groups SET status = 'DELETED', deleted_by_name = ?, deleted_at = CURRENT_TIMESTAMP WHERE id = ?`).bind(editor, groupId),
           db.prepare(`DELETE FROM calendar_overrides WHERE override_group_id = ?`).bind(groupId),
         ]);
-
-        // Check if active shift event exists
-        const event = await db.prepare(`SELECT * FROM leave_schedule_shift_events WHERE override_group_id = ?`).bind(groupId).first();
 
         if (!event || event.working_leave_days === 0 || event.affected_task_count === 0) {
           return jsonResponse({
@@ -1235,8 +1358,8 @@ function addPureCalendarDays(dateStr: string, deltaDays: number): string {
           });
         }
 
-        // Generate Restore Token & Set event_status = 'LEAVE_DELETED_PENDING_DECISION'
-        const restoreToken = `rst_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+        // Section 3 & 4: Generate Restore Token using crypto.randomUUID() upon deletion
+        const restoreToken = crypto.randomUUID();
         await db.prepare(
           `UPDATE leave_schedule_shift_events
            SET event_status = 'LEAVE_DELETED_PENDING_DECISION', restore_token = ?, leave_deleted_at = CURRENT_TIMESTAMP
@@ -1245,7 +1368,7 @@ function addPureCalendarDays(dateStr: string, deltaDays: number): string {
 
         // Fetch task logs and evaluate restore readiness
         const taskLogsRes = await db.prepare(
-          `SELECT ltl.*, t.task_name, t.start_date as current_start_date, t.end_date as current_end_date, t.schedule_revision, t.progress, p.name as project_name, p.status as project_status, p.end_date as project_end_date
+          `SELECT ltl.*, t.task_name, t.start_date as current_start_date, t.end_date as current_end_date, t.schedule_revision, t.progress, p.name as project_name, p.start_date as project_start_date, p.end_date as project_end_date, p.status as project_status
            FROM leave_schedule_shift_task_logs ltl
            JOIN tasks t ON ltl.task_id = t.id
            JOIN projects p ON ltl.project_id = p.id
@@ -1273,7 +1396,7 @@ function addPureCalendarDays(dateStr: string, deltaDays: number): string {
             restoreStatus = 'MANUAL_CHANGED';
             conflictReason = '휴가 등록 후 작업 일정이 수동 수정됨';
             conflictCount++;
-          } else if (tl.old_end_date > tl.project_end_date) {
+          } else if (tl.old_start_date < tl.project_start_date || tl.old_end_date > tl.project_end_date || tl.old_start_date > tl.old_end_date) {
             restoreStatus = 'CONFLICT';
             conflictReason = '복원 후 프로젝트 기간 초과';
             conflictCount++;
@@ -1301,7 +1424,7 @@ function addPureCalendarDays(dateStr: string, deltaDays: number): string {
         });
       }
 
-      // 16. POST /api/calendar/override-groups/:groupId/keep-schedule
+      // 17. POST /api/calendar/override-groups/:groupId/keep-schedule
       const keepScheduleMatch = path.match(/^\/api\/calendar\/override-groups\/([^/]+)\/keep-schedule$/);
       if (method === 'POST' && keepScheduleMatch) {
         const groupId = keepScheduleMatch[1];
@@ -1312,9 +1435,36 @@ function addPureCalendarDays(dateStr: string, deltaDays: number): string {
           return errorResponse(editCheck.errorMsg!, 403, editCheck.errorCode!);
         }
 
+        const group = await db.prepare(`SELECT * FROM calendar_override_groups WHERE id = ?`).bind(groupId).first();
+        if (!group) {
+          return errorResponse('휴가 항목을 찾을 수 없습니다.', 404);
+        }
+
+        // Section 5: Authorization Check
+        if (group.worker_id !== editCheck.worker!.id && group.worker_id !== editCheck.worker!.name) {
+          return errorResponse('본인의 휴일·휴가 일정만 변경할 수 있습니다.', 403, 'CALENDAR_SELF_ONLY');
+        }
+
         const event = await db.prepare(`SELECT * FROM leave_schedule_shift_events WHERE override_group_id = ?`).bind(groupId).first();
         if (!event) {
           return errorResponse('휴가 이벤트를 찾을 수 없습니다.', 404);
+        }
+
+        if (event.worker_id !== editCheck.worker!.id && event.worker_id !== editCheck.worker!.name) {
+          return errorResponse('본인의 휴일·휴가 일정만 변경할 수 있습니다.', 403, 'CALENDAR_SELF_ONLY');
+        }
+
+        if (event.event_status !== 'LEAVE_DELETED_PENDING_DECISION') {
+          return errorResponse('유효하지 않은 이벤트 상태입니다.', 409, 'INVALID_LEAVE_EVENT_STATE');
+        }
+
+        const restoreToken = body.restore_token;
+        if (!restoreToken || !event.restore_token || restoreToken !== event.restore_token) {
+          return errorResponse('유효하지 않거나 이미 처리된 복원 요청입니다.', 409, 'RESTORE_TOKEN_INVALID');
+        }
+
+        if (body.confirm_keep !== true) {
+          return errorResponse('확인 플래그(confirm_keep)가 필요합니다.', 400);
         }
 
         await db.prepare(
@@ -1327,7 +1477,7 @@ function addPureCalendarDays(dateStr: string, deltaDays: number): string {
         });
       }
 
-      // 17. POST /api/calendar/override-groups/:groupId/restore-schedule
+      // 18. POST /api/calendar/override-groups/:groupId/restore-schedule
       const restoreScheduleMatch = path.match(/^\/api\/calendar\/override-groups\/([^/]+)\/restore-schedule$/);
       if (method === 'POST' && restoreScheduleMatch) {
         const groupId = restoreScheduleMatch[1];
@@ -1336,6 +1486,15 @@ function addPureCalendarDays(dateStr: string, deltaDays: number): string {
         const editCheck = await requireEditableWorker(db, editor);
         if (!editCheck.allowed) {
           return errorResponse(editCheck.errorMsg!, 403, editCheck.errorCode!);
+        }
+
+        const group = await db.prepare(`SELECT * FROM calendar_override_groups WHERE id = ?`).bind(groupId).first();
+        if (!group || group.status !== 'DELETED') {
+          return errorResponse('삭제된 휴가 항목을 찾을 수 없습니다.', 409, 'INVALID_LEAVE_EVENT_STATE');
+        }
+
+        if (group.worker_id !== editCheck.worker!.id && group.worker_id !== editCheck.worker!.name) {
+          return errorResponse('본인의 휴일·휴가 일정만 변경할 수 있습니다.', 403, 'CALENDAR_SELF_ONLY');
         }
 
         const restoreToken = body.restore_token;
@@ -1348,14 +1507,22 @@ function addPureCalendarDays(dateStr: string, deltaDays: number): string {
           .bind(groupId, restoreToken)
           .first();
 
-        if (!event) {
+        if (!event || event.event_status !== 'LEAVE_DELETED_PENDING_DECISION') {
           return errorResponse('유효하지 않거나 이미 처리된 복원 요청입니다.', 409, 'RESTORE_TOKEN_INVALID');
+        }
+
+        if (event.worker_id !== editCheck.worker!.id && event.worker_id !== editCheck.worker!.name) {
+          return errorResponse('본인의 휴일·휴가 일정만 변경할 수 있습니다.', 403, 'CALENDAR_SELF_ONLY');
+        }
+
+        if (body.confirm_restore !== true) {
+          return errorResponse('확인 플래그(confirm_restore)가 필요합니다.', 400);
         }
 
         // Fetch task logs
         const taskLogsRes = await db
           .prepare(
-            `SELECT ltl.*, t.schedule_revision, t.start_date as current_start_date, t.end_date as current_end_date, t.progress, p.status as project_status, p.end_date as project_end_date
+            `SELECT ltl.*, t.schedule_revision, t.start_date as current_start_date, t.end_date as current_end_date, t.progress, p.start_date as project_start_date, p.end_date as project_end_date, p.status as project_status
              FROM leave_schedule_shift_task_logs ltl
              JOIN tasks t ON ltl.task_id = t.id
              JOIN projects p ON ltl.project_id = p.id
@@ -1368,14 +1535,34 @@ function addPureCalendarDays(dateStr: string, deltaDays: number): string {
         const statusLogsRes = await db.prepare(`SELECT * FROM leave_schedule_shift_status_logs WHERE event_id = ?`).bind(event.id).all();
         const statusLogs: any[] = statusLogsRes.results || [];
 
-        // Check for conflicts
+        // Section 6 & 7: Comprehensive Pre-checks (No continue! Abort on ANY conflict)
         for (const tl of taskLogs) {
-          if (tl.progress === 100 || tl.project_status === 'COMPLETED') continue;
+          if (tl.progress === 100) {
+            return errorResponse('완료된 작업이 포함되어 있어 전체 원복을 진행할 수 없습니다.', 409, 'LEAVE_RESTORE_COMPLETED_TASK');
+          }
+          if (tl.project_status === 'COMPLETED') {
+            return errorResponse('완료된 프로젝트가 포함되어 있어 전체 원복을 진행할 수 없습니다.', 409, 'LEAVE_RESTORE_COMPLETED_PROJECT');
+          }
           if (tl.schedule_revision !== tl.task_revision_after_shift || tl.current_start_date !== tl.new_start_date || tl.current_end_date !== tl.new_end_date) {
             return errorResponse('일부 작업은 휴가 등록 이후 일정이 수정되어 자동으로 앞당길 수 없습니다.', 409, 'LEAVE_RESTORE_MANUAL_CHANGED');
           }
-          if (tl.old_end_date > tl.project_end_date) {
-            return errorResponse('복원 후 일부 작업이 프로젝트 종료일을 초과합니다.', 409, 'LEAVE_RESTORE_OUTSIDE_PROJECT_RANGE');
+          if (tl.old_start_date < tl.project_start_date || tl.old_end_date > tl.project_end_date || tl.old_start_date > tl.old_end_date) {
+            return errorResponse('원복 후 일부 작업이 프로젝트 기간을 벗어납니다.', 409, 'LEAVE_RESTORE_OUTSIDE_PROJECT_RANGE');
+          }
+        }
+
+        // Section 8 & 9: Pre-validate daily_status manual changes and conflicts
+        for (const sl of statusLogs) {
+          const currentSt = await db.prepare(`SELECT * FROM daily_status WHERE id = ?`).bind(sl.daily_status_id).first();
+          if (!currentSt || currentSt.work_date !== sl.new_work_date || currentSt.status !== sl.status) {
+            return errorResponse('휴가 반영 후 일부 일별 상태가 수동 수정되어 전체 원복을 진행할 수 없습니다.', 409, 'DAILY_STATUS_MANUAL_CHANGED');
+          }
+          const conflictOther = await db
+            .prepare(`SELECT id FROM daily_status WHERE task_id = ? AND work_date = ? AND id != ?`)
+            .bind(sl.task_id, sl.old_work_date, sl.daily_status_id)
+            .first();
+          if (conflictOther) {
+            return errorResponse('일별 상태 원복 중 날짜 충돌이 발생하였습니다.', 409, 'DAILY_STATUS_RESTORE_CONFLICT');
           }
         }
 
@@ -1430,7 +1617,7 @@ function addPureCalendarDays(dateStr: string, deltaDays: number): string {
         });
       }
 
-      // 18. DELETE /api/calendar/overrides/:id (Legacy Override Fallback)
+      // 19. DELETE /api/calendar/overrides/:id (Legacy Group Delegation)
       const delOverrideMatch = path.match(/^\/api\/calendar\/overrides\/([^/]+)$/);
       if (method === 'DELETE' && delOverrideMatch) {
         const ovrId = delOverrideMatch[1];
@@ -1440,12 +1627,27 @@ function addPureCalendarDays(dateStr: string, deltaDays: number): string {
           return errorResponse(editCheck.errorMsg!, 403, editCheck.errorCode!);
         }
 
-        // Check if override belongs to current worker
         const ovr = await db.prepare(`SELECT * FROM calendar_overrides WHERE id = ?`).bind(ovrId).first();
-        if (ovr && ovr.scope_type === 'WORKER') {
+        if (!ovr) {
+          return errorResponse('휴일·휴가 항목을 찾을 수 없습니다.', 404);
+        }
+
+        if (ovr.scope_type === 'WORKER') {
           const editorWorker = editCheck.worker!;
           if (ovr.scope_key !== editorWorker.id && ovr.scope_key !== editorWorker.name) {
             return errorResponse('본인의 휴일·휴가 일정만 변경할 수 있습니다.', 403, 'CALENDAR_SELF_ONLY');
+          }
+        }
+
+        // Section 14: Delegate group overrides to group deletion flow
+        if (ovr.override_group_id) {
+          const grp = await db.prepare(`SELECT * FROM calendar_override_groups WHERE id = ?`).bind(ovr.override_group_id).first();
+          if (grp && grp.status === 'ACTIVE') {
+            await db.batch([
+              db.prepare(`UPDATE calendar_override_groups SET status = 'DELETED', deleted_by_name = ?, deleted_at = CURRENT_TIMESTAMP WHERE id = ?`).bind(editCheck.worker!.name, grp.id),
+              db.prepare(`DELETE FROM calendar_overrides WHERE override_group_id = ?`).bind(grp.id),
+            ]);
+            return jsonResponse({ id: ovrId, group_delegated: true, groupId: grp.id });
           }
         }
 

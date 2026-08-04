@@ -281,4 +281,11 @@ export const api = {
     });
     return handleResponse<any>(res);
   },
+
+  async getPendingScheduleDecisions(): Promise<any[]> {
+    const res = await fetch('/api/calendar/pending-schedule-decisions', {
+      headers: getWriteHeaders(),
+    });
+    return handleResponse<any[]>(res);
+  },
 };

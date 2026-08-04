@@ -113,12 +113,19 @@ export const ProjectOverviewPage: React.FC = () => {
       setVnHolidays(vnData || []);
       setCalendarOverrides(ovrData || []);
 
-      // Auto resolve worker language
+      // Auto resolve worker language & check pending schedule decisions
       const savedId = getCurrentWorkerId();
       const found = workerList.find((w) => w.id === savedId || w.name === savedId);
       if (found) {
         setCurrentWorker(found);
         setLanguage(found.ui_language || (found.country_code === 'VN' ? 'vi' : 'ko'));
+        if (!isExecutiveViewer(found)) {
+          api.getPendingScheduleDecisions().then((pds) => {
+            if (pds && pds.length > 0) {
+              setIsCalendarModalOpen(true);
+            }
+          }).catch(() => {});
+        }
       } else {
         setIsWorkerPromptOpen(true);
       }

@@ -21,5 +21,21 @@
       "database_id": "feb39a05-c98e-455f-a2b1-ff75e1c0b94f",
       "migrations_dir": "./migrations"
     }
-  ]
+  ],
+  "env": {
+    "qa": {
+      "name": "concost-dev-scheduler-qa",
+      "ai": {
+        "binding": "AI"
+      },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "concost-db-qa",
+          "database_id": "cae30591-5d3f-4441-8684-b79a9e789359",
+          "migrations_dir": "./migrations"
+        }
+      ]
+    }
+  }
 }

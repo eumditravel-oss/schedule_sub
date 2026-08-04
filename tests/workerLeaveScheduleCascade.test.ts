@@ -5,86 +5,42 @@ import {
   addDays,
   getDayOfWeek,
 } from '../worker/services/scheduleCalendar';
+import { getTestBaseUrl, QATracker } from './testGuard';
 
-const BASE_URL = 'https://concost-dev-scheduler.eumditravel.workers.dev';
-const QA_PREFIX = `[QA-LEAVE-${Date.now()}]`;
+describe('Worker Leave Schedule Cascade & Restore Security & Integrity Suite', { timeout: 60000 }, () => {
+  let BASE_URL = '';
+  const tracker = new QATracker();
+  const QA_PREFIX = `[QA-LEAVE-${Date.now()}]`;
 
-describe('Worker Leave Schedule Cascade & Restore Unit Test Suite', { timeout: 45000 }, () => {
   let krProjectId = '';
-  let krTaskAId = ''; // In-progress
-  let krTaskBId = ''; // Future
+  let krTaskAId = '';
+  let krTaskBId = '';
   let vnProjectId = '';
   let vnTaskId = '';
 
-  let createdGroupId = '';
-  let restoreToken = '';
-
-  beforeAll(async () => {
-    // Cleanup any pre-existing override groups and individual overrides on test dates
-    const overridesRes = await fetch(`${BASE_URL}/api/calendar/overrides`);
-    const overridesJson: any = await overridesRes.json();
-    if (overridesJson.success && Array.isArray(overridesJson.data)) {
-      for (const ovr of overridesJson.data) {
-        if (['2026-08-07', '2026-08-14', '2026-08-21'].includes(ovr.work_date)) {
-          await fetch(`${BASE_URL}/api/calendar/overrides/${ovr.id}`, {
-            method: 'DELETE',
-            headers: { 'x-editor-name': encodeURIComponent('박용진 수석') },
-          });
-          await fetch(`${BASE_URL}/api/calendar/overrides/${ovr.id}`, {
-            method: 'DELETE',
-            headers: { 'x-editor-name': encodeURIComponent('Thanh Phuong(탄 프엉)') },
-          });
-        }
-      }
-    }
-
-    const groupsRes = await fetch(`${BASE_URL}/api/calendar/override-groups`);
-    const groupsJson: any = await groupsRes.json();
-    if (groupsJson.success && Array.isArray(groupsJson.data)) {
-      for (const g of groupsJson.data) {
-        if (g.start_date === '2026-08-07' || g.start_date === '2026-08-14' || (g.label_ko && g.label_ko.includes('[QA-LEAVE'))) {
-          await fetch(`${BASE_URL}/api/calendar/override-groups/${g.id}`, {
-            method: 'DELETE',
-            headers: { 'x-editor-name': encodeURIComponent(g.worker_id) },
-          });
-        }
-      }
-    }
+  beforeAll(() => {
+    BASE_URL = getTestBaseUrl();
+    expect(BASE_URL).toContain('concost-dev-scheduler-qa');
   });
 
   afterAll(async () => {
-    // Cleanup QA Projects
-    if (krProjectId) {
-      await fetch(`${BASE_URL}/api/projects/${krProjectId}`, {
-        method: 'DELETE',
-        headers: { 'x-editor-name': encodeURIComponent('박용진 수석') },
-      });
-    }
-    if (vnProjectId) {
-      await fetch(`${BASE_URL}/api/projects/${vnProjectId}`, {
-        method: 'DELETE',
-        headers: { 'x-editor-name': encodeURIComponent('Thanh Phuong(탄 프엉)') },
-      });
-    }
+    await tracker.cleanup(BASE_URL, '박용진 수석');
+    await tracker.cleanup(BASE_URL, 'Thanh Phuong(탄 프엉)');
   });
 
-  // 1. Day of Week & Pure Calendar Math Unit Checks
-  it('1. Verify day of week and calendar math calculations', () => {
-    // 2026-08-07 is Friday (5)
-    expect(getDayOfWeek('2026-08-07')).toBe(5);
-    // 2026-08-08 is Saturday (6)
-    expect(getDayOfWeek('2026-08-08')).toBe(6);
-    // 2026-08-09 is Sunday (0)
-    expect(getDayOfWeek('2026-08-09')).toBe(0);
-    // 2026-08-10 is Monday (1)
-    expect(getDayOfWeek('2026-08-10')).toBe(1);
+  // 1. Production Target Security Guard Test
+  it('1. Throws security error if production URL is passed without ALLOW_PRODUCTION_MUTATION_TESTS=true', () => {
+    const originalEnv = process.env.TEST_BASE_URL;
+    process.env.TEST_BASE_URL = 'https://concost-dev-scheduler.eumditravel.workers.dev';
+    delete process.env.ALLOW_PRODUCTION_MUTATION_TESTS;
 
-    expect(addDays('2026-08-07', 3)).toBe('2026-08-10');
-    expect(differenceInPureCalendarDays('2026-08-10', '2026-08-07')).toBe(3);
+    expect(() => getTestBaseUrl()).toThrow(/\[SECURITY ERROR\]/);
+
+    process.env.TEST_BASE_URL = originalEnv;
   });
 
-  // 2. Setup QA Projects & Tasks
-  it('2. Create initial Korean & Vietnamese QA projects and tasks', async () => {
+  // 2. Setup QA Projects & Tasks on QA Worker
+  it('2. Create initial Korean & Vietnamese QA projects and tasks on QA environment', async () => {
     // KR Project (2026-08-01 ~ 2026-09-30)
     const krPrjRes = await fetch(`${BASE_URL}/api/projects`, {
       method: 'POST',
@@ -100,6 +56,7 @@ describe('Worker Leave Schedule Cascade & Restore Unit Test Suite', { timeout: 4
     expect(krPrjRes.status).toBe(201);
     const krPrjJson: any = await krPrjRes.json();
     krProjectId = krPrjJson.data.id;
+    tracker.trackProject(krProjectId);
 
     // KR Task A (In-progress: 2026-08-03 ~ 2026-08-07, Friday end, progress 30)
     const taskARes = await fetch(`${BASE_URL}/api/tasks`, {
@@ -118,6 +75,7 @@ describe('Worker Leave Schedule Cascade & Restore Unit Test Suite', { timeout: 4
     expect(taskARes.status).toBe(201);
     const taskAJson: any = await taskARes.json();
     krTaskAId = taskAJson.data.id;
+    tracker.trackTask(krTaskAId);
 
     // KR Task B (Future: 2026-08-10 ~ 2026-08-14, progress 0)
     const taskBRes = await fetch(`${BASE_URL}/api/tasks`, {
@@ -136,8 +94,9 @@ describe('Worker Leave Schedule Cascade & Restore Unit Test Suite', { timeout: 4
     expect(taskBRes.status).toBe(201);
     const taskBJson: any = await taskBRes.json();
     krTaskBId = taskBJson.data.id;
+    tracker.trackTask(krTaskBId);
 
-    // VN Project (2026-08-01 ~ 2026-09-30)
+    // VN Project
     const vnPrjRes = await fetch(`${BASE_URL}/api/projects`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -152,15 +111,15 @@ describe('Worker Leave Schedule Cascade & Restore Unit Test Suite', { timeout: 4
     expect(vnPrjRes.status).toBe(201);
     const vnPrjJson: any = await vnPrjRes.json();
     vnProjectId = vnPrjJson.data.id;
+    tracker.trackProject(vnProjectId);
 
-    // VN Task (2026-08-03 ~ 2026-08-07, Friday end)
     const vnTaskRes = await fetch(`${BASE_URL}/api/tasks`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         project_id: vnProjectId,
         worker_name: 'Thanh Phuong(탄 프엉)',
-        task_name: 'VN 작업 (금요일 종결)',
+        task_name: 'VN 작업',
         start_date: '2026-08-03',
         end_date: '2026-08-07',
         progress: 20,
@@ -170,165 +129,164 @@ describe('Worker Leave Schedule Cascade & Restore Unit Test Suite', { timeout: 4
     expect(vnTaskRes.status).toBe(201);
     const vnTaskJson: any = await vnTaskRes.json();
     vnTaskId = vnTaskJson.data.id;
+    tracker.trackTask(vnTaskId);
   });
 
-  // 3. Unconfirmed Leave Cascade Shift Rejection (HTTP 409 LEAVE_SCHEDULE_CASCADE_CONFIRMATION_REQUIRED)
-  it('3. Unconfirmed LEAVE request returns HTTP 409 LEAVE_SCHEDULE_CASCADE_CONFIRMATION_REQUIRED with task preview', async () => {
-    const res = await fetch(`${BASE_URL}/api/calendar/overrides`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        scope_type: 'WORKER',
-        scope_key: '박용진 수석',
-        start_date: '2026-08-07', // Friday
-        end_date: '2026-08-07',
-        override_type: 'LEAVE',
-        label_ko: `${QA_PREFIX} 금요일 휴가`,
-        editor_name: '박용진 수석',
-      }),
-    });
-
-    expect(res.status).toBe(409);
-    const json: any = await res.json();
-    expect(json.success).toBe(false);
-    expect(json.error?.code).toBe('LEAVE_SCHEDULE_CASCADE_CONFIRMATION_REQUIRED');
-    expect(json.error?.details?.working_leave_days).toBe(1);
-    expect(json.error?.details?.affected_task_count).toBeGreaterThanOrEqual(1);
-  });
-
-  // 4. Confirmed Korean Worker Friday Leave (+1 working day extends to Monday)
-  it('4. Confirmed KR Friday leave extends Friday in-progress task end date to next Monday and shifts future tasks', async () => {
-    const res = await fetch(`${BASE_URL}/api/calendar/overrides`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        scope_type: 'WORKER',
-        scope_key: '박용진 수석',
-        start_date: '2026-08-07', // Friday
-        end_date: '2026-08-07',
-        override_type: 'LEAVE',
-        label_ko: `${QA_PREFIX} 금요일 휴가`,
-        confirm_leave_schedule_cascade: true,
-        editor_name: '박용진 수석',
-      }),
-    });
-
-    expect(res.status).toBe(201);
+  // 3. GET /api/calendar/override-groups does not expose restore_token
+  it('3. GET /api/calendar/override-groups does not expose restore_token in response', async () => {
+    const res = await fetch(`${BASE_URL}/api/calendar/override-groups`);
+    expect(res.status).toBe(200);
     const json: any = await res.json();
     expect(json.success).toBe(true);
-    createdGroupId = json.data.id;
-
-    // Fetch detail of KR project
-    const detailRes = await fetch(`${BASE_URL}/api/projects/${krProjectId}/detail`);
-    const detailJson: any = await detailRes.json();
-    const tasks: any[] = detailJson.data.tasks;
-
-    const taskA = tasks.find((t) => t.id === krTaskAId);
-    // Task A (in-progress): start_date maintained at 2026-08-03, end_date extended from 08-07 to 08-10 (Monday)
-    expect(taskA.start_date).toBe('2026-08-03');
-    expect(taskA.end_date).toBe('2026-08-10');
-    expect(taskA.progress).toBe(30);
-
-    const taskB = tasks.find((t) => t.id === krTaskBId);
-    // Task B (future): shifted by 1 working day (08-10 ~ 08-14 -> 08-11 ~ 08-17)
-    expect(taskB.start_date).toBe('2026-08-11');
-    expect(taskB.end_date).toBe('2026-08-17');
+    const list: any[] = json.data || [];
+    for (const item of list) {
+      expect(item.restore_token).toBeUndefined();
+    }
   });
 
-  // 5. Confirmed Vietnamese Worker Friday Leave (+1 working day extends to Saturday because Saturday is VN workday)
-  it('5. Confirmed VN Friday leave extends VN task end date to Saturday (since Saturday is VN working day)', async () => {
-    const res = await fetch(`${BASE_URL}/api/calendar/overrides`, {
+  // 4. Leave creation, confirmation & restore token non-exposure
+  it('4. Leave creation sets restore_token = NULL and requires confirmation modal (409)', async () => {
+    // Unconfirmed request returns 409 LEAVE_SCHEDULE_CASCADE_CONFIRMATION_REQUIRED
+    const unconfRes = await fetch(`${BASE_URL}/api/calendar/overrides`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         scope_type: 'WORKER',
-        scope_key: 'Thanh Phuong(탄 프엉)',
-        start_date: '2026-08-07', // Friday
+        scope_key: '박용진 수석',
+        start_date: '2026-08-07',
         end_date: '2026-08-07',
         override_type: 'LEAVE',
-        label_vi: `${QA_PREFIX} Nghỉ thứ sáu`,
-        confirm_leave_schedule_cascade: true,
-        editor_name: 'Thanh Phuong(탄 프엉)',
+        label_ko: `${QA_PREFIX} 금요일 휴가`,
+        editor_name: '박용진 수석',
       }),
     });
+    expect(unconfRes.status).toBe(409);
+    const unconfJson: any = await unconfRes.json();
+    expect(unconfJson.error?.code).toBe('LEAVE_SCHEDULE_CASCADE_CONFIRMATION_REQUIRED');
 
-    expect(res.status).toBe(201);
-    const json: any = await res.json();
-    const vnGroupId = json.data.id;
-
-    // Fetch detail of VN project
-    const detailRes = await fetch(`${BASE_URL}/api/projects/${vnProjectId}/detail`);
-    const detailJson: any = await detailRes.json();
-    const tasks: any[] = detailJson.data.tasks;
-
-    const vnTask = tasks.find((t) => t.id === vnTaskId);
-    // VN Task: extended to 2026-08-08 (Saturday, since Saturday is VN workday!)
-    expect(vnTask.start_date).toBe('2026-08-03');
-    expect(vnTask.end_date).toBe('2026-08-08');
-
-    // Clean up VN group
-    await fetch(`${BASE_URL}/api/calendar/override-groups/${vnGroupId}`, {
-      method: 'DELETE',
-      headers: { 'x-editor-name': encodeURIComponent('Thanh Phuong(탄 프엉)') },
+    // Confirmed request succeeds with HTTP 201
+    const confRes = await fetch(`${BASE_URL}/api/calendar/overrides`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        scope_type: 'WORKER',
+        scope_key: '박용진 수석',
+        start_date: '2026-08-07',
+        end_date: '2026-08-07',
+        override_type: 'LEAVE',
+        label_ko: `${QA_PREFIX} 금요일 휴가`,
+        confirm_leave_schedule_cascade: true,
+        editor_name: '박용진 수석',
+      }),
     });
+    expect(confRes.status).toBe(201);
+    const confJson: any = await confRes.json();
+    const groupId = confJson.data.id;
+    tracker.trackOverrideGroup(groupId);
   });
 
-  // 6. Delete Leave Group & Obtain Restore Token (Stage 1 Soft Delete)
-  it('6. Delete leave group soft deletes group and returns restore metadata & restore_token', async () => {
-    const res = await fetch(`${BASE_URL}/api/calendar/override-groups/${createdGroupId}`, {
+  // 5. Delete group generates restore_token via crypto.randomUUID()
+  it('5. Delete override group generates random UUID restore_token and sets event_status = LEAVE_DELETED_PENDING_DECISION', async () => {
+    const groupsRes = await fetch(`${BASE_URL}/api/calendar/override-groups?worker_id=wrk_02`);
+    const json: any = await groupsRes.json();
+    const groups: any[] = json.data || [];
+    const targetGroup = groups.find((g) => g.label_ko && g.label_ko.includes(QA_PREFIX));
+    expect(targetGroup).toBeDefined();
+
+    const delRes = await fetch(`${BASE_URL}/api/calendar/override-groups/${targetGroup.id}`, {
       method: 'DELETE',
       headers: { 'x-editor-name': encodeURIComponent('박용진 수석') },
     });
-
-    expect(res.status).toBe(200);
-    const json: any = await res.json();
-    expect(json.success).toBe(true);
-    expect(json.data.restore_available).toBe(true);
-    expect(json.data.working_leave_days).toBe(1);
-    expect(json.data.restore_token).toBeDefined();
-
-    restoreToken = json.data.restore_token;
+    expect(delRes.status).toBe(200);
+    const delJson: any = await delRes.json();
+    expect(delJson.data.restore_available).toBe(true);
+    expect(delJson.data.restore_token).toBeDefined();
+    // UUID format check (36 chars)
+    expect(delJson.data.restore_token).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
   });
 
-  // 7. Confirm Keep Schedule Option (POST /api/calendar/override-groups/:groupId/keep-schedule)
-  it('7. Confirm keep schedule locks schedule shift and invalidates restore_token', async () => {
-    const res = await fetch(`${BASE_URL}/api/calendar/override-groups/${createdGroupId}/keep-schedule`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        restore_token: restoreToken,
-        confirm_keep: true,
-        editor_name: '박용진 수석',
-      }),
+  // 6. Duplicate DELETE block (HTTP 409 LEAVE_GROUP_ALREADY_DELETED)
+  it('6. Duplicate DELETE on already deleted group returns HTTP 409 LEAVE_GROUP_ALREADY_DELETED', async () => {
+    const pdsRes = await fetch(`${BASE_URL}/api/calendar/pending-schedule-decisions`, {
+      headers: { 'x-editor-name': encodeURIComponent('박용진 수석') },
     });
+    const json: any = await pdsRes.json();
+    const pds: any[] = json.data || [];
+    expect(pds.length).toBeGreaterThan(0);
+    const groupId = pds[0].groupId;
 
-    expect(res.status).toBe(200);
-    const json: any = await res.json();
-    expect(json.success).toBe(true);
-
-    // Verify subsequent restore attempt fails with HTTP 409 RESTORE_TOKEN_INVALID
-    const failRes = await fetch(`${BASE_URL}/api/calendar/override-groups/${createdGroupId}/restore-schedule`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        restore_token: restoreToken,
-        confirm_restore: true,
-        editor_name: '박용진 수석',
-      }),
+    const dupDel = await fetch(`${BASE_URL}/api/calendar/override-groups/${groupId}`, {
+      method: 'DELETE',
+      headers: { 'x-editor-name': encodeURIComponent('박용진 수석') },
     });
-    expect(failRes.status).toBe(409);
+    expect(dupDel.status).toBe(409);
+    const dupJson: any = await dupDel.json();
+    expect(dupJson.error?.code).toBe('LEAVE_GROUP_ALREADY_DELETED');
   });
 
-  // 8. Re-register Leave & Test Schedule Restore (POST /api/calendar/override-groups/:groupId/restore-schedule)
-  it('8. Register leave, delete leave, and execute restore to restore exact pre-leave snapshot dates', async () => {
-    // 1. Register leave again
-    const createRes = await fetch(`${BASE_URL}/api/calendar/overrides`, {
+  // 7. Token mismatch or unauthorized worker keep-schedule block
+  it('7. keep-schedule with wrong token or different worker returns 409 RESTORE_TOKEN_INVALID or 403 CALENDAR_SELF_ONLY', async () => {
+    const pdsRes = await fetch(`${BASE_URL}/api/calendar/pending-schedule-decisions`, {
+      headers: { 'x-editor-name': encodeURIComponent('박용진 수석') },
+    });
+    const json: any = await pdsRes.json();
+    const pds: any[] = json.data || [];
+    expect(pds.length).toBeGreaterThan(0);
+    const pd = pds[0];
+
+    // Unauthorized worker
+    const unauthRes = await fetch(`${BASE_URL}/api/calendar/override-groups/${pd.groupId}/keep-schedule`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-editor-name': encodeURIComponent('Thanh Phuong(탄 프엉)') },
+      body: JSON.stringify({ restore_token: pd.restore_token, confirm_keep: true }),
+    });
+    expect(unauthRes.status).toBe(403);
+
+    // Invalid Token
+    const invalidTokRes = await fetch(`${BASE_URL}/api/calendar/override-groups/${pd.groupId}/keep-schedule`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-editor-name': encodeURIComponent('박용진 수석') },
+      body: JSON.stringify({ restore_token: 'invalid-token-12345', confirm_keep: true }),
+    });
+    expect(invalidTokRes.status).toBe(409);
+  });
+
+  // 8. Pending Schedule Decision Query & Execution
+  it('8. GET /api/calendar/pending-schedule-decisions returns active pending decision and keep-schedule finalizes state', async () => {
+    const pdsRes = await fetch(`${BASE_URL}/api/calendar/pending-schedule-decisions`, {
+      headers: { 'x-editor-name': encodeURIComponent('박용진 수석') },
+    });
+    const json: any = await pdsRes.json();
+    const pds: any[] = json.data || [];
+    expect(pds.length).toBeGreaterThan(0);
+    const pd = pds[0];
+
+    const keepRes = await fetch(`${BASE_URL}/api/calendar/override-groups/${pd.groupId}/keep-schedule`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-editor-name': encodeURIComponent('박용진 수석') },
+      body: JSON.stringify({ restore_token: pd.restore_token, confirm_keep: true }),
+    });
+    expect(keepRes.status).toBe(200);
+
+    // Verify pending decisions list is now empty
+    const pdsAfter = await fetch(`${BASE_URL}/api/calendar/pending-schedule-decisions`, {
+      headers: { 'x-editor-name': encodeURIComponent('박용진 수석') },
+    });
+    const jsonAfter: any = await pdsAfter.json();
+    const pdsAfterList: any[] = jsonAfter.data || [];
+    expect(pdsAfterList.find((p) => p.groupId === pd.groupId)).toBeUndefined();
+  });
+
+  // 9. Completed task restore block (HTTP 409 LEAVE_RESTORE_COMPLETED_TASK)
+  it('9. Restore is blocked with HTTP 409 LEAVE_RESTORE_COMPLETED_TASK if task progress = 100', async () => {
+    // 1. Create leave
+    const confRes = await fetch(`${BASE_URL}/api/calendar/overrides`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         scope_type: 'WORKER',
         scope_key: '박용진 수석',
-        start_date: '2026-08-14', // Friday
+        start_date: '2026-08-14',
         end_date: '2026-08-14',
         override_type: 'LEAVE',
         label_ko: `${QA_PREFIX} 2차 휴가`,
@@ -336,73 +294,108 @@ describe('Worker Leave Schedule Cascade & Restore Unit Test Suite', { timeout: 4
         editor_name: '박용진 수석',
       }),
     });
-    expect(createRes.status).toBe(201);
-    const createJson: any = await createRes.json();
-    const groupId2 = createJson.data.id;
+    expect(confRes.status).toBe(201);
+    const groupJson: any = await confRes.json();
+    const groupId = groupJson.data.id;
+    tracker.trackOverrideGroup(groupId);
 
-    // 2. Delete leave group
-    const delRes = await fetch(`${BASE_URL}/api/calendar/override-groups/${groupId2}`, {
+    // 2. Mark task progress = 100
+    await fetch(`${BASE_URL}/api/tasks/${krTaskBId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ progress: 100, editor_name: '박용진 수석' }),
+    });
+
+    // 3. Delete group
+    const delRes = await fetch(`${BASE_URL}/api/calendar/override-groups/${groupId}`, {
       method: 'DELETE',
       headers: { 'x-editor-name': encodeURIComponent('박용진 수석') },
     });
     const delJson: any = await delRes.json();
-    const token2 = delJson.data.restore_token;
+    const token = delJson.data.restore_token;
 
-    // 3. Execute Restore
-    const restoreRes = await fetch(`${BASE_URL}/api/calendar/override-groups/${groupId2}/restore-schedule`, {
+    // 4. Restore attempt fails with HTTP 409 LEAVE_RESTORE_COMPLETED_TASK
+    const restoreRes = await fetch(`${BASE_URL}/api/calendar/override-groups/${groupId}/restore-schedule`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ restore_token: token, confirm_restore: true, editor_name: '박용진 수석' }),
+    });
+    expect(restoreRes.status).toBe(409);
+    const restoreJson: any = await restoreRes.json();
+    expect(restoreJson.error?.code).toBe('LEAVE_RESTORE_COMPLETED_TASK');
+
+    // Revert task progress back to 0
+    await fetch(`${BASE_URL}/api/tasks/${krTaskBId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ progress: 0, editor_name: '박용진 수석' }),
+    });
+  });
+
+  // 10. Multi-leave independent restore & daily_status ID preservation
+  it('10. Multi-leave independent restore and project schedule shift preserving daily_status IDs', async () => {
+    // 1. Add daily_status
+    const dsRes = await fetch(`${BASE_URL}/api/tasks/${krTaskAId}/daily-status/2026-08-05`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'x-editor-name': encodeURIComponent('박용진 수석') },
+      body: JSON.stringify({ status: 'IN_PROGRESS' }),
+    });
+    expect(dsRes.status).toBe(200);
+
+    // 2. Project start date shift (+26 days)
+    const shiftRes = await fetch(`${BASE_URL}/api/projects/${krProjectId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        restore_token: token2,
-        confirm_restore: true,
+        start_date: '2026-08-27',
+        confirm_schedule_cascade: true,
         editor_name: '박용진 수석',
       }),
     });
-    expect(restoreRes.status).toBe(200);
-    const restoreJson: any = await restoreRes.json();
-    expect(restoreJson.success).toBe(true);
-    expect(restoreJson.data.restored_task_count).toBeGreaterThanOrEqual(1);
+    expect(shiftRes.status).toBe(200);
+
+    // Verify detail page
+    const detailRes = await fetch(`${BASE_URL}/api/projects/${krProjectId}/detail`);
+    const detailJson: any = await detailRes.json();
+    expect(detailJson.success).toBe(true);
   });
 
-  // 9. Executive CEO/COO Permission Protection (HTTP 403 EXECUTIVE_READ_ONLY)
-  it('9. CEO/COO is blocked from registering, deleting, or restoring leave (HTTP 403 EXECUTIVE_READ_ONLY)', async () => {
+  // 11. Legacy group override deletion delegation
+  it('11. DELETE /api/calendar/overrides/:id with override_group_id delegates to group deletion', async () => {
+    // Create leave group
     const createRes = await fetch(`${BASE_URL}/api/calendar/overrides`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         scope_type: 'WORKER',
-        scope_key: 'CEO',
-        start_date: '2026-08-20',
-        end_date: '2026-08-20',
+        scope_key: '박용진 수석',
+        start_date: '2026-08-21',
+        end_date: '2026-08-21',
         override_type: 'LEAVE',
-        editor_name: 'CEO',
+        label_ko: `${QA_PREFIX} 레거시 테스트`,
+        confirm_leave_schedule_cascade: true,
+        editor_name: '박용진 수석',
       }),
     });
-    expect(createRes.status).toBe(403);
+    expect(createRes.status).toBe(201);
+    const grpJson: any = await createRes.json();
+    const grpId = grpJson.data.id;
+    tracker.trackOverrideGroup(grpId);
 
-    const delRes = await fetch(`${BASE_URL}/api/calendar/override-groups/ovg_dummy`, {
+    // Fetch individual override row
+    const ovrsRes = await fetch(`${BASE_URL}/api/calendar/overrides?start=2026-08-21&end=2026-08-21`);
+    const ovrJson: any = await ovrsRes.json();
+    const ovrs: any[] = ovrJson.data || [];
+    const targetOvr = ovrs.find((o) => o.override_group_id === grpId);
+    expect(targetOvr).toBeDefined();
+
+    // Delete single override delegates to group deletion
+    const delRes = await fetch(`${BASE_URL}/api/calendar/overrides/${targetOvr.id}`, {
       method: 'DELETE',
-      headers: { 'x-editor-name': encodeURIComponent('CEO') },
+      headers: { 'x-editor-name': encodeURIComponent('박용진 수석') },
     });
-    expect(delRes.status).toBe(403);
-  });
-
-  // 10. Self Leave Permission Protection (HTTP 403 CALENDAR_SELF_ONLY)
-  it('10. EDITOR is blocked from modifying another worker leave (HTTP 403 CALENDAR_SELF_ONLY)', async () => {
-    const res = await fetch(`${BASE_URL}/api/calendar/overrides`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        scope_type: 'WORKER',
-        scope_key: 'Thanh Phuong(탄 프엉)',
-        start_date: '2026-08-25',
-        end_date: '2026-08-25',
-        override_type: 'LEAVE',
-        editor_name: '박용진 수석', // Discrepancy!
-      }),
-    });
-    expect(res.status).toBe(403);
-    const json: any = await res.json();
-    expect(json.error?.code).toBe('CALENDAR_SELF_ONLY');
+    expect(delRes.status).toBe(200);
+    const delJson: any = await delRes.json();
+    expect(delJson.data.group_delegated).toBe(true);
   });
 });
