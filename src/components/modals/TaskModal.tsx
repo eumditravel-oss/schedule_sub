@@ -1,7 +1,8 @@
 // src/components/modals/TaskModal.tsx
 import React, { useState, useEffect } from 'react';
 import { Task } from '../../types';
-import { X } from 'lucide-react';
+import { getCurrentWorkerName } from '../../services/api';
+import { X, Lock } from 'lucide-react';
 
 interface TaskModalProps {
   isOpen: boolean;
@@ -9,9 +10,17 @@ interface TaskModalProps {
   onClose: () => void;
   onSave: (data: Partial<Task>) => Promise<void>;
   task?: Task | null;
+  currentWorkerName: string;
 }
 
-export const TaskModal: React.FC<TaskModalProps> = ({ isOpen, projectId, onClose, onSave, task }) => {
+export const TaskModal: React.FC<TaskModalProps> = ({
+  isOpen,
+  projectId,
+  onClose,
+  onSave,
+  task,
+  currentWorkerName,
+}) => {
   const [workerName, setWorkerName] = useState('');
   const [taskName, setTaskName] = useState('');
   const [startDate, setStartDate] = useState('');
@@ -21,25 +30,32 @@ export const TaskModal: React.FC<TaskModalProps> = ({ isOpen, projectId, onClose
 
   useEffect(() => {
     if (task) {
-      setWorkerName(task.worker_name || '');
+      setWorkerName(task.worker_name || currentWorkerName || getCurrentWorkerName());
       setTaskName(task.task_name || '');
       setStartDate(task.start_date || '');
       setEndDate(task.end_date || '');
       setProgress(task.progress ?? 0);
     } else {
-      setWorkerName('');
+      const activeWorker = currentWorkerName || getCurrentWorkerName();
+      setWorkerName(activeWorker);
       setTaskName('');
       setStartDate('2026-08-01');
       setEndDate('2026-08-20');
       setProgress(0);
     }
-  }, [task, isOpen]);
+  }, [task, isOpen, currentWorkerName]);
 
   if (!isOpen) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!workerName || !taskName || !startDate || !endDate) return;
+    if (!taskName || !startDate || !endDate) return;
+
+    if (!currentWorkerName && !getCurrentWorkerName()) {
+      alert('현재 접속자를 먼저 선택해 주세요.');
+      return;
+    }
+
     setLoading(true);
     try {
       await onSave({
@@ -72,15 +88,17 @@ export const TaskModal: React.FC<TaskModalProps> = ({ isOpen, projectId, onClose
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           <div>
-            <label className="block text-xs font-semibold text-slate-400 mb-1">작업자명 *</label>
-            <input
-              type="text"
-              required
-              value={workerName}
-              onChange={(e) => setWorkerName(e.target.value)}
-              placeholder="예: 김개발"
-              className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm focus:outline-none focus:border-blue-500 text-white"
-            />
+            <label className="block text-xs font-semibold text-slate-400 mb-1 flex items-center gap-1.5">
+              <span>작업 담당자 (자동 설정)</span>
+              <Lock className="w-3 h-3 text-slate-500" />
+            </label>
+            <div className="flex items-center gap-2 px-3 py-2 bg-slate-900 border border-slate-700/80 rounded-lg text-sm text-slate-300 font-bold">
+              <span className="w-2 h-2 rounded-full bg-blue-500" />
+              <span>{workerName || '접속자 미선택'}</span>
+              <span className="text-[11px] font-normal text-slate-500 ml-auto">
+                {task ? '(기존 담당자 유지)' : '(현재 접속자)'}
+              </span>
+            </div>
           </div>
 
           <div>
@@ -90,7 +108,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({ isOpen, projectId, onClose
               required
               value={taskName}
               onChange={(e) => setTaskName(e.target.value)}
-              placeholder="예: 프로젝트 목록 화면 개발"
+              placeholder="예: 프로젝트 상세 화면 개발"
               className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm focus:outline-none focus:border-blue-500 text-white"
             />
           </div>

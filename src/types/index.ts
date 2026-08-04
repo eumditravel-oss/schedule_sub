@@ -2,6 +2,15 @@
 
 export type DailyStatusType = 'NONE' | 'IN_PROGRESS' | 'COMPLETED' | 'ISSUE';
 
+export interface Worker {
+  id: string;
+  name: string;
+  is_active: number;
+  sort_order: number;
+  created_at?: string;
+  updated_at?: string;
+}
+
 export interface Project {
   id: string;
   name: string;
@@ -21,9 +30,12 @@ export interface Task {
   start_date: string; // YYYY-MM-DD
   end_date: string;   // YYYY-MM-DD
   progress: number;   // 0~100
+  created_by_name?: string;
+  updated_by_name?: string;
   created_at?: string;
   updated_at?: string;
   daily_statuses?: Record<string, DailyStatusType>; // work_date -> status map
+  daily_status_details?: Record<string, { status: DailyStatusType; updated_by_name?: string }>;
 }
 
 export interface DailyStatus {
@@ -31,6 +43,7 @@ export interface DailyStatus {
   task_id: string;
   work_date: string; // YYYY-MM-DD
   status: DailyStatusType;
+  updated_by_name?: string;
   updated_at?: string;
 }
 

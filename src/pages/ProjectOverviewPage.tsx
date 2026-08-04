@@ -2,9 +2,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Project, GanttDateColumn } from '../types';
-import { api } from '../services/api';
-import { generateDateColumns, groupColumnsByMonth, formatKoreanDate } from '../utils/dateUtils';
+import { api, getCurrentWorkerName } from '../services/api';
+import { generateDateColumns, groupColumnsByMonth } from '../utils/dateUtils';
 import { ProjectModal } from '../components/modals/ProjectModal';
+import { WorkerSelector } from '../components/common/WorkerSelector';
+import { WorkerPromptModal } from '../components/modals/WorkerPromptModal';
 import { Plus, Calendar, Edit2, Trash2, ChevronRight } from 'lucide-react';
 
 export const ProjectOverviewPage: React.FC = () => {
@@ -12,11 +14,15 @@ export const ProjectOverviewPage: React.FC = () => {
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Worker State
+  const [currentWorker, setCurrentWorker] = useState<string>(getCurrentWorkerName());
+  const [isWorkerPromptOpen, setIsWorkerPromptOpen] = useState(false);
+
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
 
-  // Timeline Range (Default: 2026-07-01 ~ 2026-09-30)
+  // Timeline Range
   const [startDate, setStartDate] = useState(new Date('2026-07-01'));
   const [endDate, setEndDate] = useState(new Date('2026-09-30'));
 
@@ -36,10 +42,21 @@ export const ProjectOverviewPage: React.FC = () => {
 
   useEffect(() => {
     fetchProjects();
+    const saved = getCurrentWorkerName();
+    if (saved) setCurrentWorker(saved);
   }, []);
 
   const dateColumns: GanttDateColumn[] = generateDateColumns(startDate, endDate);
   const monthGroups = groupColumnsByMonth(dateColumns);
+
+  const requireWorkerSelection = (): boolean => {
+    const active = currentWorker || getCurrentWorkerName();
+    if (!active) {
+      setIsWorkerPromptOpen(true);
+      return false;
+    }
+    return true;
+  };
 
   const handleGoToToday = () => {
     const today = new Date();
@@ -58,7 +75,14 @@ export const ProjectOverviewPage: React.FC = () => {
     }, 100);
   };
 
+  const handleOpenAddModal = () => {
+    if (!requireWorkerSelection()) return;
+    setSelectedProject(null);
+    setIsModalOpen(true);
+  };
+
   const handleSaveProject = async (data: Partial<Project>) => {
+    if (!requireWorkerSelection()) return;
     if (selectedProject) {
       await api.updateProject(selectedProject.id, data);
     } else {
@@ -69,6 +93,7 @@ export const ProjectOverviewPage: React.FC = () => {
 
   const handleDeleteProject = async (e: React.MouseEvent, id: string, name: string) => {
     e.stopPropagation();
+    if (!requireWorkerSelection()) return;
     if (!window.confirm(`'${name}' 프로젝트를 삭제하시겠습니까?`)) return;
     await api.deleteProject(id);
     await fetchProjects();
@@ -76,24 +101,20 @@ export const ProjectOverviewPage: React.FC = () => {
 
   const handleEditProject = (e: React.MouseEvent, project: Project) => {
     e.stopPropagation();
+    if (!requireWorkerSelection()) return;
     setSelectedProject(project);
     setIsModalOpen(true);
   };
 
-  // Helper to compute column span & offset
   const getGanttSpan = (pStartStr: string, pEndStr: string) => {
     const pStart = new Date(pStartStr).getTime();
     const pEnd = new Date(pEndStr).getTime();
-
     const firstColDate = dateColumns[0]?.date.getTime() || pStart;
 
     const startDiffDays = Math.max(0, Math.floor((pStart - firstColDate) / 86400000));
     const durationDays = Math.max(1, Math.floor((pEnd - pStart) / 86400000) + 1);
 
-    return {
-      startIndex: startDiffDays,
-      durationDays,
-    };
+    return { startIndex: startDiffDays, durationDays };
   };
 
   return (
@@ -111,6 +132,12 @@ export const ProjectOverviewPage: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-3">
+          {/* Worker Selector UI */}
+          <WorkerSelector
+            currentWorker={currentWorker}
+            onWorkerChange={(name) => setCurrentWorker(name)}
+          />
+
           <button
             onClick={handleGoToToday}
             className="flex items-center gap-1.5 px-3.5 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-semibold rounded-lg shadow-sm transition"
@@ -119,10 +146,7 @@ export const ProjectOverviewPage: React.FC = () => {
             <span>오늘 날짜로 이동</span>
           </button>
           <button
-            onClick={() => {
-              setSelectedProject(null);
-              setIsModalOpen(true);
-            }}
+            onClick={handleOpenAddModal}
             className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-lg shadow-md transition"
           >
             <Plus className="w-4 h-4" />
@@ -140,7 +164,6 @@ export const ProjectOverviewPage: React.FC = () => {
           <table className="w-full border-collapse text-left min-w-max">
             {/* Header Rows */}
             <thead className="sticky top-0 z-20 bg-slate-800 text-xs uppercase tracking-wider text-slate-300">
-              {/* Row 1: Month Header */}
               <tr className="border-b border-slate-700/80">
                 <th
                   rowSpan={2}
@@ -162,7 +185,6 @@ export const ProjectOverviewPage: React.FC = () => {
                 ))}
               </tr>
 
-              {/* Row 2: Date & Day Header */}
               <tr className="border-b border-slate-700">
                 {dateColumns.map((col, idx) => (
                   <th
@@ -259,24 +281,19 @@ export const ProjectOverviewPage: React.FC = () => {
                                 : ''
                             }`}
                           >
-                            {/* Today vertical line */}
                             {col.isToday && (
                               <div className="absolute inset-y-0 left-1/2 w-0.5 bg-blue-500 z-10 opacity-75 pointer-events-none" />
                             )}
 
-                            {/* Gantt Horizontal Bar Span */}
                             {isBarStart && (
                               <div
                                 style={{ width: `calc(${durationDays * 36}px - 4px)` }}
                                 className="absolute top-1/2 -translate-y-1/2 left-0.5 h-8 bg-slate-700/80 border border-slate-600 rounded-lg overflow-hidden z-10 shadow-md group-hover:border-blue-400 transition"
                               >
-                                {/* Filled Progress Bar */}
                                 <div
                                   style={{ width: `${project.progress}%` }}
                                   className="h-full bg-gradient-to-r from-blue-600 to-cyan-500 rounded-l-lg transition-all duration-300"
                                 />
-
-                                {/* Bar Inner Text */}
                                 <div className="absolute inset-0 flex items-center justify-between px-3 text-xs font-bold text-white drop-shadow whitespace-nowrap overflow-hidden">
                                   <span className="truncate">{project.name}</span>
                                   <span className="ml-2 text-[11px] font-semibold text-cyan-200">{project.progress}%</span>
@@ -295,12 +312,18 @@ export const ProjectOverviewPage: React.FC = () => {
         </div>
       </main>
 
-      {/* Project Modal */}
+      {/* Modals */}
       <ProjectModal
         isOpen={isModalOpen}
         project={selectedProject}
         onClose={() => setIsModalOpen(false)}
         onSave={handleSaveProject}
+      />
+
+      <WorkerPromptModal
+        isOpen={isWorkerPromptOpen}
+        onClose={() => setIsWorkerPromptOpen(false)}
+        onSelectWorker={(name) => setCurrentWorker(name)}
       />
     </div>
   );

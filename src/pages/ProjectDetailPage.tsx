@@ -2,10 +2,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Project, Task, DailyStatusType, GanttDateColumn } from '../types';
-import { api } from '../services/api';
+import { api, getCurrentWorkerName } from '../services/api';
 import { generateDateColumns, groupColumnsByMonth } from '../utils/dateUtils';
 import { TaskModal } from '../components/modals/TaskModal';
 import { StatusPopover } from '../components/modals/StatusPopover';
+import { WorkerSelector } from '../components/common/WorkerSelector';
+import { WorkerPromptModal } from '../components/modals/WorkerPromptModal';
 import { ArrowLeft, Plus, Edit2, Trash2, Calendar } from 'lucide-react';
 
 export const ProjectDetailPage: React.FC = () => {
@@ -15,6 +17,10 @@ export const ProjectDetailPage: React.FC = () => {
   const [project, setProject] = useState<Project | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Worker State
+  const [currentWorker, setCurrentWorker] = useState<string>(getCurrentWorkerName());
+  const [isWorkerPromptOpen, setIsWorkerPromptOpen] = useState(false);
 
   // Modal State for Task Add/Edit
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
@@ -67,13 +73,31 @@ export const ProjectDetailPage: React.FC = () => {
 
   useEffect(() => {
     fetchDetail();
+    const saved = getCurrentWorkerName();
+    if (saved) setCurrentWorker(saved);
   }, [projectId]);
 
   const dateColumns: GanttDateColumn[] = generateDateColumns(startDate, endDate);
   const monthGroups = groupColumnsByMonth(dateColumns);
 
+  const requireWorkerSelection = (): boolean => {
+    const active = currentWorker || getCurrentWorkerName();
+    if (!active) {
+      setIsWorkerPromptOpen(true);
+      return false;
+    }
+    return true;
+  };
+
+  const handleOpenAddTask = () => {
+    if (!requireWorkerSelection()) return;
+    setSelectedTask(null);
+    setIsTaskModalOpen(true);
+  };
+
   const handleSaveTask = async (data: Partial<Task>) => {
     if (!projectId) return;
+    if (!requireWorkerSelection()) return;
     if (selectedTask) {
       await api.updateTask(selectedTask.id, data);
     } else {
@@ -83,13 +107,21 @@ export const ProjectDetailPage: React.FC = () => {
   };
 
   const handleDeleteTask = async (id: string, name: string) => {
+    if (!requireWorkerSelection()) return;
     if (!window.confirm(`'${name}' 작업을 삭제하시겠습니까?`)) return;
     await api.deleteTask(id);
     await fetchDetail();
   };
 
+  const handleEditTask = (task: Task) => {
+    if (!requireWorkerSelection()) return;
+    setSelectedTask(task);
+    setIsTaskModalOpen(true);
+  };
+
   const handleCellClick = (e: React.MouseEvent, taskId: string, dateStr: string, currentStatus: DailyStatusType) => {
     e.stopPropagation();
+    if (!requireWorkerSelection()) return;
     const rect = e.currentTarget.getBoundingClientRect();
     setPopover({
       isOpen: true,
@@ -102,13 +134,18 @@ export const ProjectDetailPage: React.FC = () => {
 
   const handleSelectDailyStatus = async (status: DailyStatusType) => {
     if (!popover.taskId || !popover.dateStr) return;
+    if (!requireWorkerSelection()) return;
     try {
-      // Optimistic update
+      const activeWorker = currentWorker || getCurrentWorkerName();
       setTasks((prev) =>
         prev.map((t) => {
           if (t.id === popover.taskId) {
             const nextStatuses = { ...t.daily_statuses, [popover.dateStr]: status };
-            return { ...t, daily_statuses: nextStatuses };
+            const nextDetails = {
+              ...t.daily_status_details,
+              [popover.dateStr]: { status, updated_by_name: activeWorker },
+            };
+            return { ...t, daily_statuses: nextStatuses, daily_status_details: nextDetails };
           }
           return t;
         })
@@ -130,7 +167,6 @@ export const ProjectDetailPage: React.FC = () => {
     setEndDate(end);
   };
 
-  // Helper to compute task bar bounds
   const getTaskSpan = (tStartStr: string, tEndStr: string) => {
     const tStart = new Date(tStartStr).getTime();
     const tEnd = new Date(tEndStr).getTime();
@@ -142,7 +178,6 @@ export const ProjectDetailPage: React.FC = () => {
     return { startIndex: startDiffDays, durationDays };
   };
 
-  // Cell status styling helper
   const getStatusBgClass = (status?: DailyStatusType) => {
     switch (status) {
       case 'IN_PROGRESS':
@@ -153,6 +188,19 @@ export const ProjectDetailPage: React.FC = () => {
         return 'bg-amber-600 text-white font-bold';
       default:
         return 'hover:bg-slate-700/50';
+    }
+  };
+
+  const getStatusText = (status?: DailyStatusType) => {
+    switch (status) {
+      case 'IN_PROGRESS':
+        return '작업 중';
+      case 'COMPLETED':
+        return '완료';
+      case 'ISSUE':
+        return '문제 발생';
+      default:
+        return '미작업';
     }
   };
 
@@ -189,6 +237,12 @@ export const ProjectDetailPage: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-3">
+          {/* Worker Selector */}
+          <WorkerSelector
+            currentWorker={currentWorker}
+            onWorkerChange={(name) => setCurrentWorker(name)}
+          />
+
           <button
             onClick={handleGoToToday}
             className="flex items-center gap-1.5 px-3.5 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-semibold rounded-lg shadow-sm transition"
@@ -198,10 +252,7 @@ export const ProjectDetailPage: React.FC = () => {
           </button>
 
           <button
-            onClick={() => {
-              setSelectedTask(null);
-              setIsTaskModalOpen(true);
-            }}
+            onClick={handleOpenAddTask}
             className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-lg shadow-md transition"
           >
             <Plus className="w-4 h-4" />
@@ -212,7 +263,6 @@ export const ProjectDetailPage: React.FC = () => {
 
       {/* 2. Main Gantt Table Area */}
       <main className="flex-1 p-6 overflow-hidden flex flex-col">
-        {/* Status Color Legend */}
         <div className="flex items-center justify-between mb-3 px-2">
           <span className="text-xs font-semibold text-slate-400">작업자별 세부 일정 및 일별 상태</span>
           <div className="flex items-center gap-4 text-xs">
@@ -240,9 +290,7 @@ export const ProjectDetailPage: React.FC = () => {
           className="flex-1 bg-slate-850 border border-slate-800 rounded-2xl shadow-2xl overflow-auto custom-scrollbar relative"
         >
           <table className="w-full border-collapse text-left min-w-max">
-            {/* 2-Tier Header */}
             <thead className="sticky top-0 z-20 bg-slate-800 text-xs uppercase tracking-wider text-slate-300">
-              {/* Row 1: Month */}
               <tr className="border-b border-slate-700/80">
                 <th
                   rowSpan={2}
@@ -264,7 +312,6 @@ export const ProjectDetailPage: React.FC = () => {
                 ))}
               </tr>
 
-              {/* Row 2: Date & Day */}
               <tr className="border-b border-slate-700">
                 {dateColumns.map((col, idx) => (
                   <th
@@ -284,7 +331,6 @@ export const ProjectDetailPage: React.FC = () => {
               </tr>
             </thead>
 
-            {/* Body */}
             <tbody className="divide-y divide-slate-800 text-sm">
               {loading ? (
                 <tr>
@@ -314,8 +360,13 @@ export const ProjectDetailPage: React.FC = () => {
                               </span>
                               <span className="font-semibold text-white truncate text-xs">{task.task_name}</span>
                             </div>
-                            <div className="mt-1 text-[11px] text-slate-400">
-                              {task.start_date} ~ {task.end_date}
+                            <div className="mt-1 text-[11px] text-slate-400 flex items-center gap-2">
+                              <span>{task.start_date} ~ {task.end_date}</span>
+                              {task.updated_by_name && (
+                                <span className="text-[10px] text-slate-500 truncate">
+                                  (수정: {task.updated_by_name})
+                                </span>
+                              )}
                             </div>
                           </div>
 
@@ -325,10 +376,7 @@ export const ProjectDetailPage: React.FC = () => {
                             </span>
                             <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition">
                               <button
-                                onClick={() => {
-                                  setSelectedTask(task);
-                                  setIsTaskModalOpen(true);
-                                }}
+                                onClick={() => handleEditTask(task)}
                                 className="p-1 hover:bg-slate-700 rounded text-slate-400 hover:text-white"
                                 title="수정"
                               >
@@ -350,11 +398,18 @@ export const ProjectDetailPage: React.FC = () => {
                       {dateColumns.map((col, cIdx) => {
                         const isInTaskPeriod = cIdx >= startIndex && cIdx < startIndex + durationDays;
                         const status = task.daily_statuses?.[col.dateStr] || 'NONE';
+                        const detail = task.daily_status_details?.[col.dateStr];
+                        const updatedBy = detail?.updated_by_name || (status !== 'NONE' ? task.worker_name : '');
                         const bgClass = getStatusBgClass(status);
+
+                        const tooltipText = isInTaskPeriod
+                          ? `${col.dateStr}\n상태: ${getStatusText(status)}${updatedBy ? `\n수정자: ${updatedBy}` : ''}`
+                          : '';
 
                         return (
                           <td
                             key={cIdx}
+                            title={tooltipText}
                             onClick={(e) => isInTaskPeriod && handleCellClick(e, task.id, col.dateStr, status)}
                             className={`w-[36px] min-w-[36px] max-w-[36px] p-0 text-center relative border-r border-slate-800/40 align-middle transition ${
                               isInTaskPeriod ? 'cursor-pointer hover:brightness-125' : ''
@@ -368,19 +423,16 @@ export const ProjectDetailPage: React.FC = () => {
                                 : ''
                             }`}
                           >
-                            {/* Today vertical indicator */}
                             {col.isToday && (
                               <div className="absolute inset-y-0 left-1/2 w-0.5 bg-blue-500 z-10 opacity-70 pointer-events-none" />
                             )}
 
-                            {/* In-task period highlight bar background if status is NONE */}
                             {isInTaskPeriod && status === 'NONE' && (
                               <div className="w-full h-full min-h-[36px] bg-blue-950/30 border-y border-blue-500/20 flex items-center justify-center text-[10px] text-blue-400/60 font-mono">
                                 •
                               </div>
                             )}
 
-                            {/* Status label dot or icon */}
                             {isInTaskPeriod && status !== 'NONE' && (
                               <div className="w-full h-full min-h-[36px] flex items-center justify-center text-[10px] font-bold">
                                 {status === 'IN_PROGRESS' ? '진행' : status === 'COMPLETED' ? '완료' : '이슈'}
@@ -404,6 +456,7 @@ export const ProjectDetailPage: React.FC = () => {
           isOpen={isTaskModalOpen}
           projectId={projectId}
           task={selectedTask}
+          currentWorkerName={currentWorker}
           onClose={() => setIsTaskModalOpen(false)}
           onSave={handleSaveTask}
         />
@@ -416,6 +469,12 @@ export const ProjectDetailPage: React.FC = () => {
         dateStr={popover.dateStr}
         onSelect={handleSelectDailyStatus}
         onClose={() => setPopover((prev) => ({ ...prev, isOpen: false }))}
+      />
+
+      <WorkerPromptModal
+        isOpen={isWorkerPromptOpen}
+        onClose={() => setIsWorkerPromptOpen(false)}
+        onSelectWorker={(name) => setCurrentWorker(name)}
       />
     </div>
   );
