@@ -1,22 +1,24 @@
 // src/components/modals/TaskModal.tsx
 import React, { useState, useEffect } from 'react';
-import { Task, Worker } from '../../types';
+import { Task, Worker, Project } from '../../types';
 import { useI18n } from '../../hooks/useI18n';
 import { useAutoTranslation } from '../../hooks/useAutoTranslation';
-import { X, Sparkles, RefreshCw } from 'lucide-react';
+import { X, Sparkles, RefreshCw, Calendar } from 'lucide-react';
 
 interface TaskModalProps {
   isOpen: boolean;
   projectId: string;
+  project?: Project | null;
   task: Task | null;
   currentWorker: Worker | null;
   onClose: () => void;
-  onSave: (data: Partial<Task>) => Promise<void>;
+  onSave: (data: Partial<Task>) => Promise<any>;
 }
 
 export const TaskModal: React.FC<TaskModalProps> = ({
   isOpen,
   projectId,
+  project,
   task,
   currentWorker,
   onClose,
@@ -68,18 +70,16 @@ export const TaskModal: React.FC<TaskModalProps> = ({
       setEndDate(task.end_date || '');
       setProgress(task.progress || 0);
     } else {
-      const todayStr = new Date().toISOString().slice(0, 10);
-      const futureDate = new Date();
-      futureDate.setDate(futureDate.getDate() + 7);
-      const futureStr = futureDate.toISOString().slice(0, 10);
+      const defaultStart = project?.start_date || new Date().toISOString().slice(0, 10);
+      const defaultEnd = project?.end_date || defaultStart;
 
       setTaskNameInput('');
       setTargetText('');
-      setStartDate(todayStr);
-      setEndDate(futureStr);
+      setStartDate(defaultStart);
+      setEndDate(defaultEnd);
       setProgress(0);
     }
-  }, [task, isOpen, currentWorker]);
+  }, [task, project, isOpen, currentWorker]);
 
   if (!isOpen) return null;
 
@@ -100,8 +100,15 @@ export const TaskModal: React.FC<TaskModalProps> = ({
       return;
     }
     if (startDate && endDate && endDate < startDate) {
-      alert('종료일은 시작일 이후여야 합니다.');
+      alert(lang === 'vi' ? 'Ngày kết thúc phải sau ngày bắt đầu.' : '종료일은 시작일 이후여야 합니다.');
       return;
+    }
+
+    if (project) {
+      if (startDate < project.start_date || endDate > project.end_date) {
+        alert(lang === 'vi' ? 'Lịch công việc phải nằm trong thời gian của dự án.' : '작업 일정은 프로젝트 기간 안에서만 설정할 수 있습니다.');
+        return;
+      }
     }
 
     try {
@@ -130,8 +137,8 @@ export const TaskModal: React.FC<TaskModalProps> = ({
 
       await onSave(payload);
       onClose();
-    } catch (err) {
-      console.error(err);
+    } catch (err: any) {
+      alert(err.message || t('taskSaveFailed'));
     } finally {
       setSaving(false);
     }
@@ -140,7 +147,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
   const currentWorkerName = task ? task.worker_name : currentWorker ? currentWorker.name : '';
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 overflow-y-auto">
       <div
         data-testid="task-modal"
         className="w-full max-w-lg bg-white rounded-2xl shadow-2xl overflow-hidden border border-slate-200 text-slate-900 animate-in fade-in zoom-in-95 duration-150"
@@ -161,10 +168,20 @@ export const TaskModal: React.FC<TaskModalProps> = ({
         </div>
 
         <form onSubmit={handleSubmit} className="p-5 space-y-4 text-xs">
+          {/* Project Period Notice */}
+          {project && (
+            <div className="bg-blue-50 border border-blue-200 px-3 py-2 rounded-lg text-blue-700 font-bold text-xs flex items-center gap-1.5">
+              <Calendar className="w-4 h-4 shrink-0 text-blue-600" />
+              <span>
+                {lang === 'vi' ? `Thời gian dự án: ${project.start_date} ~ ${project.end_date}` : `프로젝트 기간: ${project.start_date} ~ ${project.end_date}`}
+              </span>
+            </div>
+          )}
+
           {/* Worker Badge */}
           <div>
             <label className="block font-bold text-slate-700 mb-1">{t('worker')}</label>
-            <div className="px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg text-blue-700 font-bold">
+            <div className="px-3 py-2 bg-slate-100 border border-slate-200 rounded-lg text-slate-800 font-bold">
               {currentWorkerName}
             </div>
           </div>
@@ -227,6 +244,8 @@ export const TaskModal: React.FC<TaskModalProps> = ({
                 type="date"
                 data-testid="task-start-date"
                 value={startDate}
+                min={project?.start_date}
+                max={project?.end_date}
                 onChange={(e) => setStartDate(e.target.value)}
                 required
                 className="w-full h-9 px-3 rounded-lg border border-slate-300 font-medium text-slate-900"
@@ -240,6 +259,8 @@ export const TaskModal: React.FC<TaskModalProps> = ({
                 type="date"
                 data-testid="task-end-date"
                 value={endDate}
+                min={startDate || project?.start_date}
+                max={project?.end_date}
                 onChange={(e) => setEndDate(e.target.value)}
                 required
                 className="w-full h-9 px-3 rounded-lg border border-slate-300 font-medium text-slate-900"
@@ -269,7 +290,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
               type="button"
               data-testid="task-cancel-btn"
               onClick={onClose}
-              className="h-9 px-4 rounded-lg border border-slate-300 text-slate-700 font-bold hover:bg-slate-100"
+              className="px-4 h-9 rounded-lg border border-slate-300 font-bold text-slate-700 hover:bg-slate-100 transition"
             >
               {t('cancel')}
             </button>
@@ -277,7 +298,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
               type="submit"
               data-testid="task-save-btn"
               disabled={saving}
-              className="h-9 px-4 rounded-lg bg-blue-600 text-white font-bold hover:bg-blue-700 shadow-sm disabled:opacity-50"
+              className="px-4 h-9 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold transition shadow-xs flex items-center gap-1.5"
             >
               {saving ? t('saving') : t('save')}
             </button>

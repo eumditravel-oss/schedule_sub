@@ -79,6 +79,8 @@ export interface Project {
   source_language?: string | null;
   translation_status?: TranslationStatus;
   translation_error?: string | null;
+  // Cascade confirmation
+  confirm_schedule_cascade?: boolean;
 }
 
 export interface Task {
@@ -160,5 +162,6 @@ export interface ApiResponse<T> {
   error?: {
     message: string;
     code?: string;
+    details?: any;
   };
 }

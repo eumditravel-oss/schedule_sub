@@ -381,6 +381,29 @@ export default {
         return jsonResponse(project);
       }
 
+function parseDateParts(dateStr: string): { year: number; month: number; day: number } {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  return { year: y, month: m, day: d };
+}
+
+function differenceInPureCalendarDays(dateStr2: string, dateStr1: string): number {
+  const p2 = parseDateParts(dateStr2);
+  const p1 = parseDateParts(dateStr1);
+  const utc1 = Date.UTC(p1.year, p1.month - 1, p1.day);
+  const utc2 = Date.UTC(p2.year, p2.month - 1, p2.day);
+  return Math.round((utc2 - utc1) / 86400000);
+}
+
+function addPureCalendarDays(dateStr: string, deltaDays: number): string {
+  const p = parseDateParts(dateStr);
+  const utc = Date.UTC(p.year, p.month - 1, p.day);
+  const next = new Date(utc + deltaDays * 86400000);
+  const y = next.getUTCFullYear();
+  const m = String(next.getUTCMonth() + 1).padStart(2, '0');
+  const d = String(next.getUTCDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
       // 6. PATCH /api/projects/:id
       const patchPrjMatch = path.match(/^\/api\/projects\/([^/]+)$/);
       if (method === 'PATCH' && patchPrjMatch) {
@@ -417,24 +440,264 @@ export default {
           trans_error = transResult.translation_error;
         }
 
+        const oldStart = existing.start_date;
+        const oldEnd = existing.end_date;
+        const newStart = validated.start_date ?? oldStart;
+        const deltaDays = differenceInPureCalendarDays(newStart, oldStart);
+
+        const tasksRes = await db.prepare(`SELECT * FROM tasks WHERE project_id = ? ORDER BY start_date ASC, created_at ASC`).bind(projectId).all();
+        const tasks: any[] = tasksRes.results || [];
+
+        // Case A: deltaDays === 0 (Project start_date is unchanged)
+        if (deltaDays === 0) {
+          const targetEnd = validated.end_date ?? oldEnd;
+          if (targetEnd < oldEnd && tasks.length > 0) {
+            const conflicting = tasks.filter((t) => t.end_date > targetEnd || t.start_date > targetEnd);
+            if (conflicting.length > 0) {
+              return new Response(
+                JSON.stringify({
+                  success: false,
+                  error: {
+                    code: 'TASK_OUTSIDE_PROJECT_RANGE',
+                    message: '일부 작업 일정이 프로젝트 기간을 벗어납니다.',
+                    details: conflicting.map((t) => ({
+                      task_id: t.id,
+                      task_name: t.task_name,
+                      task_start_date: t.start_date,
+                      task_end_date: t.end_date,
+                      project_end_date: targetEnd,
+                    })),
+                  },
+                }),
+                { status: 409, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } }
+              );
+            }
+          }
+
+          const newName = validated.name ?? existing.name;
+          const newProgress = validated.progress ?? existing.progress;
+          await db
+            .prepare(
+              `UPDATE projects SET
+                name = ?, start_date = ?, end_date = ?, progress = ?,
+                name_ko = ?, name_vi = ?, source_language = ?, translation_status = ?, translation_error = ?,
+                updated_at = CURRENT_TIMESTAMP
+              WHERE id = ?`
+            )
+            .bind(newName, newStart, targetEnd, newProgress, name_ko, name_vi, source_lang, trans_status, trans_error, projectId)
+            .run();
+
+          const updated = await db.prepare(`SELECT * FROM projects WHERE id = ?`).bind(projectId).first();
+          return jsonResponse(updated);
+        }
+
+        // Case B: deltaDays !== 0 (Project start_date changed!)
+        const autoShiftedEnd = addPureCalendarDays(oldEnd, deltaDays);
+        let targetProjectEnd = autoShiftedEnd;
+        let projectEndAutoShifted = true;
+
+        if (validated.end_date && validated.end_date !== autoShiftedEnd) {
+          targetProjectEnd = validated.end_date;
+          projectEndAutoShifted = false;
+        }
+
+        // Check if any shifted task violates project date boundaries
+        if (tasks.length > 0) {
+          const conflicting = tasks.filter((t) => {
+            const nStart = addPureCalendarDays(t.start_date, deltaDays);
+            const nEnd = addPureCalendarDays(t.end_date, deltaDays);
+            return nEnd > targetProjectEnd || nStart < newStart;
+          });
+
+          if (conflicting.length > 0) {
+            return new Response(
+              JSON.stringify({
+                success: false,
+                error: {
+                  code: 'TASK_OUTSIDE_PROJECT_RANGE',
+                  message: '일부 작업 일정이 프로젝트 기간을 벗어납니다.',
+                  details: conflicting.map((t) => ({
+                    task_id: t.id,
+                    task_name: t.task_name,
+                    task_start_date: addPureCalendarDays(t.start_date, deltaDays),
+                    task_end_date: addPureCalendarDays(t.end_date, deltaDays),
+                    project_end_date: targetProjectEnd,
+                  })),
+                },
+              }),
+              { status: 409, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } }
+            );
+          }
+        }
+
+        const todayStr = getKoreaDateString();
+
+        let totalFutureStatusCount = 0;
+        let totalPastStatusCount = 0;
+        const taskPreviews: any[] = [];
+
+        for (const t of tasks) {
+          const nStart = addPureCalendarDays(t.start_date, deltaDays);
+          const nEnd = addPureCalendarDays(t.end_date, deltaDays);
+          taskPreviews.push({
+            task_id: t.id,
+            task_name: t.task_name,
+            old_start_date: t.start_date,
+            new_start_date: nStart,
+            old_end_date: t.end_date,
+            new_end_date: nEnd,
+          });
+
+          const statusRes = await db.prepare(`SELECT work_date FROM daily_status WHERE task_id = ?`).bind(t.id).all();
+          const stList: any[] = statusRes.results || [];
+          stList.forEach((st) => {
+            if (st.work_date >= todayStr) {
+              totalFutureStatusCount++;
+            } else {
+              totalPastStatusCount++;
+            }
+          });
+        }
+
+        // Confirmation required check
+        if (validated.confirm_schedule_cascade !== true && tasks.length > 0) {
+          return new Response(
+            JSON.stringify({
+              success: false,
+              error: {
+                code: 'PROJECT_SCHEDULE_CASCADE_CONFIRMATION_REQUIRED',
+                message: '프로젝트 일정 변경 확인이 필요합니다.',
+                details: {
+                  old_start_date: oldStart,
+                  new_start_date: newStart,
+                  delta_days: deltaDays,
+                  old_end_date: oldEnd,
+                  new_end_date: targetProjectEnd,
+                  shifted_task_count: tasks.length,
+                  shifted_future_status_count: totalFutureStatusCount,
+                  preserved_past_status_count: totalPastStatusCount,
+                  task_preview: taskPreviews,
+                },
+              },
+            }),
+            { status: 409, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } }
+          );
+        }
+
+        // Validate daily_status shift conflict
+        for (const t of tasks) {
+          const statusRes = await db.prepare(`SELECT * FROM daily_status WHERE task_id = ?`).bind(t.id).all();
+          const stList: any[] = statusRes.results || [];
+          const pastSet = new Set(stList.filter((st) => st.work_date < todayStr).map((st) => st.work_date));
+          const futureList = stList.filter((st) => st.work_date >= todayStr);
+
+          const futureNewDates = new Set<string>();
+          for (const fSt of futureList) {
+            const nWorkDate = addPureCalendarDays(fSt.work_date, deltaDays);
+            if (pastSet.has(nWorkDate) || futureNewDates.has(nWorkDate)) {
+              return new Response(
+                JSON.stringify({
+                  success: false,
+                  error: {
+                    code: 'DAILY_STATUS_SHIFT_CONFLICT',
+                    message: '일별 상태 날짜 이동 중 충돌이 발생했습니다.',
+                    details: {
+                      task_id: t.id,
+                      task_name: t.task_name,
+                      old_work_date: fSt.work_date,
+                      new_work_date: nWorkDate,
+                    },
+                  },
+                }),
+                { status: 409, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } }
+              );
+            }
+            futureNewDates.add(nWorkDate);
+          }
+        }
+
+        // Prepare Atomic Batch
+        const batchStatements: any[] = [];
         const newName = validated.name ?? existing.name;
-        const newStart = validated.start_date ?? existing.start_date;
-        const newEnd = validated.end_date ?? existing.end_date;
         const newProgress = validated.progress ?? existing.progress;
 
-        await db
-          .prepare(
+        // 1. Update Project
+        batchStatements.push(
+          db.prepare(
             `UPDATE projects SET
               name = ?, start_date = ?, end_date = ?, progress = ?,
               name_ko = ?, name_vi = ?, source_language = ?, translation_status = ?, translation_error = ?,
               updated_at = CURRENT_TIMESTAMP
             WHERE id = ?`
-          )
-          .bind(newName, newStart, newEnd, newProgress, name_ko, name_vi, source_lang, trans_status, trans_error, projectId)
-          .run();
+          ).bind(newName, newStart, targetProjectEnd, newProgress, name_ko, name_vi, source_lang, trans_status, trans_error, projectId)
+        );
 
-        const updated = await db.prepare(`SELECT * FROM projects WHERE id = ?`).bind(projectId).first();
-        return jsonResponse(updated);
+        // 2. Update Tasks and Daily Statuses
+        for (const t of tasks) {
+          const nStart = addPureCalendarDays(t.start_date, deltaDays);
+          const nEnd = addPureCalendarDays(t.end_date, deltaDays);
+
+          batchStatements.push(
+            db.prepare(
+              `UPDATE tasks SET
+                start_date = ?, end_date = ?, updated_by_name = ?, updated_at = CURRENT_TIMESTAMP
+              WHERE id = ?`
+            ).bind(nStart, nEnd, editor, t.id)
+          );
+
+          const statusRes = await db.prepare(`SELECT * FROM daily_status WHERE task_id = ?`).bind(t.id).all();
+          const stList: any[] = statusRes.results || [];
+          const futureSts = stList.filter((st) => st.work_date >= todayStr);
+
+          if (futureSts.length > 0) {
+            batchStatements.push(
+              db.prepare(`DELETE FROM daily_status WHERE task_id = ? AND work_date >= ?`).bind(t.id, todayStr)
+            );
+
+            for (const fSt of futureSts) {
+              const nWorkDate = addPureCalendarDays(fSt.work_date, deltaDays);
+              const newStId = `st_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+              batchStatements.push(
+                db.prepare(
+                  `INSERT INTO daily_status (id, task_id, work_date, status, updated_by_name, updated_at)
+                   VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`
+                ).bind(newStId, t.id, nWorkDate, fSt.status, editor)
+              );
+            }
+          }
+        }
+
+        // 3. Insert Shift Log Entry
+        const logId = `log_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+        batchStatements.push(
+          db.prepare(
+            `INSERT INTO project_schedule_shift_logs (
+              id, project_id, old_start_date, new_start_date, old_end_date, new_end_date,
+              delta_days, shifted_task_count, shifted_future_status_count, preserved_past_status_count,
+              changed_by_name
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          ).bind(
+            logId, projectId, oldStart, newStart, oldEnd, targetProjectEnd,
+            deltaDays, tasks.length, totalFutureStatusCount, totalPastStatusCount, editor
+          )
+        );
+
+        // Execute batch transaction atomically!
+        await db.batch(batchStatements);
+
+        const updatedProject = await db.prepare(`SELECT * FROM projects WHERE id = ?`).bind(projectId).first();
+        return jsonResponse({
+          project: updatedProject,
+          schedule_cascade: {
+            applied: true,
+            delta_days: deltaDays,
+            project_end_auto_shifted: projectEndAutoShifted,
+            shifted_task_count: tasks.length,
+            shifted_future_status_count: totalFutureStatusCount,
+            preserved_past_status_count: totalPastStatusCount,
+            tasks: taskPreviews,
+          },
+        });
       }
 
       // 7. DELETE /api/projects/:id
@@ -726,6 +989,16 @@ export default {
         }
 
         const validated = taskSchema.parse({ ...body, editor_name: editor });
+
+        const project = await db.prepare(`SELECT * FROM projects WHERE id = ?`).bind(validated.project_id).first();
+        if (project) {
+          if (validated.start_date < project.start_date || validated.end_date > project.end_date || validated.start_date > validated.end_date) {
+            const isVi = editCheck.worker?.ui_language === 'vi';
+            const msg = isVi ? 'Lịch công việc phải nằm trong thời gian của dự án.' : '작업 일정은 프로젝트 기간 안에서만 설정할 수 있습니다.';
+            return errorResponse(msg, 409, 'TASK_OUTSIDE_PROJECT_RANGE');
+          }
+        }
+
         const id = `tsk_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
 
         const transResult = await translateProjectOrTaskName(env.AI, validated.task_name);
@@ -808,6 +1081,17 @@ export default {
         }
 
         const validated = updateTaskSchema.parse({ ...body, editor_name: editor });
+
+        const project = await db.prepare(`SELECT * FROM projects WHERE id = ?`).bind(existing.project_id).first();
+        if (project) {
+          const targetStart = validated.start_date ?? existing.start_date;
+          const targetEnd = validated.end_date ?? existing.end_date;
+          if (targetStart < project.start_date || targetEnd > project.end_date || targetStart > targetEnd) {
+            const isVi = editCheck.worker?.ui_language === 'vi';
+            const msg = isVi ? 'Lịch công việc phải nằm trong thời gian của dự án.' : '작업 일정은 프로젝트 기간 안에서만 설정할 수 있습니다.';
+            return errorResponse(msg, 409, 'TASK_OUTSIDE_PROJECT_RANGE');
+          }
+        }
 
         let task_name_ko = existing.task_name_ko;
         let task_name_vi = existing.task_name_vi;

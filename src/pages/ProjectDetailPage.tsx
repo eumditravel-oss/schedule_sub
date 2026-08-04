@@ -728,6 +728,7 @@ export const ProjectDetailPage: React.FC = () => {
         onSave={handleSaveTask}
         task={selectedTask}
         projectId={projectId || ''}
+        project={project}
         currentWorker={currentWorker}
       />
 

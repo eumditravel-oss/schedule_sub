@@ -77,6 +77,7 @@ async function handleResponse<T>(res: Response): Promise<T> {
     const errorMsg = json.error?.message || '요청 처리 중 오류가 발생했습니다.';
     const errorObj = new Error(errorMsg) as any;
     errorObj.code = json.error?.code;
+    errorObj.details = json.error?.details;
     throw errorObj;
   }
   return json.data as T;

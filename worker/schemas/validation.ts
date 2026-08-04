@@ -16,6 +16,7 @@ export const projectSchema = z.object({
 
 export const updateProjectSchema = projectSchema.partial().extend({
   editor_name: z.string().min(1, '현재 접속자를 먼저 선택해 주세요.'),
+  confirm_schedule_cascade: z.boolean().optional(),
 });
 
 export const taskSchema = z.object({

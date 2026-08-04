@@ -40,6 +40,24 @@ export function formatDateStr(date: Date): string {
   return format(date, 'yyyy-MM-dd');
 }
 
+export function differenceInPureCalendarDays(dateStr2: string, dateStr1: string): number {
+  const [y2, m2, d2] = dateStr2.split('-').map(Number);
+  const [y1, m1, d1] = dateStr1.split('-').map(Number);
+  const utc1 = Date.UTC(y1, m1 - 1, d1);
+  const utc2 = Date.UTC(y2, m2 - 1, d2);
+  return Math.round((utc2 - utc1) / 86400000);
+}
+
+export function addPureCalendarDays(dateStr: string, deltaDays: number): string {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const utc = Date.UTC(y, m - 1, d);
+  const next = new Date(utc + deltaDays * 86400000);
+  const nextY = next.getUTCFullYear();
+  const nextM = String(next.getUTCMonth() + 1).padStart(2, '0');
+  const nextD = String(next.getUTCDate()).padStart(2, '0');
+  return `${nextY}-${nextM}-${nextD}`;
+}
+
 export function formatKoreanDate(dateStr: string): string {
   if (!dateStr) return '';
   try {
