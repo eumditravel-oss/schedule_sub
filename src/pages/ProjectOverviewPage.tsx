@@ -1,13 +1,15 @@
 // src/pages/ProjectOverviewPage.tsx
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Project, GanttDateColumn } from '../types';
+import { Project } from '../types';
 import { api, getCurrentWorkerName } from '../services/api';
-import { generateDateColumns, groupColumnsByMonth } from '../utils/dateUtils';
+import { calculateVisibleGanttSpan } from '../utils/dateUtils';
+import { useGanttDateRange } from '../hooks/useGanttDateRange';
 import { ProjectModal } from '../components/modals/ProjectModal';
 import { WorkerSelector } from '../components/common/WorkerSelector';
 import { WorkerPromptModal } from '../components/modals/WorkerPromptModal';
-import { Plus, Calendar, Edit2, Trash2, ChevronRight } from 'lucide-react';
+import { GanttViewControls } from '../components/common/GanttViewControls';
+import { Plus, Edit2, Trash2, ChevronRight } from 'lucide-react';
 
 export const ProjectOverviewPage: React.FC = () => {
   const navigate = useNavigate();
@@ -22,9 +24,19 @@ export const ProjectOverviewPage: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
 
-  // Timeline Range
-  const [startDate, setStartDate] = useState(new Date('2026-07-01'));
-  const [endDate, setEndDate] = useState(new Date('2026-09-30'));
+  // Date Range Hook
+  const {
+    viewMode,
+    startDate,
+    endDate,
+    dateColumns,
+    monthGroups,
+    rangeTitle,
+    changeViewMode,
+    goPrevious,
+    goNext,
+    goToday,
+  } = useGanttDateRange();
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
@@ -46,9 +58,6 @@ export const ProjectOverviewPage: React.FC = () => {
     if (saved) setCurrentWorker(saved);
   }, []);
 
-  const dateColumns: GanttDateColumn[] = generateDateColumns(startDate, endDate);
-  const monthGroups = groupColumnsByMonth(dateColumns);
-
   const requireWorkerSelection = (): boolean => {
     const active = currentWorker || getCurrentWorkerName();
     if (!active) {
@@ -56,23 +65,6 @@ export const ProjectOverviewPage: React.FC = () => {
       return false;
     }
     return true;
-  };
-
-  const handleGoToToday = () => {
-    const today = new Date();
-    const start = new Date(today.getTime() - 15 * 86400000);
-    const end = new Date(today.getTime() + 45 * 86400000);
-    setStartDate(start);
-    setEndDate(end);
-
-    setTimeout(() => {
-      if (scrollContainerRef.current) {
-        const todayEl = scrollContainerRef.current.querySelector('.today-column');
-        if (todayEl) {
-          todayEl.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
-        }
-      }
-    }, 100);
   };
 
   const handleOpenAddModal = () => {
@@ -106,17 +98,6 @@ export const ProjectOverviewPage: React.FC = () => {
     setIsModalOpen(true);
   };
 
-  const getGanttSpan = (pStartStr: string, pEndStr: string) => {
-    const pStart = new Date(pStartStr).getTime();
-    const pEnd = new Date(pEndStr).getTime();
-    const firstColDate = dateColumns[0]?.date.getTime() || pStart;
-
-    const startDiffDays = Math.max(0, Math.floor((pStart - firstColDate) / 86400000));
-    const durationDays = Math.max(1, Math.floor((pEnd - pStart) / 86400000) + 1);
-
-    return { startIndex: startDiffDays, durationDays };
-  };
-
   return (
     <div className="min-h-screen bg-slate-900 text-slate-100 flex flex-col font-sans">
       {/* 1. Header Toolbar */}
@@ -131,20 +112,23 @@ export const ProjectOverviewPage: React.FC = () => {
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
-          {/* Worker Selector UI */}
+        <div className="flex flex-wrap items-center gap-4">
+          {/* Gantt View Controls (30-day / Monthly view toggles) */}
+          <GanttViewControls
+            viewMode={viewMode}
+            rangeTitle={rangeTitle}
+            onViewModeChange={changeViewMode}
+            onPrevious={goPrevious}
+            onNext={goNext}
+            onToday={goToday}
+          />
+
+          {/* Worker Selector */}
           <WorkerSelector
             currentWorker={currentWorker}
             onWorkerChange={(name) => setCurrentWorker(name)}
           />
 
-          <button
-            onClick={handleGoToToday}
-            className="flex items-center gap-1.5 px-3.5 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-semibold rounded-lg shadow-sm transition"
-          >
-            <Calendar className="w-4 h-4 text-blue-400" />
-            <span>오늘 날짜로 이동</span>
-          </button>
           <button
             onClick={handleOpenAddModal}
             className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-lg shadow-md transition"
@@ -220,7 +204,12 @@ export const ProjectOverviewPage: React.FC = () => {
                 </tr>
               ) : (
                 projects.map((project) => {
-                  const { startIndex, durationDays } = getGanttSpan(project.start_date, project.end_date);
+                  const { isVisible, startIndex, durationDays } = calculateVisibleGanttSpan(
+                    project.start_date,
+                    project.end_date,
+                    startDate,
+                    endDate
+                  );
 
                   return (
                     <tr
@@ -267,8 +256,7 @@ export const ProjectOverviewPage: React.FC = () => {
 
                       {/* Right Gantt Bar Columns */}
                       {dateColumns.map((col, cIdx) => {
-                        const isBarStart = cIdx === startIndex;
-                        const isInBar = cIdx >= startIndex && cIdx < startIndex + durationDays;
+                        const isBarStart = isVisible && cIdx === startIndex;
 
                         return (
                           <td

@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Worker } from '../../types';
 import { api, getCurrentWorkerName, setCurrentWorkerName } from '../../services/api';
-import { User, ChevronDown, Plus, Check } from 'lucide-react';
+import { ChevronDown, Plus, Check } from 'lucide-react';
 
 interface WorkerSelectorProps {
   currentWorker: string;
@@ -21,12 +21,9 @@ export const WorkerSelector: React.FC<WorkerSelectorProps> = ({ currentWorker, o
       const data = await api.getWorkers();
       setWorkers(data || []);
 
-      // If no worker currently selected, auto-select first worker if available
+      // Restore saved worker name ONLY if it exists in localStorage! Do NOT auto-select workers[0]!
       const saved = getCurrentWorkerName();
-      if (!saved && data && data.length > 0) {
-        setCurrentWorkerName(data[0].name);
-        onWorkerChange(data[0].name);
-      } else if (saved && saved !== currentWorker) {
+      if (saved && saved !== currentWorker) {
         onWorkerChange(saved);
       }
     } catch (err) {
@@ -74,12 +71,20 @@ export const WorkerSelector: React.FC<WorkerSelectorProps> = ({ currentWorker, o
         <button
           type="button"
           onClick={() => setIsOpen(!isOpen)}
-          className="flex items-center gap-2 px-3 py-1.5 bg-slate-800 hover:bg-slate-750 border border-slate-700 rounded-lg text-xs font-semibold text-white shadow-sm transition"
+          className={`flex items-center gap-2 px-3 py-1.5 border rounded-lg text-xs font-semibold shadow-sm transition ${
+            currentWorker
+              ? 'bg-slate-800 hover:bg-slate-750 border-slate-700 text-white'
+              : 'bg-amber-950/40 hover:bg-amber-900/60 border-amber-500/50 text-amber-300 animate-pulse'
+          }`}
         >
-          <div className="w-5 h-5 rounded-full bg-blue-600/30 border border-blue-500/50 flex items-center justify-center text-blue-300 font-bold text-[10px]">
+          <div className={`w-5 h-5 rounded-full flex items-center justify-center font-bold text-[10px] ${
+            currentWorker
+              ? 'bg-blue-600/30 border border-blue-500/50 text-blue-300'
+              : 'bg-amber-600/30 border border-amber-500/50 text-amber-300'
+          }`}>
             {currentWorker ? currentWorker[0] : '?'}
           </div>
-          <span className="text-blue-300 font-bold max-w-[100px] truncate">
+          <span className="font-bold max-w-[100px] truncate">
             {currentWorker || '선택 안 됨'}
           </span>
           <ChevronDown className="w-3.5 h-3.5 text-slate-400" />

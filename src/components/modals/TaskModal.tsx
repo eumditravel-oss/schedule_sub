@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { Task } from '../../types';
 import { getCurrentWorkerName } from '../../services/api';
+import { format } from 'date-fns';
 import { X, Lock } from 'lucide-react';
 
 interface TaskModalProps {
@@ -29,18 +30,20 @@ export const TaskModal: React.FC<TaskModalProps> = ({
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
+    const todayStr = format(new Date(), 'yyyy-MM-dd');
+
     if (task) {
       setWorkerName(task.worker_name || currentWorkerName || getCurrentWorkerName());
       setTaskName(task.task_name || '');
-      setStartDate(task.start_date || '');
-      setEndDate(task.end_date || '');
+      setStartDate(task.start_date || todayStr);
+      setEndDate(task.end_date || todayStr);
       setProgress(task.progress ?? 0);
     } else {
       const activeWorker = currentWorkerName || getCurrentWorkerName();
       setWorkerName(activeWorker);
       setTaskName('');
-      setStartDate('2026-08-01');
-      setEndDate('2026-08-20');
+      setStartDate(todayStr);
+      setEndDate(todayStr);
       setProgress(0);
     }
   }, [task, isOpen, currentWorkerName]);

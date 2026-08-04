@@ -3,12 +3,14 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Project, Task, DailyStatusType, GanttDateColumn } from '../types';
 import { api, getCurrentWorkerName } from '../services/api';
-import { generateDateColumns, groupColumnsByMonth } from '../utils/dateUtils';
+import { calculateVisibleGanttSpan } from '../utils/dateUtils';
+import { useGanttDateRange } from '../hooks/useGanttDateRange';
 import { TaskModal } from '../components/modals/TaskModal';
 import { StatusPopover } from '../components/modals/StatusPopover';
 import { WorkerSelector } from '../components/common/WorkerSelector';
 import { WorkerPromptModal } from '../components/modals/WorkerPromptModal';
-import { ArrowLeft, Plus, Edit2, Trash2, Calendar } from 'lucide-react';
+import { GanttViewControls } from '../components/common/GanttViewControls';
+import { ArrowLeft, Plus, Edit2, Trash2 } from 'lucide-react';
 
 export const ProjectDetailPage: React.FC = () => {
   const { projectId } = useParams<{ projectId: string }>();
@@ -41,9 +43,19 @@ export const ProjectDetailPage: React.FC = () => {
     position: null,
   });
 
-  // Timeline Range
-  const [startDate, setStartDate] = useState(new Date('2026-07-01'));
-  const [endDate, setEndDate] = useState(new Date('2026-09-30'));
+  // Date Range Hook
+  const {
+    viewMode,
+    startDate,
+    endDate,
+    dateColumns,
+    monthGroups,
+    rangeTitle,
+    changeViewMode,
+    goPrevious,
+    goNext,
+    goToday,
+  } = useGanttDateRange();
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
@@ -54,15 +66,6 @@ export const ProjectDetailPage: React.FC = () => {
       const res = await api.getProjectDetail(projectId);
       setProject(res.project);
       setTasks(res.tasks || []);
-
-      if (res.project.start_date && res.project.end_date) {
-        const pStart = new Date(res.project.start_date);
-        const pEnd = new Date(res.project.end_date);
-        const marginStart = new Date(pStart.getTime() - 7 * 86400000);
-        const marginEnd = new Date(pEnd.getTime() + 14 * 86400000);
-        setStartDate(marginStart);
-        setEndDate(marginEnd);
-      }
     } catch (err: any) {
       console.error(err);
       alert(err.message || '프로젝트 상세 정보를 불러올 수 없습니다.');
@@ -76,9 +79,6 @@ export const ProjectDetailPage: React.FC = () => {
     const saved = getCurrentWorkerName();
     if (saved) setCurrentWorker(saved);
   }, [projectId]);
-
-  const dateColumns: GanttDateColumn[] = generateDateColumns(startDate, endDate);
-  const monthGroups = groupColumnsByMonth(dateColumns);
 
   const requireWorkerSelection = (): boolean => {
     const active = currentWorker || getCurrentWorkerName();
@@ -159,25 +159,6 @@ export const ProjectDetailPage: React.FC = () => {
     }
   };
 
-  const handleGoToToday = () => {
-    const today = new Date();
-    const start = new Date(today.getTime() - 15 * 86400000);
-    const end = new Date(today.getTime() + 45 * 86400000);
-    setStartDate(start);
-    setEndDate(end);
-  };
-
-  const getTaskSpan = (tStartStr: string, tEndStr: string) => {
-    const tStart = new Date(tStartStr).getTime();
-    const tEnd = new Date(tEndStr).getTime();
-    const firstColDate = dateColumns[0]?.date.getTime() || tStart;
-
-    const startDiffDays = Math.max(0, Math.floor((tStart - firstColDate) / 86400000));
-    const durationDays = Math.max(1, Math.floor((tEnd - tStart) / 86400000) + 1);
-
-    return { startIndex: startDiffDays, durationDays };
-  };
-
   const getStatusBgClass = (status?: DailyStatusType) => {
     switch (status) {
       case 'IN_PROGRESS':
@@ -236,20 +217,22 @@ export const ProjectDetailPage: React.FC = () => {
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-4">
+          {/* Gantt View Controls */}
+          <GanttViewControls
+            viewMode={viewMode}
+            rangeTitle={rangeTitle}
+            onViewModeChange={changeViewMode}
+            onPrevious={goPrevious}
+            onNext={goNext}
+            onToday={goToday}
+          />
+
           {/* Worker Selector */}
           <WorkerSelector
             currentWorker={currentWorker}
             onWorkerChange={(name) => setCurrentWorker(name)}
           />
-
-          <button
-            onClick={handleGoToToday}
-            className="flex items-center gap-1.5 px-3.5 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-semibold rounded-lg shadow-sm transition"
-          >
-            <Calendar className="w-4 h-4 text-blue-400" />
-            <span>오늘 이동</span>
-          </button>
 
           <button
             onClick={handleOpenAddTask}
@@ -346,7 +329,12 @@ export const ProjectDetailPage: React.FC = () => {
                 </tr>
               ) : (
                 tasks.map((task) => {
-                  const { startIndex, durationDays } = getTaskSpan(task.start_date, task.end_date);
+                  const { isVisible, startIndex, durationDays } = calculateVisibleGanttSpan(
+                    task.start_date,
+                    task.end_date,
+                    startDate,
+                    endDate
+                  );
 
                   return (
                     <tr key={task.id} className="hover:bg-slate-800/50 transition group">
@@ -396,13 +384,13 @@ export const ProjectDetailPage: React.FC = () => {
 
                       {/* Right Date Cells */}
                       {dateColumns.map((col, cIdx) => {
-                        const isInTaskPeriod = cIdx >= startIndex && cIdx < startIndex + durationDays;
+                        const isInTaskSpan = isVisible && cIdx >= startIndex && cIdx < startIndex + durationDays;
                         const status = task.daily_statuses?.[col.dateStr] || 'NONE';
                         const detail = task.daily_status_details?.[col.dateStr];
                         const updatedBy = detail?.updated_by_name || (status !== 'NONE' ? task.worker_name : '');
                         const bgClass = getStatusBgClass(status);
 
-                        const tooltipText = isInTaskPeriod
+                        const tooltipText = isInTaskSpan
                           ? `${col.dateStr}\n상태: ${getStatusText(status)}${updatedBy ? `\n수정자: ${updatedBy}` : ''}`
                           : '';
 
@@ -410,11 +398,11 @@ export const ProjectDetailPage: React.FC = () => {
                           <td
                             key={cIdx}
                             title={tooltipText}
-                            onClick={(e) => isInTaskPeriod && handleCellClick(e, task.id, col.dateStr, status)}
+                            onClick={(e) => isInTaskSpan && handleCellClick(e, task.id, col.dateStr, status)}
                             className={`w-[36px] min-w-[36px] max-w-[36px] p-0 text-center relative border-r border-slate-800/40 align-middle transition ${
-                              isInTaskPeriod ? 'cursor-pointer hover:brightness-125' : ''
+                              isInTaskSpan ? 'cursor-pointer hover:brightness-125' : ''
                             } ${
-                              isInTaskPeriod
+                              isInTaskSpan
                                 ? bgClass
                                 : col.isToday
                                 ? 'bg-blue-950/20'
@@ -427,13 +415,13 @@ export const ProjectDetailPage: React.FC = () => {
                               <div className="absolute inset-y-0 left-1/2 w-0.5 bg-blue-500 z-10 opacity-70 pointer-events-none" />
                             )}
 
-                            {isInTaskPeriod && status === 'NONE' && (
+                            {isInTaskSpan && status === 'NONE' && (
                               <div className="w-full h-full min-h-[36px] bg-blue-950/30 border-y border-blue-500/20 flex items-center justify-center text-[10px] text-blue-400/60 font-mono">
                                 •
                               </div>
                             )}
 
-                            {isInTaskPeriod && status !== 'NONE' && (
+                            {isInTaskSpan && status !== 'NONE' && (
                               <div className="w-full h-full min-h-[36px] flex items-center justify-center text-[10px] font-bold">
                                 {status === 'IN_PROGRESS' ? '진행' : status === 'COMPLETED' ? '완료' : '이슈'}
                               </div>
