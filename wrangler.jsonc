@@ -1,0 +1,21 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "concost-dev-scheduler",
+  "main": "worker/index.ts",
+  "compatibility_date": "2024-10-01",
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "concost-db",
+      "database_id": "local-concost-db-id",
+      "migrations_dir": "./migrations"
+    }
+  ]
+}
