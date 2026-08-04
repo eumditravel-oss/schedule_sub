@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Worker } from '../../types';
 import { api, getCurrentWorkerName, setCurrentWorkerName } from '../../services/api';
-import { ChevronDown, Plus, Check } from 'lucide-react';
+import { ChevronDown, Plus, Check, User } from 'lucide-react';
 
 interface WorkerSelectorProps {
   currentWorker: string;
@@ -21,7 +21,6 @@ export const WorkerSelector: React.FC<WorkerSelectorProps> = ({ currentWorker, o
       const data = await api.getWorkers();
       setWorkers(data || []);
 
-      // Restore saved worker name ONLY if it exists in localStorage! Do NOT auto-select workers[0]!
       const saved = getCurrentWorkerName();
       if (saved && saved !== currentWorker) {
         onWorkerChange(saved);
@@ -65,29 +64,26 @@ export const WorkerSelector: React.FC<WorkerSelectorProps> = ({ currentWorker, o
   };
 
   return (
-    <div className="relative inline-block text-left" ref={dropdownRef}>
+    <div className="relative inline-block text-left shrink-0" ref={dropdownRef}>
       <div className="flex items-center gap-2">
-        <span className="text-xs font-medium text-slate-400">현재 접속자</span>
+        <span className="hidden xl:inline text-xs font-medium text-slate-400">현재 접속자</span>
         <button
           type="button"
           onClick={() => setIsOpen(!isOpen)}
-          className={`flex items-center gap-2 px-3 py-1.5 border rounded-lg text-xs font-semibold shadow-sm transition ${
-            currentWorker
-              ? 'bg-slate-800 hover:bg-slate-750 border-slate-700 text-white'
-              : 'bg-amber-950/40 hover:bg-amber-900/60 border-amber-500/50 text-amber-300 animate-pulse'
-          }`}
+          aria-label="접속자 선택"
+          className="h-9 px-3 bg-slate-800 hover:bg-slate-750 border border-slate-700 rounded-lg text-xs font-semibold text-white shadow-sm transition flex items-center gap-2"
         >
           <div className={`w-5 h-5 rounded-full flex items-center justify-center font-bold text-[10px] ${
             currentWorker
               ? 'bg-blue-600/30 border border-blue-500/50 text-blue-300'
-              : 'bg-amber-600/30 border border-amber-500/50 text-amber-300'
+              : 'bg-slate-700 border border-slate-600 text-slate-400'
           }`}>
-            {currentWorker ? currentWorker[0] : '?'}
+            {currentWorker ? currentWorker[0] : <User className="w-3 h-3 text-slate-400" />}
           </div>
-          <span className="font-bold max-w-[100px] truncate">
-            {currentWorker || '선택 안 됨'}
+          <span className={`font-bold max-w-[90px] truncate ${currentWorker ? 'text-blue-300' : 'text-slate-400'}`}>
+            {currentWorker || '선택 필요'}
           </span>
-          <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+          <ChevronDown className="w-3.5 h-3.5 text-slate-400 shrink-0" />
         </button>
       </div>
 
@@ -109,11 +105,11 @@ export const WorkerSelector: React.FC<WorkerSelectorProps> = ({ currentWorker, o
                     isSelected ? 'bg-blue-900/60 text-white font-bold' : 'hover:bg-slate-700/60 text-slate-300'
                   }`}
                 >
-                  <div className="flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-blue-500" />
-                    <span>{w.name}</span>
+                  <div className="flex items-center gap-2 truncate">
+                    <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0" />
+                    <span className="truncate">{w.name}</span>
                   </div>
-                  {isSelected && <Check className="w-3.5 h-3.5 text-blue-400" />}
+                  {isSelected && <Check className="w-3.5 h-3.5 text-blue-400 shrink-0" />}
                 </button>
               );
             })}

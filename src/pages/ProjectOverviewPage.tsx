@@ -5,6 +5,12 @@ import { Project } from '../types';
 import { api, getCurrentWorkerName } from '../services/api';
 import { calculateVisibleGanttSpan } from '../utils/dateUtils';
 import { useGanttDateRange } from '../hooks/useGanttDateRange';
+import {
+  GANTT_DAY_WIDTH_PX,
+  GANTT_BAR_TEXT_THRESHOLD_PX,
+  GANTT_BAR_FULL_THRESHOLD_PX,
+  PRIMARY_BUTTON_H36_CLASS,
+} from '../constants/gantt';
 import { ProjectModal } from '../components/modals/ProjectModal';
 import { WorkerSelector } from '../components/common/WorkerSelector';
 import { WorkerPromptModal } from '../components/modals/WorkerPromptModal';
@@ -100,47 +106,47 @@ export const ProjectOverviewPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-900 text-slate-100 flex flex-col font-sans">
-      {/* 1. Header Toolbar */}
-      <header className="sticky top-0 z-30 bg-slate-850 border-b border-slate-800 px-6 py-4 flex flex-wrap items-center justify-between gap-4 shadow-lg">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-blue-600/20 border border-blue-500/40 flex items-center justify-center text-blue-400 font-bold text-lg">
+      {/* Row A: Main App Header */}
+      <header className="sticky top-0 z-30 bg-slate-850 border-b border-slate-800 px-5 h-16 flex items-center justify-between gap-4 shadow-lg shrink-0 flex-nowrap">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-8 h-8 rounded-lg bg-blue-600/20 border border-blue-500/40 flex items-center justify-center text-blue-400 font-bold text-base shrink-0">
             C
           </div>
-          <div>
-            <h1 className="text-xl font-bold tracking-tight text-white">CON-COST 개발팀 프로젝트 스케줄러</h1>
-            <p className="text-xs text-slate-400">전체 프로젝트 공정 현황 간트 차트</p>
+          <div className="min-w-0">
+            <h1 className="text-base font-bold tracking-tight text-white truncate">
+              CON-COST 개발팀 프로젝트 스케줄러
+            </h1>
+            <p className="hidden md:block text-[11px] text-slate-400 truncate">
+              전체 프로젝트 공정 현황 간트 차트
+            </p>
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-4">
-          {/* Gantt View Controls (30-day / Monthly view toggles) */}
-          <GanttViewControls
-            viewMode={viewMode}
-            rangeTitle={rangeTitle}
-            onViewModeChange={changeViewMode}
-            onPrevious={goPrevious}
-            onNext={goNext}
-            onToday={goToday}
-          />
-
-          {/* Worker Selector */}
+        <div className="flex items-center gap-3 shrink-0">
           <WorkerSelector
             currentWorker={currentWorker}
             onWorkerChange={(name) => setCurrentWorker(name)}
           />
 
-          <button
-            onClick={handleOpenAddModal}
-            className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-lg shadow-md transition"
-          >
+          <button onClick={handleOpenAddModal} className={PRIMARY_BUTTON_H36_CLASS}>
             <Plus className="w-4 h-4" />
             <span>프로젝트 추가</span>
           </button>
         </div>
       </header>
 
-      {/* 2. Main Gantt Table Container */}
-      <main className="flex-1 p-6 overflow-hidden flex flex-col">
+      {/* Row B: Gantt Toolbar (View Toggles & Date Navigation) */}
+      <GanttViewControls
+        viewMode={viewMode}
+        rangeTitle={rangeTitle}
+        onViewModeChange={changeViewMode}
+        onPrevious={goPrevious}
+        onNext={goNext}
+        onToday={goToday}
+      />
+
+      {/* Main Gantt Table Area */}
+      <main className="flex-1 p-4 2xl:p-6 overflow-hidden flex flex-col">
         <div
           ref={scrollContainerRef}
           className="flex-1 bg-slate-850 border border-slate-800 rounded-2xl shadow-2xl overflow-auto custom-scrollbar relative"
@@ -151,18 +157,18 @@ export const ProjectOverviewPage: React.FC = () => {
               <tr className="border-b border-slate-700/80">
                 <th
                   rowSpan={2}
-                  className="sticky left-0 z-30 bg-slate-800 px-4 py-3 font-semibold text-slate-200 border-r border-slate-700 shadow-md min-w-[280px] max-w-[280px]"
+                  className="sticky left-0 z-30 bg-slate-800 px-3 py-2.5 font-semibold text-slate-200 border-r border-slate-700 shadow-md w-[270px] min-w-[270px] max-w-[270px]"
                 >
-                  <div className="flex justify-between items-center text-sm font-bold text-white">
+                  <div className="flex justify-between items-center text-xs font-bold text-white">
                     <span>프로젝트 정보</span>
-                    <span className="text-[11px] text-slate-400 font-normal">공정률 / 기간</span>
+                    <span className="text-[10px] text-slate-400 font-normal">공정률 / 기간</span>
                   </div>
                 </th>
                 {monthGroups.map((mg, idx) => (
                   <th
                     key={idx}
                     colSpan={mg.span}
-                    className="text-center font-bold py-2 border-r border-slate-700/60 bg-slate-800/90 text-blue-300 text-xs"
+                    className="text-center font-bold py-1.5 border-r border-slate-700/60 bg-slate-800/90 text-blue-300 text-xs"
                   >
                     {mg.monthStr}
                   </th>
@@ -173,7 +179,8 @@ export const ProjectOverviewPage: React.FC = () => {
                 {dateColumns.map((col, idx) => (
                   <th
                     key={idx}
-                    className={`w-[36px] min-w-[36px] max-w-[36px] text-center py-2 border-r border-slate-700/40 text-[11px] font-medium ${
+                    style={{ width: `${GANTT_DAY_WIDTH_PX}px`, minWidth: `${GANTT_DAY_WIDTH_PX}px`, maxWidth: `${GANTT_DAY_WIDTH_PX}px` }}
+                    className={`text-center py-1.5 border-r border-slate-700/40 text-[11px] font-medium ${
                       col.isToday
                         ? 'bg-blue-900/60 text-blue-200 font-bold today-column'
                         : col.isWeekend
@@ -210,6 +217,7 @@ export const ProjectOverviewPage: React.FC = () => {
                     startDate,
                     endDate
                   );
+                  const barWidthPx = durationDays * GANTT_DAY_WIDTH_PX - 4;
 
                   return (
                     <tr
@@ -218,34 +226,39 @@ export const ProjectOverviewPage: React.FC = () => {
                       className="hover:bg-slate-800/50 transition cursor-pointer group"
                     >
                       {/* Fixed Left Column */}
-                      <td className="sticky left-0 z-10 bg-slate-850 group-hover:bg-slate-800 px-4 py-3.5 border-r border-slate-700 shadow-md min-w-[280px] max-w-[280px] align-middle">
+                      <td className="sticky left-0 z-10 bg-slate-850 group-hover:bg-slate-800 px-3 py-3 border-r border-slate-700 shadow-md w-[270px] min-w-[270px] max-w-[270px] align-middle">
                         <div className="flex items-center justify-between">
-                          <div className="pr-2 overflow-hidden">
-                            <div className="font-bold text-white group-hover:text-blue-400 transition truncate flex items-center gap-1.5">
-                              <span>{project.name}</span>
-                              <ChevronRight className="w-4 h-4 text-slate-500 group-hover:translate-x-0.5 transition" />
+                          <div className="pr-1 overflow-hidden min-w-0">
+                            <div className="font-bold text-white group-hover:text-blue-400 transition truncate flex items-center gap-1 text-xs" title={project.name}>
+                              <span className="truncate">{project.name}</span>
+                              <ChevronRight className="w-3.5 h-3.5 text-slate-500 shrink-0" />
                             </div>
-                            <div className="flex items-center gap-2 mt-1 text-xs text-slate-400">
-                              <span>{project.start_date} ~ {project.end_date}</span>
+                            <div className="mt-0.5 text-[10px] text-slate-400 truncate">
+                              {project.start_date} ~ {project.end_date}
                             </div>
                           </div>
 
                           <div className="flex flex-col items-end gap-1 shrink-0">
-                            <span className="text-xs font-bold text-emerald-400 bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-500/30">
+                            <span className="text-[11px] font-bold text-emerald-400 bg-emerald-950/60 px-1.5 py-0.5 rounded border border-emerald-500/30">
                               {project.progress}%
                             </span>
-                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition">
+                            {/* Actions visible with opacity-60 by default */}
+                            <div className="flex items-center gap-0.5 opacity-60 hover:opacity-100 focus:opacity-100 transition">
                               <button
+                                type="button"
                                 onClick={(e) => handleEditProject(e, project)}
-                                className="p-1 hover:bg-slate-700 rounded text-slate-400 hover:text-white"
-                                title="수정"
+                                aria-label="프로젝트 수정"
+                                title="프로젝트 수정"
+                                className="w-7 h-7 flex items-center justify-center hover:bg-slate-700 rounded text-slate-300 hover:text-white transition"
                               >
                                 <Edit2 className="w-3.5 h-3.5" />
                               </button>
                               <button
+                                type="button"
                                 onClick={(e) => handleDeleteProject(e, project.id, project.name)}
-                                className="p-1 hover:bg-red-950 rounded text-slate-400 hover:text-red-400"
-                                title="삭제"
+                                aria-label="프로젝트 삭제"
+                                title="프로젝트 삭제"
+                                className="w-7 h-7 flex items-center justify-center hover:bg-red-950 rounded text-slate-300 hover:text-red-400 transition"
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
                               </button>
@@ -261,7 +274,8 @@ export const ProjectOverviewPage: React.FC = () => {
                         return (
                           <td
                             key={cIdx}
-                            className={`w-[36px] min-w-[36px] max-w-[36px] p-0 relative border-r border-slate-800/40 align-middle ${
+                            style={{ width: `${GANTT_DAY_WIDTH_PX}px`, minWidth: `${GANTT_DAY_WIDTH_PX}px`, maxWidth: `${GANTT_DAY_WIDTH_PX}px` }}
+                            className={`p-0 relative border-r border-slate-800/40 align-middle ${
                               col.isToday
                                 ? 'bg-blue-950/20'
                                 : col.isWeekend
@@ -275,17 +289,22 @@ export const ProjectOverviewPage: React.FC = () => {
 
                             {isBarStart && (
                               <div
-                                style={{ width: `calc(${durationDays * 36}px - 4px)` }}
-                                className="absolute top-1/2 -translate-y-1/2 left-0.5 h-8 bg-slate-700/80 border border-slate-600 rounded-lg overflow-hidden z-10 shadow-md group-hover:border-blue-400 transition"
+                                title={`${project.name} (${project.start_date} ~ ${project.end_date}) / 공정률 ${project.progress}%`}
+                                style={{ width: `${barWidthPx}px` }}
+                                className="absolute top-1/2 -translate-y-1/2 left-0.5 h-7 bg-slate-700/80 border border-slate-600 rounded-lg overflow-hidden z-10 shadow-md group-hover:border-blue-400 transition"
                               >
                                 <div
                                   style={{ width: `${project.progress}%` }}
                                   className="h-full bg-gradient-to-r from-blue-600 to-cyan-500 rounded-l-lg transition-all duration-300"
                                 />
-                                <div className="absolute inset-0 flex items-center justify-between px-3 text-xs font-bold text-white drop-shadow whitespace-nowrap overflow-hidden">
-                                  <span className="truncate">{project.name}</span>
-                                  <span className="ml-2 text-[11px] font-semibold text-cyan-200">{project.progress}%</span>
-                                </div>
+                                {barWidthPx >= GANTT_BAR_TEXT_THRESHOLD_PX && (
+                                  <div className="absolute inset-0 flex items-center justify-between px-2 text-xs font-bold text-white drop-shadow whitespace-nowrap overflow-hidden">
+                                    <span className="truncate">{project.name}</span>
+                                    {barWidthPx >= GANTT_BAR_FULL_THRESHOLD_PX && (
+                                      <span className="ml-1 text-[11px] font-semibold text-cyan-200">{project.progress}%</span>
+                                    )}
+                                  </div>
+                                )}
                               </div>
                             )}
                           </td>

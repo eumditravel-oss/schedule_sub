@@ -5,6 +5,11 @@ import { Project, Task, DailyStatusType, GanttDateColumn } from '../types';
 import { api, getCurrentWorkerName } from '../services/api';
 import { calculateVisibleGanttSpan } from '../utils/dateUtils';
 import { useGanttDateRange } from '../hooks/useGanttDateRange';
+import {
+  GANTT_DAY_WIDTH_PX,
+  BUTTON_H36_CLASS,
+  PRIMARY_BUTTON_H36_CLASS,
+} from '../constants/gantt';
 import { TaskModal } from '../components/modals/TaskModal';
 import { StatusPopover } from '../components/modals/StatusPopover';
 import { WorkerSelector } from '../components/common/WorkerSelector';
@@ -35,12 +40,14 @@ export const ProjectDetailPage: React.FC = () => {
     dateStr: string;
     currentStatus: DailyStatusType;
     position: { x: number; y: number } | null;
+    triggerRect: DOMRect | null;
   }>({
     isOpen: false,
     taskId: '',
     dateStr: '',
     currentStatus: 'NONE',
     position: null,
+    triggerRect: null,
   });
 
   // Date Range Hook
@@ -129,6 +136,7 @@ export const ProjectDetailPage: React.FC = () => {
       dateStr,
       currentStatus: currentStatus || 'NONE',
       position: { x: rect.left + rect.width / 2, y: rect.bottom },
+      triggerRect: rect,
     });
   };
 
@@ -185,89 +193,88 @@ export const ProjectDetailPage: React.FC = () => {
     }
   };
 
+  // Status Legend Slot on Gantt Toolbar
+  const legendSlot = (
+    <div className="flex items-center gap-3 text-xs">
+      <div className="flex items-center gap-1">
+        <span className="w-2.5 h-2.5 rounded bg-slate-700 border border-slate-600 inline-block" />
+        <span className="text-slate-400">미작업</span>
+      </div>
+      <div className="flex items-center gap-1">
+        <span className="w-2.5 h-2.5 rounded bg-blue-600 inline-block" />
+        <span className="text-slate-300">작업 중</span>
+      </div>
+      <div className="flex items-center gap-1">
+        <span className="w-2.5 h-2.5 rounded bg-emerald-600 inline-block" />
+        <span className="text-slate-300">완료</span>
+      </div>
+      <div className="flex items-center gap-1">
+        <span className="w-2.5 h-2.5 rounded bg-amber-600 inline-block" />
+        <span className="text-slate-300">문제 발생</span>
+      </div>
+    </div>
+  );
+
   return (
     <div className="min-h-screen bg-slate-900 text-slate-100 flex flex-col font-sans">
-      {/* 1. Top Header */}
-      <header className="sticky top-0 z-30 bg-slate-850 border-b border-slate-800 px-6 py-4 flex flex-wrap items-center justify-between gap-4 shadow-lg">
-        <div className="flex items-center gap-4">
+      {/* Row A: Main App Header */}
+      <header className="sticky top-0 z-30 bg-slate-850 border-b border-slate-800 px-5 h-16 flex items-center justify-between gap-4 shadow-lg shrink-0 flex-nowrap">
+        <div className="flex items-center gap-3 min-w-0">
           <button
+            type="button"
             onClick={() => navigate('/projects')}
-            className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-lg border border-slate-700 transition flex items-center gap-1.5 text-xs font-semibold"
+            className={BUTTON_H36_CLASS}
+            aria-label="목록으로 이동"
           >
-            <ArrowLeft className="w-4 h-4" />
+            <ArrowLeft className="w-4 h-4 shrink-0" />
             <span>목록으로</span>
           </button>
 
-          <div>
-            <div className="flex items-center gap-3">
-              <h1 className="text-xl font-bold text-white tracking-tight">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 truncate">
+              <h1 className="text-base font-bold text-white tracking-tight truncate">
                 {project ? project.name : '프로젝트 상세 정보'}
               </h1>
               {project && (
-                <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-blue-950 text-blue-400 border border-blue-500/30">
-                  전체 공정률 {project.progress}%
+                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-blue-950 text-blue-400 border border-blue-500/30 shrink-0">
+                  {project.progress}%
                 </span>
               )}
             </div>
             {project && (
-              <p className="text-xs text-slate-400 mt-0.5">
-                전체 기간: <span className="text-slate-300 font-semibold">{project.start_date} ~ {project.end_date}</span>
+              <p className="hidden md:block text-[11px] text-slate-400 truncate">
+                기간: {project.start_date} ~ {project.end_date}
               </p>
             )}
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-4">
-          {/* Gantt View Controls */}
-          <GanttViewControls
-            viewMode={viewMode}
-            rangeTitle={rangeTitle}
-            onViewModeChange={changeViewMode}
-            onPrevious={goPrevious}
-            onNext={goNext}
-            onToday={goToday}
-          />
-
-          {/* Worker Selector */}
+        <div className="flex items-center gap-3 shrink-0">
           <WorkerSelector
             currentWorker={currentWorker}
             onWorkerChange={(name) => setCurrentWorker(name)}
           />
 
-          <button
-            onClick={handleOpenAddTask}
-            className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-lg shadow-md transition"
-          >
+          <button onClick={handleOpenAddTask} className={PRIMARY_BUTTON_H36_CLASS}>
             <Plus className="w-4 h-4" />
             <span>작업 추가</span>
           </button>
         </div>
       </header>
 
-      {/* 2. Main Gantt Table Area */}
-      <main className="flex-1 p-6 overflow-hidden flex flex-col">
-        <div className="flex items-center justify-between mb-3 px-2">
-          <span className="text-xs font-semibold text-slate-400">작업자별 세부 일정 및 일별 상태</span>
-          <div className="flex items-center gap-4 text-xs">
-            <div className="flex items-center gap-1.5">
-              <span className="w-3 h-3 rounded bg-slate-700 border border-slate-600 inline-block" />
-              <span className="text-slate-400">미작업</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className="w-3 h-3 rounded bg-blue-600 inline-block" />
-              <span className="text-slate-300">작업 중</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className="w-3 h-3 rounded bg-emerald-600 inline-block" />
-              <span className="text-slate-300">완료</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className="w-3 h-3 rounded bg-amber-600 inline-block" />
-              <span className="text-slate-300">문제 발생</span>
-            </div>
-          </div>
-        </div>
+      {/* Row B: Gantt Toolbar (View Controls & Legend) */}
+      <GanttViewControls
+        viewMode={viewMode}
+        rangeTitle={rangeTitle}
+        onViewModeChange={changeViewMode}
+        onPrevious={goPrevious}
+        onNext={goNext}
+        onToday={goToday}
+        rightSlot={legendSlot}
+      />
 
+      {/* Main Gantt Table Area */}
+      <main className="flex-1 p-4 2xl:p-6 overflow-hidden flex flex-col">
         <div
           ref={scrollContainerRef}
           className="flex-1 bg-slate-850 border border-slate-800 rounded-2xl shadow-2xl overflow-auto custom-scrollbar relative"
@@ -277,18 +284,18 @@ export const ProjectDetailPage: React.FC = () => {
               <tr className="border-b border-slate-700/80">
                 <th
                   rowSpan={2}
-                  className="sticky left-0 z-30 bg-slate-800 px-4 py-3 font-semibold text-slate-200 border-r border-slate-700 shadow-md min-w-[340px] max-w-[340px]"
+                  className="sticky left-0 z-30 bg-slate-800 px-3 py-2.5 font-semibold text-slate-200 border-r border-slate-700 shadow-md w-[295px] min-w-[295px] max-w-[295px]"
                 >
-                  <div className="flex justify-between items-center text-sm font-bold text-white">
+                  <div className="flex justify-between items-center text-xs font-bold text-white">
                     <span>작업자 / 작업내용</span>
-                    <span className="text-[11px] text-slate-400 font-normal">공정률 / 기간</span>
+                    <span className="text-[10px] text-slate-400 font-normal">공정률 / 기간</span>
                   </div>
                 </th>
                 {monthGroups.map((mg, idx) => (
                   <th
                     key={idx}
                     colSpan={mg.span}
-                    className="text-center font-bold py-2 border-r border-slate-700/60 bg-slate-800/90 text-blue-300 text-xs"
+                    className="text-center font-bold py-1.5 border-r border-slate-700/60 bg-slate-800/90 text-blue-300 text-xs"
                   >
                     {mg.monthStr}
                   </th>
@@ -299,7 +306,8 @@ export const ProjectDetailPage: React.FC = () => {
                 {dateColumns.map((col, idx) => (
                   <th
                     key={idx}
-                    className={`w-[36px] min-w-[36px] max-w-[36px] text-center py-2 border-r border-slate-700/40 text-[11px] font-medium ${
+                    style={{ width: `${GANTT_DAY_WIDTH_PX}px`, minWidth: `${GANTT_DAY_WIDTH_PX}px`, maxWidth: `${GANTT_DAY_WIDTH_PX}px` }}
+                    className={`text-center py-1.5 border-r border-slate-700/40 text-[11px] font-medium ${
                       col.isToday
                         ? 'bg-blue-900/60 text-blue-200 font-bold'
                         : col.isWeekend
@@ -339,41 +347,46 @@ export const ProjectDetailPage: React.FC = () => {
                   return (
                     <tr key={task.id} className="hover:bg-slate-800/50 transition group">
                       {/* Fixed Left Column */}
-                      <td className="sticky left-0 z-10 bg-slate-850 group-hover:bg-slate-800 px-4 py-3 border-r border-slate-700 shadow-md min-w-[340px] max-w-[340px] align-middle">
+                      <td className="sticky left-0 z-10 bg-slate-850 group-hover:bg-slate-800 px-3 py-2.5 border-r border-slate-700 shadow-md w-[295px] min-w-[295px] max-w-[295px] align-middle">
                         <div className="flex items-center justify-between">
-                          <div className="pr-2 overflow-hidden">
-                            <div className="flex items-center gap-2">
-                              <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-slate-700 text-blue-300 shrink-0">
+                          <div className="pr-1 overflow-hidden min-w-0">
+                            <div className="flex items-center gap-1.5 truncate">
+                              <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-700 text-blue-300 shrink-0">
                                 {task.worker_name}
                               </span>
-                              <span className="font-semibold text-white truncate text-xs">{task.task_name}</span>
+                              <span className="font-semibold text-white truncate text-xs" title={task.task_name}>{task.task_name}</span>
                             </div>
-                            <div className="mt-1 text-[11px] text-slate-400 flex items-center gap-2">
-                              <span>{task.start_date} ~ {task.end_date}</span>
+                            <div className="mt-0.5 text-[10px] text-slate-400 truncate">
+                              {task.start_date} ~ {task.end_date}
                               {task.updated_by_name && (
-                                <span className="text-[10px] text-slate-500 truncate">
-                                  (수정: {task.updated_by_name})
+                                <span className="text-[10px] text-slate-500 ml-1">
+                                  ({task.updated_by_name})
                                 </span>
                               )}
                             </div>
                           </div>
 
                           <div className="flex flex-col items-end gap-1 shrink-0">
-                            <span className="text-xs font-bold text-blue-400 bg-blue-950/60 px-2 py-0.5 rounded border border-blue-500/30">
+                            <span className="text-[11px] font-bold text-blue-400 bg-blue-950/60 px-1.5 py-0.5 rounded border border-blue-500/30">
                               {task.progress}%
                             </span>
-                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition">
+                            {/* Actions visible with opacity-60 by default */}
+                            <div className="flex items-center gap-0.5 opacity-60 hover:opacity-100 focus:opacity-100 transition">
                               <button
+                                type="button"
                                 onClick={() => handleEditTask(task)}
-                                className="p-1 hover:bg-slate-700 rounded text-slate-400 hover:text-white"
-                                title="수정"
+                                aria-label="작업 수정"
+                                title="작업 수정"
+                                className="w-7 h-7 flex items-center justify-center hover:bg-slate-700 rounded text-slate-300 hover:text-white transition"
                               >
                                 <Edit2 className="w-3.5 h-3.5" />
                               </button>
                               <button
+                                type="button"
                                 onClick={() => handleDeleteTask(task.id, task.task_name)}
-                                className="p-1 hover:bg-red-950 rounded text-slate-400 hover:text-red-400"
-                                title="삭제"
+                                aria-label="작업 삭제"
+                                title="작업 삭제"
+                                className="w-7 h-7 flex items-center justify-center hover:bg-red-950 rounded text-slate-300 hover:text-red-400 transition"
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
                               </button>
@@ -398,8 +411,9 @@ export const ProjectDetailPage: React.FC = () => {
                           <td
                             key={cIdx}
                             title={tooltipText}
+                            style={{ width: `${GANTT_DAY_WIDTH_PX}px`, minWidth: `${GANTT_DAY_WIDTH_PX}px`, maxWidth: `${GANTT_DAY_WIDTH_PX}px` }}
                             onClick={(e) => isInTaskSpan && handleCellClick(e, task.id, col.dateStr, status)}
-                            className={`w-[36px] min-w-[36px] max-w-[36px] p-0 text-center relative border-r border-slate-800/40 align-middle transition ${
+                            className={`p-0 text-center relative border-r border-slate-800/40 align-middle transition ${
                               isInTaskSpan ? 'cursor-pointer hover:brightness-125' : ''
                             } ${
                               isInTaskSpan
@@ -416,13 +430,13 @@ export const ProjectDetailPage: React.FC = () => {
                             )}
 
                             {isInTaskSpan && status === 'NONE' && (
-                              <div className="w-full h-full min-h-[36px] bg-blue-950/30 border-y border-blue-500/20 flex items-center justify-center text-[10px] text-blue-400/60 font-mono">
+                              <div className="w-full h-full min-h-[34px] bg-blue-950/30 border-y border-blue-500/20 flex items-center justify-center text-[10px] text-blue-400/60 font-mono">
                                 •
                               </div>
                             )}
 
                             {isInTaskSpan && status !== 'NONE' && (
-                              <div className="w-full h-full min-h-[36px] flex items-center justify-center text-[10px] font-bold">
+                              <div className="w-full h-full min-h-[34px] flex items-center justify-center text-[10px] font-bold">
                                 {status === 'IN_PROGRESS' ? '진행' : status === 'COMPLETED' ? '완료' : '이슈'}
                               </div>
                             )}
@@ -453,6 +467,7 @@ export const ProjectDetailPage: React.FC = () => {
       <StatusPopover
         isOpen={popover.isOpen}
         position={popover.position}
+        triggerRect={popover.triggerRect}
         currentStatus={popover.currentStatus}
         dateStr={popover.dateStr}
         onSelect={handleSelectDailyStatus}
