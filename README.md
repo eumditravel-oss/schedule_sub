@@ -1,6 +1,3 @@
-<<<<<<< HEAD
-# schedule_sub
-=======
 # CON-COST 개발팀 프로젝트 스케줄러
 
 Cloudflare D1 데이터베이스와 React, TypeScript, Cloudflare Worker를 활용하여 개발팀의 여러 프로젝트 전체 공정 현황 및 작업자별 세부 공정을 관리하는 사내 간트 차트 웹 시스템입니다.
@@ -87,4 +84,3 @@ npx wrangler d1 execute concost-db --remote --file=./migrations/0002_seed_data.s
 ```bash
 npx wrangler deploy
 ```
->>>>>>> dcc16c1 (feat: add lightweight development team gantt scheduler)
