@@ -70,6 +70,11 @@ export const api = {
   },
 
   // 2. Projects
+  async getCompletedYears(): Promise<string[]> {
+    const res = await fetch('/api/projects/completed-years');
+    return handleResponse<string[]>(res);
+  },
+
   async getProjects(status: 'ACTIVE' | 'COMPLETED' = 'ACTIVE', year?: string): Promise<Project[]> {
     let url = `/api/projects?status=${status}`;
     if (year) url += `&year=${year}`;

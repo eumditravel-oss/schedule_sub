@@ -1,19 +1,20 @@
 // src/hooks/useGanttDateRange.ts
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import {
   GanttViewMode,
   getThirtyDaysRange,
   getMonthRange,
   generateDateColumns,
   groupColumnsByMonth,
-  formatDateStr,
 } from '../utils/dateUtils';
-import { addDays, subDays, addMonths, subMonths, startOfDay, format } from 'date-fns';
-import { ko } from 'date-fns/locale';
+import { useI18n } from './useI18n';
+import { subDays, addDays, subMonths, addMonths, startOfDay, format } from 'date-fns';
 
 const VIEW_MODE_STORAGE_KEY = 'schedule_gantt_view_mode';
 
 export function useGanttDateRange(initialAnchorDate: Date = new Date()) {
+  const { lang } = useI18n();
+
   const [viewMode, setViewModeState] = useState<GanttViewMode>(() => {
     try {
       const saved = localStorage.getItem(VIEW_MODE_STORAGE_KEY);
@@ -36,7 +37,7 @@ export function useGanttDateRange(initialAnchorDate: Date = new Date()) {
       ? getThirtyDaysRange(anchorDate)
       : getMonthRange(anchorDate);
 
-  const dateColumns = generateDateColumns(startDate, endDate);
+  const dateColumns = generateDateColumns(startDate, endDate, new Date(), lang);
   const monthGroups = groupColumnsByMonth(dateColumns);
 
   const goPrevious = () => {
@@ -59,11 +60,16 @@ export function useGanttDateRange(initialAnchorDate: Date = new Date()) {
     setAnchorDate(startOfDay(new Date()));
   };
 
-  // Title string formatting
-  const rangeTitle =
-    viewMode === 'THIRTY_DAYS'
-      ? `${format(startDate, 'yyyy.MM.dd')} ~ ${format(endDate, 'yyyy.MM.dd')}`
-      : `${format(anchorDate, 'yyyy년 M월', { locale: ko })}`;
+  let rangeTitle = '';
+  if (viewMode === 'THIRTY_DAYS') {
+    rangeTitle = `${format(startDate, 'yyyy.MM.dd')} ~ ${format(endDate, 'yyyy.MM.dd')}`;
+  } else {
+    if (lang === 'vi') {
+      rangeTitle = `Tháng ${format(anchorDate, 'MM')} năm ${format(anchorDate, 'yyyy')}`;
+    } else {
+      rangeTitle = `${format(anchorDate, 'yyyy년 M월')}`;
+    }
+  }
 
   return {
     viewMode,

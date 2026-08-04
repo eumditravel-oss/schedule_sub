@@ -12,10 +12,29 @@ import {
   differenceInCalendarDays,
   parseISO,
 } from 'date-fns';
-import { ko } from 'date-fns/locale';
+import { ko as koLocale } from 'date-fns/locale/ko';
+import { vi as viLocale } from 'date-fns/locale/vi';
 import { GanttDateColumn } from '../types';
+import { Language } from '../i18n';
 
 export type GanttViewMode = 'THIRTY_DAYS' | 'MONTH';
+
+/**
+ * Returns current date in Korea Standard Time (Asia/Seoul) as YYYY-MM-DD
+ */
+export function getKoreaDateString(): string {
+  try {
+    const formatter = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Seoul',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    });
+    return formatter.format(new Date());
+  } catch {
+    return new Date().toISOString().slice(0, 10);
+  }
+}
 
 export function formatDateStr(date: Date): string {
   return format(date, 'yyyy-MM-dd');
@@ -25,7 +44,7 @@ export function formatKoreanDate(dateStr: string): string {
   if (!dateStr) return '';
   try {
     const d = parseISO(dateStr);
-    return format(d, 'yyyy.MM.dd(EEE)', { locale: ko });
+    return format(d, 'yyyy.MM.dd(EEE)', { locale: koLocale });
   } catch {
     return dateStr;
   }
@@ -52,24 +71,36 @@ export function getMonthRange(anchorDate: Date = new Date()): { startDate: Date;
 }
 
 /**
- * Generate columns for date range
+ * Generate columns for date range localized by Language
  */
 export function generateDateColumns(
   startDate: Date,
   endDate: Date,
-  referenceToday: Date = new Date()
+  referenceToday: Date = new Date(),
+  lang: Language = 'ko'
 ): GanttDateColumn[] {
   const columns: GanttDateColumn[] = [];
   let current = startOfDay(startDate);
   const end = startOfDay(endDate);
 
   const todayStr = format(startOfDay(referenceToday), 'yyyy-MM-dd');
-  const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
+  const dayNamesKo = ['일', '월', '화', '수', '목', '금', '토'];
+  const dayNamesVi = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
+  const dayNames = lang === 'vi' ? dayNamesVi : dayNamesKo;
+
+  const currentLocale = lang === 'vi' ? viLocale : koLocale;
 
   while (current <= end) {
     const dateStr = format(current, 'yyyy-MM-dd');
     const dayOfWeek = current.getDay();
     const isWknd = isWeekend(current);
+
+    let monthStr = '';
+    if (lang === 'vi') {
+      monthStr = `Tháng ${format(current, 'MM')} năm ${format(current, 'yyyy')}`;
+    } else {
+      monthStr = format(current, 'yyyy년 MM월', { locale: currentLocale });
+    }
 
     columns.push({
       date: new Date(current),
@@ -78,7 +109,7 @@ export function generateDateColumns(
       dayName: dayNames[dayOfWeek],
       isWeekend: isWknd,
       isToday: dateStr === todayStr,
-      monthStr: format(current, 'yyyy년 MM월', { locale: ko }),
+      monthStr,
     });
 
     current = addDays(current, 1);
@@ -104,8 +135,6 @@ export function groupColumnsByMonth(columns: GanttDateColumn[]): Array<{ monthSt
 
 /**
  * Calculates visible Gantt bar span safely within current view range
- * visibleStart = max(scheduleStart, viewStart)
- * visibleEnd = min(scheduleEnd, viewEnd)
  */
 export function calculateVisibleGanttSpan(
   scheduleStartStr: string,

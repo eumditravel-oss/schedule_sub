@@ -5,6 +5,7 @@ export const vi: Record<TranslationKeys, string> = {
   headerTitle: 'Lịch dự án nhóm phát triển',
   activeProjectsTab: 'Dự án đang thực hiện',
   completedProjectsTab: 'Hoàn thành năm',
+  completedProjectsYear: 'Hoàn thành năm {year}',
   addProject: 'Thêm dự án',
   editProject: 'Sửa dự án',
   deleteProject: 'Xóa dự án',
@@ -49,6 +50,7 @@ export const vi: Record<TranslationKeys, string> = {
   translationFailedNotice: 'Lịch đã được lưu nhưng dịch tự động không thành công. Bạn có thể thử dịch lại sau.',
   readOnlyCompletedNotice: 'Dự án đã hoàn thành chỉ có thể xem. Hãy chuyển lại dự án đang thực hiện để chỉnh sửa.',
   workerListFixedError: 'Danh sách nhân sự chỉ sử dụng các thành viên đã được chỉ định.',
+  invalidEditorError: 'Chỉ thành viên nhóm phát triển được chỉ định mới có thể chỉnh sửa.',
   completeConfirmMsg: 'Bạn có muốn đánh dấu dự án này là đã hoàn thành không? Dự án sẽ được chuyển sang danh sách hoàn thành và tiến độ sẽ là 100%.',
   reopenConfirmMsg: 'Bạn có muốn chuyển dự án này trở lại danh sách đang thực hiện không?',
   selectWorkerPrompt: 'Vui lòng chọn người thực hiện cho lịch trình này.',
@@ -57,4 +59,17 @@ export const vi: Record<TranslationKeys, string> = {
   actions: 'Thao tác',
   detailView: 'Xem chi tiết',
   yearSelect: 'Chọn năm',
+
+  // UI Hardcoded Strings
+  loading: 'Đang tải...',
+  saving: 'Đang lưu...',
+  translating: 'Đang dịch...',
+  translationFailed: 'Dịch không thành công',
+  projectSaveFailed: 'Đã xảy ra lỗi khi lưu dự án.',
+  taskSaveFailed: 'Đã xảy ra lỗi khi lưu công việc.',
+  completeProjectFailed: 'Đã xảy ra lỗi khi hoàn thành dự án.',
+  reopenProjectFailed: 'Đã xảy ra lỗi khi khôi phục dự án.',
+  translatedTextLabel: 'Bản dịch',
+  automaticTranslationPlaceholder: 'Bản dịch tự động (có thể tự chỉnh sửa)',
+  originalTag: 'Bản gốc',
 };

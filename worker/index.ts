@@ -31,6 +31,42 @@ function getEditorName(body: any, request: Request): string {
   return '';
 }
 
+// Server-side active editor validation
+async function requireActiveWorker(db: any, editorName: string): Promise<boolean> {
+  if (!editorName || !editorName.trim()) return false;
+  try {
+    const worker = await db
+      .prepare(`SELECT id FROM workers WHERE name = ? AND is_active = 1`)
+      .bind(editorName.trim())
+      .first();
+    return !!worker;
+  } catch {
+    // If workers table does not exist or fails, check hardcoded actual 5 team members
+    const actualWorkers = [
+      '유종욱 실장',
+      '박용진 수석',
+      'Thanh Phuong(탄 프엉)',
+      'Manh Cuong(끄엉)',
+      'Quoc Nhut(꾸옥 느엿)',
+    ];
+    return actualWorkers.includes(editorName.trim());
+  }
+}
+
+function getKoreaDateString(): string {
+  try {
+    const formatter = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Seoul',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    });
+    return formatter.format(new Date());
+  } catch {
+    return new Date().toISOString().slice(0, 10);
+  }
+}
+
 async function updateProjectAverageProgress(db: any, projectId: string) {
   const { results: tasks } = await db
     .prepare(`SELECT progress FROM tasks WHERE project_id = ?`)
@@ -69,7 +105,7 @@ export default {
     }
 
     try {
-      // 1. GET /api/workers (Returns ONLY active 5 team members)
+      // 1. GET /api/workers
       if (method === 'GET' && path === '/api/workers') {
         try {
           const { results } = await db
@@ -80,7 +116,6 @@ export default {
           }
         } catch {}
 
-        // Hardcoded Fallback for 5 actual team members
         const actualWorkers = [
           { id: 'wrk_01', name: '유종욱 실장', is_active: 1, sort_order: 1 },
           { id: 'wrk_02', name: '박용진 수석', is_active: 1, sort_order: 2 },
@@ -91,7 +126,7 @@ export default {
         return jsonResponse(actualWorkers);
       }
 
-      // 2. POST /api/workers (BLOCKED - WORKER_LIST_FIXED)
+      // 2. POST /api/workers (BLOCKED)
       if (method === 'POST' && path === '/api/workers') {
         return errorResponse(
           '작업자 목록은 지정된 개발팀 인원만 사용할 수 있습니다.',
@@ -132,7 +167,29 @@ export default {
         }
       }
 
-      // 4. GET /api/projects?status=ACTIVE|COMPLETED&year=YYYY
+      // 4. GET /api/projects/completed-years
+      if (method === 'GET' && path === '/api/projects/completed-years') {
+        const currentYear = new Date().getFullYear().toString();
+        try {
+          const { results } = await db
+            .prepare(`
+              SELECT DISTINCT strftime('%Y', completed_at) AS year
+              FROM projects
+              WHERE status = 'COMPLETED' AND completed_at IS NOT NULL
+              ORDER BY year DESC
+            `)
+            .all();
+          const years = (results || []).map((r: any) => r.year).filter(Boolean);
+          if (!years.includes(currentYear)) {
+            years.unshift(currentYear);
+          }
+          return jsonResponse(years);
+        } catch {
+          return jsonResponse([currentYear]);
+        }
+      }
+
+      // 5. GET /api/projects?status=ACTIVE|COMPLETED&year=YYYY
       if (method === 'GET' && path === '/api/projects') {
         const statusFilter = url.searchParams.get('status') || 'ACTIVE';
         const yearFilter = url.searchParams.get('year');
@@ -166,7 +223,6 @@ export default {
           const bound = params.length > 0 ? stmt.bind(...params) : stmt;
           const { results } = await bound.all();
 
-          // Fetch participating workers for completed projects
           const enriched = await Promise.all(
             (results || []).map(async (prj: any) => {
               if (prj.status === 'COMPLETED') {
@@ -183,7 +239,6 @@ export default {
 
           return jsonResponse(enriched);
         } catch {
-          // Fallback if status column does not exist yet
           const { results } = await db
             .prepare(`SELECT p.*, COUNT(t.id) as task_count FROM projects p LEFT JOIN tasks t ON p.id = t.project_id GROUP BY p.id ORDER BY p.start_date ASC`)
             .all();
@@ -191,7 +246,7 @@ export default {
         }
       }
 
-      // 5. GET /api/projects/:id/detail
+      // 6. GET /api/projects/:id/detail
       const detailMatch = path.match(/^\/api\/projects\/([^/]+)\/detail$/);
       if (method === 'GET' && detailMatch) {
         const projectId = detailMatch[1];
@@ -265,18 +320,20 @@ export default {
         return jsonResponse({ project, tasks: enrichedTasks });
       }
 
-      // 6. POST /api/projects/:id/complete
+      // 7. POST /api/projects/:id/complete
       const completeProjMatch = path.match(/^\/api\/projects\/([^/]+)\/complete$/);
       if (method === 'POST' && completeProjMatch) {
         const projectId = completeProjMatch[1];
         const body: any = await request.json();
         const editor = getEditorName(body, request);
-        if (!editor) return errorResponse('현재 접속자를 먼저 선택해 주세요.', 400);
+        if (!(await requireActiveWorker(db, editor))) {
+          return errorResponse('지정된 개발팀 작업자만 편집할 수 있습니다.', 403, 'INVALID_EDITOR');
+        }
 
         const project = await db.prepare(`SELECT * FROM projects WHERE id = ?`).bind(projectId).first();
         if (!project) return errorResponse('프로젝트를 찾을 수 없습니다.', 404);
 
-        const todayStr = new Date().toISOString().slice(0, 10);
+        const todayStr = getKoreaDateString();
 
         await db
           .prepare(`
@@ -290,13 +347,15 @@ export default {
         return jsonResponse({ id: projectId, status: 'COMPLETED', completed_at: todayStr, completed_by_name: editor });
       }
 
-      // 7. POST /api/projects/:id/reopen
+      // 8. POST /api/projects/:id/reopen
       const reopenProjMatch = path.match(/^\/api\/projects\/([^/]+)\/reopen$/);
       if (method === 'POST' && reopenProjMatch) {
         const projectId = reopenProjMatch[1];
         const body: any = await request.json();
         const editor = getEditorName(body, request);
-        if (!editor) return errorResponse('현재 접속자를 먼저 선택해 주세요.', 400);
+        if (!(await requireActiveWorker(db, editor))) {
+          return errorResponse('지정된 개발팀 작업자만 편집할 수 있습니다.', 403, 'INVALID_EDITOR');
+        }
 
         const project = await db.prepare(`SELECT * FROM projects WHERE id = ?`).bind(projectId).first();
         if (!project) return errorResponse('프로젝트를 찾을 수 없습니다.', 404);
@@ -313,7 +372,6 @@ export default {
         return jsonResponse({ id: projectId, status: 'ACTIVE' });
       }
 
-      // Helper: Check if project is read-only completed
       async function isProjectCompleted(projId: string): Promise<boolean> {
         try {
           const prj = await db.prepare(`SELECT status FROM projects WHERE id = ?`).bind(projId).first();
@@ -323,11 +381,13 @@ export default {
         }
       }
 
-      // 8. POST /api/projects
+      // 9. POST /api/projects
       if (method === 'POST' && path === '/api/projects') {
         const body: any = await request.json();
         const editor = getEditorName(body, request);
-        if (!editor) return errorResponse('현재 접속자를 먼저 선택해 주세요.', 400);
+        if (!(await requireActiveWorker(db, editor))) {
+          return errorResponse('지정된 개발팀 작업자만 편집할 수 있습니다.', 403, 'INVALID_EDITOR');
+        }
 
         const validated = projectSchema.parse({ ...body, editor_name: editor });
         const id = `prj_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
@@ -338,7 +398,6 @@ export default {
         let transStatus = validated.translation_status || 'PENDING';
         let transError: string | null = null;
 
-        // Perform Workers AI translation if missing
         if (!name_ko || !name_vi) {
           try {
             const targetLang = srcLang === 'ko' ? 'vi' : 'ko';
@@ -377,7 +436,7 @@ export default {
         return jsonResponse({ id }, 201);
       }
 
-      // 9. PATCH /api/projects/:id
+      // 10. PATCH /api/projects/:id
       const patchProjMatch = path.match(/^\/api\/projects\/([^/]+)$/);
       if (method === 'PATCH' && patchProjMatch) {
         const projectId = patchProjMatch[1];
@@ -387,7 +446,9 @@ export default {
 
         const body: any = await request.json();
         const editor = getEditorName(body, request);
-        if (!editor) return errorResponse('현재 접속자를 먼저 선택해 주세요.', 400);
+        if (!(await requireActiveWorker(db, editor))) {
+          return errorResponse('지정된 개발팀 작업자만 편집할 수 있습니다.', 403, 'INVALID_EDITOR');
+        }
 
         const validated = updateProjectSchema.parse({ ...body, editor_name: editor });
 
@@ -405,7 +466,6 @@ export default {
         let transStatus = validated.translation_status ?? existing.translation_status ?? 'PENDING';
         let transError = validated.translation_error ?? existing.translation_error ?? null;
 
-        // Auto translate if name changed and translation not manually updated
         if (validated.name && validated.name !== existing.name && !validated.name_ko && !validated.name_vi) {
           try {
             const targetLang = srcLang === 'ko' ? 'vi' : 'ko';
@@ -444,7 +504,7 @@ export default {
         return jsonResponse({ id: projectId });
       }
 
-      // 10. DELETE /api/projects/:id
+      // 11. DELETE /api/projects/:id
       const delProjMatch = path.match(/^\/api\/projects\/([^/]+)$/);
       if (method === 'DELETE' && delProjMatch) {
         const projectId = delProjMatch[1];
@@ -452,18 +512,20 @@ export default {
           return errorResponse('완료된 프로젝트는 읽기 전용입니다. 수정하려면 진행 프로젝트로 복귀해 주세요.', 403, 'PROJECT_COMPLETED_READ_ONLY');
         }
         const editor = request.headers.get('x-editor-name');
-        if (!editor || !decodeURIComponent(editor).trim()) {
-          return errorResponse('현재 접속자를 먼저 선택해 주세요.', 400);
+        if (!(await requireActiveWorker(db, editor ? decodeURIComponent(editor) : ''))) {
+          return errorResponse('지정된 개발팀 작업자만 편집할 수 있습니다.', 403, 'INVALID_EDITOR');
         }
         await db.prepare(`DELETE FROM projects WHERE id = ?`).bind(projectId).run();
         return jsonResponse({ id: projectId });
       }
 
-      // 11. POST /api/tasks
+      // 12. POST /api/tasks
       if (method === 'POST' && path === '/api/tasks') {
         const body: any = await request.json();
         const editor = getEditorName(body, request);
-        if (!editor) return errorResponse('현재 접속자를 먼저 선택해 주세요.', 400);
+        if (!(await requireActiveWorker(db, editor))) {
+          return errorResponse('지정된 개발팀 작업자만 편집할 수 있습니다.', 403, 'INVALID_EDITOR');
+        }
 
         const validated = taskSchema.parse({
           ...body,
@@ -525,7 +587,7 @@ export default {
         return jsonResponse({ id, project_progress: newAvg }, 201);
       }
 
-      // 12. PATCH /api/tasks/:id
+      // 13. PATCH /api/tasks/:id
       const patchTaskMatch = path.match(/^\/api\/tasks\/([^/]+)$/);
       if (method === 'PATCH' && patchTaskMatch) {
         const taskId = patchTaskMatch[1];
@@ -538,7 +600,9 @@ export default {
 
         const body: any = await request.json();
         const editor = getEditorName(body, request);
-        if (!editor) return errorResponse('현재 접속자를 먼저 선택해 주세요.', 400);
+        if (!(await requireActiveWorker(db, editor))) {
+          return errorResponse('지정된 개발팀 작업자만 편집할 수 있습니다.', 403, 'INVALID_EDITOR');
+        }
 
         const validated = updateTaskSchema.parse({ ...body, editor_name: editor });
 
@@ -593,7 +657,7 @@ export default {
         return jsonResponse({ id: taskId, project_progress: newAvg });
       }
 
-      // 13. DELETE /api/tasks/:id
+      // 14. DELETE /api/tasks/:id
       const delTaskMatch = path.match(/^\/api\/tasks\/([^/]+)$/);
       if (method === 'DELETE' && delTaskMatch) {
         const taskId = delTaskMatch[1];
@@ -603,8 +667,8 @@ export default {
             return errorResponse('완료된 프로젝트는 읽기 전용입니다. 수정하려면 진행 프로젝트로 복귀해 주세요.', 403, 'PROJECT_COMPLETED_READ_ONLY');
           }
           const editor = request.headers.get('x-editor-name');
-          if (!editor || !decodeURIComponent(editor).trim()) {
-            return errorResponse('현재 접속자를 먼저 선택해 주세요.', 400);
+          if (!(await requireActiveWorker(db, editor ? decodeURIComponent(editor) : ''))) {
+            return errorResponse('지정된 개발팀 작업자만 편집할 수 있습니다.', 403, 'INVALID_EDITOR');
           }
           await db.prepare(`DELETE FROM tasks WHERE id = ?`).bind(taskId).run();
           await updateProjectAverageProgress(db, existing.project_id);
@@ -612,7 +676,7 @@ export default {
         return jsonResponse({ id: taskId });
       }
 
-      // 14. PUT /api/tasks/:taskId/daily-status/:date
+      // 15. PUT /api/tasks/:taskId/daily-status/:date
       const putStatusMatch = path.match(/^\/api\/tasks\/([^/]+)\/daily-status\/([^/]+)$/);
       if (method === 'PUT' && putStatusMatch) {
         const taskId = putStatusMatch[1];
@@ -625,7 +689,9 @@ export default {
 
         const body: any = await request.json();
         const editor = getEditorName(body, request);
-        if (!editor) return errorResponse('현재 접속자를 먼저 선택해 주세요.', 400);
+        if (!(await requireActiveWorker(db, editor))) {
+          return errorResponse('지정된 개발팀 작업자만 편집할 수 있습니다.', 403, 'INVALID_EDITOR');
+        }
 
         const validated = dailyStatusSchema.parse({ ...body, editor_name: editor });
 

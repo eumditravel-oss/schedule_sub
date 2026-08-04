@@ -17,14 +17,17 @@ import { WorkerSelector } from '../components/common/WorkerSelector';
 import { LanguageSelector } from '../components/common/LanguageSelector';
 import { WorkerPromptModal } from '../components/modals/WorkerPromptModal';
 import { GanttViewControls } from '../components/common/GanttViewControls';
-import { Plus, Edit2, Trash2, ChevronRight, CheckCircle, Calendar, Eye } from 'lucide-react';
+import { Plus, Edit2, Trash2, ChevronRight, CheckCircle, Eye } from 'lucide-react';
 
 export const ProjectOverviewPage: React.FC = () => {
   const navigate = useNavigate();
   const { t, lang } = useI18n();
 
+  const currentYearStr = new Date().getFullYear().toString();
+
   const [activeTab, setActiveTab] = useState<'ACTIVE' | 'COMPLETED'>('ACTIVE');
-  const [selectedYear, setSelectedYear] = useState<string>(new Date().getFullYear().toString());
+  const [selectedYear, setSelectedYear] = useState<string>(currentYearStr);
+  const [completedYears, setCompletedYears] = useState<string[]>([currentYearStr]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -52,6 +55,20 @@ export const ProjectOverviewPage: React.FC = () => {
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
+  const fetchCompletedYears = async () => {
+    try {
+      const years = await api.getCompletedYears();
+      if (years && years.length > 0) {
+        setCompletedYears(years);
+        if (!years.includes(selectedYear)) {
+          setSelectedYear(years[0]);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to fetch completed years:', err);
+    }
+  };
+
   const fetchProjects = async () => {
     try {
       setLoading(true);
@@ -63,6 +80,10 @@ export const ProjectOverviewPage: React.FC = () => {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    fetchCompletedYears();
+  }, []);
 
   useEffect(() => {
     fetchProjects();
@@ -93,14 +114,20 @@ export const ProjectOverviewPage: React.FC = () => {
       await api.createProject(data);
     }
     await fetchProjects();
+    await fetchCompletedYears();
   };
 
   const handleDeleteProject = async (e: React.MouseEvent, id: string, name: string) => {
     e.stopPropagation();
     if (!requireWorkerSelection()) return;
     if (!window.confirm(`'${name}' ${t('deleteConfirm')}`)) return;
-    await api.deleteProject(id);
-    await fetchProjects();
+    try {
+      await api.deleteProject(id);
+      await fetchProjects();
+      await fetchCompletedYears();
+    } catch (err: any) {
+      alert(err.message || t('invalidEditorError'));
+    }
   };
 
   const handleEditProject = (e: React.MouseEvent, project: Project) => {
@@ -120,8 +147,9 @@ export const ProjectOverviewPage: React.FC = () => {
     try {
       await api.completeProject(project.id);
       await fetchProjects();
+      await fetchCompletedYears();
     } catch (err: any) {
-      alert(err.message || '완료 처리 중 오류가 발생했습니다.');
+      alert(err.message || t('completeProjectFailed'));
     }
   };
 
@@ -136,8 +164,6 @@ export const ProjectOverviewPage: React.FC = () => {
     if (lang === 'vi') return !project.name_vi;
     return !project.name_ko;
   };
-
-  const currentYearStr = new Date().getFullYear().toString();
 
   return (
     <div className="min-h-screen bg-slate-900 text-slate-100 flex flex-col font-sans">
@@ -199,7 +225,7 @@ export const ProjectOverviewPage: React.FC = () => {
                 : 'bg-slate-800 text-slate-400 hover:text-slate-200 border border-slate-700'
             }`}
           >
-            {`${currentYearStr}년 ${t('completedProjectsTab')}`}
+            {t('completedProjectsYear', { year: selectedYear })}
           </button>
         </div>
 
@@ -223,9 +249,11 @@ export const ProjectOverviewPage: React.FC = () => {
               onChange={(e) => setSelectedYear(e.target.value)}
               className="h-9 px-3 bg-slate-800 border border-slate-700 rounded-lg text-white font-bold focus:outline-none focus:border-emerald-500"
             >
-              <option value="2026">2026년</option>
-              <option value="2027">2027년</option>
-              <option value="2028">2028년</option>
+              {completedYears.map((yr) => (
+                <option key={yr} value={yr}>
+                  {yr}년
+                </option>
+              ))}
             </select>
           </div>
         )}
@@ -286,7 +314,7 @@ export const ProjectOverviewPage: React.FC = () => {
                 {loading ? (
                   <tr>
                     <td colSpan={dateColumns.length + 1} className="py-12 text-center text-slate-400">
-                      불러오는 중입니다...
+                      {t('loading')}
                     </td>
                   </tr>
                 ) : projects.length === 0 ? (
@@ -321,7 +349,7 @@ export const ProjectOverviewPage: React.FC = () => {
                                 <span className="truncate">{displayName}</span>
                                 {isFallback && (
                                   <span className="text-[9px] text-slate-500 bg-slate-800 px-1 rounded shrink-0 border border-slate-700">
-                                    {t('originalText')}
+                                    {t('originalTag')}
                                   </span>
                                 )}
                                 <ChevronRight className="w-3.5 h-3.5 text-slate-500 shrink-0" />
@@ -378,7 +406,7 @@ export const ProjectOverviewPage: React.FC = () => {
                               style={{ width: `${GANTT_DAY_WIDTH_PX}px`, minWidth: `${GANTT_DAY_WIDTH_PX}px`, maxWidth: `${GANTT_DAY_WIDTH_PX}px` }}
                               className={`p-0 relative border-r border-slate-800/40 align-middle ${
                                 col.isToday
-                                  ? 'bg-blue-950/20'
+                                  ? 'bg-blue-900/60'
                                   : col.isWeekend
                                   ? 'bg-slate-900/40'
                                   : ''
@@ -438,7 +466,7 @@ export const ProjectOverviewPage: React.FC = () => {
                 {loading ? (
                   <tr>
                     <td colSpan={8} className="py-12 text-center text-slate-400">
-                      불러오는 중입니다...
+                      {t('loading')}
                     </td>
                   </tr>
                 ) : projects.length === 0 ? (

@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { Project } from '../../types';
 import { useI18n } from '../../hooks/useI18n';
 import { api } from '../../services/api';
+import { getKoreaDateString } from '../../utils/dateUtils';
 import { X, Languages, RefreshCw } from 'lucide-react';
 
 interface ProjectModalProps {
@@ -42,7 +43,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
       setInputLang((project.source_language as any) || lang);
       setTransStatus(project.translation_status || 'COMPLETED');
     } else {
-      const today = new Date().toISOString().slice(0, 10);
+      const today = getKoreaDateString();
       setName('');
       setNameKo('');
       setNameVi('');
@@ -73,7 +74,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
       }
       setTransStatus('COMPLETED');
     } catch (err: any) {
-      alert(err.message || '번역 실패');
+      alert(err.message || t('translationFailed'));
       setTransStatus('FAILED');
     } finally {
       setTranslating(false);
@@ -101,11 +102,13 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
       });
       onClose();
     } catch (err: any) {
-      alert(err.message || '프로젝트 저장 중 오류가 발생했습니다.');
+      alert(err.message || t('projectSaveFailed'));
     } finally {
       setLoading(false);
     }
   };
+
+  const secondaryLabel = inputLang === 'ko' ? `${t('viText')} ${t('translatedTextLabel')}` : `${t('koText')} ${t('translatedTextLabel')}`;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
@@ -158,7 +161,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
                 else setNameVi(e.target.value);
                 setName(e.target.value);
               }}
-              placeholder="예: BIM 데이터 연동 시스템 개발"
+              placeholder="BIM Data System"
               className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm text-white focus:outline-none focus:border-blue-500"
             />
           </div>
@@ -167,7 +170,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
           <div>
             <div className="flex justify-between items-center mb-1">
               <label className="block text-xs font-semibold text-slate-400">
-                {inputLang === 'ko' ? `${t('viText')} 번역문` : `${t('koText')} 번역문`}
+                {secondaryLabel}
               </label>
               <button
                 type="button"
@@ -176,7 +179,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
                 className="text-[11px] font-bold text-blue-400 hover:text-blue-300 flex items-center gap-1 transition disabled:opacity-50"
               >
                 <RefreshCw className={`w-3 h-3 ${translating ? 'animate-spin' : ''}`} />
-                <span>{t('retryTranslation')}</span>
+                <span>{translating ? t('translating') : t('retryTranslation')}</span>
               </button>
             </div>
             <input
@@ -187,7 +190,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
                 else setNameKo(e.target.value);
                 setTransStatus('MANUAL');
               }}
-              placeholder="자동 번역문 (필요시 직접 수정 가능)"
+              placeholder={t('automaticTranslationPlaceholder')}
               className="w-full px-3 py-2 bg-slate-900/80 border border-slate-700/80 rounded-lg text-sm text-slate-200 focus:outline-none focus:border-blue-500"
             />
           </div>
@@ -243,7 +246,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
               disabled={loading}
               className="px-5 py-2 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-500 rounded-lg shadow transition disabled:opacity-50"
             >
-              {loading ? '저장 중...' : t('save')}
+              {loading ? t('saving') : t('save')}
             </button>
           </div>
         </form>

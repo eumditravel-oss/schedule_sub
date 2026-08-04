@@ -1,34 +1,30 @@
 // src/hooks/useI18n.ts
-import { useState, useEffect } from 'react';
-import { Language, translations, getStoredLanguage, setStoredLanguage } from '../i18n';
-import { TranslationKeys } from '../i18n/ko';
+import { useContext } from 'react';
+import { I18nContext, I18nContextType } from '../i18n/I18nContext';
+import { translations, getStoredLanguage, setStoredLanguage } from '../i18n';
 import { ko as dateLocaleKo } from 'date-fns/locale/ko';
 import { vi as dateLocaleVi } from 'date-fns/locale/vi';
 
-export function useI18n() {
-  const [lang, setLangState] = useState<Language>(() => getStoredLanguage());
+export function useI18n(): I18nContextType {
+  const context = useContext(I18nContext);
+  if (context) {
+    return context;
+  }
 
-  const setLanguage = (newLang: Language) => {
-    setLangState(newLang);
-    setStoredLanguage(newLang);
-  };
-
-  const t = (key: TranslationKeys, params?: Record<string, string>): string => {
-    let template = translations[lang]?.[key] || translations['ko']?.[key] || key;
-    if (params) {
-      for (const [pKey, pValue] of Object.entries(params)) {
-        template = template.replace(new RegExp(`\\{${pKey}\\}`, 'g'), pValue);
-      }
-    }
-    return template;
-  };
-
-  const dateLocale = lang === 'vi' ? dateLocaleVi : dateLocaleKo;
-
+  // Fallback for standalone/test environments without Provider
+  const lang = getStoredLanguage();
   return {
     lang,
-    setLanguage,
-    t,
-    dateLocale,
+    setLanguage: (newLang) => setStoredLanguage(newLang),
+    t: (key, params) => {
+      let template = translations[lang]?.[key] || translations['ko']?.[key] || key;
+      if (params) {
+        for (const [pKey, pValue] of Object.entries(params)) {
+          template = template.replace(new RegExp(`\\{${pKey}\\}`, 'g'), pValue);
+        }
+      }
+      return template;
+    },
+    dateLocale: lang === 'vi' ? dateLocaleVi : dateLocaleKo,
   };
 }

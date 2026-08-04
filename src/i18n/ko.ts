@@ -3,6 +3,7 @@ export const ko = {
   headerTitle: '개발팀 프로젝트 스케쥴러',
   activeProjectsTab: '진행 프로젝트',
   completedProjectsTab: '완료',
+  completedProjectsYear: '{year}년 완료',
   addProject: '프로젝트 추가',
   editProject: '프로젝트 수정',
   deleteProject: '프로젝트 삭제',
@@ -47,6 +48,7 @@ export const ko = {
   translationFailedNotice: '일정은 저장되었지만 자동 번역에 실패했습니다. 나중에 번역을 다시 시도할 수 있습니다.',
   readOnlyCompletedNotice: '완료된 프로젝트는 읽기 전용입니다. 수정하려면 진행 프로젝트로 복귀해 주세요.',
   workerListFixedError: '작업자 목록은 지정된 개발팀 인원만 사용할 수 있습니다.',
+  invalidEditorError: '지정된 개발팀 작업자만 편집할 수 있습니다.',
   completeConfirmMsg: '프로젝트를 완료 처리하시겠습니까? 완료 프로젝트 탭으로 이동하며 공정률은 100%로 변경됩니다.',
   reopenConfirmMsg: '이 프로젝트를 다시 진행 프로젝트로 전환하시겠습니까?',
   selectWorkerPrompt: '이 스케줄을 작성할 작업자를 선택하세요.',
@@ -55,6 +57,19 @@ export const ko = {
   actions: '작업',
   detailView: '상세 보기',
   yearSelect: '연도 선택',
+
+  // UI Hardcoded Strings
+  loading: '불러오는 중입니다...',
+  saving: '저장 중...',
+  translating: '번역 중...',
+  translationFailed: '번역 실패',
+  projectSaveFailed: '프로젝트 저장 중 오류가 발생했습니다.',
+  taskSaveFailed: '작업 저장 중 오류가 발생했습니다.',
+  completeProjectFailed: '완료 처리 중 오류가 발생했습니다.',
+  reopenProjectFailed: '프로젝트 복귀 중 오류가 발생했습니다.',
+  translatedTextLabel: '번역문',
+  automaticTranslationPlaceholder: '자동 번역문 (필요시 직접 수정 가능)',
+  originalTag: '원문',
 };
 
 export type TranslationKeys = keyof typeof ko;
