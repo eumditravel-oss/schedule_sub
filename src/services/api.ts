@@ -4,6 +4,8 @@ import { ApiResponse, Project, Task, Worker, DailyStatusType } from '../types';
 const WORKER_STORAGE_KEY = 'schedule_current_worker_id';
 
 export const ACTUAL_WORKERS = [
+  'CEO',
+  'COO',
   '유종욱 실장',
   '박용진 수석',
   'Thanh Phuong(탄 프엉)',

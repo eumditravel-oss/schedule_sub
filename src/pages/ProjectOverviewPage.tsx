@@ -171,17 +171,17 @@ export const ProjectOverviewPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-900 text-slate-100 flex flex-col font-sans">
+    <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans">
       {/* Row A: Main App Header */}
-      <header className="sticky top-0 z-30 bg-slate-850 border-b border-slate-800 px-5 h-16 flex items-center justify-between gap-4 shadow-lg shrink-0 flex-nowrap">
+      <header className="sticky top-0 z-30 bg-white border-b border-slate-200 px-5 h-16 flex items-center justify-between gap-4 shadow-sm shrink-0 flex-nowrap">
         <div className="flex items-center gap-3.5 min-w-0">
           {/* Integrated Logo Container */}
-          <div className="flex items-center px-2 py-1 bg-white rounded-lg border border-slate-200 shrink-0 shadow-sm">
+          <div className="flex items-center shrink-0">
             <img src="/logo3.png" alt="CON-COST × VIETQS" className="h-8 md:h-9 object-contain max-w-[210px]" />
           </div>
 
           <div className="min-w-0">
-            <h1 className="text-base font-bold tracking-tight text-white truncate">
+            <h1 className="text-base font-bold tracking-tight text-slate-900 truncate">
               {t('headerTitle')}
             </h1>
           </div>
@@ -207,7 +207,7 @@ export const ProjectOverviewPage: React.FC = () => {
       </header>
 
       {/* Row B: Tabs & Gantt Toolbar */}
-      <div className="bg-slate-850 border-b border-slate-800 px-5 flex flex-wrap items-center justify-between gap-3 shrink-0">
+      <div className="bg-slate-50 border-b border-slate-200 px-5 flex flex-wrap items-center justify-between gap-3 shrink-0">
         {/* Tabs */}
         <div className="flex items-center gap-2 py-2">
           <button
@@ -215,8 +215,8 @@ export const ProjectOverviewPage: React.FC = () => {
             onClick={() => setActiveTab('ACTIVE')}
             className={`h-9 px-4 rounded-lg font-bold text-xs transition ${
               activeTab === 'ACTIVE'
-                ? 'bg-blue-600 text-white shadow-md'
-                : 'bg-slate-800 text-slate-400 hover:text-slate-200 border border-slate-700'
+                ? 'bg-blue-600 text-white shadow-sm'
+                : 'bg-white text-slate-600 hover:text-slate-900 border border-slate-300'
             }`}
           >
             {t('activeProjectsTab')}
@@ -226,8 +226,8 @@ export const ProjectOverviewPage: React.FC = () => {
             onClick={() => setActiveTab('COMPLETED')}
             className={`h-9 px-4 rounded-lg font-bold text-xs transition ${
               activeTab === 'COMPLETED'
-                ? 'bg-emerald-600 text-white shadow-md'
-                : 'bg-slate-800 text-slate-400 hover:text-slate-200 border border-slate-700'
+                ? 'bg-emerald-600 text-white shadow-sm'
+                : 'bg-white text-slate-600 hover:text-slate-900 border border-slate-300'
             }`}
           >
             {t('completedProjectsYear', { year: selectedYear })}
@@ -247,12 +247,12 @@ export const ProjectOverviewPage: React.FC = () => {
             />
           </div>
         ) : (
-          <div className="flex items-center gap-2 py-2 text-xs font-semibold text-slate-300">
+          <div className="flex items-center gap-2 py-2 text-xs font-semibold text-slate-700">
             <span>{t('yearSelect')}:</span>
             <select
               value={selectedYear}
               onChange={(e) => setSelectedYear(e.target.value)}
-              className="h-9 px-3 bg-slate-800 border border-slate-700 rounded-lg text-white font-bold focus:outline-none focus:border-emerald-500"
+              className="h-9 px-3 bg-white border border-slate-300 rounded-lg text-slate-900 font-bold focus:outline-none focus:border-emerald-500 shadow-sm"
             >
               {completedYears.map((yr) => (
                 <option key={yr} value={yr}>
@@ -270,42 +270,42 @@ export const ProjectOverviewPage: React.FC = () => {
           /* Gantt Chart Table for Active Projects */
           <div
             ref={scrollContainerRef}
-            className="flex-1 bg-slate-850 border border-slate-800 rounded-2xl shadow-2xl overflow-auto custom-scrollbar relative"
+            className="flex-1 bg-white border border-slate-200 rounded-xl shadow-sm overflow-auto custom-scrollbar relative"
           >
             <table className="w-full border-collapse text-left min-w-max">
-              <thead className="sticky top-0 z-20 bg-slate-800 text-xs uppercase tracking-wider text-slate-300">
-                <tr className="border-b border-slate-700/80">
+              <thead className="sticky top-0 z-20 bg-slate-100 text-xs uppercase tracking-wider text-slate-700">
+                <tr className="border-b border-slate-200">
                   <th
                     rowSpan={2}
-                    className="sticky left-0 z-30 bg-slate-800 px-3 py-2.5 font-semibold text-slate-200 border-r border-slate-700 shadow-md w-[270px] min-w-[270px] max-w-[270px]"
+                    className="sticky left-0 z-30 bg-slate-100 px-3 py-2.5 font-bold text-slate-800 border-r border-slate-200 w-[270px] min-w-[270px] max-w-[270px]"
                   >
-                    <div className="flex justify-between items-center text-xs font-bold text-white">
+                    <div className="flex justify-between items-center text-xs font-bold text-slate-900">
                       <span>{t('projectInfo')}</span>
-                      <span className="text-[10px] text-slate-400 font-normal">{t('progress')} / {t('startDate')}</span>
+                      <span className="text-[10px] text-slate-500 font-normal">{t('progress')} / {t('startDate')}</span>
                     </div>
                   </th>
                   {monthGroups.map((mg, idx) => (
                     <th
                       key={idx}
                       colSpan={mg.span}
-                      className="text-center font-bold py-1.5 border-r border-slate-700/60 bg-slate-800/90 text-blue-300 text-xs"
+                      className="text-center font-bold py-1.5 border-r border-slate-200 bg-slate-100 text-blue-700 text-xs"
                     >
                       {mg.monthStr}
                     </th>
                   ))}
                 </tr>
 
-                <tr className="border-b border-slate-700">
+                <tr className="border-b border-slate-200">
                   {dateColumns.map((col, idx) => (
                     <th
                       key={idx}
                       style={{ width: `${GANTT_DAY_WIDTH_PX}px`, minWidth: `${GANTT_DAY_WIDTH_PX}px`, maxWidth: `${GANTT_DAY_WIDTH_PX}px` }}
-                      className={`text-center py-1.5 border-r border-slate-700/40 text-[11px] font-medium ${
+                      className={`text-center py-1.5 border-r border-slate-200 text-[11px] font-medium ${
                         col.isToday
-                          ? 'bg-blue-900/60 text-blue-200 font-bold today-column'
+                          ? 'bg-blue-100 text-blue-800 font-bold'
                           : col.isWeekend
-                          ? 'bg-slate-900/60 text-slate-500'
-                          : 'text-slate-400'
+                          ? 'bg-slate-50 text-slate-400'
+                          : 'bg-white text-slate-600'
                       }`}
                     >
                       <div>{col.dayNum}</div>
@@ -315,16 +315,16 @@ export const ProjectOverviewPage: React.FC = () => {
                 </tr>
               </thead>
 
-              <tbody className="divide-y divide-slate-800 text-sm">
+              <tbody className="divide-y divide-slate-200 text-sm">
                 {loading ? (
                   <tr>
-                    <td colSpan={dateColumns.length + 1} className="py-12 text-center text-slate-400">
+                    <td colSpan={dateColumns.length + 1} className="py-12 text-center text-slate-500 font-medium">
                       {t('loading')}
                     </td>
                   </tr>
                 ) : projects.length === 0 ? (
                   <tr>
-                    <td colSpan={dateColumns.length + 1} className="py-12 text-center text-slate-400">
+                    <td colSpan={dateColumns.length + 1} className="py-12 text-center text-slate-500 font-medium">
                       {t('noData')}
                     </td>
                   </tr>
@@ -344,37 +344,37 @@ export const ProjectOverviewPage: React.FC = () => {
                       <tr
                         key={project.id}
                         onClick={() => navigate(`/projects/${project.id}`)}
-                        className="hover:bg-slate-800/50 transition cursor-pointer group"
+                        className="hover:bg-blue-50/50 transition cursor-pointer group"
                       >
                         {/* Fixed Left Column */}
-                        <td className="sticky left-0 z-10 bg-slate-850 group-hover:bg-slate-800 px-3 py-3 border-r border-slate-700 shadow-md w-[270px] min-w-[270px] max-w-[270px] align-middle">
+                        <td className="sticky left-0 z-10 bg-white group-hover:bg-blue-50/50 px-3 py-3 border-r border-slate-200 w-[270px] min-w-[270px] max-w-[270px] align-middle">
                           <div className="flex items-center justify-between">
                             <div className="pr-1 overflow-hidden min-w-0">
-                              <div className="font-bold text-white group-hover:text-blue-400 transition truncate flex items-center gap-1 text-xs" title={displayName}>
+                              <div className="font-bold text-slate-900 group-hover:text-blue-600 transition truncate flex items-center gap-1 text-xs" title={displayName}>
                                 <span className="truncate">{displayName}</span>
                                 {isFallback && (
-                                  <span className="text-[9px] text-slate-500 bg-slate-800 px-1 rounded shrink-0 border border-slate-700">
+                                  <span className="text-[9px] text-slate-500 bg-slate-100 px-1 rounded shrink-0 border border-slate-200 font-normal">
                                     {t('originalTag')}
                                   </span>
                                 )}
-                                <ChevronRight className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                                <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                               </div>
-                              <div className="mt-0.5 text-[10px] text-slate-400 truncate">
+                              <div className="mt-0.5 text-[10px] text-slate-500 truncate">
                                 {project.start_date} ~ {project.end_date}
                               </div>
                             </div>
 
                             <div className="flex flex-col items-end gap-1 shrink-0">
-                              <span className="text-[11px] font-bold text-emerald-400 bg-emerald-950/60 px-1.5 py-0.5 rounded border border-emerald-500/30">
+                              <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
                                 {project.progress}%
                               </span>
-                              <div className="flex items-center gap-0.5 opacity-70 hover:opacity-100 transition">
+                              <div className="flex items-center gap-0.5 opacity-80 hover:opacity-100 transition">
                                 <button
                                   type="button"
                                   onClick={(e) => handleCompleteProject(e, project)}
                                   aria-label={t('completeProject')}
                                   title={t('completeProject')}
-                                  className="w-7 h-7 flex items-center justify-center hover:bg-emerald-950 rounded text-emerald-400 transition"
+                                  className="w-7 h-7 flex items-center justify-center hover:bg-emerald-50 rounded text-emerald-600 transition"
                                 >
                                   <CheckCircle className="w-3.5 h-3.5" />
                                 </button>
@@ -383,7 +383,7 @@ export const ProjectOverviewPage: React.FC = () => {
                                   onClick={(e) => handleEditProject(e, project)}
                                   aria-label={t('editProject')}
                                   title={t('editProject')}
-                                  className="w-7 h-7 flex items-center justify-center hover:bg-slate-700 rounded text-slate-300 hover:text-white transition"
+                                  className="w-7 h-7 flex items-center justify-center hover:bg-slate-100 rounded text-slate-600 hover:text-blue-600 transition"
                                 >
                                   <Edit2 className="w-3.5 h-3.5" />
                                 </button>
@@ -392,7 +392,7 @@ export const ProjectOverviewPage: React.FC = () => {
                                   onClick={(e) => handleDeleteProject(e, project.id, displayName)}
                                   aria-label={t('deleteProject')}
                                   title={t('deleteProject')}
-                                  className="w-7 h-7 flex items-center justify-center hover:bg-red-950 rounded text-slate-300 hover:text-red-400 transition"
+                                  className="w-7 h-7 flex items-center justify-center hover:bg-red-50 rounded text-slate-600 hover:text-red-600 transition"
                                 >
                                   <Trash2 className="w-3.5 h-3.5" />
                                 </button>
@@ -409,11 +409,11 @@ export const ProjectOverviewPage: React.FC = () => {
                             <td
                               key={cIdx}
                               style={{ width: `${GANTT_DAY_WIDTH_PX}px`, minWidth: `${GANTT_DAY_WIDTH_PX}px`, maxWidth: `${GANTT_DAY_WIDTH_PX}px` }}
-                              className={`p-0 relative border-r border-slate-800/40 align-middle ${
+                              className={`p-0 relative border-r border-slate-200 align-middle ${
                                 col.isToday
-                                  ? 'bg-blue-900/60'
+                                  ? 'bg-blue-50/70'
                                   : col.isWeekend
-                                  ? 'bg-slate-900/40'
+                                  ? 'bg-slate-50/60'
                                   : ''
                               }`}
                             >
@@ -425,17 +425,17 @@ export const ProjectOverviewPage: React.FC = () => {
                                 <div
                                   title={`${displayName} (${project.start_date} ~ ${project.end_date}) / ${t('progress')} ${project.progress}%`}
                                   style={{ width: `${barWidthPx}px` }}
-                                  className="absolute top-1/2 -translate-y-1/2 left-0.5 h-7 bg-slate-700/80 border border-slate-600 rounded-lg overflow-hidden z-10 shadow-md group-hover:border-blue-400 transition"
+                                  className="absolute top-1/2 -translate-y-1/2 left-0.5 h-7 bg-slate-200 border border-slate-300 rounded-lg overflow-hidden z-10 shadow-sm group-hover:border-blue-400 transition"
                                 >
                                   <div
                                     style={{ width: `${project.progress}%` }}
-                                    className="h-full bg-gradient-to-r from-blue-600 to-cyan-500 rounded-l-lg transition-all duration-300"
+                                    className="h-full bg-gradient-to-r from-blue-600 to-cyan-600 rounded-l-lg transition-all duration-300"
                                   />
                                   {barWidthPx >= GANTT_BAR_TEXT_THRESHOLD_PX && (
-                                    <div className="absolute inset-0 flex items-center justify-between px-2 text-xs font-bold text-white drop-shadow whitespace-nowrap overflow-hidden">
+                                    <div className="absolute inset-0 flex items-center justify-between px-2 text-xs font-bold text-white drop-shadow-sm whitespace-nowrap overflow-hidden">
                                       <span className="truncate">{displayName}</span>
                                       {barWidthPx >= GANTT_BAR_FULL_THRESHOLD_PX && (
-                                        <span className="ml-1 text-[11px] font-semibold text-cyan-200">{project.progress}%</span>
+                                        <span className="ml-1 text-[11px] font-semibold text-cyan-100">{project.progress}%</span>
                                       )}
                                     </div>
                                   )}
@@ -453,10 +453,10 @@ export const ProjectOverviewPage: React.FC = () => {
           </div>
         ) : (
           /* Archive Table for Completed Projects */
-          <div className="flex-1 bg-slate-850 border border-slate-800 rounded-2xl shadow-2xl overflow-auto custom-scrollbar p-4">
+          <div className="flex-1 bg-white border border-slate-200 rounded-xl shadow-sm overflow-auto custom-scrollbar p-4">
             <table className="w-full text-left border-collapse text-xs">
               <thead>
-                <tr className="border-b border-slate-700 text-slate-400 uppercase font-semibold">
+                <tr className="border-b border-slate-200 text-slate-600 bg-slate-100 font-semibold">
                   <th className="py-3 px-4">{t('projectInfo')}</th>
                   <th className="py-3 px-4">{t('startDate')}</th>
                   <th className="py-3 px-4">{t('endDate')}</th>
@@ -467,16 +467,16 @@ export const ProjectOverviewPage: React.FC = () => {
                   <th className="py-3 px-4 text-right">{t('actions')}</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800 text-slate-200">
+              <tbody className="divide-y divide-slate-200 text-slate-800">
                 {loading ? (
                   <tr>
-                    <td colSpan={8} className="py-12 text-center text-slate-400">
+                    <td colSpan={8} className="py-12 text-center text-slate-500 font-medium">
                       {t('loading')}
                     </td>
                   </tr>
                 ) : projects.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="py-12 text-center text-slate-400">
+                    <td colSpan={8} className="py-12 text-center text-slate-500 font-medium">
                       {t('noData')}
                     </td>
                   </tr>
@@ -486,30 +486,30 @@ export const ProjectOverviewPage: React.FC = () => {
                     const workersList = prj.participating_workers || [];
 
                     return (
-                      <tr key={prj.id} className="hover:bg-slate-800/60 transition">
-                        <td className="py-3 px-4 font-bold text-white max-w-[240px] truncate">
+                      <tr key={prj.id} className="hover:bg-slate-50 transition">
+                        <td className="py-3 px-4 font-bold text-slate-900 max-w-[240px] truncate">
                           <div className="flex items-center gap-1.5">
                             <span>{displayName}</span>
-                            <span className="text-[10px] bg-emerald-950 text-emerald-400 border border-emerald-500/30 px-1.5 py-0.2 rounded">
+                            <span className="text-[10px] bg-emerald-50 text-emerald-700 border border-emerald-200 px-1.5 py-0.2 rounded font-bold">
                               {t('statusCompleted')}
                             </span>
                           </div>
                         </td>
-                        <td className="py-3 px-4 text-slate-400">{prj.start_date}</td>
-                        <td className="py-3 px-4 text-slate-400">{prj.end_date}</td>
-                        <td className="py-3 px-4 text-emerald-400 font-semibold">{prj.completed_at || '-'}</td>
-                        <td className="py-3 px-4 text-slate-300">{prj.completed_by_name || '-'}</td>
-                        <td className="py-3 px-4 text-slate-300 max-w-[200px] truncate">
+                        <td className="py-3 px-4 text-slate-600">{prj.start_date}</td>
+                        <td className="py-3 px-4 text-slate-600">{prj.end_date}</td>
+                        <td className="py-3 px-4 text-emerald-700 font-semibold">{prj.completed_at || '-'}</td>
+                        <td className="py-3 px-4 text-slate-700">{prj.completed_by_name || '-'}</td>
+                        <td className="py-3 px-4 text-slate-700 max-w-[200px] truncate">
                           {workersList.length > 0 ? workersList.join(', ') : '-'}
                         </td>
-                        <td className="py-3 px-4 text-center font-bold text-emerald-400">100%</td>
+                        <td className="py-3 px-4 text-center font-bold text-emerald-700">100%</td>
                         <td className="py-3 px-4 text-right">
                           <button
                             type="button"
                             onClick={() => navigate(`/projects/${prj.id}`)}
-                            className="px-3 py-1 bg-slate-700 hover:bg-slate-600 text-white rounded text-xs font-semibold shadow transition inline-flex items-center gap-1"
+                            className="px-3 py-1 bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 rounded text-xs font-semibold shadow-sm transition inline-flex items-center gap-1"
                           >
-                            <Eye className="w-3.5 h-3.5" />
+                            <Eye className="w-3.5 h-3.5 text-slate-500" />
                             <span>{t('detailView')}</span>
                           </button>
                         </td>

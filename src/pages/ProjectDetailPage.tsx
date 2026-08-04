@@ -212,9 +212,9 @@ export const ProjectDetailPage: React.FC = () => {
       case 'COMPLETED':
         return 'bg-emerald-600 text-white font-bold';
       case 'ISSUE':
-        return 'bg-amber-600 text-white font-bold';
+        return 'bg-amber-500 text-white font-bold';
       default:
-        return 'hover:bg-slate-700/50';
+        return 'hover:bg-slate-100';
     }
   };
 
@@ -244,61 +244,61 @@ export const ProjectDetailPage: React.FC = () => {
   };
 
   const legendSlot = (
-    <div className="flex items-center gap-3 text-xs">
+    <div className="flex items-center gap-3 text-xs font-medium">
       <div className="flex items-center gap-1">
-        <span className="w-2.5 h-2.5 rounded bg-slate-700 border border-slate-600 inline-block" />
-        <span className="text-slate-400">{t('statusNone')}</span>
+        <span className="w-2.5 h-2.5 rounded bg-white border border-slate-300 inline-block" />
+        <span className="text-slate-600">{t('statusNone')}</span>
       </div>
       <div className="flex items-center gap-1">
         <span className="w-2.5 h-2.5 rounded bg-blue-600 inline-block" />
-        <span className="text-slate-300">{t('statusInProgress')}</span>
+        <span className="text-slate-700">{t('statusInProgress')}</span>
       </div>
       <div className="flex items-center gap-1">
         <span className="w-2.5 h-2.5 rounded bg-emerald-600 inline-block" />
-        <span className="text-slate-300">{t('statusCompleted')}</span>
+        <span className="text-slate-700">{t('statusCompleted')}</span>
       </div>
       <div className="flex items-center gap-1">
-        <span className="w-2.5 h-2.5 rounded bg-amber-600 inline-block" />
-        <span className="text-slate-300">{t('statusIssue')}</span>
+        <span className="w-2.5 h-2.5 rounded bg-amber-500 inline-block" />
+        <span className="text-slate-700">{t('statusIssue')}</span>
       </div>
     </div>
   );
 
   return (
-    <div className="min-h-screen bg-slate-900 text-slate-100 flex flex-col font-sans">
+    <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans">
       {/* Row A: Main App Header */}
-      <header className="sticky top-0 z-30 bg-slate-850 border-b border-slate-800 px-5 h-16 flex items-center justify-between gap-4 shadow-lg shrink-0 flex-nowrap">
+      <header className="sticky top-0 z-30 bg-white border-b border-slate-200 px-5 h-16 flex items-center justify-between gap-4 shadow-sm shrink-0 flex-nowrap">
         <div className="flex items-center gap-3 min-w-0">
           <button
             type="button"
             onClick={() => navigate('/projects')}
-            className={BUTTON_H36_CLASS}
+            className="h-9 px-3 bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 rounded-lg text-xs font-semibold shadow-sm transition flex items-center gap-1.5"
             aria-label={t('backToList')}
           >
-            <ArrowLeft className="w-4 h-4 shrink-0" />
+            <ArrowLeft className="w-4 h-4 text-slate-500 shrink-0" />
             <span>{t('backToList')}</span>
           </button>
 
           {/* Integrated Logo Container */}
-          <div className="hidden sm:flex items-center px-2 py-1 bg-white rounded-lg border border-slate-200 shrink-0 shadow-sm">
+          <div className="hidden sm:flex items-center shrink-0">
             <img src="/logo3.png" alt="CON-COST × VIETQS" className="h-7 object-contain max-w-[170px]" />
           </div>
 
           <div className="min-w-0">
             <div className="flex items-center gap-2 truncate">
-              <h1 className="text-base font-bold text-white tracking-tight truncate">
+              <h1 className="text-base font-bold text-slate-900 tracking-tight truncate">
                 {project ? getProjectDisplayName(project) : '프로젝트 상세 정보'}
               </h1>
               {project && (
                 <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full border shrink-0 ${
-                  isCompleted ? 'bg-emerald-950 text-emerald-400 border-emerald-500/30' : 'bg-blue-950 text-blue-400 border-blue-500/30'
+                  isCompleted ? 'bg-emerald-50 text-emerald-700 border-emerald-300' : 'bg-blue-50 text-blue-700 border-blue-300'
                 }`}>
                   {project.progress}%
                 </span>
               )}
             </div>
             {project && (
-              <p className="hidden md:block text-[11px] text-slate-400 truncate">
+              <p className="hidden md:block text-[11px] text-slate-500 truncate">
                 {t('startDate')}: {project.start_date} ~ {project.end_date}
               </p>
             )}
@@ -317,7 +317,7 @@ export const ProjectDetailPage: React.FC = () => {
             <button
               type="button"
               onClick={handleReopenProject}
-              className="h-9 px-4 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-lg shadow-md transition flex items-center gap-1.5 shrink-0"
+              className="h-9 px-4 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg shadow-sm transition flex items-center gap-1.5 shrink-0"
             >
               <RotateCcw className="w-4 h-4" />
               <span>{t('reopenProject')}</span>
@@ -333,15 +333,15 @@ export const ProjectDetailPage: React.FC = () => {
 
       {/* Read-Only Notice for Completed Projects */}
       {isCompleted && (
-        <div className="bg-amber-950/60 border-b border-amber-500/30 px-5 py-2 flex items-center justify-between text-xs text-amber-300 font-semibold shrink-0">
+        <div className="bg-amber-50 border-b border-amber-200 px-5 py-2 flex items-center justify-between text-xs text-amber-800 font-semibold shrink-0">
           <div className="flex items-center gap-2">
-            <Lock className="w-4 h-4 text-amber-400" />
+            <Lock className="w-4 h-4 text-amber-600" />
             <span>{t('readOnlyCompletedNotice')}</span>
           </div>
           <button
             type="button"
             onClick={handleReopenProject}
-            className="underline text-amber-200 hover:text-white font-bold ml-4"
+            className="underline text-amber-900 hover:text-amber-700 font-bold ml-4"
           >
             {t('reopenProject')}
           </button>
@@ -363,42 +363,42 @@ export const ProjectDetailPage: React.FC = () => {
       <main className="flex-1 p-4 2xl:p-6 overflow-hidden flex flex-col">
         <div
           ref={scrollContainerRef}
-          className="flex-1 bg-slate-850 border border-slate-800 rounded-2xl shadow-2xl overflow-auto custom-scrollbar relative"
+          className="flex-1 bg-white border border-slate-200 rounded-xl shadow-sm overflow-auto custom-scrollbar relative"
         >
           <table className="w-full border-collapse text-left min-w-max">
-            <thead className="sticky top-0 z-20 bg-slate-800 text-xs uppercase tracking-wider text-slate-300">
-              <tr className="border-b border-slate-700/80">
+            <thead className="sticky top-0 z-20 bg-slate-100 text-xs uppercase tracking-wider text-slate-700">
+              <tr className="border-b border-slate-200">
                 <th
                   rowSpan={2}
-                  className="sticky left-0 z-30 bg-slate-800 px-3 py-2.5 font-semibold text-slate-200 border-r border-slate-700 shadow-md w-[295px] min-w-[295px] max-w-[295px]"
+                  className="sticky left-0 z-30 bg-slate-100 px-3 py-2.5 font-bold text-slate-800 border-r border-slate-200 w-[295px] min-w-[295px] max-w-[295px]"
                 >
-                  <div className="flex justify-between items-center text-xs font-bold text-white">
+                  <div className="flex justify-between items-center text-xs font-bold text-slate-900">
                     <span>{t('worker')} / {t('taskContent')}</span>
-                    <span className="text-[10px] text-slate-400 font-normal">{t('progress')} / {t('startDate')}</span>
+                    <span className="text-[10px] text-slate-500 font-normal">{t('progress')} / {t('startDate')}</span>
                   </div>
                 </th>
                 {monthGroups.map((mg, idx) => (
                   <th
                     key={idx}
                     colSpan={mg.span}
-                    className="text-center font-bold py-1.5 border-r border-slate-700/60 bg-slate-800/90 text-blue-300 text-xs"
+                    className="text-center font-bold py-1.5 border-r border-slate-200 bg-slate-100 text-blue-700 text-xs"
                   >
                     {mg.monthStr}
                   </th>
                 ))}
               </tr>
 
-              <tr className="border-b border-slate-700">
+              <tr className="border-b border-slate-200">
                 {dateColumns.map((col, idx) => (
                   <th
                     key={idx}
                     style={{ width: `${GANTT_DAY_WIDTH_PX}px`, minWidth: `${GANTT_DAY_WIDTH_PX}px`, maxWidth: `${GANTT_DAY_WIDTH_PX}px` }}
-                    className={`text-center py-1.5 border-r border-slate-700/40 text-[11px] font-medium ${
+                    className={`text-center py-1.5 border-r border-slate-200 text-[11px] font-medium ${
                       col.isToday
-                        ? 'bg-blue-900/60 text-blue-200 font-bold'
+                        ? 'bg-blue-100 text-blue-800 font-bold'
                         : col.isWeekend
-                        ? 'bg-slate-900/60 text-slate-500'
-                        : 'text-slate-400'
+                        ? 'bg-slate-50 text-slate-400'
+                        : 'bg-white text-slate-600'
                     }`}
                   >
                     <div>{col.dayNum}</div>
@@ -408,16 +408,16 @@ export const ProjectDetailPage: React.FC = () => {
               </tr>
             </thead>
 
-            <tbody className="divide-y divide-slate-800 text-sm">
+            <tbody className="divide-y divide-slate-200 text-sm">
               {loading ? (
                 <tr>
-                  <td colSpan={dateColumns.length + 1} className="py-12 text-center text-slate-400">
+                  <td colSpan={dateColumns.length + 1} className="py-12 text-center text-slate-500 font-medium">
                     {t('loading')}
                   </td>
                 </tr>
               ) : tasks.length === 0 ? (
                 <tr>
-                  <td colSpan={dateColumns.length + 1} className="py-12 text-center text-slate-400">
+                  <td colSpan={dateColumns.length + 1} className="py-12 text-center text-slate-500 font-medium">
                     {t('noData')}
                   </td>
                 </tr>
@@ -432,23 +432,23 @@ export const ProjectDetailPage: React.FC = () => {
                   const taskDisplayName = getTaskDisplayName(task);
 
                   return (
-                    <tr key={task.id} className="hover:bg-slate-800/50 transition group">
+                    <tr key={task.id} className="hover:bg-blue-50/50 transition group">
                       {/* Fixed Left Column */}
-                      <td className="sticky left-0 z-10 bg-slate-850 group-hover:bg-slate-800 px-3 py-2.5 border-r border-slate-700 shadow-md w-[295px] min-w-[295px] max-w-[295px] align-middle">
+                      <td className="sticky left-0 z-10 bg-white group-hover:bg-blue-50/50 px-3 py-2.5 border-r border-slate-200 w-[295px] min-w-[295px] max-w-[295px] align-middle">
                         <div className="flex items-center justify-between">
                           <div className="pr-1 overflow-hidden min-w-0">
                             <div className="flex items-center gap-1.5 truncate">
-                              <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-700 text-blue-300 shrink-0">
+                              <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200 shrink-0">
                                 {task.worker_name}
                               </span>
-                              <span className="font-semibold text-white truncate text-xs" title={taskDisplayName}>
+                              <span className="font-semibold text-slate-900 truncate text-xs" title={taskDisplayName}>
                                 {taskDisplayName}
                               </span>
                             </div>
-                            <div className="mt-0.5 text-[10px] text-slate-400 truncate">
+                            <div className="mt-0.5 text-[10px] text-slate-500 truncate">
                               {task.start_date} ~ {task.end_date}
                               {task.updated_by_name && (
-                                <span className="text-[10px] text-slate-500 ml-1">
+                                <span className="text-[10px] text-slate-400 ml-1">
                                   ({task.updated_by_name})
                                 </span>
                               )}
@@ -456,17 +456,17 @@ export const ProjectDetailPage: React.FC = () => {
                           </div>
 
                           <div className="flex flex-col items-end gap-1 shrink-0">
-                            <span className="text-[11px] font-bold text-blue-400 bg-blue-950/60 px-1.5 py-0.5 rounded border border-blue-500/30">
+                            <span className="text-[11px] font-bold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200">
                               {task.progress}%
                             </span>
                             {!isCompleted && (
-                              <div className="flex items-center gap-0.5 opacity-70 hover:opacity-100 transition">
+                              <div className="flex items-center gap-0.5 opacity-80 hover:opacity-100 transition">
                                 <button
                                   type="button"
                                   onClick={() => handleEditTask(task)}
                                   aria-label={t('editTask')}
                                   title={t('editTask')}
-                                  className="w-7 h-7 flex items-center justify-center hover:bg-slate-700 rounded text-slate-300 hover:text-white transition"
+                                  className="w-7 h-7 flex items-center justify-center hover:bg-slate-100 rounded text-slate-600 hover:text-blue-600 transition"
                                 >
                                   <Edit2 className="w-3.5 h-3.5" />
                                 </button>
@@ -475,7 +475,7 @@ export const ProjectDetailPage: React.FC = () => {
                                   onClick={() => handleDeleteTask(task.id, taskDisplayName)}
                                   aria-label={t('deleteTask')}
                                   title={t('deleteTask')}
-                                  className="w-7 h-7 flex items-center justify-center hover:bg-red-950 rounded text-slate-300 hover:text-red-400 transition"
+                                  className="w-7 h-7 flex items-center justify-center hover:bg-red-50 rounded text-slate-600 hover:text-red-600 transition"
                                 >
                                   <Trash2 className="w-3.5 h-3.5" />
                                 </button>
@@ -503,15 +503,15 @@ export const ProjectDetailPage: React.FC = () => {
                             title={tooltipText}
                             style={{ width: `${GANTT_DAY_WIDTH_PX}px`, minWidth: `${GANTT_DAY_WIDTH_PX}px`, maxWidth: `${GANTT_DAY_WIDTH_PX}px` }}
                             onClick={(e) => isInTaskSpan && handleCellClick(e, task.id, col.dateStr, status)}
-                            className={`p-0 text-center relative border-r border-slate-800/40 align-middle transition ${
-                              isInTaskSpan && !isCompleted ? 'cursor-pointer hover:brightness-125' : ''
+                            className={`p-0 text-center relative border-r border-slate-200 align-middle transition ${
+                              isInTaskSpan && !isCompleted ? 'cursor-pointer hover:brightness-110' : ''
                             } ${
                               isInTaskSpan
                                 ? bgClass
                                 : col.isToday
-                                ? 'bg-blue-950/20'
+                                ? 'bg-blue-50/70'
                                 : col.isWeekend
-                                ? 'bg-slate-900/40'
+                                ? 'bg-slate-50/60'
                                 : ''
                             }`}
                           >
@@ -520,7 +520,7 @@ export const ProjectDetailPage: React.FC = () => {
                             )}
 
                             {isInTaskSpan && status === 'NONE' && (
-                              <div className="w-full h-full min-h-[34px] bg-blue-950/30 border-y border-blue-500/20 flex items-center justify-center text-[10px] text-blue-400/60 font-mono">
+                              <div className="w-full h-full min-h-[34px] bg-blue-50/50 border-y border-blue-200/60 flex items-center justify-center text-[10px] text-blue-500 font-mono">
                                 •
                               </div>
                             )}

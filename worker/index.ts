@@ -41,6 +41,8 @@ async function requireActiveWorker(db: any, editorName: string): Promise<boolean
     return !!worker;
   } catch {
     const actualWorkers = [
+      'CEO',
+      'COO',
       '유종욱 실장',
       '박용진 수석',
       'Thanh Phuong(탄 프엉)',
@@ -115,11 +117,13 @@ export default {
         } catch {}
 
         const actualWorkers = [
-          { id: 'wrk_01', name: '유종욱 실장', is_active: 1, sort_order: 1 },
-          { id: 'wrk_02', name: '박용진 수석', is_active: 1, sort_order: 2 },
-          { id: 'wrk_03', name: 'Thanh Phuong(탄 프엉)', is_active: 1, sort_order: 3 },
-          { id: 'wrk_04', name: 'Manh Cuong(끄엉)', is_active: 1, sort_order: 4 },
-          { id: 'wrk_05', name: 'Quoc Nhut(꾸옥 느엿)', is_active: 1, sort_order: 5 },
+          { id: 'wrk_00_ceo', name: 'CEO', is_active: 1, sort_order: 1 },
+          { id: 'wrk_00_coo', name: 'COO', is_active: 1, sort_order: 2 },
+          { id: 'wrk_01', name: '유종욱 실장', is_active: 1, sort_order: 3 },
+          { id: 'wrk_02', name: '박용진 수석', is_active: 1, sort_order: 4 },
+          { id: 'wrk_03', name: 'Thanh Phuong(탄 프엉)', is_active: 1, sort_order: 5 },
+          { id: 'wrk_04', name: 'Manh Cuong(끄엉)', is_active: 1, sort_order: 6 },
+          { id: 'wrk_05', name: 'Quoc Nhut(꾸옥 느엿)', is_active: 1, sort_order: 7 },
         ];
         return jsonResponse(actualWorkers);
       }
@@ -398,7 +402,6 @@ export default {
         let transStatus = validated.translation_status || 'PENDING';
         let transError: string | null = null;
 
-        // Perform translation if missing
         if ((srcLang === 'ko' && !name_vi) || (srcLang === 'vi' && !name_ko)) {
           try {
             const targetLang = srcLang === 'ko' ? 'vi' : 'ko';
@@ -443,7 +446,7 @@ export default {
         return jsonResponse(newPrj || { id }, 201);
       }
 
-      // 10. PATCH /api/projects/:id (RE-TRANSLATION FIX)
+      // 10. PATCH /api/projects/:id
       const patchProjMatch = path.match(/^\/api\/projects\/([^/]+)$/);
       if (method === 'PATCH' && patchProjMatch) {
         const projectId = patchProjMatch[1];
@@ -473,7 +476,6 @@ export default {
         const incomingVi = validated.name_vi !== undefined ? validated.name_vi.trim() : (srcLang === 'vi' && incomingName ? incomingName : (existing.name_vi || '').trim());
         const existingVi = (existing.name_vi || '').trim();
 
-        // Source changed check
         let sourceChanged = false;
         if (srcLang === 'ko') {
           const curKo = incomingKo || incomingName;
@@ -502,7 +504,6 @@ export default {
         let transStatus = validated.translation_status ?? existing.translation_status ?? 'COMPLETED';
         let transError: string | null = null;
 
-        // If source changed, MUST discard old translation and re-translate!
         if (sourceChanged) {
           try {
             const targetLang = srcLang === 'ko' ? 'vi' : 'ko';
@@ -525,14 +526,13 @@ export default {
             transError = err.message || '번역 실패';
             if (srcLang === 'ko') {
               name_ko = incomingKo || name;
-              name_vi = ''; // Clear stale translation on failure!
+              name_vi = '';
             } else {
               name_vi = incomingVi || name;
-              name_ko = ''; // Clear stale translation on failure!
+              name_ko = '';
             }
           }
         } else {
-          // Source didn't change: check if user manually updated opposite field
           if (srcLang === 'ko' && validated.name_vi !== undefined && validated.name_vi !== existing.name_vi) {
             transStatus = 'MANUAL';
           } else if (srcLang === 'vi' && validated.name_ko !== undefined && validated.name_ko !== existing.name_ko) {
@@ -649,7 +649,7 @@ export default {
         return jsonResponse({ task: newTsk, project_progress: newAvg }, 201);
       }
 
-      // 13. PATCH /api/tasks/:id (RE-TRANSLATION FIX)
+      // 13. PATCH /api/tasks/:id
       const patchTaskMatch = path.match(/^\/api\/tasks\/([^/]+)$/);
       if (method === 'PATCH' && patchTaskMatch) {
         const taskId = patchTaskMatch[1];
@@ -730,10 +730,10 @@ export default {
             transError = err.message || '번역 실패';
             if (srcLang === 'ko') {
               task_name_ko = incomingKo || task_name;
-              task_name_vi = ''; // Clear stale translation on failure!
+              task_name_vi = '';
             } else {
               task_name_vi = incomingVi || task_name;
-              task_name_ko = ''; // Clear stale translation on failure!
+              task_name_ko = '';
             }
           }
         } else {

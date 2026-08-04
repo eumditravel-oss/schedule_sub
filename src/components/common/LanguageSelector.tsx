@@ -7,15 +7,15 @@ export const LanguageSelector: React.FC = () => {
   const { lang, setLanguage } = useI18n();
 
   return (
-    <div className="flex items-center gap-1 bg-slate-800 border border-slate-700 rounded-lg p-0.5 shadow-sm text-xs shrink-0">
-      <Globe className="w-3.5 h-3.5 text-blue-400 ml-1.5 shrink-0" />
+    <div className="flex items-center gap-1 bg-slate-100 border border-slate-200 rounded-lg p-0.5 text-xs shrink-0">
+      <Globe className="w-3.5 h-3.5 text-blue-600 ml-1.5 shrink-0" />
       <button
         type="button"
         onClick={() => setLanguage('ko')}
-        className={`px-2 py-1 rounded font-bold transition ${
+        className={`px-2.5 py-1 rounded font-bold transition ${
           lang === 'ko'
-            ? 'bg-blue-600 text-white shadow'
-            : 'text-slate-400 hover:text-slate-200'
+            ? 'bg-white text-blue-700 shadow-sm border border-slate-200'
+            : 'text-slate-600 hover:text-slate-900'
         }`}
       >
         한국어
@@ -23,10 +23,10 @@ export const LanguageSelector: React.FC = () => {
       <button
         type="button"
         onClick={() => setLanguage('vi')}
-        className={`px-2 py-1 rounded font-bold transition ${
+        className={`px-2.5 py-1 rounded font-bold transition ${
           lang === 'vi'
-            ? 'bg-blue-600 text-white shadow'
-            : 'text-slate-400 hover:text-slate-200'
+            ? 'bg-white text-blue-700 shadow-sm border border-slate-200'
+            : 'text-slate-600 hover:text-slate-900'
         }`}
       >
         Tiếng Việt
