@@ -6,6 +6,9 @@ dist/
 build/
 .wrangler/
 
+# Backups & Secret SQL dumps
+backups/
+
 # Environment files & secret vars
 .env
 .env.*
