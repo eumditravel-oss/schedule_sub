@@ -2,7 +2,7 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
 
-// Vite config with path alias and API proxy / local worker integration
+// Vite config with path alias, Vitest test exclude, and dev server setup
 export default defineConfig({
   plugins: [react()],
   resolve: {
@@ -14,4 +14,7 @@ export default defineConfig({
     port: 3000,
     open: true,
   },
-});
+  test: {
+    exclude: ['**/node_modules/**', '**/dist/**', '**/tests/e2e/**'],
+  },
+} as any);

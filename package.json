@@ -9,6 +9,7 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:e2e": "playwright test",
     "typecheck": "tsc --noEmit",
     "translate:backfill": "node scripts/backfill-translations.ts",
     "d1:migrate:local": "wrangler d1 migrations apply concost-db --local",
@@ -29,6 +30,7 @@
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20241022.0",
+    "@playwright/test": "^1.48.2",
     "@types/node": "^22.7.7",
     "@types/react": "^18.3.11",
     "@types/react-dom": "^18.3.1",

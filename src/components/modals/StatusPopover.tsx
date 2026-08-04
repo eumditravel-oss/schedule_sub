@@ -1,10 +1,8 @@
 // src/components/modals/StatusPopover.tsx
 import React, { useEffect, useRef } from 'react';
-import ReactDOM from 'react-dom';
 import { DailyStatusType } from '../../types';
 import { useI18n } from '../../hooks/useI18n';
-import { calculatePopoverPosition } from '../../utils/popoverPosition';
-import { Check, AlertTriangle, Clock, Circle } from 'lucide-react';
+import { Check } from 'lucide-react';
 
 interface StatusPopoverProps {
   isOpen: boolean;
@@ -18,6 +16,7 @@ interface StatusPopoverProps {
 
 export const StatusPopover: React.FC<StatusPopoverProps> = ({
   isOpen,
+  position,
   triggerRect,
   currentStatus,
   dateStr,
@@ -28,68 +27,87 @@ export const StatusPopover: React.FC<StatusPopoverProps> = ({
   const popoverRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
 
-    const handleOutside = (e: MouseEvent) => {
+    const handleClickOutside = (e: MouseEvent) => {
       if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
         onClose();
       }
     };
-    document.addEventListener('mousedown', handleOutside);
-    return () => document.removeEventListener('mousedown', handleOutside);
+
+    if (isOpen) {
+      document.addEventListener('keydown', handleKeyDown);
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
   }, [isOpen, onClose]);
 
-  if (!isOpen || !triggerRect) return null;
+  if (!isOpen || !position) return null;
 
-  const { left, top } = calculatePopoverPosition(
-    triggerRect,
-    { width: 208, height: 180 },
-    { width: window.innerWidth, height: window.innerHeight }
-  );
-
-  const statuses: Array<{ type: DailyStatusType; label: string; icon: React.ReactNode; colorClass: string }> = [
-    { type: 'NONE', label: t('statusNone'), icon: <Circle className="w-3.5 h-3.5 text-slate-400" />, colorClass: 'hover:bg-slate-100 text-slate-700' },
-    { type: 'IN_PROGRESS', label: t('statusInProgress'), icon: <Clock className="w-3.5 h-3.5 text-blue-600" />, colorClass: 'hover:bg-blue-50 text-blue-700 font-semibold' },
-    { type: 'COMPLETED', label: t('statusCompleted'), icon: <Check className="w-3.5 h-3.5 text-emerald-600" />, colorClass: 'hover:bg-emerald-50 text-emerald-700 font-semibold' },
-    { type: 'ISSUE', label: t('statusIssue'), icon: <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />, colorClass: 'hover:bg-amber-50 text-amber-700 font-semibold' },
+  const statusOptions: { type: DailyStatusType; label: string; colorClass: string }[] = [
+    { type: 'NONE', label: t('statusNone'), colorClass: 'bg-slate-100 text-slate-700 hover:bg-slate-200' },
+    { type: 'IN_PROGRESS', label: t('statusInProgress'), colorClass: 'bg-blue-50 text-blue-700 hover:bg-blue-100' },
+    { type: 'COMPLETED', label: t('statusCompleted'), colorClass: 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100' },
+    { type: 'ISSUE', label: t('statusIssue'), colorClass: 'bg-amber-50 text-amber-800 hover:bg-amber-100' },
   ];
 
-  return ReactDOM.createPortal(
+  // Viewport bounds calculation to prevent popover clipping at edges
+  const popoverWidth = 176; // w-44 = 11rem = 176px
+  const popoverHeight = 170;
+  const viewportWidth = window.innerWidth;
+  const viewportHeight = window.innerHeight;
+
+  let leftPos = position.x - popoverWidth / 2;
+  let topPos = position.y + 6;
+
+  // Horizontal clamp
+  if (leftPos < 8) leftPos = 8;
+  if (leftPos + popoverWidth > viewportWidth - 8) leftPos = viewportWidth - popoverWidth - 8;
+
+  // Vertical flip if clipping at bottom
+  if (topPos + popoverHeight > viewportHeight - 8 && triggerRect) {
+    topPos = triggerRect.top - popoverHeight - 6;
+  }
+
+  return (
     <div
       ref={popoverRef}
-      style={{ left: `${left}px`, top: `${top}px` }}
-      className="fixed z-50 w-52 bg-white border border-slate-200 rounded-xl shadow-xl p-2 text-slate-800"
+      data-testid="status-popover"
+      style={{ top: `${topPos}px`, left: `${leftPos}px` }}
+      className="fixed z-50 w-44 bg-white border border-slate-200 rounded-xl shadow-xl p-1.5 animate-in fade-in zoom-in-95 duration-100 text-slate-900"
     >
-      <div className="px-2 py-1 text-[11px] font-semibold text-slate-500 border-b border-slate-100 mb-1 flex justify-between">
+      <div className="px-2 py-1 text-[11px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100 mb-1 flex items-center justify-between">
         <span>{dateStr}</span>
-        <span>상태 변경</span>
+        <span className="text-[10px] text-blue-600 font-semibold">{t('selectStatusTitle')}</span>
       </div>
 
       <div className="space-y-1">
-        {statuses.map((s) => {
-          const isSelected = currentStatus === s.type;
+        {statusOptions.map((opt) => {
+          const isSelected = currentStatus === opt.type;
           return (
             <button
-              key={s.type}
+              key={opt.type}
               type="button"
+              data-testid={`status-option-${opt.type}`}
               onClick={() => {
-                onSelect(s.type);
+                onSelect(opt.type);
                 onClose();
               }}
-              className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs transition ${s.colorClass} ${
-                isSelected ? 'bg-slate-100 font-bold border border-slate-200' : ''
-              }`}
+              className={`w-full text-left px-2.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center justify-between ${
+                opt.colorClass
+              } ${isSelected ? 'ring-1 ring-blue-500' : ''}`}
             >
-              <div className="flex items-center gap-2">
-                {s.icon}
-                <span>{s.label}</span>
-              </div>
-              {isSelected && <Check className="w-3.5 h-3.5 text-blue-600 shrink-0" />}
+              <span>{opt.label}</span>
+              {isSelected && <Check className="w-3.5 h-3.5 shrink-0" />}
             </button>
           );
         })}
       </div>
-    </div>,
-    document.body
+    </div>
   );
 };

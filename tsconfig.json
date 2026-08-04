@@ -26,5 +26,6 @@
     },
     "types": ["@cloudflare/workers-types", "vite/client"]
   },
-  "include": ["src", "worker", "tests"]
+  "include": ["src", "worker", "tests"],
+  "exclude": ["node_modules", "dist", "tests/e2e"]
 }

@@ -224,7 +224,12 @@ export const ProjectOverviewPage: React.FC = () => {
               onWorkerChange={(name) => setCurrentWorker(name)}
             />
             {activeTab === 'ACTIVE' && (
-              <button onClick={handleOpenAddModal} className={PRIMARY_BUTTON_H36_CLASS}>
+              <button
+                type="button"
+                data-testid="add-project-btn"
+                onClick={handleOpenAddModal}
+                className={PRIMARY_BUTTON_H36_CLASS}
+              >
                 <Plus className="w-4 h-4" />
                 <span>{t('addProject')}</span>
               </button>
@@ -239,6 +244,7 @@ export const ProjectOverviewPage: React.FC = () => {
         <div className="flex items-center gap-2 w-full sm:w-auto">
           <button
             type="button"
+            data-testid="active-tab-btn"
             onClick={() => setActiveTab('ACTIVE')}
             className={`flex-1 sm:flex-none h-9 px-4 rounded-lg font-bold text-xs transition ${
               activeTab === 'ACTIVE'
@@ -250,6 +256,7 @@ export const ProjectOverviewPage: React.FC = () => {
           </button>
           <button
             type="button"
+            data-testid="completed-tab-btn"
             onClick={() => setActiveTab('COMPLETED')}
             className={`flex-1 sm:flex-none h-9 px-4 rounded-lg font-bold text-xs transition ${
               activeTab === 'COMPLETED'
@@ -269,6 +276,7 @@ export const ProjectOverviewPage: React.FC = () => {
               <div className="flex items-center p-0.5 bg-slate-200/80 rounded-lg text-xs font-semibold w-full">
                 <button
                   type="button"
+                  data-testid="mobile-view-summary-btn"
                   onClick={() => handleMobileViewChange('SUMMARY')}
                   className={`flex-1 h-8 rounded-md transition font-bold ${
                     mobileViewMode === 'SUMMARY'
@@ -280,6 +288,7 @@ export const ProjectOverviewPage: React.FC = () => {
                 </button>
                 <button
                   type="button"
+                  data-testid="mobile-view-week-btn"
                   onClick={() => handleMobileViewChange('WEEK')}
                   className={`flex-1 h-8 rounded-md transition font-bold ${
                     mobileViewMode === 'WEEK'
@@ -291,6 +300,7 @@ export const ProjectOverviewPage: React.FC = () => {
                 </button>
                 <button
                   type="button"
+                  data-testid="mobile-view-gantt-btn"
                   onClick={() => handleMobileViewChange('GANTT')}
                   className={`flex-1 h-8 rounded-md transition font-bold ${
                     mobileViewMode === 'GANTT'
@@ -308,6 +318,7 @@ export const ProjectOverviewPage: React.FC = () => {
               <div className="flex items-center justify-between bg-white border border-slate-300 rounded-lg h-9 px-2 text-xs">
                 <button
                   type="button"
+                  data-testid="nav-prev-btn"
                   onClick={goPrevious}
                   className="h-7 px-2 rounded hover:bg-slate-100 text-slate-700 font-semibold transition flex items-center gap-0.5"
                 >
@@ -316,6 +327,7 @@ export const ProjectOverviewPage: React.FC = () => {
                 </button>
                 <button
                   type="button"
+                  data-testid="nav-today-btn"
                   onClick={goToday}
                   className="h-7 px-3 bg-blue-50 text-blue-700 font-bold rounded border border-blue-200"
                 >
@@ -323,6 +335,7 @@ export const ProjectOverviewPage: React.FC = () => {
                 </button>
                 <button
                   type="button"
+                  data-testid="nav-next-btn"
                   onClick={goNext}
                   className="h-7 px-2 rounded hover:bg-slate-100 text-slate-700 font-semibold transition flex items-center gap-0.5"
                 >
@@ -340,6 +353,7 @@ export const ProjectOverviewPage: React.FC = () => {
               <div className="flex items-center justify-between bg-white border border-slate-300 rounded-lg h-9 px-3 text-xs font-semibold text-slate-700">
                 <span>{t('yearSelect')}:</span>
                 <select
+                  data-testid="year-select"
                   value={selectedYear}
                   onChange={(e) => setSelectedYear(e.target.value)}
                   className="bg-transparent text-slate-900 font-bold focus:outline-none"
@@ -370,6 +384,7 @@ export const ProjectOverviewPage: React.FC = () => {
             <div className="flex items-center gap-2 py-2 text-xs font-semibold text-slate-700">
               <span>{t('yearSelect')}:</span>
               <select
+                data-testid="year-select"
                 value={selectedYear}
                 onChange={(e) => setSelectedYear(e.target.value)}
                 className="h-9 px-3 bg-white border border-slate-300 rounded-lg text-slate-900 font-bold focus:outline-none focus:border-emerald-500 shadow-sm"
@@ -493,6 +508,7 @@ export const ProjectOverviewPage: React.FC = () => {
                       return (
                         <tr
                           key={project.id}
+                          data-testid={`project-row-${project.id}`}
                           onClick={() => navigate(`/projects/${project.id}`)}
                           className="hover:bg-blue-50/50 transition cursor-pointer group"
                         >
@@ -627,6 +643,7 @@ export const ProjectOverviewPage: React.FC = () => {
                           <td className="py-3 px-4 text-right">
                             <button
                               type="button"
+                              data-testid={`view-detail-btn-${prj.id}`}
                               onClick={() => navigate(`/projects/${prj.id}`)}
                               className="px-3 py-1 bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 rounded text-xs font-semibold shadow-sm transition inline-flex items-center gap-1"
                             >
@@ -649,6 +666,7 @@ export const ProjectOverviewPage: React.FC = () => {
       {isMobile && activeTab === 'ACTIVE' && (
         <button
           type="button"
+          data-testid="mobile-fab-btn"
           onClick={handleOpenAddModal}
           aria-label={t('addProject')}
           style={{ bottom: 'calc(1.25rem + env(safe-area-inset-bottom))' }}

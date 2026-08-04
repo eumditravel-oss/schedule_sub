@@ -6,6 +6,10 @@ dist/
 build/
 .wrangler/
 
+# Playwright Test Reports & Contexts
+playwright-report/
+test-results/
+
 # Backups & Secret SQL dumps
 backups/
 

@@ -1,7 +1,7 @@
 // src/components/mobile/MobileAppHeader.tsx
-import React, { useState } from 'react';
+import React from 'react';
 import { useI18n } from '../../hooks/useI18n';
-import { ArrowLeft, Globe, User, Languages } from 'lucide-react';
+import { ArrowLeft, Globe, User } from 'lucide-react';
 
 interface MobileAppHeaderProps {
   title?: string;
@@ -27,6 +27,7 @@ export const MobileAppHeader: React.FC<MobileAppHeaderProps> = ({
         {isDetailPage ? (
           <button
             type="button"
+            data-testid="mobile-back-btn"
             onClick={onBack}
             aria-label={t('backToList')}
             className="w-8 h-8 flex items-center justify-center rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200 shrink-0"
@@ -50,6 +51,7 @@ export const MobileAppHeader: React.FC<MobileAppHeaderProps> = ({
         {/* Compact Lang Switcher */}
         <button
           type="button"
+          data-testid="mobile-lang-btn"
           onClick={() => setLanguage(lang === 'ko' ? 'vi' : 'ko')}
           aria-label={t('inputLanguage')}
           className="h-8 px-2 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-lg text-xs font-bold text-slate-700 flex items-center gap-1 transition"
@@ -61,6 +63,7 @@ export const MobileAppHeader: React.FC<MobileAppHeaderProps> = ({
         {/* Compact Worker Switcher */}
         <button
           type="button"
+          data-testid="mobile-worker-btn"
           onClick={onOpenWorkerSheet}
           aria-label={t('selectWorkerTitle')}
           className={`h-8 px-2.5 rounded-lg border text-xs font-bold transition flex items-center gap-1.5 max-w-[110px] ${

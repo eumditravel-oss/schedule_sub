@@ -374,6 +374,7 @@ export const ProjectDetailPage: React.FC = () => {
           <div className="flex items-center gap-3 min-w-0">
             <button
               type="button"
+              data-testid="back-to-list-btn"
               onClick={() => navigate('/projects')}
               className="h-9 px-3 bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 rounded-lg text-xs font-semibold shadow-sm transition flex items-center gap-1.5"
               aria-label={t('backToList')}
@@ -416,6 +417,7 @@ export const ProjectDetailPage: React.FC = () => {
             {isCompleted ? (
               <button
                 type="button"
+                data-testid="reopen-project-btn"
                 onClick={handleReopenProject}
                 className="h-9 px-4 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg shadow-sm transition flex items-center gap-1.5 shrink-0"
               >
@@ -423,7 +425,12 @@ export const ProjectDetailPage: React.FC = () => {
                 <span>{t('reopenProject')}</span>
               </button>
             ) : (
-              <button onClick={handleOpenAddTask} className={PRIMARY_BUTTON_H36_CLASS}>
+              <button
+                type="button"
+                data-testid="add-task-btn"
+                onClick={handleOpenAddTask}
+                className={PRIMARY_BUTTON_H36_CLASS}
+              >
                 <Plus className="w-4 h-4" />
                 <span>{t('addTask')}</span>
               </button>
@@ -441,6 +448,7 @@ export const ProjectDetailPage: React.FC = () => {
           </div>
           <button
             type="button"
+            data-testid="reopen-project-btn"
             onClick={handleReopenProject}
             className="underline text-amber-900 hover:text-amber-700 font-bold ml-2 shrink-0"
           >
@@ -456,6 +464,7 @@ export const ProjectDetailPage: React.FC = () => {
           <div className="flex items-center p-0.5 bg-slate-200/80 rounded-lg text-xs font-semibold w-full">
             <button
               type="button"
+              data-testid="mobile-view-summary-btn"
               onClick={() => handleMobileViewChange('SUMMARY')}
               className={`flex-1 h-8 rounded-md transition font-bold ${
                 mobileViewMode === 'SUMMARY'
@@ -467,6 +476,7 @@ export const ProjectDetailPage: React.FC = () => {
             </button>
             <button
               type="button"
+              data-testid="mobile-view-week-btn"
               onClick={() => handleMobileViewChange('WEEK')}
               className={`flex-1 h-8 rounded-md transition font-bold ${
                 mobileViewMode === 'WEEK'
@@ -478,6 +488,7 @@ export const ProjectDetailPage: React.FC = () => {
             </button>
             <button
               type="button"
+              data-testid="mobile-view-gantt-btn"
               onClick={() => handleMobileViewChange('GANTT')}
               className={`flex-1 h-8 rounded-md transition font-bold ${
                 mobileViewMode === 'GANTT'
@@ -493,6 +504,7 @@ export const ProjectDetailPage: React.FC = () => {
           <div className="flex items-center justify-between bg-white border border-slate-300 rounded-lg h-9 px-2 text-xs">
             <button
               type="button"
+              data-testid="nav-prev-btn"
               onClick={goPrevious}
               className="h-7 px-2 rounded hover:bg-slate-100 text-slate-700 font-semibold transition flex items-center gap-0.5"
             >
@@ -501,6 +513,7 @@ export const ProjectDetailPage: React.FC = () => {
             </button>
             <button
               type="button"
+              data-testid="nav-today-btn"
               onClick={goToday}
               className="h-7 px-3 bg-blue-50 text-blue-700 font-bold rounded border border-blue-200"
             >
@@ -508,6 +521,7 @@ export const ProjectDetailPage: React.FC = () => {
             </button>
             <button
               type="button"
+              data-testid="nav-next-btn"
               onClick={goNext}
               className="h-7 px-2 rounded hover:bg-slate-100 text-slate-700 font-semibold transition flex items-center gap-0.5"
             >
@@ -699,7 +713,7 @@ export const ProjectDetailPage: React.FC = () => {
                     const taskDisplayName = getTaskDisplayName(task);
 
                     return (
-                      <tr key={task.id} className="hover:bg-blue-50/50 transition group">
+                      <tr key={task.id} data-testid={`task-row-${task.id}`} className="hover:bg-blue-50/50 transition group">
                         {/* Fixed Left Column */}
                         <td className="sticky left-0 z-10 bg-white group-hover:bg-blue-50/50 px-3 py-2.5 border-r border-slate-200 w-[170px] md:w-[295px] min-w-[170px] md:min-w-[295px] max-w-[295px] align-middle">
                           <div className="flex items-center justify-between">
@@ -740,6 +754,7 @@ export const ProjectDetailPage: React.FC = () => {
                           return (
                             <td
                               key={cIdx}
+                              data-testid={`status-cell-${task.id}-${col.dateStr}`}
                               title={tooltipText}
                               style={{ width: `${GANTT_DAY_WIDTH_PX}px`, minWidth: `${GANTT_DAY_WIDTH_PX}px`, maxWidth: `${GANTT_DAY_WIDTH_PX}px` }}
                               onClick={(e) => isInTaskSpan && handleCellClick(e, task.id, col.dateStr, status)}
@@ -787,6 +802,7 @@ export const ProjectDetailPage: React.FC = () => {
       {isMobile && !isCompleted && (
         <button
           type="button"
+          data-testid="mobile-fab-btn"
           onClick={handleOpenAddTask}
           aria-label={t('addTask')}
           style={{ bottom: 'calc(1.25rem + env(safe-area-inset-bottom))' }}

@@ -2,12 +2,12 @@
 import React from 'react';
 import { DailyStatusType } from '../../types';
 import { useI18n } from '../../hooks/useI18n';
-import { Check, X, Clock, AlertTriangle, Circle } from 'lucide-react';
+import { X, Check, Calendar } from 'lucide-react';
 
 interface MobileStatusSheetProps {
   isOpen: boolean;
   dateStr: string;
-  taskName?: string;
+  taskName: string;
   currentStatus: DailyStatusType;
   onSelect: (status: DailyStatusType) => void;
   onClose: () => void;
@@ -25,51 +25,58 @@ export const MobileStatusSheet: React.FC<MobileStatusSheetProps> = ({
 
   if (!isOpen) return null;
 
-  const statuses: Array<{ type: DailyStatusType; label: string; icon: React.ReactNode; colorClass: string }> = [
-    { type: 'NONE', label: t('statusNone'), icon: <Circle className="w-4 h-4 text-slate-400" />, colorClass: 'bg-slate-50 text-slate-700 border-slate-200' },
-    { type: 'IN_PROGRESS', label: t('statusInProgress'), icon: <Clock className="w-4 h-4 text-blue-600" />, colorClass: 'bg-blue-50 text-blue-700 border-blue-200' },
-    { type: 'COMPLETED', label: t('statusCompleted'), icon: <Check className="w-4 h-4 text-emerald-600" />, colorClass: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
-    { type: 'ISSUE', label: t('statusIssue'), icon: <AlertTriangle className="w-4 h-4 text-amber-600" />, colorClass: 'bg-amber-50 text-amber-700 border-amber-200' },
+  const statusOptions: { type: DailyStatusType; label: string; colorClass: string }[] = [
+    { type: 'NONE', label: t('statusNone'), colorClass: 'bg-slate-100 text-slate-700 border-slate-300' },
+    { type: 'IN_PROGRESS', label: t('statusInProgress'), colorClass: 'bg-blue-50 text-blue-700 border-blue-300' },
+    { type: 'COMPLETED', label: t('statusCompleted'), colorClass: 'bg-emerald-50 text-emerald-700 border-emerald-300' },
+    { type: 'ISSUE', label: t('statusIssue'), colorClass: 'bg-amber-50 text-amber-800 border-amber-300' },
   ];
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col justify-end bg-black/50 backdrop-blur-xs">
-      <div className="w-full bg-white rounded-t-2xl shadow-2xl p-4 animate-in slide-in-from-bottom duration-200 border-t border-slate-200 text-slate-900 pb-[calc(1rem+env(safe-area-inset-bottom))]">
-        <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-3">
-          <div>
-            <h3 className="text-sm font-bold text-slate-900">{t('selectStatusTitle')}</h3>
-            <p className="text-xs text-slate-500">{dateStr} {taskName ? `• ${taskName}` : ''}</p>
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-xs animate-in fade-in duration-150">
+      <div
+        data-testid="mobile-status-sheet"
+        className="w-full max-w-md bg-white rounded-t-2xl shadow-2xl p-5 border-t border-slate-200 animate-in slide-in-from-bottom duration-200 space-y-4"
+        style={{ paddingBottom: 'calc(1.25rem + env(safe-area-inset-bottom))' }}
+      >
+        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+          <div className="min-w-0 pr-2">
+            <div className="flex items-center gap-1.5 text-xs text-blue-600 font-bold mb-0.5">
+              <Calendar className="w-3.5 h-3.5" />
+              <span>{dateStr} {t('selectStatusTitle')}</span>
+            </div>
+            <h3 className="font-bold text-slate-900 text-sm truncate">
+              {taskName}
+            </h3>
           </div>
           <button
             type="button"
+            data-testid="mobile-status-sheet-close"
             onClick={onClose}
-            aria-label={t('close')}
-            className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100"
+            className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 shrink-0"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        <div className="space-y-2">
-          {statuses.map((s) => {
-            const isSelected = currentStatus === s.type;
+        <div className="grid grid-cols-2 gap-2.5">
+          {statusOptions.map((opt) => {
+            const isSelected = currentStatus === opt.type;
             return (
               <button
-                key={s.type}
+                key={opt.type}
                 type="button"
+                data-testid={`status-option-${opt.type}`}
                 onClick={() => {
-                  onSelect(s.type);
+                  onSelect(opt.type);
                   onClose();
                 }}
-                className={`w-full h-12 flex items-center justify-between px-4 rounded-xl text-sm font-bold border transition ${s.colorClass} ${
-                  isSelected ? 'ring-2 ring-blue-500 shadow-sm' : ''
-                }`}
+                className={`py-3 px-3 rounded-xl border text-xs font-bold transition flex items-center justify-between ${
+                  opt.colorClass
+                } ${isSelected ? 'ring-2 ring-blue-600 shadow-sm' : 'hover:brightness-95'}`}
               >
-                <div className="flex items-center gap-3">
-                  {s.icon}
-                  <span>{s.label}</span>
-                </div>
-                {isSelected && <Check className="w-4 h-4 text-blue-600 shrink-0" />}
+                <span>{opt.label}</span>
+                {isSelected && <Check className="w-4 h-4 shrink-0" />}
               </button>
             );
           })}

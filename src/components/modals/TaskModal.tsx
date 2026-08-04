@@ -1,284 +1,282 @@
 // src/components/modals/TaskModal.tsx
 import React, { useState, useEffect } from 'react';
 import { Task } from '../../types';
-import { getCurrentWorkerName } from '../../services/api';
 import { useI18n } from '../../hooks/useI18n';
 import { useAutoTranslation } from '../../hooks/useAutoTranslation';
-import { getLocalizedErrorMessage } from '../../i18n';
-import { getKoreaDateString } from '../../utils/dateUtils';
-import { X, Lock, Languages, RefreshCw, CheckCircle2, AlertCircle } from 'lucide-react';
+import { X, Sparkles, RefreshCw } from 'lucide-react';
 
 interface TaskModalProps {
   isOpen: boolean;
   projectId: string;
+  task: Task | null;
+  currentWorkerName: string;
   onClose: () => void;
   onSave: (data: Partial<Task>) => Promise<void>;
-  task?: Task | null;
-  currentWorkerName: string;
 }
 
 export const TaskModal: React.FC<TaskModalProps> = ({
   isOpen,
   projectId,
-  onClose,
-  onSave,
   task,
   currentWorkerName,
+  onClose,
+  onSave,
 }) => {
-  const { t, lang } = useI18n();
+  const { t } = useI18n();
 
-  const [workerName, setWorkerName] = useState('');
-  const [inputLang, setInputLang] = useState<'ko' | 'vi'>(lang);
-  const [sourceText, setSourceText] = useState('');
+  const [inputLang, setInputLang] = useState<'ko' | 'vi'>('ko');
+  const [taskNameInput, setTaskNameInput] = useState('');
+  const [targetText, setTargetText] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [progress, setProgress] = useState(0);
-  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
 
-  const initialTargetText = task
-    ? (inputLang === 'ko' ? task.task_name_vi : task.task_name_ko) || ''
-    : '';
+  const targetLang = inputLang === 'ko' ? 'vi' : 'ko';
 
   const {
-    translatedText,
-    status,
-    isSourceChanged,
+    translatedText: autoTranslatedText,
+    status: autoStatus,
     setManualText,
-    translateNow,
-    cancelTranslation,
   } = useAutoTranslation({
-    sourceText,
+    sourceText: taskNameInput,
     sourceLanguage: inputLang,
-    initialTargetText,
-    initialStatus: task?.translation_status || 'COMPLETED',
+    initialTargetText: targetText,
     debounceMs: 700,
   });
 
   useEffect(() => {
-    const todayStr = getKoreaDateString();
+    if (autoStatus === 'TRANSLATING') {
+      setTargetText('');
+    } else if (autoTranslatedText) {
+      setTargetText(autoTranslatedText);
+    }
+  }, [autoTranslatedText, autoStatus]);
 
+  useEffect(() => {
     if (task) {
-      setWorkerName(task.worker_name || currentWorkerName || getCurrentWorkerName());
-      const srcL = (task.source_language as 'ko' | 'vi') || lang;
-      setInputLang(srcL);
-      const srcT = srcL === 'ko' ? (task.task_name_ko || task.task_name || '') : (task.task_name_vi || task.task_name || '');
-      setSourceText(srcT);
-      setStartDate(task.start_date || todayStr);
-      setEndDate(task.end_date || todayStr);
-      setProgress(task.progress ?? 0);
+      const src = (task.source_language as 'ko' | 'vi') || 'ko';
+      setInputLang(src);
+      const initialSourceText = src === 'vi' ? (task.task_name_vi || task.task_name) : (task.task_name_ko || task.task_name);
+      const initialTransText = src === 'vi' ? (task.task_name_ko || '') : (task.task_name_vi || '');
+
+      setTaskNameInput(initialSourceText || '');
+      setTargetText(initialTransText || '');
+      setStartDate(task.start_date || '');
+      setEndDate(task.end_date || '');
+      setProgress(task.progress || 0);
     } else {
-      const activeWorker = currentWorkerName || getCurrentWorkerName();
-      setWorkerName(activeWorker);
-      setInputLang(lang);
-      setSourceText('');
+      const todayStr = new Date().toISOString().slice(0, 10);
+      const futureDate = new Date();
+      futureDate.setDate(futureDate.getDate() + 7);
+      const futureStr = futureDate.toISOString().slice(0, 10);
+
+      setInputLang('ko');
+      setTaskNameInput('');
+      setTargetText('');
       setStartDate(todayStr);
-      setEndDate(todayStr);
+      setEndDate(futureStr);
       setProgress(0);
     }
-  }, [task, isOpen, currentWorkerName, lang]);
+  }, [task, isOpen]);
 
   if (!isOpen) return null;
 
-  const handleClose = () => {
-    cancelTranslation();
-    onClose();
+  const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setTaskNameInput(e.target.value);
+  };
+
+  const handleInputLangChange = (newLang: 'ko' | 'vi') => {
+    if (newLang === inputLang) return;
+    setInputLang(newLang);
+  };
+
+  const handleTargetTextChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setTargetText(val);
+    setManualText(val);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!startDate || !endDate) return;
-
-    if (!currentWorkerName && !getCurrentWorkerName()) {
-      alert(t('selectWorkerPrompt'));
+    if (!taskNameInput.trim()) {
+      alert(t('taskSaveFailed'));
+      return;
+    }
+    if (startDate && endDate && endDate < startDate) {
+      alert('종료일은 시작일 이후여야 합니다.');
       return;
     }
 
-    if (!sourceText.trim()) return;
-
-    setLoading(true);
     try {
-      let finalTargetText = translatedText;
-      if (status === 'PENDING' || status === 'TRANSLATING') {
-        finalTargetText = await translateNow();
-      }
+      setSaving(true);
 
-      const taskNameKo = inputLang === 'ko' ? sourceText.trim() : finalTargetText.trim();
-      const taskNameVi = inputLang === 'vi' ? sourceText.trim() : finalTargetText.trim();
-
-      await onSave({
+      const payload: Partial<Task> = {
         project_id: projectId,
-        worker_name: workerName,
-        task_name: sourceText.trim(),
-        task_name_ko: taskNameKo || sourceText.trim(),
-        task_name_vi: taskNameVi || sourceText.trim(),
-        source_language: inputLang,
+        worker_name: task ? task.worker_name : currentWorkerName,
+        task_name: taskNameInput.trim(),
         start_date: startDate,
         end_date: endDate,
         progress: Number(progress),
-        translation_status: status === 'MANUAL' ? 'MANUAL' : 'COMPLETED',
-        force_translation: isSourceChanged,
-      } as any);
+        source_language: inputLang,
+        translation_status: autoStatus === 'MANUAL' ? 'MANUAL' : 'COMPLETED',
+      };
 
-      handleClose();
-    } catch (err: any) {
-      alert(getLocalizedErrorMessage(err, t));
+      if (inputLang === 'ko') {
+        payload.task_name_ko = taskNameInput.trim();
+        payload.task_name_vi = targetText.trim();
+      } else {
+        payload.task_name_vi = taskNameInput.trim();
+        payload.task_name_ko = targetText.trim();
+      }
+
+      await onSave(payload);
+      onClose();
+    } catch (err) {
+      console.error(err);
     } finally {
-      setLoading(false);
+      setSaving(false);
     }
   };
-
-  const getStatusBadge = () => {
-    switch (status) {
-      case 'PENDING':
-        return <span className="text-[11px] font-medium text-amber-600">{t('translationPending')}</span>;
-      case 'TRANSLATING':
-        return (
-          <span className="text-[11px] font-medium text-blue-600 flex items-center gap-1">
-            <RefreshCw className="w-3 h-3 animate-spin" />
-            <span>{t('translating')}</span>
-          </span>
-        );
-      case 'COMPLETED':
-        return (
-          <span className="text-[11px] font-medium text-emerald-600 flex items-center gap-1">
-            <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-            <span>{t('translationCompleted')}</span>
-          </span>
-        );
-      case 'FAILED':
-        return (
-          <span className="text-[11px] font-medium text-red-600 flex items-center gap-1">
-            <AlertCircle className="w-3 h-3 text-red-600" />
-            <span>{t('translationFailed')}</span>
-          </span>
-        );
-      case 'MANUAL':
-        return <span className="text-[11px] font-medium text-purple-600">{t('manualTranslation')}</span>;
-      default:
-        return null;
-    }
-  };
-
-  const secondaryLabel = inputLang === 'ko' ? `${t('viText')} ${t('translatedTextLabel')}` : `${t('koText')} ${t('translatedTextLabel')}`;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4">
-      <div className="bg-white border border-slate-200 rounded-xl shadow-2xl w-full max-w-lg overflow-hidden text-slate-900">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-slate-50">
-          <h2 className="text-lg font-bold text-slate-900">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4">
+      <div
+        data-testid="task-modal"
+        className="w-full max-w-lg bg-white rounded-2xl shadow-2xl overflow-hidden border border-slate-200 text-slate-900 animate-in fade-in zoom-in-95 duration-150"
+      >
+        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 bg-slate-50/50">
+          <h3 className="font-bold text-slate-900 text-sm">
             {task ? t('editTask') : t('addTask')}
-          </h2>
-          <button onClick={handleClose} className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-200 transition">
+          </h3>
+          <button
+            type="button"
+            data-testid="task-close-btn"
+            onClick={onClose}
+            aria-label={t('cancel')}
+            className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100"
+          >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="p-5 space-y-4 text-xs">
+          {/* Worker Badge */}
           <div>
-            <label className="block text-xs font-semibold text-slate-600 mb-1 flex items-center gap-1.5">
-              <span>{t('worker')}</span>
-              <Lock className="w-3 h-3 text-slate-400" />
-            </label>
-            <div className="flex items-center gap-2 px-3 py-2 bg-slate-100 border border-slate-200 rounded-lg text-sm text-slate-800 font-bold">
-              <span className="w-2 h-2 rounded-full bg-blue-600" />
-              <span>{workerName || t('selectWorker')}</span>
+            <label className="block font-bold text-slate-700 mb-1">{t('worker')}</label>
+            <div className="px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg text-blue-700 font-bold">
+              {task ? task.worker_name : currentWorkerName}
             </div>
           </div>
 
           {/* Input Language Selector */}
-          <div className="flex items-center justify-between bg-slate-50 p-2.5 rounded-lg border border-slate-200">
-            <span className="text-xs font-semibold text-slate-600 flex items-center gap-1.5">
-              <Languages className="w-4 h-4 text-blue-600" />
-              <span>{t('inputLanguage')}</span>
-            </span>
-            <div className="flex items-center gap-1 bg-white p-1 rounded-md text-xs font-bold border border-slate-200">
+          <div>
+            <label className="block font-bold text-slate-700 mb-1">
+              {t('inputLanguage')}
+            </label>
+            <div className="flex gap-2">
               <button
                 type="button"
-                onClick={() => setInputLang('ko')}
-                className={`px-3 py-1 rounded transition ${inputLang === 'ko' ? 'bg-blue-600 text-white' : 'text-slate-600 hover:text-slate-900'}`}
+                data-testid="task-lang-ko-btn"
+                onClick={() => handleInputLangChange('ko')}
+                className={`flex-1 py-2 rounded-lg font-bold border transition ${
+                  inputLang === 'ko'
+                    ? 'bg-blue-50 border-blue-200 text-blue-700'
+                    : 'bg-slate-50 border-slate-200 text-slate-600'
+                }`}
               >
                 {t('koText')}
               </button>
               <button
                 type="button"
-                onClick={() => setInputLang('vi')}
-                className={`px-3 py-1 rounded transition ${inputLang === 'vi' ? 'bg-blue-600 text-white' : 'text-slate-600 hover:text-slate-900'}`}
+                data-testid="task-lang-vi-btn"
+                onClick={() => handleInputLangChange('vi')}
+                className={`flex-1 py-2 rounded-lg font-bold border transition ${
+                  inputLang === 'vi'
+                    ? 'bg-blue-50 border-blue-200 text-blue-700'
+                    : 'bg-slate-50 border-slate-200 text-slate-600'
+                }`}
               >
                 {t('viText')}
               </button>
             </div>
           </div>
 
-          {/* Primary Task Name Source Input */}
+          {/* Source Text Input */}
           <div>
-            <label className="block text-xs font-semibold text-slate-600 mb-1">
-              {t('taskContent')} ({inputLang === 'ko' ? t('koText') : t('viText')}) *
+            <label className="block font-bold text-slate-700 mb-1">
+              {t('taskContent')} ({t('originalTag')}) *
             </label>
             <input
               type="text"
+              data-testid="task-name-input"
+              value={taskNameInput}
+              onChange={handleNameChange}
               required
-              value={sourceText}
-              onChange={(e) => setSourceText(e.target.value)}
-              placeholder="DB Architecture Refactoring"
-              className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-sm focus:outline-none focus:border-blue-500 text-slate-900"
+              placeholder="작업 내용을 입력하세요"
+              className="w-full h-10 px-3 rounded-lg border border-slate-300 focus:outline-none focus:border-blue-500 font-medium text-slate-900 bg-white"
             />
           </div>
 
-          {/* Secondary Task Name / Manual Translation & Status */}
+          {/* Auto Translated Text Input */}
           <div>
-            <div className="flex justify-between items-center mb-1">
-              <label className="block text-xs font-semibold text-slate-600">
-                {secondaryLabel}
+            <div className="flex items-center justify-between mb-1">
+              <label className="font-bold text-slate-700 flex items-center gap-1">
+                <Sparkles className="w-3.5 h-3.5 text-blue-600" />
+                <span>{t('translatedTextLabel')} ({targetLang.toUpperCase()})</span>
               </label>
-              <div className="flex items-center gap-2">
-                {getStatusBadge()}
-                <button
-                  type="button"
-                  onClick={() => translateNow()}
-                  disabled={status === 'TRANSLATING'}
-                  className="text-[11px] font-bold text-blue-600 hover:text-blue-700 flex items-center gap-1 transition disabled:opacity-50"
-                >
-                  <RefreshCw className={`w-3 h-3 ${status === 'TRANSLATING' ? 'animate-spin' : ''}`} />
-                  <span>{t('retryTranslation')}</span>
-                </button>
-              </div>
+              {autoStatus === 'TRANSLATING' && (
+                <span className="text-[10px] text-blue-600 font-semibold flex items-center gap-1 animate-pulse">
+                  <RefreshCw className="w-3 h-3 animate-spin" />
+                  {t('translating')}
+                </span>
+              )}
             </div>
             <input
               type="text"
-              value={translatedText}
-              onChange={(e) => setManualText(e.target.value)}
+              data-testid="task-translated-input"
+              value={targetText}
+              onChange={handleTargetTextChange}
               placeholder={t('automaticTranslationPlaceholder')}
-              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-800 focus:outline-none focus:border-blue-500"
+              className="w-full h-10 px-3 rounded-lg border border-slate-200 bg-slate-50 font-medium text-slate-800 focus:outline-none focus:border-blue-500"
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          {/* Dates */}
+          <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-semibold text-slate-600 mb-1">{t('startDate')} *</label>
+              <label className="block font-bold text-slate-700 mb-1">
+                {t('startDate')} *
+              </label>
               <input
                 type="date"
-                required
+                data-testid="task-start-date"
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
-                className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-sm focus:outline-none focus:border-blue-500 text-slate-900"
+                required
+                className="w-full h-9 px-3 rounded-lg border border-slate-300 font-medium text-slate-900"
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-slate-600 mb-1">{t('endDate')} *</label>
+              <label className="block font-bold text-slate-700 mb-1">
+                {t('endDate')} *
+              </label>
               <input
                 type="date"
-                required
+                data-testid="task-end-date"
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
-                className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-sm focus:outline-none focus:border-blue-500 text-slate-900"
+                required
+                className="w-full h-9 px-3 rounded-lg border border-slate-300 font-medium text-slate-900"
               />
             </div>
           </div>
 
+          {/* Progress */}
           <div>
-            <div className="flex justify-between items-center mb-1">
-              <label className="block text-xs font-semibold text-slate-600">{t('progress')} (%)</label>
-              <span className="text-xs font-bold text-blue-600">{progress}%</span>
+            <div className="flex justify-between font-bold text-slate-700 mb-1">
+              <span>{t('progress')}</span>
+              <span className="text-blue-600">{progress}%</span>
             </div>
             <input
               type="range"
@@ -286,24 +284,27 @@ export const TaskModal: React.FC<TaskModalProps> = ({
               max="100"
               value={progress}
               onChange={(e) => setProgress(Number(e.target.value))}
-              className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+              className="w-full accent-blue-600"
             />
           </div>
 
-          <div className="flex justify-end gap-3 pt-4 border-t border-slate-200">
+          {/* Footer Actions */}
+          <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
             <button
               type="button"
-              onClick={handleClose}
-              className="px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100 rounded-lg transition"
+              data-testid="task-cancel-btn"
+              onClick={onClose}
+              className="h-9 px-4 rounded-lg border border-slate-300 text-slate-700 font-bold hover:bg-slate-100"
             >
               {t('cancel')}
             </button>
             <button
               type="submit"
-              disabled={loading}
-              className="px-5 py-2 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-sm transition disabled:opacity-50"
+              data-testid="task-save-btn"
+              disabled={saving}
+              className="h-9 px-4 rounded-lg bg-blue-600 text-white font-bold hover:bg-blue-700 shadow-sm disabled:opacity-50"
             >
-              {loading ? t('saving') : t('save')}
+              {saving ? t('saving') : t('save')}
             </button>
           </div>
         </form>
