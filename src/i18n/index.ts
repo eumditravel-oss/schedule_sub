@@ -28,3 +28,19 @@ export function setStoredLanguage(lang: Language): void {
     localStorage.setItem(LANGUAGE_STORAGE_KEY, lang);
   } catch {}
 }
+
+export function getLocalizedErrorMessage(err: any, t: (key: TranslationKeys) => string): string {
+  const code = err?.code;
+  switch (code) {
+    case 'INVALID_EDITOR':
+      return t('invalidEditorError');
+    case 'PROJECT_COMPLETED_READ_ONLY':
+      return t('readOnlyCompletedNotice');
+    case 'WORKER_LIST_FIXED':
+      return t('workerListFixedError');
+    case 'TRANSLATION_FAILED':
+      return t('translationFailedNotice');
+    default:
+      return err?.message || t('noData');
+  }
+}

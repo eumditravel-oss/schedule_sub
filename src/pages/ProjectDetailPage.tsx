@@ -6,6 +6,7 @@ import { api, getCurrentWorkerName } from '../services/api';
 import { calculateVisibleGanttSpan } from '../utils/dateUtils';
 import { useGanttDateRange } from '../hooks/useGanttDateRange';
 import { useI18n } from '../hooks/useI18n';
+import { getLocalizedErrorMessage } from '../i18n';
 import {
   GANTT_DAY_WIDTH_PX,
   BUTTON_H36_CLASS,
@@ -78,7 +79,7 @@ export const ProjectDetailPage: React.FC = () => {
       setTasks(res.tasks || []);
     } catch (err: any) {
       console.error(err);
-      alert(err.message || '프로젝트 상세 정보를 불러올 수 없습니다.');
+      alert(getLocalizedErrorMessage(err, t));
     } finally {
       setLoading(false);
     }
@@ -114,19 +115,27 @@ export const ProjectDetailPage: React.FC = () => {
   const handleSaveTask = async (data: Partial<Task>) => {
     if (!projectId) return;
     if (!requireWorkerSelection()) return;
-    if (selectedTask) {
-      await api.updateTask(selectedTask.id, data);
-    } else {
-      await api.createTask({ ...data, project_id: projectId });
+    try {
+      if (selectedTask) {
+        await api.updateTask(selectedTask.id, data);
+      } else {
+        await api.createTask({ ...data, project_id: projectId });
+      }
+      await fetchDetail();
+    } catch (err: any) {
+      alert(getLocalizedErrorMessage(err, t));
     }
-    await fetchDetail();
   };
 
   const handleDeleteTask = async (id: string, name: string) => {
     if (!requireWorkerSelection()) return;
     if (!window.confirm(`'${name}' ${t('deleteConfirm')}`)) return;
-    await api.deleteTask(id);
-    await fetchDetail();
+    try {
+      await api.deleteTask(id);
+      await fetchDetail();
+    } catch (err: any) {
+      alert(getLocalizedErrorMessage(err, t));
+    }
   };
 
   const handleEditTask = (task: Task) => {
@@ -147,7 +156,7 @@ export const ProjectDetailPage: React.FC = () => {
       await api.reopenProject(projectId);
       await fetchDetail();
     } catch (err: any) {
-      alert(err.message || '프로젝트 복귀 중 오류가 발생했습니다.');
+      alert(getLocalizedErrorMessage(err, t));
     }
   };
 
@@ -191,7 +200,7 @@ export const ProjectDetailPage: React.FC = () => {
       await api.updateDailyStatus(popover.taskId, popover.dateStr, status);
       await fetchDetail();
     } catch (err: any) {
-      alert(err.message || '일별 상태 수정 중 오류가 발생했습니다.');
+      alert(getLocalizedErrorMessage(err, t));
       await fetchDetail();
     }
   };
@@ -403,7 +412,7 @@ export const ProjectDetailPage: React.FC = () => {
               {loading ? (
                 <tr>
                   <td colSpan={dateColumns.length + 1} className="py-12 text-center text-slate-400">
-                    불러오는 중입니다...
+                    {t('loading')}
                   </td>
                 </tr>
               ) : tasks.length === 0 ? (
@@ -485,7 +494,7 @@ export const ProjectDetailPage: React.FC = () => {
                         const bgClass = getStatusBgClass(status);
 
                         const tooltipText = isInTaskSpan
-                          ? `${col.dateStr}\n상태: ${getStatusText(status)}${updatedBy ? `\n수정자: ${updatedBy}` : ''}`
+                          ? `${col.dateStr}\n${t('progress')}: ${getStatusText(status)}${updatedBy ? `\n수정자: ${updatedBy}` : ''}`
                           : '';
 
                         return (
@@ -518,7 +527,7 @@ export const ProjectDetailPage: React.FC = () => {
 
                             {isInTaskSpan && status !== 'NONE' && (
                               <div className="w-full h-full min-h-[34px] flex items-center justify-center text-[10px] font-bold">
-                                {status === 'IN_PROGRESS' ? '진행' : status === 'COMPLETED' ? '완료' : '이슈'}
+                                {getStatusText(status)}
                               </div>
                             )}
                           </td>

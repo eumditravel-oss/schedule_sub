@@ -6,6 +6,7 @@ import { api, getCurrentWorkerName } from '../services/api';
 import { calculateVisibleGanttSpan } from '../utils/dateUtils';
 import { useGanttDateRange } from '../hooks/useGanttDateRange';
 import { useI18n } from '../hooks/useI18n';
+import { getLocalizedErrorMessage } from '../i18n';
 import {
   GANTT_DAY_WIDTH_PX,
   GANTT_BAR_TEXT_THRESHOLD_PX,
@@ -108,13 +109,17 @@ export const ProjectOverviewPage: React.FC = () => {
 
   const handleSaveProject = async (data: Partial<Project>) => {
     if (!requireWorkerSelection()) return;
-    if (selectedProject) {
-      await api.updateProject(selectedProject.id, data);
-    } else {
-      await api.createProject(data);
+    try {
+      if (selectedProject) {
+        await api.updateProject(selectedProject.id, data);
+      } else {
+        await api.createProject(data);
+      }
+      await fetchProjects();
+      await fetchCompletedYears();
+    } catch (err: any) {
+      alert(getLocalizedErrorMessage(err, t));
     }
-    await fetchProjects();
-    await fetchCompletedYears();
   };
 
   const handleDeleteProject = async (e: React.MouseEvent, id: string, name: string) => {
@@ -126,7 +131,7 @@ export const ProjectOverviewPage: React.FC = () => {
       await fetchProjects();
       await fetchCompletedYears();
     } catch (err: any) {
-      alert(err.message || t('invalidEditorError'));
+      alert(getLocalizedErrorMessage(err, t));
     }
   };
 
@@ -149,7 +154,7 @@ export const ProjectOverviewPage: React.FC = () => {
       await fetchProjects();
       await fetchCompletedYears();
     } catch (err: any) {
-      alert(err.message || t('completeProjectFailed'));
+      alert(getLocalizedErrorMessage(err, t));
     }
   };
 
@@ -251,7 +256,7 @@ export const ProjectOverviewPage: React.FC = () => {
             >
               {completedYears.map((yr) => (
                 <option key={yr} value={yr}>
-                  {yr}년
+                  {t('yearOption', { year: yr })}
                 </option>
               ))}
             </select>

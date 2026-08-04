@@ -4,6 +4,7 @@ export const ko = {
   activeProjectsTab: '진행 프로젝트',
   completedProjectsTab: '완료',
   completedProjectsYear: '{year}년 완료',
+  yearOption: '{year}년',
   addProject: '프로젝트 추가',
   editProject: '프로젝트 수정',
   deleteProject: '프로젝트 삭제',

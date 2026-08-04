@@ -6,6 +6,7 @@ export const vi: Record<TranslationKeys, string> = {
   activeProjectsTab: 'Dự án đang thực hiện',
   completedProjectsTab: 'Hoàn thành năm',
   completedProjectsYear: 'Hoàn thành năm {year}',
+  yearOption: '{year}',
   addProject: 'Thêm dự án',
   editProject: 'Sửa dự án',
   deleteProject: 'Xóa dự án',
