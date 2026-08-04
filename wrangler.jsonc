@@ -14,7 +14,7 @@
     {
       "binding": "DB",
       "database_name": "concost-db",
-      "database_id": "local-concost-db-id",
+      "database_id": "feb39a05-c98e-455f-a2b1-ff75e1c0b94f",
       "migrations_dir": "./migrations"
     }
   ]
