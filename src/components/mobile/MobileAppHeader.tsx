@@ -1,7 +1,7 @@
 // src/components/mobile/MobileAppHeader.tsx
-import React from 'react';
+import React, { useState } from 'react';
 import { useI18n } from '../../hooks/useI18n';
-import { ArrowLeft, Globe, User } from 'lucide-react';
+import { ArrowLeft, Globe, User, Calendar } from 'lucide-react';
 
 interface MobileAppHeaderProps {
   title?: string;
@@ -9,6 +9,7 @@ interface MobileAppHeaderProps {
   onBack?: () => void;
   currentWorker: string;
   onOpenWorkerSheet: () => void;
+  onOpenCalendarModal?: () => void;
 }
 
 export const MobileAppHeader: React.FC<MobileAppHeaderProps> = ({
@@ -17,12 +18,14 @@ export const MobileAppHeader: React.FC<MobileAppHeaderProps> = ({
   onBack,
   currentWorker,
   onOpenWorkerSheet,
+  onOpenCalendarModal,
 }) => {
   const { t, lang, setLanguage } = useI18n();
+  const [logoSrc, setLogoSrc] = useState('/logo3-mobile-cropped.png');
 
   return (
     <header className="sticky top-0 z-30 bg-white border-b border-slate-200 px-3 h-14 flex items-center justify-between gap-2 shadow-xs shrink-0 pt-[env(safe-area-inset-top)]">
-      {/* Left: Back button + Compact Logo / Title */}
+      {/* Left: Back button + Cropped Logo / Title */}
       <div className="flex items-center gap-2 min-w-0 flex-1">
         {isDetailPage ? (
           <button
@@ -37,7 +40,15 @@ export const MobileAppHeader: React.FC<MobileAppHeaderProps> = ({
         ) : null}
 
         <div className="flex items-center gap-2 min-w-0">
-          <img src="/logo3.png" alt="CON-COST × VIETQS" className="h-7 object-contain shrink-0 max-w-[125px]" />
+          <img
+            data-testid="mobile-app-logo"
+            src={logoSrc}
+            onError={() => {
+              if (logoSrc !== '/logo3.png') setLogoSrc('/logo3.png');
+            }}
+            alt="CON-COST × VIETQS"
+            className="h-8 w-auto object-contain shrink-0 max-w-[115px] sm:max-w-[155px]"
+          />
           {title && (
             <span className="text-xs font-bold text-slate-900 truncate min-w-0">
               {title}
@@ -48,6 +59,19 @@ export const MobileAppHeader: React.FC<MobileAppHeaderProps> = ({
 
       {/* Right Controls */}
       <div className="flex items-center gap-1.5 shrink-0">
+        {/* Calendar Management Button */}
+        {onOpenCalendarModal && (
+          <button
+            type="button"
+            data-testid="mobile-manage-holidays-btn"
+            onClick={onOpenCalendarModal}
+            aria-label={t('manageHolidays')}
+            className="w-8 h-8 flex items-center justify-center bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-lg text-slate-700 transition"
+          >
+            <Calendar className="w-4 h-4 text-blue-600" />
+          </button>
+        )}
+
         {/* Compact Lang Switcher */}
         <button
           type="button"
@@ -66,7 +90,7 @@ export const MobileAppHeader: React.FC<MobileAppHeaderProps> = ({
           data-testid="mobile-worker-btn"
           onClick={onOpenWorkerSheet}
           aria-label={t('selectWorkerTitle')}
-          className={`h-8 px-2.5 rounded-lg border text-xs font-bold transition flex items-center gap-1.5 max-w-[110px] ${
+          className={`h-8 px-2.5 rounded-lg border text-xs font-bold transition flex items-center gap-1.5 max-w-[105px] ${
             currentWorker
               ? 'bg-blue-50 border-blue-200 text-blue-700'
               : 'bg-slate-100 border-slate-200 text-slate-600'

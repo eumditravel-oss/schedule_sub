@@ -1,6 +1,6 @@
 // src/components/mobile/MobileTaskCard.tsx
 import React, { useState } from 'react';
-import { Task, DailyStatusType } from '../../types';
+import { Task, DailyStatusType, WorkDayStatus } from '../../types';
 import { useI18n } from '../../hooks/useI18n';
 import { MobileWeekStrip, MobileWeekDay } from './MobileWeekStrip';
 import { MoreVertical, Edit2, Trash2 } from 'lucide-react';
@@ -8,7 +8,7 @@ import { MoreVertical, Edit2, Trash2 } from 'lucide-react';
 interface MobileTaskCardProps {
   task: Task;
   weekDays: MobileWeekDay[];
-  onCellClick: (taskId: string, dateStr: string, currentStatus: DailyStatusType, taskName: string) => void;
+  onCellClick: (taskId: string, dateStr: string, currentStatus: DailyStatusType, workStatus?: WorkDayStatus) => void;
   onEdit?: (task: Task) => void;
   onDelete?: (task: Task) => void;
   isReadOnly?: boolean;
@@ -40,53 +40,57 @@ export const MobileTaskCard: React.FC<MobileTaskCardProps> = ({
               {task.progress}%
             </span>
           </div>
-          <h4 className="font-bold text-slate-900 text-xs leading-snug line-clamp-2" title={displayName}>
+
+          <h4 className="font-bold text-slate-900 text-xs tracking-tight leading-snug truncate" title={displayName}>
             {displayName}
           </h4>
-          <p className="text-[10px] text-slate-500 mt-0.5">
+
+          <p className="text-[10px] text-slate-400 mt-0.5">
             {task.start_date} ~ {task.end_date}
           </p>
         </div>
 
+        {/* Action Menu button */}
         {!isReadOnly && (onEdit || onDelete) && (
           <div className="relative shrink-0">
             <button
               type="button"
-              data-testid={`task-card-menu-${task.id}`}
+              data-testid={`mobile-task-menu-btn-${task.id}`}
               onClick={() => setShowMenu(!showMenu)}
-              className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-slate-100 text-slate-500"
+              aria-label={t('actions')}
+              className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition"
             >
               <MoreVertical className="w-4 h-4" />
             </button>
 
             {showMenu && (
-              <div className="absolute right-0 top-8 z-30 w-32 bg-white border border-slate-200 rounded-xl shadow-xl p-1 text-xs">
+              <div className="absolute right-0 top-7 z-20 bg-white border border-slate-200 rounded-xl shadow-lg p-1 w-28 text-xs font-bold animate-in fade-in zoom-in-95 duration-100">
                 {onEdit && (
                   <button
                     type="button"
-                    data-testid={`task-card-edit-${task.id}`}
+                    data-testid={`mobile-task-edit-btn-${task.id}`}
                     onClick={() => {
                       setShowMenu(false);
                       onEdit(task);
                     }}
-                    className="w-full flex items-center gap-2 px-3 py-2 text-slate-700 hover:bg-slate-100 rounded-lg font-semibold"
+                    className="w-full text-left px-2.5 py-1.5 rounded-lg text-slate-700 hover:bg-slate-100 flex items-center gap-1.5"
                   >
                     <Edit2 className="w-3.5 h-3.5" />
-                    <span>{t('editTask')}</span>
+                    <span>{t('save')}</span>
                   </button>
                 )}
                 {onDelete && (
                   <button
                     type="button"
-                    data-testid={`task-card-delete-${task.id}`}
+                    data-testid={`mobile-task-delete-btn-${task.id}`}
                     onClick={() => {
                       setShowMenu(false);
                       onDelete(task);
                     }}
-                    className="w-full flex items-center gap-2 px-3 py-2 text-red-600 hover:bg-red-50 rounded-lg font-semibold"
+                    className="w-full text-left px-2.5 py-1.5 rounded-lg text-rose-600 hover:bg-rose-50 flex items-center gap-1.5"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
-                    <span>{t('deleteTask')}</span>
+                    <span>{t('cancel')}</span>
                   </button>
                 )}
               </div>
@@ -95,11 +99,11 @@ export const MobileTaskCard: React.FC<MobileTaskCardProps> = ({
         )}
       </div>
 
-      {/* Interactive 7-Day Strip */}
+      {/* 7-Day Mobile Week Strip */}
       <MobileWeekStrip
         days={weekDays}
         dailyStatuses={task.daily_statuses || {}}
-        onCellClick={(dateStr, status) => onCellClick(task.id, dateStr, status, displayName)}
+        onCellClick={(dateStr, currentStatus, workStatus) => onCellClick(task.id, dateStr, currentStatus, workStatus)}
         isReadOnly={isReadOnly}
       />
     </div>

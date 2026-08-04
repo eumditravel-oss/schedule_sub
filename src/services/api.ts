@@ -1,5 +1,5 @@
 // src/services/api.ts
-import { ApiResponse, Project, Task, Worker, DailyStatusType } from '../types';
+import { ApiResponse, Project, Task, Worker, DailyStatusType, CountryHoliday, CalendarOverride } from '../types';
 
 const WORKER_STORAGE_KEY = 'schedule_current_worker_id';
 
@@ -61,27 +61,31 @@ export const api = {
     return handleResponse<Worker[]>(res);
   },
 
-  // 1. Translation API
-  async translate(text: string, sourceLanguage: 'ko' | 'vi', targetLanguage: 'ko' | 'vi'): Promise<{ translated_text: string }> {
-    const res = await fetch('/api/translate', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text, source_language: sourceLanguage, target_language: targetLanguage }),
-    });
-    return handleResponse<{ translated_text: string }>(res);
-  },
-
-  // 2. Projects
-  async getCompletedYears(): Promise<string[]> {
-    const res = await fetch('/api/projects/completed-years');
-    return handleResponse<string[]>(res);
-  },
-
+  // 1. Projects
   async getProjects(status: 'ACTIVE' | 'COMPLETED' = 'ACTIVE', year?: string): Promise<Project[]> {
     let url = `/api/projects?status=${status}`;
-    if (year) url += `&year=${year}`;
+    if (status === 'COMPLETED' && year) {
+      url += `&year=${year}`;
+    }
     const res = await fetch(url);
     return handleResponse<Project[]>(res);
+  },
+
+  async getCompletedYears(): Promise<string[]> {
+    const projects = await this.getProjects('COMPLETED');
+    const years = new Set<string>();
+    const currentYear = new Date().getFullYear().toString();
+    years.add(currentYear);
+
+    projects.forEach((p) => {
+      if (p.completed_at) {
+        years.add(p.completed_at.substring(0, 4));
+      } else if (p.end_date) {
+        years.add(p.end_date.substring(0, 4));
+      }
+    });
+
+    return Array.from(years).sort((a, b) => b.localeCompare(a));
   },
 
   async getProjectDetail(id: string): Promise<{ project: Project; tasks: Task[] }> {
@@ -89,24 +93,22 @@ export const api = {
     return handleResponse<{ project: Project; tasks: Task[] }>(res);
   },
 
-  async createProject(data: Partial<Project>): Promise<{ id: string }> {
-    const editor = getCurrentWorkerName();
+  async createProject(data: Partial<Project>): Promise<Project> {
     const res = await fetch('/api/projects', {
       method: 'POST',
       headers: getWriteHeaders(),
-      body: JSON.stringify({ ...data, editor_name: editor }),
+      body: JSON.stringify(data),
     });
-    return handleResponse<{ id: string }>(res);
+    return handleResponse<Project>(res);
   },
 
-  async updateProject(id: string, data: Partial<Project>): Promise<{ id: string }> {
-    const editor = getCurrentWorkerName();
+  async updateProject(id: string, data: Partial<Project>): Promise<Project> {
     const res = await fetch(`/api/projects/${id}`, {
       method: 'PATCH',
       headers: getWriteHeaders(),
-      body: JSON.stringify({ ...data, editor_name: editor }),
+      body: JSON.stringify(data),
     });
-    return handleResponse<{ id: string }>(res);
+    return handleResponse<Project>(res);
   },
 
   async deleteProject(id: string): Promise<{ id: string }> {
@@ -117,45 +119,41 @@ export const api = {
     return handleResponse<{ id: string }>(res);
   },
 
-  async completeProject(id: string): Promise<{ id: string }> {
-    const editor = getCurrentWorkerName();
+  async completeProject(id: string): Promise<Project> {
     const res = await fetch(`/api/projects/${id}/complete`, {
       method: 'POST',
       headers: getWriteHeaders(),
-      body: JSON.stringify({ editor_name: editor }),
+      body: JSON.stringify({}),
     });
-    return handleResponse<{ id: string }>(res);
+    return handleResponse<Project>(res);
   },
 
-  async reopenProject(id: string): Promise<{ id: string }> {
-    const editor = getCurrentWorkerName();
+  async reopenProject(id: string): Promise<Project> {
     const res = await fetch(`/api/projects/${id}/reopen`, {
       method: 'POST',
       headers: getWriteHeaders(),
-      body: JSON.stringify({ editor_name: editor }),
+      body: JSON.stringify({}),
     });
-    return handleResponse<{ id: string }>(res);
+    return handleResponse<Project>(res);
   },
 
-  // 3. Tasks
-  async createTask(data: Partial<Task>): Promise<{ id: string; project_progress: number }> {
-    const editor = getCurrentWorkerName();
+  // 2. Tasks
+  async createTask(data: Partial<Task>): Promise<Task> {
     const res = await fetch('/api/tasks', {
       method: 'POST',
       headers: getWriteHeaders(),
-      body: JSON.stringify({ ...data, editor_name: editor }),
+      body: JSON.stringify(data),
     });
-    return handleResponse<{ id: string; project_progress: number }>(res);
+    return handleResponse<Task>(res);
   },
 
-  async updateTask(id: string, data: Partial<Task>): Promise<{ id: string; project_progress: number }> {
-    const editor = getCurrentWorkerName();
+  async updateTask(id: string, data: Partial<Task>): Promise<Task> {
     const res = await fetch(`/api/tasks/${id}`, {
       method: 'PATCH',
       headers: getWriteHeaders(),
-      body: JSON.stringify({ ...data, editor_name: editor }),
+      body: JSON.stringify(data),
     });
-    return handleResponse<{ id: string; project_progress: number }>(res);
+    return handleResponse<Task>(res);
   },
 
   async deleteTask(id: string): Promise<{ id: string }> {
@@ -166,13 +164,59 @@ export const api = {
     return handleResponse<{ id: string }>(res);
   },
 
-  // 4. Daily Status
-  async updateDailyStatus(taskId: string, date: string, status: DailyStatusType): Promise<{ id: string }> {
-    const editor = getCurrentWorkerName();
+  async updateDailyStatus(taskId: string, date: string, status: DailyStatusType): Promise<any> {
     const res = await fetch(`/api/tasks/${taskId}/daily-status/${date}`, {
       method: 'PUT',
       headers: getWriteHeaders(),
-      body: JSON.stringify({ status, editor_name: editor }),
+      body: JSON.stringify({ status }),
+    });
+    return handleResponse<any>(res);
+  },
+
+  // 3. Translation
+  async translate(text: string, sourceLang: string, targetLang: string): Promise<{ translated_text: string }> {
+    const res = await fetch('/api/translate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text, source_lang: sourceLang, target_lang: targetLang }),
+    });
+    return handleResponse<{ translated_text: string }>(res);
+  },
+
+  // 4. Calendar & Holidays
+  async getHolidays(country: 'KR' | 'VN', year: number): Promise<CountryHoliday[]> {
+    const res = await fetch(`/api/calendar/holidays?country=${country}&year=${year}`);
+    return handleResponse<CountryHoliday[]>(res);
+  },
+
+  async syncHolidays(countryCode: 'KR' | 'VN', year: number): Promise<any> {
+    const res = await fetch('/api/calendar/holidays/sync', {
+      method: 'POST',
+      headers: getWriteHeaders(),
+      body: JSON.stringify({ country_code: countryCode, year }),
+    });
+    return handleResponse<any>(res);
+  },
+
+  async getOverrides(params?: { worker_id?: string; country_code?: string; start?: string; end?: string }): Promise<CalendarOverride[]> {
+    const query = new URLSearchParams(params as any).toString();
+    const res = await fetch(`/api/calendar/overrides?${query}`);
+    return handleResponse<CalendarOverride[]>(res);
+  },
+
+  async createOverride(data: any): Promise<CalendarOverride[]> {
+    const res = await fetch('/api/calendar/overrides', {
+      method: 'POST',
+      headers: getWriteHeaders(),
+      body: JSON.stringify(data),
+    });
+    return handleResponse<CalendarOverride[]>(res);
+  },
+
+  async deleteOverride(id: string): Promise<{ id: string }> {
+    const res = await fetch(`/api/calendar/overrides/${id}`, {
+      method: 'DELETE',
+      headers: getWriteHeaders(),
     });
     return handleResponse<{ id: string }>(res);
   },

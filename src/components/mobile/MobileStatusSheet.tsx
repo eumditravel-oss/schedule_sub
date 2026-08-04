@@ -1,14 +1,15 @@
 // src/components/mobile/MobileStatusSheet.tsx
 import React from 'react';
-import { DailyStatusType } from '../../types';
+import { DailyStatusType, WorkDayStatus } from '../../types';
 import { useI18n } from '../../hooks/useI18n';
-import { X, Check, Calendar } from 'lucide-react';
+import { X, Check, Calendar, Info } from 'lucide-react';
 
 interface MobileStatusSheetProps {
   isOpen: boolean;
   dateStr: string;
   taskName: string;
   currentStatus: DailyStatusType;
+  workStatus?: WorkDayStatus;
   onSelect: (status: DailyStatusType) => void;
   onClose: () => void;
 }
@@ -18,10 +19,11 @@ export const MobileStatusSheet: React.FC<MobileStatusSheetProps> = ({
   dateStr,
   taskName,
   currentStatus,
+  workStatus,
   onSelect,
   onClose,
 }) => {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
 
   if (!isOpen) return null;
 
@@ -31,6 +33,12 @@ export const MobileStatusSheet: React.FC<MobileStatusSheetProps> = ({
     { type: 'COMPLETED', label: t('statusCompleted'), colorClass: 'bg-emerald-50 text-emerald-700 border-emerald-300' },
     { type: 'ISSUE', label: t('statusIssue'), colorClass: 'bg-amber-50 text-amber-800 border-amber-300' },
   ];
+
+  const workLabel = workStatus
+    ? lang === 'vi'
+      ? workStatus.label_vi
+      : workStatus.label_ko
+    : null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-xs animate-in fade-in duration-150">
@@ -58,6 +66,30 @@ export const MobileStatusSheet: React.FC<MobileStatusSheetProps> = ({
             <X className="w-5 h-5" />
           </button>
         </div>
+
+        {/* Holiday / Work Status Information Banner */}
+        {workStatus && (
+          <div className="bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs flex items-start gap-2">
+            <Info className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+            <div className="space-y-0.5 min-w-0 flex-1">
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-bold text-slate-900">{workLabel}</span>
+                <span
+                  className={`text-[10px] font-extrabold px-1.5 py-0.5 rounded border ${
+                    workStatus.is_working_day
+                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                      : 'bg-rose-50 text-rose-700 border-rose-200'
+                  }`}
+                >
+                  {workStatus.is_working_day ? t('workday') : t('offDay')}
+                </span>
+              </div>
+              {workStatus.worker_name && (
+                <p className="text-[11px] text-slate-500">{t('worker')}: {workStatus.worker_name}</p>
+              )}
+            </div>
+          </div>
+        )}
 
         <div className="grid grid-cols-2 gap-2.5">
           {statusOptions.map((opt) => {
