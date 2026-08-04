@@ -1,9 +1,11 @@
 // worker/index.ts
-import { projectSchema, updateProjectSchema, taskSchema, updateTaskSchema, dailyStatusSchema, workerSchema } from './schemas/validation';
+import { projectSchema, updateProjectSchema, taskSchema, updateTaskSchema, dailyStatusSchema } from './schemas/validation';
+import { translateText } from './services/translation';
 
 export interface Env {
   DB: any;
   ASSETS?: any;
+  AI?: any;
 }
 
 function jsonResponse(data: any, status = 200) {
@@ -13,14 +15,13 @@ function jsonResponse(data: any, status = 200) {
   });
 }
 
-function errorResponse(message: string, status = 400) {
-  return new Response(JSON.stringify({ success: false, error: { message } }), {
+function errorResponse(message: string, status = 400, code?: string) {
+  return new Response(JSON.stringify({ success: false, error: { message, code } }), {
     status,
     headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
   });
 }
 
-// Extract editor_name from body or header
 function getEditorName(body: any, request: Request): string {
   if (body && typeof body.editor_name === 'string' && body.editor_name.trim().length > 0) {
     return body.editor_name.trim();
@@ -30,7 +31,6 @@ function getEditorName(body: any, request: Request): string {
   return '';
 }
 
-// Recalculates simple average progress for a project from its tasks
 async function updateProjectAverageProgress(db: any, projectId: string) {
   const { results: tasks } = await db
     .prepare(`SELECT progress FROM tasks WHERE project_id = ?`)
@@ -69,7 +69,7 @@ export default {
     }
 
     try {
-      // 1. GET /api/workers
+      // 1. GET /api/workers (Returns ONLY active 5 team members)
       if (method === 'GET' && path === '/api/workers') {
         try {
           const { results } = await db
@@ -78,72 +78,120 @@ export default {
           if (results && results.length > 0) {
             return jsonResponse(results);
           }
-        } catch {
-          // Table might not exist yet
-        }
-        // Fallback default workers
-        const defaults = [
-          { id: 'wrk_1', name: '김개발', sort_order: 1 },
-          { id: 'wrk_2', name: '박개발', sort_order: 2 },
-          { id: 'wrk_3', name: '이프론트', sort_order: 3 },
-          { id: 'wrk_4', name: '최백엔드', sort_order: 4 },
-          { id: 'wrk_5', name: '정검증', sort_order: 5 },
+        } catch {}
+
+        // Hardcoded Fallback for 5 actual team members
+        const actualWorkers = [
+          { id: 'wrk_01', name: '유종욱 실장', is_active: 1, sort_order: 1 },
+          { id: 'wrk_02', name: '박용진 수석', is_active: 1, sort_order: 2 },
+          { id: 'wrk_03', name: 'Thanh Phuong(탄 프엉)', is_active: 1, sort_order: 3 },
+          { id: 'wrk_04', name: 'Manh Cuong(끄엉)', is_active: 1, sort_order: 4 },
+          { id: 'wrk_05', name: 'Quoc Nhut(꾸옥 느엿)', is_active: 1, sort_order: 5 },
         ];
-        return jsonResponse(defaults);
+        return jsonResponse(actualWorkers);
       }
 
-      // 2. POST /api/workers
+      // 2. POST /api/workers (BLOCKED - WORKER_LIST_FIXED)
       if (method === 'POST' && path === '/api/workers') {
+        return errorResponse(
+          '작업자 목록은 지정된 개발팀 인원만 사용할 수 있습니다.',
+          405,
+          'WORKER_LIST_FIXED'
+        );
+      }
+
+      // 3. POST /api/translate
+      if (method === 'POST' && path === '/api/translate') {
         const body: any = await request.json();
-        const validated = workerSchema.parse(body);
+        const text = (body.text || '').trim();
+        const source_language = body.source_language === 'vi' ? 'vi' : 'ko';
+        const target_language = body.target_language === 'vi' ? 'vi' : 'ko';
+
+        if (!text) {
+          return errorResponse('번역할 텍스트를 입력해 주세요.', 400);
+        }
+        if (text.length > 300) {
+          return errorResponse('번역할 텍스트가 너무 깁니다. (최대 300자)', 400);
+        }
 
         try {
-          await db
-            .prepare(`CREATE TABLE IF NOT EXISTS workers (
-              id TEXT PRIMARY KEY,
-              name TEXT NOT NULL UNIQUE,
-              is_active INTEGER NOT NULL DEFAULT 1,
-              sort_order INTEGER NOT NULL DEFAULT 0,
-              created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-              updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-            )`)
-            .run();
-        } catch {}
-
-        const id = `wrk_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
-        
-        let nextOrder = 1;
-        try {
-          const maxRow = await db.prepare(`SELECT MAX(sort_order) as max_order FROM workers`).first();
-          if (maxRow && typeof maxRow.max_order === 'number') {
-            nextOrder = maxRow.max_order + 1;
-          }
-        } catch {}
-
-        await db
-          .prepare(`INSERT OR IGNORE INTO workers (id, name, is_active, sort_order) VALUES (?, ?, 1, ?)`)
-          .bind(id, validated.name, nextOrder)
-          .run();
-
-        const inserted = await db.prepare(`SELECT * FROM workers WHERE name = ?`).bind(validated.name).first();
-        return jsonResponse(inserted || { id, name: validated.name }, 201);
+          const res = await translateText({
+            text,
+            sourceLanguage: source_language,
+            targetLanguage: target_language,
+            env,
+          });
+          return jsonResponse({
+            translated_text: res.translatedText,
+            source_language: res.sourceLanguage,
+            target_language: res.targetLanguage,
+            provider: res.provider,
+          });
+        } catch (err: any) {
+          return errorResponse(err.message || '번역 처리 중 오류가 발생했습니다.', 500, 'TRANSLATION_FAILED');
+        }
       }
 
-      // 3. GET /api/projects
+      // 4. GET /api/projects?status=ACTIVE|COMPLETED&year=YYYY
       if (method === 'GET' && path === '/api/projects') {
-        const { results } = await db
-          .prepare(`
-            SELECT p.*, COUNT(t.id) as task_count
-            FROM projects p
-            LEFT JOIN tasks t ON p.id = t.project_id
-            GROUP BY p.id
-            ORDER BY p.start_date ASC
-          `)
-          .all();
-        return jsonResponse(results || []);
+        const statusFilter = url.searchParams.get('status') || 'ACTIVE';
+        const yearFilter = url.searchParams.get('year');
+
+        let query = `
+          SELECT p.*, COUNT(t.id) as task_count
+          FROM projects p
+          LEFT JOIN tasks t ON p.id = t.project_id
+        `;
+        const conditions: string[] = [];
+        const params: any[] = [];
+
+        try {
+          if (statusFilter === 'COMPLETED') {
+            conditions.push(`p.status = 'COMPLETED'`);
+            if (yearFilter) {
+              conditions.push(`strftime('%Y', p.completed_at) = ?`);
+              params.push(yearFilter);
+            }
+          } else {
+            conditions.push(`(p.status = 'ACTIVE' OR p.status IS NULL)`);
+          }
+
+          if (conditions.length > 0) {
+            query += ` WHERE ` + conditions.join(' AND ');
+          }
+
+          query += ` GROUP BY p.id ORDER BY p.start_date ASC`;
+
+          const stmt = db.prepare(query);
+          const bound = params.length > 0 ? stmt.bind(...params) : stmt;
+          const { results } = await bound.all();
+
+          // Fetch participating workers for completed projects
+          const enriched = await Promise.all(
+            (results || []).map(async (prj: any) => {
+              if (prj.status === 'COMPLETED') {
+                const { results: tWorkers } = await db
+                  .prepare(`SELECT DISTINCT worker_name FROM tasks WHERE project_id = ?`)
+                  .bind(prj.id)
+                  .all();
+                const workerList = (tWorkers || []).map((w: any) => w.worker_name).filter(Boolean);
+                return { ...prj, participating_workers: workerList };
+              }
+              return prj;
+            })
+          );
+
+          return jsonResponse(enriched);
+        } catch {
+          // Fallback if status column does not exist yet
+          const { results } = await db
+            .prepare(`SELECT p.*, COUNT(t.id) as task_count FROM projects p LEFT JOIN tasks t ON p.id = t.project_id GROUP BY p.id ORDER BY p.start_date ASC`)
+            .all();
+          return jsonResponse(results || []);
+        }
       }
 
-      // 4. GET /api/projects/:id/detail
+      // 5. GET /api/projects/:id/detail
       const detailMatch = path.match(/^\/api\/projects\/([^/]+)\/detail$/);
       if (method === 'GET' && detailMatch) {
         const projectId = detailMatch[1];
@@ -217,7 +265,65 @@ export default {
         return jsonResponse({ project, tasks: enrichedTasks });
       }
 
-      // 5. POST /api/projects
+      // 6. POST /api/projects/:id/complete
+      const completeProjMatch = path.match(/^\/api\/projects\/([^/]+)\/complete$/);
+      if (method === 'POST' && completeProjMatch) {
+        const projectId = completeProjMatch[1];
+        const body: any = await request.json();
+        const editor = getEditorName(body, request);
+        if (!editor) return errorResponse('현재 접속자를 먼저 선택해 주세요.', 400);
+
+        const project = await db.prepare(`SELECT * FROM projects WHERE id = ?`).bind(projectId).first();
+        if (!project) return errorResponse('프로젝트를 찾을 수 없습니다.', 404);
+
+        const todayStr = new Date().toISOString().slice(0, 10);
+
+        await db
+          .prepare(`
+            UPDATE projects
+            SET status = 'COMPLETED', progress = 100, completed_at = ?, completed_by_name = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+          `)
+          .bind(todayStr, editor, projectId)
+          .run();
+
+        return jsonResponse({ id: projectId, status: 'COMPLETED', completed_at: todayStr, completed_by_name: editor });
+      }
+
+      // 7. POST /api/projects/:id/reopen
+      const reopenProjMatch = path.match(/^\/api\/projects\/([^/]+)\/reopen$/);
+      if (method === 'POST' && reopenProjMatch) {
+        const projectId = reopenProjMatch[1];
+        const body: any = await request.json();
+        const editor = getEditorName(body, request);
+        if (!editor) return errorResponse('현재 접속자를 먼저 선택해 주세요.', 400);
+
+        const project = await db.prepare(`SELECT * FROM projects WHERE id = ?`).bind(projectId).first();
+        if (!project) return errorResponse('프로젝트를 찾을 수 없습니다.', 404);
+
+        await db
+          .prepare(`
+            UPDATE projects
+            SET status = 'ACTIVE', completed_at = NULL, completed_by_name = NULL, updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+          `)
+          .bind(projectId)
+          .run();
+
+        return jsonResponse({ id: projectId, status: 'ACTIVE' });
+      }
+
+      // Helper: Check if project is read-only completed
+      async function isProjectCompleted(projId: string): Promise<boolean> {
+        try {
+          const prj = await db.prepare(`SELECT status FROM projects WHERE id = ?`).bind(projId).first();
+          return prj?.status === 'COMPLETED';
+        } catch {
+          return false;
+        }
+      }
+
+      // 8. POST /api/projects
       if (method === 'POST' && path === '/api/projects') {
         const body: any = await request.json();
         const editor = getEditorName(body, request);
@@ -225,22 +331,60 @@ export default {
 
         const validated = projectSchema.parse({ ...body, editor_name: editor });
         const id = `prj_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+        const srcLang = (validated.source_language === 'vi' ? 'vi' : 'ko') as 'ko' | 'vi';
 
-        await db
-          .prepare(`
-            INSERT INTO projects (id, name, start_date, end_date, progress)
-            VALUES (?, ?, ?, ?, ?)
-          `)
-          .bind(id, validated.name, validated.start_date, validated.end_date, validated.progress)
-          .run();
+        let name_ko = validated.name_ko || (srcLang === 'ko' ? validated.name : undefined);
+        let name_vi = validated.name_vi || (srcLang === 'vi' ? validated.name : undefined);
+        let transStatus = validated.translation_status || 'PENDING';
+        let transError: string | null = null;
+
+        // Perform Workers AI translation if missing
+        if (!name_ko || !name_vi) {
+          try {
+            const targetLang = srcLang === 'ko' ? 'vi' : 'ko';
+            const res = await translateText({ text: validated.name, sourceLanguage: srcLang, targetLanguage: targetLang, env });
+            if (srcLang === 'ko') {
+              name_vi = res.translatedText;
+              name_ko = validated.name;
+            } else {
+              name_ko = res.translatedText;
+              name_vi = validated.name;
+            }
+            transStatus = 'COMPLETED';
+          } catch (err: any) {
+            transStatus = 'FAILED';
+            transError = err.message || '번역 실패';
+            if (srcLang === 'ko') name_ko = validated.name;
+            else name_vi = validated.name;
+          }
+        }
+
+        try {
+          await db
+            .prepare(`
+              INSERT INTO projects (id, name, start_date, end_date, progress, status, name_ko, name_vi, source_language, translation_status, translation_error)
+              VALUES (?, ?, ?, ?, ?, 'ACTIVE', ?, ?, ?, ?, ?)
+            `)
+            .bind(id, validated.name, validated.start_date, validated.end_date, validated.progress, name_ko || validated.name, name_vi || validated.name, srcLang, transStatus, transError)
+            .run();
+        } catch {
+          await db
+            .prepare(`INSERT INTO projects (id, name, start_date, end_date, progress) VALUES (?, ?, ?, ?, ?)`)
+            .bind(id, validated.name, validated.start_date, validated.end_date, validated.progress)
+            .run();
+        }
 
         return jsonResponse({ id }, 201);
       }
 
-      // 6. PATCH /api/projects/:id
+      // 9. PATCH /api/projects/:id
       const patchProjMatch = path.match(/^\/api\/projects\/([^/]+)$/);
       if (method === 'PATCH' && patchProjMatch) {
         const projectId = patchProjMatch[1];
+        if (await isProjectCompleted(projectId)) {
+          return errorResponse('완료된 프로젝트는 읽기 전용입니다. 수정하려면 진행 프로젝트로 복귀해 주세요.', 403, 'PROJECT_COMPLETED_READ_ONLY');
+        }
+
         const body: any = await request.json();
         const editor = getEditorName(body, request);
         if (!editor) return errorResponse('현재 접속자를 먼저 선택해 주세요.', 400);
@@ -255,18 +399,58 @@ export default {
         const end_date = validated.end_date ?? existing.end_date;
         const progress = validated.progress ?? existing.progress;
 
-        await db
-          .prepare(`UPDATE projects SET name = ?, start_date = ?, end_date = ?, progress = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`)
-          .bind(name, start_date, end_date, progress, projectId)
-          .run();
+        let name_ko = validated.name_ko ?? existing.name_ko;
+        let name_vi = validated.name_vi ?? existing.name_vi;
+        let srcLang = validated.source_language ?? existing.source_language ?? 'ko';
+        let transStatus = validated.translation_status ?? existing.translation_status ?? 'PENDING';
+        let transError = validated.translation_error ?? existing.translation_error ?? null;
+
+        // Auto translate if name changed and translation not manually updated
+        if (validated.name && validated.name !== existing.name && !validated.name_ko && !validated.name_vi) {
+          try {
+            const targetLang = srcLang === 'ko' ? 'vi' : 'ko';
+            const res = await translateText({ text: validated.name, sourceLanguage: srcLang as any, targetLanguage: targetLang, env });
+            if (srcLang === 'ko') {
+              name_ko = validated.name;
+              name_vi = res.translatedText;
+            } else {
+              name_vi = validated.name;
+              name_ko = res.translatedText;
+            }
+            transStatus = 'COMPLETED';
+            transError = null;
+          } catch (err: any) {
+            transStatus = 'FAILED';
+            transError = err.message || '번역 실패';
+          }
+        }
+
+        try {
+          await db
+            .prepare(`
+              UPDATE projects
+              SET name = ?, start_date = ?, end_date = ?, progress = ?, name_ko = ?, name_vi = ?, source_language = ?, translation_status = ?, translation_error = ?, updated_at = CURRENT_TIMESTAMP
+              WHERE id = ?
+            `)
+            .bind(name, start_date, end_date, progress, name_ko, name_vi, srcLang, transStatus, transError, projectId)
+            .run();
+        } catch {
+          await db
+            .prepare(`UPDATE projects SET name = ?, start_date = ?, end_date = ?, progress = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`)
+            .bind(name, start_date, end_date, progress, projectId)
+            .run();
+        }
 
         return jsonResponse({ id: projectId });
       }
 
-      // 7. DELETE /api/projects/:id
+      // 10. DELETE /api/projects/:id
       const delProjMatch = path.match(/^\/api\/projects\/([^/]+)$/);
       if (method === 'DELETE' && delProjMatch) {
         const projectId = delProjMatch[1];
+        if (await isProjectCompleted(projectId)) {
+          return errorResponse('완료된 프로젝트는 읽기 전용입니다. 수정하려면 진행 프로젝트로 복귀해 주세요.', 403, 'PROJECT_COMPLETED_READ_ONLY');
+        }
         const editor = request.headers.get('x-editor-name');
         if (!editor || !decodeURIComponent(editor).trim()) {
           return errorResponse('현재 접속자를 먼저 선택해 주세요.', 400);
@@ -275,7 +459,7 @@ export default {
         return jsonResponse({ id: projectId });
       }
 
-      // 8. POST /api/tasks
+      // 11. POST /api/tasks
       if (method === 'POST' && path === '/api/tasks') {
         const body: any = await request.json();
         const editor = getEditorName(body, request);
@@ -283,13 +467,51 @@ export default {
 
         const validated = taskSchema.parse({
           ...body,
-          worker_name: editor,
+          worker_name: body.worker_name || editor,
           editor_name: editor,
         });
 
+        if (await isProjectCompleted(validated.project_id)) {
+          return errorResponse('완료된 프로젝트는 읽기 전용입니다. 수정하려면 진행 프로젝트로 복귀해 주세요.', 403, 'PROJECT_COMPLETED_READ_ONLY');
+        }
+
         const id = `tsk_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+        const srcLang = (validated.source_language === 'vi' ? 'vi' : 'ko') as 'ko' | 'vi';
+
+        let task_name_ko = validated.task_name_ko || (srcLang === 'ko' ? validated.task_name : undefined);
+        let task_name_vi = validated.task_name_vi || (srcLang === 'vi' ? validated.task_name : undefined);
+        let transStatus = validated.translation_status || 'PENDING';
+        let transError: string | null = null;
+
+        if (!task_name_ko || !task_name_vi) {
+          try {
+            const targetLang = srcLang === 'ko' ? 'vi' : 'ko';
+            const res = await translateText({ text: validated.task_name, sourceLanguage: srcLang, targetLanguage: targetLang, env });
+            if (srcLang === 'ko') {
+              task_name_vi = res.translatedText;
+              task_name_ko = validated.task_name;
+            } else {
+              task_name_ko = res.translatedText;
+              task_name_vi = validated.task_name;
+            }
+            transStatus = 'COMPLETED';
+          } catch (err: any) {
+            transStatus = 'FAILED';
+            transError = err.message || '번역 실패';
+            if (srcLang === 'ko') task_name_ko = validated.task_name;
+            else task_name_vi = validated.task_name;
+          }
+        }
 
         try {
+          await db
+            .prepare(`
+              INSERT INTO tasks (id, project_id, worker_name, task_name, start_date, end_date, progress, created_by_name, updated_by_name, task_name_ko, task_name_vi, source_language, translation_status, translation_error)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `)
+            .bind(id, validated.project_id, validated.worker_name, validated.task_name, validated.start_date, validated.end_date, validated.progress, editor, editor, task_name_ko || validated.task_name, task_name_vi || validated.task_name, srcLang, transStatus, transError)
+            .run();
+        } catch {
           await db
             .prepare(`
               INSERT INTO tasks (id, project_id, worker_name, task_name, start_date, end_date, progress, created_by_name, updated_by_name)
@@ -297,33 +519,28 @@ export default {
             `)
             .bind(id, validated.project_id, validated.worker_name, validated.task_name, validated.start_date, validated.end_date, validated.progress, editor, editor)
             .run();
-        } catch {
-          await db
-            .prepare(`
-              INSERT INTO tasks (id, project_id, worker_name, task_name, start_date, end_date, progress)
-              VALUES (?, ?, ?, ?, ?, ?, ?)
-            `)
-            .bind(id, validated.project_id, validated.worker_name, validated.task_name, validated.start_date, validated.end_date, validated.progress)
-            .run();
         }
 
         const newAvg = await updateProjectAverageProgress(db, validated.project_id);
-
         return jsonResponse({ id, project_progress: newAvg }, 201);
       }
 
-      // 9. PATCH /api/tasks/:id
+      // 12. PATCH /api/tasks/:id
       const patchTaskMatch = path.match(/^\/api\/tasks\/([^/]+)$/);
       if (method === 'PATCH' && patchTaskMatch) {
         const taskId = patchTaskMatch[1];
+        const existing = await db.prepare(`SELECT * FROM tasks WHERE id = ?`).bind(taskId).first();
+        if (!existing) return errorResponse('작업을 찾을 수 없습니다.', 404);
+
+        if (await isProjectCompleted(existing.project_id)) {
+          return errorResponse('완료된 프로젝트는 읽기 전용입니다. 수정하려면 진행 프로젝트로 복귀해 주세요.', 403, 'PROJECT_COMPLETED_READ_ONLY');
+        }
+
         const body: any = await request.json();
         const editor = getEditorName(body, request);
         if (!editor) return errorResponse('현재 접속자를 먼저 선택해 주세요.', 400);
 
         const validated = updateTaskSchema.parse({ ...body, editor_name: editor });
-
-        const existing = await db.prepare(`SELECT * FROM tasks WHERE id = ?`).bind(taskId).first();
-        if (!existing) return errorResponse('작업을 찾을 수 없습니다.', 404);
 
         const worker_name = validated.worker_name ?? existing.worker_name;
         const task_name = validated.task_name ?? existing.task_name;
@@ -331,44 +548,81 @@ export default {
         const end_date = validated.end_date ?? existing.end_date;
         const progress = validated.progress ?? existing.progress;
 
+        let task_name_ko = validated.task_name_ko ?? existing.task_name_ko;
+        let task_name_vi = validated.task_name_vi ?? existing.task_name_vi;
+        let srcLang = validated.source_language ?? existing.source_language ?? 'ko';
+        let transStatus = validated.translation_status ?? existing.translation_status ?? 'PENDING';
+        let transError = validated.translation_error ?? existing.translation_error ?? null;
+
+        if (validated.task_name && validated.task_name !== existing.task_name && !validated.task_name_ko && !validated.task_name_vi) {
+          try {
+            const targetLang = srcLang === 'ko' ? 'vi' : 'ko';
+            const res = await translateText({ text: validated.task_name, sourceLanguage: srcLang as any, targetLanguage: targetLang, env });
+            if (srcLang === 'ko') {
+              task_name_ko = validated.task_name;
+              task_name_vi = res.translatedText;
+            } else {
+              task_name_vi = validated.task_name;
+              task_name_ko = res.translatedText;
+            }
+            transStatus = 'COMPLETED';
+            transError = null;
+          } catch (err: any) {
+            transStatus = 'FAILED';
+            transError = err.message || '번역 실패';
+          }
+        }
+
         try {
+          await db
+            .prepare(`
+              UPDATE tasks
+              SET worker_name = ?, task_name = ?, start_date = ?, end_date = ?, progress = ?, updated_by_name = ?, task_name_ko = ?, task_name_vi = ?, source_language = ?, translation_status = ?, translation_error = ?, updated_at = CURRENT_TIMESTAMP
+              WHERE id = ?
+            `)
+            .bind(worker_name, task_name, start_date, end_date, progress, editor, task_name_ko, task_name_vi, srcLang, transStatus, transError, taskId)
+            .run();
+        } catch {
           await db
             .prepare(`UPDATE tasks SET worker_name = ?, task_name = ?, start_date = ?, end_date = ?, progress = ?, updated_by_name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`)
             .bind(worker_name, task_name, start_date, end_date, progress, editor, taskId)
             .run();
-        } catch {
-          await db
-            .prepare(`UPDATE tasks SET worker_name = ?, task_name = ?, start_date = ?, end_date = ?, progress = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`)
-            .bind(worker_name, task_name, start_date, end_date, progress, taskId)
-            .run();
         }
 
         const newAvg = await updateProjectAverageProgress(db, existing.project_id);
-
         return jsonResponse({ id: taskId, project_progress: newAvg });
       }
 
-      // 10. DELETE /api/tasks/:id
+      // 13. DELETE /api/tasks/:id
       const delTaskMatch = path.match(/^\/api\/tasks\/([^/]+)$/);
       if (method === 'DELETE' && delTaskMatch) {
         const taskId = delTaskMatch[1];
-        const editor = request.headers.get('x-editor-name');
-        if (!editor || !decodeURIComponent(editor).trim()) {
-          return errorResponse('현재 접속자를 먼저 선택해 주세요.', 400);
-        }
         const existing = await db.prepare(`SELECT * FROM tasks WHERE id = ?`).bind(taskId).first();
         if (existing) {
+          if (await isProjectCompleted(existing.project_id)) {
+            return errorResponse('완료된 프로젝트는 읽기 전용입니다. 수정하려면 진행 프로젝트로 복귀해 주세요.', 403, 'PROJECT_COMPLETED_READ_ONLY');
+          }
+          const editor = request.headers.get('x-editor-name');
+          if (!editor || !decodeURIComponent(editor).trim()) {
+            return errorResponse('현재 접속자를 먼저 선택해 주세요.', 400);
+          }
           await db.prepare(`DELETE FROM tasks WHERE id = ?`).bind(taskId).run();
           await updateProjectAverageProgress(db, existing.project_id);
         }
         return jsonResponse({ id: taskId });
       }
 
-      // 11. PUT /api/tasks/:taskId/daily-status/:date
+      // 14. PUT /api/tasks/:taskId/daily-status/:date
       const putStatusMatch = path.match(/^\/api\/tasks\/([^/]+)\/daily-status\/([^/]+)$/);
       if (method === 'PUT' && putStatusMatch) {
         const taskId = putStatusMatch[1];
         const workDate = putStatusMatch[2];
+
+        const task = await db.prepare(`SELECT project_id FROM tasks WHERE id = ?`).bind(taskId).first();
+        if (task && (await isProjectCompleted(task.project_id))) {
+          return errorResponse('완료된 프로젝트는 읽기 전용입니다. 수정하려면 진행 프로젝트로 복귀해 주세요.', 403, 'PROJECT_COMPLETED_READ_ONLY');
+        }
+
         const body: any = await request.json();
         const editor = getEditorName(body, request);
         if (!editor) return errorResponse('현재 접속자를 먼저 선택해 주세요.', 400);

@@ -10,6 +10,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
+    "translate:backfill": "node scripts/backfill-translations.ts",
     "d1:migrate:local": "wrangler d1 migrations apply concost-db --local",
     "d1:seed:local": "wrangler d1 execute concost-db --local --file=./migrations/0002_seed_data.sql"
   },

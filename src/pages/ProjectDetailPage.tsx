@@ -1,10 +1,11 @@
 // src/pages/ProjectDetailPage.tsx
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Project, Task, DailyStatusType, GanttDateColumn } from '../types';
+import { Project, Task, DailyStatusType } from '../types';
 import { api, getCurrentWorkerName } from '../services/api';
 import { calculateVisibleGanttSpan } from '../utils/dateUtils';
 import { useGanttDateRange } from '../hooks/useGanttDateRange';
+import { useI18n } from '../hooks/useI18n';
 import {
   GANTT_DAY_WIDTH_PX,
   BUTTON_H36_CLASS,
@@ -13,13 +14,15 @@ import {
 import { TaskModal } from '../components/modals/TaskModal';
 import { StatusPopover } from '../components/modals/StatusPopover';
 import { WorkerSelector } from '../components/common/WorkerSelector';
+import { LanguageSelector } from '../components/common/LanguageSelector';
 import { WorkerPromptModal } from '../components/modals/WorkerPromptModal';
 import { GanttViewControls } from '../components/common/GanttViewControls';
-import { ArrowLeft, Plus, Edit2, Trash2 } from 'lucide-react';
+import { ArrowLeft, Plus, Edit2, Trash2, RotateCcw, Lock } from 'lucide-react';
 
 export const ProjectDetailPage: React.FC = () => {
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
+  const { t, lang } = useI18n();
 
   const [project, setProject] = useState<Project | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -87,7 +90,13 @@ export const ProjectDetailPage: React.FC = () => {
     if (saved) setCurrentWorker(saved);
   }, [projectId]);
 
+  const isCompleted = project?.status === 'COMPLETED';
+
   const requireWorkerSelection = (): boolean => {
+    if (isCompleted) {
+      alert(t('readOnlyCompletedNotice'));
+      return false;
+    }
     const active = currentWorker || getCurrentWorkerName();
     if (!active) {
       setIsWorkerPromptOpen(true);
@@ -115,7 +124,7 @@ export const ProjectDetailPage: React.FC = () => {
 
   const handleDeleteTask = async (id: string, name: string) => {
     if (!requireWorkerSelection()) return;
-    if (!window.confirm(`'${name}' 작업을 삭제하시겠습니까?`)) return;
+    if (!window.confirm(`'${name}' ${t('deleteConfirm')}`)) return;
     await api.deleteTask(id);
     await fetchDetail();
   };
@@ -126,8 +135,28 @@ export const ProjectDetailPage: React.FC = () => {
     setIsTaskModalOpen(true);
   };
 
+  const handleReopenProject = async () => {
+    if (!projectId) return;
+    const active = currentWorker || getCurrentWorkerName();
+    if (!active) {
+      setIsWorkerPromptOpen(true);
+      return;
+    }
+    if (!window.confirm(t('reopenConfirmMsg'))) return;
+    try {
+      await api.reopenProject(projectId);
+      await fetchDetail();
+    } catch (err: any) {
+      alert(err.message || '프로젝트 복귀 중 오류가 발생했습니다.');
+    }
+  };
+
   const handleCellClick = (e: React.MouseEvent, taskId: string, dateStr: string, currentStatus: DailyStatusType) => {
     e.stopPropagation();
+    if (isCompleted) {
+      alert(t('readOnlyCompletedNotice'));
+      return;
+    }
     if (!requireWorkerSelection()) return;
     const rect = e.currentTarget.getBoundingClientRect();
     setPopover({
@@ -146,16 +175,16 @@ export const ProjectDetailPage: React.FC = () => {
     try {
       const activeWorker = currentWorker || getCurrentWorkerName();
       setTasks((prev) =>
-        prev.map((t) => {
-          if (t.id === popover.taskId) {
-            const nextStatuses = { ...t.daily_statuses, [popover.dateStr]: status };
+        prev.map((tItem) => {
+          if (tItem.id === popover.taskId) {
+            const nextStatuses = { ...tItem.daily_statuses, [popover.dateStr]: status };
             const nextDetails = {
-              ...t.daily_status_details,
+              ...tItem.daily_status_details,
               [popover.dateStr]: { status, updated_by_name: activeWorker },
             };
-            return { ...t, daily_statuses: nextStatuses, daily_status_details: nextDetails };
+            return { ...tItem, daily_statuses: nextStatuses, daily_status_details: nextDetails };
           }
-          return t;
+          return tItem;
         })
       );
 
@@ -183,34 +212,45 @@ export const ProjectDetailPage: React.FC = () => {
   const getStatusText = (status?: DailyStatusType) => {
     switch (status) {
       case 'IN_PROGRESS':
-        return '작업 중';
+        return t('statusInProgress');
       case 'COMPLETED':
-        return '완료';
+        return t('statusCompleted');
       case 'ISSUE':
-        return '문제 발생';
+        return t('statusIssue');
       default:
-        return '미작업';
+        return t('statusNone');
     }
   };
 
-  // Status Legend Slot on Gantt Toolbar
+  const getTaskDisplayName = (tItem: Task): string => {
+    if (lang === 'vi') {
+      return tItem.task_name_vi || tItem.task_name;
+    }
+    return tItem.task_name_ko || tItem.task_name;
+  };
+
+  const getProjectDisplayName = (prj: Project): string => {
+    if (lang === 'vi') return prj.name_vi || prj.name;
+    return prj.name_ko || prj.name;
+  };
+
   const legendSlot = (
     <div className="flex items-center gap-3 text-xs">
       <div className="flex items-center gap-1">
         <span className="w-2.5 h-2.5 rounded bg-slate-700 border border-slate-600 inline-block" />
-        <span className="text-slate-400">미작업</span>
+        <span className="text-slate-400">{t('statusNone')}</span>
       </div>
       <div className="flex items-center gap-1">
         <span className="w-2.5 h-2.5 rounded bg-blue-600 inline-block" />
-        <span className="text-slate-300">작업 중</span>
+        <span className="text-slate-300">{t('statusInProgress')}</span>
       </div>
       <div className="flex items-center gap-1">
         <span className="w-2.5 h-2.5 rounded bg-emerald-600 inline-block" />
-        <span className="text-slate-300">완료</span>
+        <span className="text-slate-300">{t('statusCompleted')}</span>
       </div>
       <div className="flex items-center gap-1">
         <span className="w-2.5 h-2.5 rounded bg-amber-600 inline-block" />
-        <span className="text-slate-300">문제 발생</span>
+        <span className="text-slate-300">{t('statusIssue')}</span>
       </div>
     </div>
   );
@@ -224,43 +264,80 @@ export const ProjectDetailPage: React.FC = () => {
             type="button"
             onClick={() => navigate('/projects')}
             className={BUTTON_H36_CLASS}
-            aria-label="목록으로 이동"
+            aria-label={t('backToList')}
           >
             <ArrowLeft className="w-4 h-4 shrink-0" />
-            <span>목록으로</span>
+            <span>{t('backToList')}</span>
           </button>
+
+          {/* Integrated Logo Container */}
+          <div className="hidden sm:flex items-center px-2 py-1 bg-white rounded-lg border border-slate-200 shrink-0 shadow-sm">
+            <img src="/logo3.png" alt="CON-COST × VIETQS" className="h-7 object-contain max-w-[170px]" />
+          </div>
 
           <div className="min-w-0">
             <div className="flex items-center gap-2 truncate">
               <h1 className="text-base font-bold text-white tracking-tight truncate">
-                {project ? project.name : '프로젝트 상세 정보'}
+                {project ? getProjectDisplayName(project) : '프로젝트 상세 정보'}
               </h1>
               {project && (
-                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-blue-950 text-blue-400 border border-blue-500/30 shrink-0">
+                <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full border shrink-0 ${
+                  isCompleted ? 'bg-emerald-950 text-emerald-400 border-emerald-500/30' : 'bg-blue-950 text-blue-400 border-blue-500/30'
+                }`}>
                   {project.progress}%
                 </span>
               )}
             </div>
             {project && (
               <p className="hidden md:block text-[11px] text-slate-400 truncate">
-                기간: {project.start_date} ~ {project.end_date}
+                {t('startDate')}: {project.start_date} ~ {project.end_date}
               </p>
             )}
           </div>
         </div>
 
         <div className="flex items-center gap-3 shrink-0">
+          <LanguageSelector />
+
           <WorkerSelector
             currentWorker={currentWorker}
             onWorkerChange={(name) => setCurrentWorker(name)}
           />
 
-          <button onClick={handleOpenAddTask} className={PRIMARY_BUTTON_H36_CLASS}>
-            <Plus className="w-4 h-4" />
-            <span>작업 추가</span>
-          </button>
+          {isCompleted ? (
+            <button
+              type="button"
+              onClick={handleReopenProject}
+              className="h-9 px-4 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-lg shadow-md transition flex items-center gap-1.5 shrink-0"
+            >
+              <RotateCcw className="w-4 h-4" />
+              <span>{t('reopenProject')}</span>
+            </button>
+          ) : (
+            <button onClick={handleOpenAddTask} className={PRIMARY_BUTTON_H36_CLASS}>
+              <Plus className="w-4 h-4" />
+              <span>{t('addTask')}</span>
+            </button>
+          )}
         </div>
       </header>
+
+      {/* Read-Only Notice for Completed Projects */}
+      {isCompleted && (
+        <div className="bg-amber-950/60 border-b border-amber-500/30 px-5 py-2 flex items-center justify-between text-xs text-amber-300 font-semibold shrink-0">
+          <div className="flex items-center gap-2">
+            <Lock className="w-4 h-4 text-amber-400" />
+            <span>{t('readOnlyCompletedNotice')}</span>
+          </div>
+          <button
+            type="button"
+            onClick={handleReopenProject}
+            className="underline text-amber-200 hover:text-white font-bold ml-4"
+          >
+            {t('reopenProject')}
+          </button>
+        </div>
+      )}
 
       {/* Row B: Gantt Toolbar (View Controls & Legend) */}
       <GanttViewControls
@@ -287,8 +364,8 @@ export const ProjectDetailPage: React.FC = () => {
                   className="sticky left-0 z-30 bg-slate-800 px-3 py-2.5 font-semibold text-slate-200 border-r border-slate-700 shadow-md w-[295px] min-w-[295px] max-w-[295px]"
                 >
                   <div className="flex justify-between items-center text-xs font-bold text-white">
-                    <span>작업자 / 작업내용</span>
-                    <span className="text-[10px] text-slate-400 font-normal">공정률 / 기간</span>
+                    <span>{t('worker')} / {t('taskContent')}</span>
+                    <span className="text-[10px] text-slate-400 font-normal">{t('progress')} / {t('startDate')}</span>
                   </div>
                 </th>
                 {monthGroups.map((mg, idx) => (
@@ -326,13 +403,13 @@ export const ProjectDetailPage: React.FC = () => {
               {loading ? (
                 <tr>
                   <td colSpan={dateColumns.length + 1} className="py-12 text-center text-slate-400">
-                    작업 데이터를 불러오는 중입니다...
+                    불러오는 중입니다...
                   </td>
                 </tr>
               ) : tasks.length === 0 ? (
                 <tr>
                   <td colSpan={dateColumns.length + 1} className="py-12 text-center text-slate-400">
-                    등록된 세부 작업이 없습니다. 상단의 '+ 작업 추가' 버튼을 눌러보세요.
+                    {t('noData')}
                   </td>
                 </tr>
               ) : (
@@ -343,6 +420,7 @@ export const ProjectDetailPage: React.FC = () => {
                     startDate,
                     endDate
                   );
+                  const taskDisplayName = getTaskDisplayName(task);
 
                   return (
                     <tr key={task.id} className="hover:bg-slate-800/50 transition group">
@@ -354,7 +432,9 @@ export const ProjectDetailPage: React.FC = () => {
                               <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-700 text-blue-300 shrink-0">
                                 {task.worker_name}
                               </span>
-                              <span className="font-semibold text-white truncate text-xs" title={task.task_name}>{task.task_name}</span>
+                              <span className="font-semibold text-white truncate text-xs" title={taskDisplayName}>
+                                {taskDisplayName}
+                              </span>
                             </div>
                             <div className="mt-0.5 text-[10px] text-slate-400 truncate">
                               {task.start_date} ~ {task.end_date}
@@ -370,27 +450,28 @@ export const ProjectDetailPage: React.FC = () => {
                             <span className="text-[11px] font-bold text-blue-400 bg-blue-950/60 px-1.5 py-0.5 rounded border border-blue-500/30">
                               {task.progress}%
                             </span>
-                            {/* Actions visible with opacity-60 by default */}
-                            <div className="flex items-center gap-0.5 opacity-60 hover:opacity-100 focus:opacity-100 transition">
-                              <button
-                                type="button"
-                                onClick={() => handleEditTask(task)}
-                                aria-label="작업 수정"
-                                title="작업 수정"
-                                className="w-7 h-7 flex items-center justify-center hover:bg-slate-700 rounded text-slate-300 hover:text-white transition"
-                              >
-                                <Edit2 className="w-3.5 h-3.5" />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleDeleteTask(task.id, task.task_name)}
-                                aria-label="작업 삭제"
-                                title="작업 삭제"
-                                className="w-7 h-7 flex items-center justify-center hover:bg-red-950 rounded text-slate-300 hover:text-red-400 transition"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
+                            {!isCompleted && (
+                              <div className="flex items-center gap-0.5 opacity-70 hover:opacity-100 transition">
+                                <button
+                                  type="button"
+                                  onClick={() => handleEditTask(task)}
+                                  aria-label={t('editTask')}
+                                  title={t('editTask')}
+                                  className="w-7 h-7 flex items-center justify-center hover:bg-slate-700 rounded text-slate-300 hover:text-white transition"
+                                >
+                                  <Edit2 className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteTask(task.id, taskDisplayName)}
+                                  aria-label={t('deleteTask')}
+                                  title={t('deleteTask')}
+                                  className="w-7 h-7 flex items-center justify-center hover:bg-red-950 rounded text-slate-300 hover:text-red-400 transition"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            )}
                           </div>
                         </div>
                       </td>
@@ -414,7 +495,7 @@ export const ProjectDetailPage: React.FC = () => {
                             style={{ width: `${GANTT_DAY_WIDTH_PX}px`, minWidth: `${GANTT_DAY_WIDTH_PX}px`, maxWidth: `${GANTT_DAY_WIDTH_PX}px` }}
                             onClick={(e) => isInTaskSpan && handleCellClick(e, task.id, col.dateStr, status)}
                             className={`p-0 text-center relative border-r border-slate-800/40 align-middle transition ${
-                              isInTaskSpan ? 'cursor-pointer hover:brightness-125' : ''
+                              isInTaskSpan && !isCompleted ? 'cursor-pointer hover:brightness-125' : ''
                             } ${
                               isInTaskSpan
                                 ? bgClass

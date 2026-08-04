@@ -1,6 +1,7 @@
 // src/components/common/GanttViewControls.tsx
 import React from 'react';
 import { GanttViewMode } from '../../utils/dateUtils';
+import { useI18n } from '../../hooks/useI18n';
 import { ChevronLeft, ChevronRight, Calendar } from 'lucide-react';
 
 interface GanttViewControlsProps {
@@ -22,6 +23,8 @@ export const GanttViewControls: React.FC<GanttViewControlsProps> = ({
   onToday,
   rightSlot,
 }) => {
+  const { t } = useI18n();
+
   return (
     <div className="w-full bg-slate-850 border-b border-slate-800 px-5 py-2 flex flex-wrap items-center justify-between gap-3 text-xs">
       {/* Left: View mode toggles & Date navigation */}
@@ -37,7 +40,7 @@ export const GanttViewControls: React.FC<GanttViewControlsProps> = ({
                 : 'text-slate-400 hover:text-slate-200'
             }`}
           >
-            30일 보기
+            {t('view30Days')}
           </button>
           <button
             type="button"
@@ -48,7 +51,7 @@ export const GanttViewControls: React.FC<GanttViewControlsProps> = ({
                 : 'text-slate-400 hover:text-slate-200'
             }`}
           >
-            월별 보기
+            {t('viewMonth')}
           </button>
         </div>
 
@@ -58,10 +61,10 @@ export const GanttViewControls: React.FC<GanttViewControlsProps> = ({
             type="button"
             onClick={onPrevious}
             className="h-7 px-2 rounded hover:bg-slate-700 text-slate-300 hover:text-white transition flex items-center gap-1 text-xs font-semibold"
-            title={viewMode === 'THIRTY_DAYS' ? '30일 이전' : '이전 달'}
+            title={viewMode === 'THIRTY_DAYS' ? t('prev') : t('prevMonth')}
           >
             <ChevronLeft className="w-4 h-4 shrink-0" />
-            <span>{viewMode === 'THIRTY_DAYS' ? '이전' : '이전 달'}</span>
+            <span>{viewMode === 'THIRTY_DAYS' ? t('prev') : t('prevMonth')}</span>
           </button>
 
           <button
@@ -70,16 +73,16 @@ export const GanttViewControls: React.FC<GanttViewControlsProps> = ({
             className="h-7 px-2.5 bg-slate-700 hover:bg-slate-600 text-blue-300 hover:text-white rounded text-xs font-bold transition flex items-center gap-1"
           >
             <Calendar className="w-3.5 h-3.5 text-blue-400 shrink-0" />
-            <span>오늘</span>
+            <span>{t('today')}</span>
           </button>
 
           <button
             type="button"
             onClick={onNext}
             className="h-7 px-2 rounded hover:bg-slate-700 text-slate-300 hover:text-white transition flex items-center gap-1 text-xs font-semibold"
-            title={viewMode === 'THIRTY_DAYS' ? '30일 이후' : '다음 달'}
+            title={viewMode === 'THIRTY_DAYS' ? t('next') : t('nextMonth')}
           >
-            <span>{viewMode === 'THIRTY_DAYS' ? '다음' : '다음 달'}</span>
+            <span>{viewMode === 'THIRTY_DAYS' ? t('next') : t('nextMonth')}</span>
             <ChevronRight className="w-4 h-4 shrink-0" />
           </button>
 
