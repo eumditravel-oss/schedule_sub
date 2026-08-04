@@ -865,11 +865,31 @@ export default {
         return jsonResponse({ id, task_id: taskId, work_date: workDate, status: validated.status, updated_by_name: editor });
       }
 
+      // Protect unmatched /api/* routes from falling through to HTML index
+      if (path.startsWith('/api/')) {
+        return errorResponse('API 경로를 찾을 수 없습니다.', 404, 'API_NOT_FOUND');
+      }
+
+      // Static assets handling with explicit SPA rewrite fallback for non-API page routes
       if (env.ASSETS) {
+        if (!path.startsWith('/api/') && (method === 'GET' || method === 'HEAD')) {
+          const assetRes = await env.ASSETS.fetch(request);
+          if (assetRes.status !== 404) {
+            return assetRes;
+          }
+
+          // Fallback to /index.html for frontend routes like /projects, /projects/:id
+          const indexUrl = new URL('/index.html', request.url);
+          const indexRes = await env.ASSETS.fetch(new Request(indexUrl, request));
+          if (indexRes.ok || indexRes.status === 200) {
+            return indexRes;
+          }
+        }
+
         return await env.ASSETS.fetch(request);
       }
 
-      return errorResponse('API 엔드포인트를 찾을 수 없습니다.', 404);
+      return errorResponse('경로를 찾을 수 없습니다.', 404, 'NOT_FOUND');
     } catch (err: any) {
       if (err.name === 'ZodError') {
         return errorResponse(err.errors[0]?.message || '입력값이 올바르지 않습니다.', 400);
