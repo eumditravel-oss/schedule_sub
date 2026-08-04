@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { Project, Task, Worker, GanttDateColumn, WorkDayStatus, DailyStatusType } from '../../types';
 import { useI18n } from '../../hooks/useI18n';
+import { useResponsiveLayout } from '../../hooks/useResponsiveLayout';
 import { ChevronLeft, ChevronRight, Calendar as CalendarIcon } from 'lucide-react';
 import { addDays, subDays, format, parseISO, startOfDay } from 'date-fns';
 import { generateDateColumns } from '../../utils/dateUtils';
@@ -33,7 +34,24 @@ export const MobileWeekView: React.FC<MobileWeekViewProps> = ({
   onTaskCellClick,
 }) => {
   const { t, lang } = useI18n();
+  const { width } = useResponsiveLayout();
   const [anchorDate, setAnchorDate] = useState<Date>(startOfDay(new Date()));
+
+  // Dynamic responsive width for 7-day info rail
+  const getWeekInfoRailWidth = (w: number): number => {
+    if (w < 344) return 64;
+    if (w < 360) return 68;
+    if (w < 390) return 72;
+    if (w < 768) return 76;
+    return 96;
+  };
+
+  const railWidthPx = getWeekInfoRailWidth(width);
+  const railStyle = {
+    width: `${railWidthPx}px`,
+    minWidth: `${railWidthPx}px`,
+    maxWidth: `${railWidthPx}px`,
+  };
 
   // Calculate exact 7-day columns
   const startDate = anchorDate;
@@ -113,8 +131,12 @@ export const MobileWeekView: React.FC<MobileWeekViewProps> = ({
       <div className="w-full bg-white border border-slate-200 rounded-xl shadow-xs overflow-hidden">
         {/* Grid Header Row */}
         <div className="flex w-full border-b border-slate-200 bg-slate-50/80 font-bold text-[11px] text-slate-700">
-          {/* Info Rail Header (Max 23% width) */}
-          <div className="w-[64px] min-w-[64px] max-w-[76px] p-2 border-r border-slate-200 shrink-0 flex items-center justify-center text-[10px] text-slate-500 uppercase tracking-wider">
+          {/* Info Rail Header */}
+          <div
+            data-testid="mobile-week-info-rail"
+            style={railStyle}
+            className="p-2 border-r border-slate-200 shrink-0 flex items-center justify-center text-[10px] text-slate-500 uppercase tracking-wider"
+          >
             {mode === 'OVERVIEW' ? t('project') : t('task')}
           </div>
 
@@ -146,7 +168,11 @@ export const MobileWeekView: React.FC<MobileWeekViewProps> = ({
                 className="flex w-full items-stretch hover:bg-slate-50/50 transition cursor-pointer"
               >
                 {/* Info Rail Column */}
-                <div className="w-[64px] min-w-[64px] max-w-[76px] p-1.5 border-r border-slate-200 shrink-0 flex flex-col justify-center text-[10px]">
+                <div
+                  data-testid="mobile-week-info-rail"
+                  style={railStyle}
+                  className="p-1.5 border-r border-slate-200 shrink-0 flex flex-col justify-center text-[10px]"
+                >
                   <span className="font-bold text-slate-900 line-clamp-2 leading-tight">
                     {getProjectDisplayName(prj)}
                   </span>
@@ -190,7 +216,11 @@ export const MobileWeekView: React.FC<MobileWeekViewProps> = ({
                   className="flex w-full items-stretch hover:bg-slate-50/50 transition"
                 >
                   {/* Info Rail Column */}
-                  <div className="w-[64px] min-w-[64px] max-w-[76px] p-1.5 border-r border-slate-200 shrink-0 flex flex-col justify-center text-[10px]">
+                  <div
+                    data-testid="mobile-week-info-rail"
+                    style={railStyle}
+                    className="p-1.5 border-r border-slate-200 shrink-0 flex flex-col justify-center text-[10px]"
+                  >
                     <span className="font-bold text-slate-900 line-clamp-2 leading-tight">
                       {getTaskDisplayName(tItem)}
                     </span>

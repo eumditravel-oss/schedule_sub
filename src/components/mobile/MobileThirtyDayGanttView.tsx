@@ -2,7 +2,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Project, Task, Worker, GanttDateColumn, WorkDayStatus, DailyStatusType } from '../../types';
 import { useI18n } from '../../hooks/useI18n';
-import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
+import { useResponsiveLayout } from '../../hooks/useResponsiveLayout';
+import { ChevronsLeft, ChevronsRight } from 'lucide-react';
 import { parseISO } from 'date-fns';
 import { resolveWorkDayStatus } from '../../utils/workCalendar';
 
@@ -32,9 +33,30 @@ export const MobileThirtyDayGanttView: React.FC<MobileThirtyDayGanttViewProps> =
   onTaskCellClick,
 }) => {
   const { t, lang } = useI18n();
+  const { width } = useResponsiveLayout();
   const [isRailExpanded, setIsRailExpanded] = useState(false);
   const timelineRef = useRef<HTMLDivElement>(null);
   const scrolledOnceRef = useRef(false);
+
+  // Dynamic responsive width calculation
+  const getGanttInfoRailWidth = (w: number, isExpanded: boolean): number => {
+    if (isExpanded) {
+      if (w < 768) return Math.min(108, Math.floor(w * 0.3));
+      return Math.min(140, Math.floor(w * 0.3));
+    }
+    if (w < 344) return 60;
+    if (w < 360) return 64;
+    if (w < 390) return 68;
+    if (w < 768) return 72;
+    return 104;
+  };
+
+  const railWidthPx = getGanttInfoRailWidth(width, isRailExpanded);
+  const railStyle = {
+    width: `${railWidthPx}px`,
+    minWidth: `${railWidthPx}px`,
+    maxWidth: `${railWidthPx}px`,
+  };
 
   // Auto-scroll to today on initial enter
   useEffect(() => {
@@ -67,8 +89,6 @@ export const MobileThirtyDayGanttView: React.FC<MobileThirtyDayGanttViewProps> =
     }
   };
 
-  const railWidthClass = isRailExpanded ? 'w-[108px] min-w-[108px]' : 'w-[64px] min-w-[64px]';
-
   return (
     <div
       data-testid="mobile-gantt-view"
@@ -83,7 +103,8 @@ export const MobileThirtyDayGanttView: React.FC<MobileThirtyDayGanttViewProps> =
           {/* Info Rail (Sticky Left Column) */}
           <div
             data-testid="compact-info-rail"
-            className={`compact-info-rail border-r border-slate-200 bg-slate-50 shrink-0 transition-all duration-200 flex flex-col ${railWidthClass}`}
+            style={railStyle}
+            className="compact-info-rail border-r border-slate-200 bg-slate-50 shrink-0 transition-all duration-200 flex flex-col"
           >
             {/* Info Rail Header */}
             <div className="h-10 p-1.5 border-b border-slate-200 flex items-center justify-between bg-slate-100/90 text-[10px] font-bold text-slate-600">

@@ -42,7 +42,8 @@ export const ProjectDetailPage: React.FC = () => {
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
   const { t, lang, setLanguage } = useI18n();
-  const { isMobile } = useResponsiveLayout();
+  const { isMobile, isTabletFold } = useResponsiveLayout();
+  const isMobileView = isMobile || isTabletFold;
 
   const [project, setProject] = useState<Project | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -188,7 +189,7 @@ export const ProjectDetailPage: React.FC = () => {
 
   const requireWorkerSelection = (): boolean => {
     if (!currentWorker) {
-      if (isMobile) {
+      if (isMobileView) {
         setIsMobileWorkerSheetOpen(true);
       } else {
         setIsWorkerPromptOpen(true);
@@ -303,7 +304,7 @@ export const ProjectDetailPage: React.FC = () => {
   };
 
   const handleUpdateDailyStatus = async (status: DailyStatusType) => {
-    const { taskId, dateStr } = isMobile ? mobileStatusSheetState : popoverState;
+    const { taskId, dateStr } = isMobileView ? mobileStatusSheetState : popoverState;
     if (!taskId || !dateStr) return;
     if (isViewer) {
       alert(lang === 'vi' ? 'Tài khoản quản lý chỉ có quyền xem lịch trình.' : '경영진 계정은 일정을 조회할 수만 있습니다.');
@@ -359,7 +360,7 @@ export const ProjectDetailPage: React.FC = () => {
   return (
     <div className="min-h-screen bg-slate-100 flex flex-col font-sans text-slate-900">
       {/* App Header */}
-      {isMobile ? (
+      {isMobileView ? (
         <MobileAppHeader
           currentWorker={currentWorker}
           onOpenWorkerSheet={() => setIsMobileWorkerSheetOpen(true)}
@@ -455,7 +456,7 @@ export const ProjectDetailPage: React.FC = () => {
 
       {/* Controls Toolbar */}
       <div className="bg-slate-50 border-b border-slate-200 px-3 md:px-5 py-2">
-        {isMobile ? (
+        {isMobileView ? (
           <div className="flex flex-col gap-2 w-full">
             <div role="tablist" aria-label="Mobile View Modes" className="flex items-center p-0.5 bg-slate-200/80 rounded-lg text-xs font-semibold w-full">
               <button
@@ -516,8 +517,8 @@ export const ProjectDetailPage: React.FC = () => {
 
       {/* Main Content Area */}
       <main className="flex-1 p-3 md:p-5 overflow-x-hidden flex flex-col">
-        {isMobile ? (
-          /* Dedicated Mutually Exclusive Mobile Views */
+        {isMobileView ? (
+          /* Dedicated Mutually Exclusive Mobile & Fold Views */
           <div className="w-full flex-1 flex flex-col">
             {mobileViewMode === 'SUMMARY' && (
               <MobileSummaryView

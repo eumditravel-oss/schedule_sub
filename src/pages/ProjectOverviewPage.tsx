@@ -29,7 +29,8 @@ export type MobileViewMode = 'SUMMARY' | 'WEEK' | 'GANTT';
 export const ProjectOverviewPage: React.FC = () => {
   const navigate = useNavigate();
   const { t, lang, setLanguage } = useI18n();
-  const { isMobile } = useResponsiveLayout();
+  const { isMobile, isTabletFold } = useResponsiveLayout();
+  const isMobileView = isMobile || isTabletFold;
 
   const currentYearStr = new Date().getFullYear().toString();
 
@@ -156,7 +157,7 @@ export const ProjectOverviewPage: React.FC = () => {
 
   const requireWorkerSelection = (): boolean => {
     if (!currentWorker) {
-      if (isMobile) {
+      if (isMobileView) {
         setIsMobileWorkerSheetOpen(true);
       } else {
         setIsWorkerPromptOpen(true);
@@ -254,7 +255,7 @@ export const ProjectOverviewPage: React.FC = () => {
   return (
     <div className="min-h-screen bg-slate-100 flex flex-col font-sans text-slate-900">
       {/* Mobile App Header */}
-      {isMobile ? (
+      {isMobileView ? (
         <MobileAppHeader
           currentWorker={currentWorker}
           onOpenWorkerSheet={() => setIsMobileWorkerSheetOpen(true)}
@@ -365,55 +366,53 @@ export const ProjectOverviewPage: React.FC = () => {
           )}
         </div>
 
-        {/* Mobile View Mode Controls */}
-        {isMobile ? (
+        {/* Mobile / Tablet View Mode Controls (Always visible in Active & Completed tabs) */}
+        {isMobileView ? (
           <div className="flex flex-col gap-2 w-full">
-            {activeTab === 'ACTIVE' && (
-              <div role="tablist" aria-label="Mobile View Modes" className="flex items-center p-0.5 bg-slate-200/80 rounded-lg text-xs font-semibold w-full">
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={mobileViewMode === 'SUMMARY'}
-                  data-testid="mobile-view-summary-btn"
-                  onClick={() => handleMobileViewChange('SUMMARY')}
-                  className={`flex-1 h-8 rounded-md transition font-bold ${
-                    mobileViewMode === 'SUMMARY'
-                      ? 'bg-blue-600 text-white shadow-xs'
-                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                  }`}
-                >
-                  {t('summaryView')}
-                </button>
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={mobileViewMode === 'WEEK'}
-                  data-testid="mobile-view-week-btn"
-                  onClick={() => handleMobileViewChange('WEEK')}
-                  className={`flex-1 h-8 rounded-md transition font-bold ${
-                    mobileViewMode === 'WEEK'
-                      ? 'bg-blue-600 text-white shadow-xs'
-                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                  }`}
-                >
-                  {t('week7View')}
-                </button>
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={mobileViewMode === 'GANTT'}
-                  data-testid="mobile-view-gantt-btn"
-                  onClick={() => handleMobileViewChange('GANTT')}
-                  className={`flex-1 h-8 rounded-md transition font-bold ${
-                    mobileViewMode === 'GANTT'
-                      ? 'bg-blue-600 text-white shadow-xs'
-                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                  }`}
-                >
-                  {t('gantt30View')}
-                </button>
-              </div>
-            )}
+            <div role="tablist" aria-label="Mobile View Modes" className="flex items-center p-0.5 bg-slate-200/80 rounded-lg text-xs font-semibold w-full">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={mobileViewMode === 'SUMMARY'}
+                data-testid="mobile-view-summary-btn"
+                onClick={() => handleMobileViewChange('SUMMARY')}
+                className={`flex-1 h-8 rounded-md transition font-bold ${
+                  mobileViewMode === 'SUMMARY'
+                    ? 'bg-blue-600 text-white shadow-xs'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                {t('summaryView')}
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={mobileViewMode === 'WEEK'}
+                data-testid="mobile-view-week-btn"
+                onClick={() => handleMobileViewChange('WEEK')}
+                className={`flex-1 h-8 rounded-md transition font-bold ${
+                  mobileViewMode === 'WEEK'
+                    ? 'bg-blue-600 text-white shadow-xs'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                {t('week7View')}
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={mobileViewMode === 'GANTT'}
+                data-testid="mobile-view-gantt-btn"
+                onClick={() => handleMobileViewChange('GANTT')}
+                className={`flex-1 h-8 rounded-md transition font-bold ${
+                  mobileViewMode === 'GANTT'
+                    ? 'bg-blue-600 text-white shadow-xs'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                {t('gantt30View')}
+              </button>
+            </div>
           </div>
         ) : (
           <GanttViewControls
@@ -429,8 +428,8 @@ export const ProjectOverviewPage: React.FC = () => {
 
       {/* Main Content Area */}
       <main className="flex-1 p-3 md:p-5 overflow-x-hidden flex flex-col">
-        {isMobile ? (
-          /* Dedicated Mutually Exclusive Mobile Views */
+        {isMobileView ? (
+          /* Dedicated Mutually Exclusive Mobile & Fold Views */
           <div className="w-full flex-1 flex flex-col">
             {mobileViewMode === 'SUMMARY' && (
               <MobileSummaryView
