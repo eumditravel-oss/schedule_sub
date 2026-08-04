@@ -4,7 +4,7 @@
 
 - 결과: RELEASE PASS
 - 기준 Commit: `dc7eb4bd2ba6bb102dd348ff98e5a9b6bd965549`
-- 최종 Commit SHA: `[COMMITTED_BELOW]`
+- 최종 Commit SHA: `6f1d8f36c53e0d86926839352e82d7744cd0a0a8`
 - 배포 Version ID: `32926a4d-15be-4530-bb95-0156efcf6255`
 - P0: 0건
 - P1: 0건
