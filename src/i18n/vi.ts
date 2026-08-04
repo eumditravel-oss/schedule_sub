@@ -76,4 +76,19 @@ export const vi: Record<TranslationKeys, string> = {
   translatedTextLabel: 'Bản dịch',
   automaticTranslationPlaceholder: 'Bản dịch tự động (có thể tự chỉnh sửa)',
   originalTag: 'Bản gốc',
+
+  // Mobile Translation Keys
+  summaryView: 'Tóm tắt',
+  week7View: '7 ngày',
+  gantt30View: '30 ngày',
+  selectStatusTitle: 'Thay đổi trạng thái',
+  mobileMenuTitle: 'Chọn menu',
+  noActiveProjects: 'Không có dự án đang thực hiện.',
+  noCompletedProjects: 'Không có dự án hoàn thành trong năm đã chọn.',
+  noTasks: 'Không có công việc nào.',
+  todayMarker: 'Hôm nay',
+  tasksCount: '{count} công việc',
+  prevWeek: 'Tuần trước',
+  nextWeek: 'Tuần sau',
+  close: 'Đóng',
 };

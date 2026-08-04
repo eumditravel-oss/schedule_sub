@@ -74,6 +74,21 @@ export const ko = {
   translatedTextLabel: '번역문',
   automaticTranslationPlaceholder: '자동 번역문 (필요시 직접 수정 가능)',
   originalTag: '원문',
+
+  // Mobile Translation Keys
+  summaryView: '요약',
+  week7View: '7일',
+  gantt30View: '30일',
+  selectStatusTitle: '일별 상태 변경',
+  mobileMenuTitle: '메뉴 선택',
+  noActiveProjects: '등록된 진행 프로젝트가 없습니다.',
+  noCompletedProjects: '선택한 연도에 완료된 프로젝트가 없습니다.',
+  noTasks: '등록된 작업이 없습니다.',
+  todayMarker: '오늘',
+  tasksCount: '{count}개 작업',
+  prevWeek: '이전 주',
+  nextWeek: '다음 주',
+  close: '닫기',
 };
 
 export type TranslationKeys = keyof typeof ko;
