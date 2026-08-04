@@ -105,6 +105,32 @@ export default {
     }
 
     try {
+      // 0. Static Web Manifest Route
+      if (path === '/site.webmanifest') {
+        const manifest = {
+          name: 'CON-COST × VIETQS 개발팀 프로젝트 스케쥴러',
+          short_name: '프로젝트 스케쥴러',
+          description: '한국·베트남 개발팀 프로젝트 일정 및 공정률 관리',
+          start_url: '/projects',
+          display: 'standalone',
+          background_color: '#f8fafc',
+          theme_color: '#ffffff',
+          lang: 'ko',
+          icons: [
+            { src: '/icon-192x192.png', sizes: '192x192', type: 'image/png' },
+            { src: '/icon-512x512.png', sizes: '512x512', type: 'image/png' },
+            { src: '/maskable-icon-512x512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+          ],
+        };
+        return new Response(JSON.stringify(manifest), {
+          headers: {
+            'Content-Type': 'application/manifest+json',
+            'Access-Control-Allow-Origin': '*',
+            'Cache-Control': 'public, max-age=86400',
+          },
+        });
+      }
+
       // 1. GET /api/workers
       if (method === 'GET' && path === '/api/workers') {
         try {

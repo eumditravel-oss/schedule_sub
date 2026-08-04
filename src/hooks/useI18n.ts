@@ -2,8 +2,6 @@
 import { useContext } from 'react';
 import { I18nContext, I18nContextType } from '../i18n/I18nContext';
 import { translations, getStoredLanguage, setStoredLanguage } from '../i18n';
-import { ko as dateLocaleKo } from 'date-fns/locale/ko';
-import { vi as dateLocaleVi } from 'date-fns/locale/vi';
 
 export function useI18n(): I18nContextType {
   const context = useContext(I18nContext);
@@ -17,14 +15,13 @@ export function useI18n(): I18nContextType {
     lang,
     setLanguage: (newLang) => setStoredLanguage(newLang),
     t: (key, params) => {
-      let template = translations[lang]?.[key] || translations['ko']?.[key] || key;
+      let template = translations[lang]?.[key] || translations['ko']?.[key] || String(key);
       if (params) {
         for (const [pKey, pValue] of Object.entries(params)) {
-          template = template.replace(new RegExp(`\\{${pKey}\\}`, 'g'), pValue);
+          template = template.replace(new RegExp(`\\{${pKey}\\}`, 'g'), String(pValue));
         }
       }
       return template;
     },
-    dateLocale: lang === 'vi' ? dateLocaleVi : dateLocaleKo,
   };
 }
