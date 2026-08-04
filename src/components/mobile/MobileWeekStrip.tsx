@@ -64,6 +64,7 @@ export const MobileWeekStrip: React.FC<MobileWeekStripProps> = ({
           <button
             key={col.dateStr}
             type="button"
+            data-testid={`mobile-week-cell-${col.dateStr}`}
             disabled={!col.isInTaskSpan || isReadOnly}
             onClick={() => col.isInTaskSpan && onCellClick && onCellClick(col.dateStr, status)}
             className={`flex flex-col items-center justify-center p-1.5 rounded-xl border transition min-h-[44px] ${

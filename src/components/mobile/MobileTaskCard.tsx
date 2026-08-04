@@ -28,7 +28,7 @@ export const MobileTaskCard: React.FC<MobileTaskCardProps> = ({
   const displayName = lang === 'vi' ? (task.task_name_vi || task.task_name) : (task.task_name_ko || task.task_name);
 
   return (
-    <div className="bg-white border border-slate-200 rounded-xl p-3.5 shadow-xs text-slate-900 overflow-hidden space-y-2">
+    <div data-testid={`task-card-${task.id}`} className="bg-white border border-slate-200 rounded-xl p-3.5 shadow-xs text-slate-900 overflow-hidden space-y-2">
       {/* Task Header */}
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
@@ -52,6 +52,7 @@ export const MobileTaskCard: React.FC<MobileTaskCardProps> = ({
           <div className="relative shrink-0">
             <button
               type="button"
+              data-testid={`task-card-menu-${task.id}`}
               onClick={() => setShowMenu(!showMenu)}
               className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-slate-100 text-slate-500"
             >
@@ -63,6 +64,7 @@ export const MobileTaskCard: React.FC<MobileTaskCardProps> = ({
                 {onEdit && (
                   <button
                     type="button"
+                    data-testid={`task-card-edit-${task.id}`}
                     onClick={() => {
                       setShowMenu(false);
                       onEdit(task);
@@ -76,6 +78,7 @@ export const MobileTaskCard: React.FC<MobileTaskCardProps> = ({
                 {onDelete && (
                   <button
                     type="button"
+                    data-testid={`task-card-delete-${task.id}`}
                     onClick={() => {
                       setShowMenu(false);
                       onDelete(task);

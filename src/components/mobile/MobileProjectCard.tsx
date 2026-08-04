@@ -29,6 +29,7 @@ export const MobileProjectCard: React.FC<MobileProjectCardProps> = ({
 
   return (
     <div
+      data-testid={`project-card-${project.id}`}
       onClick={onClick}
       className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm hover:shadow-md transition active:scale-[0.99] cursor-pointer relative text-slate-900 overflow-hidden"
     >
@@ -64,6 +65,7 @@ export const MobileProjectCard: React.FC<MobileProjectCardProps> = ({
             <div className="relative">
               <button
                 type="button"
+                data-testid={`project-card-menu-${project.id}`}
                 onClick={(e) => {
                   e.stopPropagation();
                   setShowMenu(!showMenu);
@@ -81,6 +83,7 @@ export const MobileProjectCard: React.FC<MobileProjectCardProps> = ({
                   {onComplete && (
                     <button
                       type="button"
+                      data-testid={`project-card-complete-${project.id}`}
                       onClick={() => {
                         setShowMenu(false);
                         onComplete(project);
@@ -94,6 +97,7 @@ export const MobileProjectCard: React.FC<MobileProjectCardProps> = ({
                   {onEdit && (
                     <button
                       type="button"
+                      data-testid={`project-card-edit-${project.id}`}
                       onClick={() => {
                         setShowMenu(false);
                         onEdit(project);
@@ -107,6 +111,7 @@ export const MobileProjectCard: React.FC<MobileProjectCardProps> = ({
                   {onDelete && (
                     <button
                       type="button"
+                      data-testid={`project-card-delete-${project.id}`}
                       onClick={() => {
                         setShowMenu(false);
                         onDelete(project);

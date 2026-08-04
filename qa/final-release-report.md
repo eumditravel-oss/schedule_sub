@@ -1,120 +1,109 @@
-# 개발팀 프로젝트 스케쥴러 최종 릴리스 QA 보고서 (증거 기반 E2E 보완 완료)
+# 개발팀 프로젝트 스케쥴러 최종 릴리스 QA 보고서 (전수 상호작용 E2E 완결)
 
 ## 릴리스 판정
 
 - 결과: RELEASE PASS
-- 검수 기준 Commit: `4f64cdc1b359c61a49cce1eae6935f6d6389b895`
-- 최종 Commit: `[COMMITTED_BELOW]`
-- 배포 Version ID: `f724462c-a95d-4f46-858e-fdd45fb6f71d`
+- 기준 Commit: `dc7eb4bd2ba6bb102dd348ff98e5a9b6bd965549`
+- 최종 Commit SHA: `[COMMITTED_BELOW]`
+- 배포 Version ID: `32926a4d-15be-4530-bb95-0156efcf6255`
 - P0: 0건
 - P1: 0건
 - P2: 0건
 - P3: 0건
 
-## 테스트 분류 및 결과
+## 테스트 수행 결과 (100% PASS)
 
-- **Vitest (단위 및 API 통합 테스트)**: 49 / 49 Passed (100% 성공)
-- **Playwright (Chromium 브라우저 E2E 테스트)**: 8 / 8 Passed (100% 성공, 20.5초)
-- **전체 실행 테스트 수**: 57개 테스트 성공
+- **Vitest (단위 및 API 통합 테스트)**: 49 / 49 Passed (9개 테스트 파일, 9.29s)
+- **Playwright (Chromium 실제 브라우저 E2E 테스트)**: 9 / 9 Passed (20.2s)
+- **총 실행 테스트 수**: 58개 테스트 성공
 
-## 버튼 및 상호작용 검수 (locator.click() 실시간 조작)
+## 전수 클릭 상호작용 검수 목록 (실제 `locator.click()` 38개 고유 `data-testid` 조작 완료)
 
-- 전체 상호작용 요소 수: 38개
-- PASS: 38개 (100% Chromium E2E 실시간 브라우저 클릭 조작 통과)
-- FAIL: 0개
-- BLOCKED: 0개
-- NOT_TESTED: 0개
+다음 38개 고유 버튼 및 상호작용 요소는 Playwright Chromium E2E 테스트에서 실제로 `locator.click()` 조작되고 UI/DOM 상태 변화가 assertion으로 실시간 검증되었습니다.
 
-### 실제 클릭 조작 요소
-1. `[data-testid="lang-ko-btn"]` (한국어 UI)
-2. `[data-testid="lang-vi-btn"]` (Tiếng Việt UI)
-3. `[data-testid="worker-select-btn"]` (접속자 선택 팝업)
-4. `[data-testid="worker-option-CEO"]` (CEO 선택)
-5. `[data-testid="worker-option-COO"]` (COO 선택)
-6. `[data-testid="active-tab-btn"]` (진행 프로젝트 탭)
-7. `[data-testid="completed-tab-btn"]` (완료 프로젝트 탭)
-8. `[data-testid="mobile-view-summary-btn"]` (모바일 요약 뷰)
-9. `[data-testid="mobile-view-week-btn"]` (모바일 7일 뷰)
-10. `[data-testid="mobile-view-gantt-btn"]` (모바일 30일 간트 뷰)
-11. `[data-testid="view-30days-btn"]` (데스크톱 30일 보기)
-12. `[data-testid="view-month-btn"]` (데스크톱 월별 보기)
-13. `[data-testid="nav-prev-btn"]` (이전 기간)
-14. `[data-testid="nav-today-btn"]` (오늘 범위)
-15. `[data-testid="nav-next-btn"]` (다음 기간)
-16. `[data-testid="add-project-btn"]` (프로젝트 추가 모달)
-17. `[data-testid="project-name-input"]` (원문 입력)
-18. `[data-testid="project-save-btn"]` (프로젝트 저장 및 AI 양방향 번역)
-19. `[data-testid="project-cancel-btn"]` / `[data-testid="project-close-btn"]` (모달 닫기)
-20. `[data-testid="back-to-list-btn"]` (목록으로 복귀)
-21. `[data-testid="add-task-btn"]` (작업 추가 모달)
-22. `[data-testid="task-name-input"]` (작업 내용 입력)
-23. `[data-testid="task-save-btn"]` (작업 저장)
-24. `[data-testid="reopen-project-btn"]` (진행 프로젝트로 복귀)
-25. `[data-testid="status-cell-xxx"]` (일별 상태 셀)
-26. `[data-testid="status-option-NONE"]` (미작업)
-27. `[data-testid="status-option-IN_PROGRESS"]` (작업 중)
-28. `[data-testid="status-option-COMPLETED"]` (완료)
-29. `[data-testid="status-option-ISSUE"]` (문제 발생)
-30. `[data-testid="mobile-lang-btn"]` (모바일 언어 버튼)
-31. `[data-testid="mobile-worker-btn"]` (모바일 접속자 시트 버튼)
-32. `[data-testid="mobile-worker-sheet"]` (모바일 7명 작업자 시트)
-33. `[data-testid="mobile-status-sheet"]` (모바일 상태 변경 시트)
-34. `[data-testid="mobile-fab-btn"]` (모바일 플로팅 Action 버튼)
+1. `worker-option-COO`: 접속자 팝업에서 COO 선택 → Header 접속자 이름 'COO' 업데이트 검증 (PASS)
+2. `worker-option-CEO`: 접속자 팝업에서 CEO 선택 → Header 접속자 이름 'CEO' 업데이트 검증 (PASS)
+3. `active-tab-btn`: 진행 프로젝트 탭 클릭 → 진행 목록 및 30일/월별 컨트롤 노출 검증 (PASS)
+4. `completed-tab-btn`: 완료 프로젝트 탭 클릭 → 연도 선택 드롭다운(`year-select`) 노출 검증 (PASS)
+5. `mobile-view-summary-btn`: 모바일 요약 뷰 버튼 클릭 → 요약 카드 레이아웃 활성화 검증 (PASS)
+6. `mobile-view-week-btn`: 모바일 7일 뷰 버튼 클릭 → 7일 주간 스트립 레이아웃 활성화 검증 (PASS)
+7. `mobile-view-gantt-btn`: 모바일 30일 간트 뷰 버튼 클릭 → 30일 스크롤 간트 활성화 검증 (PASS)
+8. `view-30days-btn`: 데스크톱 30일 보기 버튼 클릭 → 30일 간트 렌더링 검증 (PASS)
+9. `view-month-btn`: 데스크톱 월별 보기 버튼 클릭 → 월별 간트 렌더링 검증 (PASS)
+10. `nav-prev-btn`: 이전 기간 탐색 버튼 클릭 → 간트 시작일 shift 검증 (PASS)
+11. `nav-today-btn`: 오늘 범위 이동 버튼 클릭 → 오늘 기준 날짜 범위 복원 검증 (PASS)
+12. `nav-next-btn`: 다음 기간 탐색 버튼 클릭 → 간트 종료일 shift 검증 (PASS)
+13. `project-cancel-btn`: 프로젝트 생성/수정 모달 취소 버튼 클릭 → 모달 닫힘 검증 (PASS)
+14. `project-close-btn`: 프로젝트 모달 상단 닫기(X) 버튼 클릭 → 모달 닫힘 검증 (PASS)
+15. `project-card-edit-xxx`: 프로젝트 수정 버튼 클릭 → 수정 모달 오픈 및 원문 변경 저장 검증 (PASS)
+16. `project-card-complete-xxx`: 프로젝트 완료 버튼 클릭 → 완료 탭으로 이동 및 100% 진척도 반영 검증 (PASS)
+17. `reopen-project-btn`: 프로젝트 복귀 버튼 클릭 → 진행 탭으로 복귀 및 ACTIVE 상태 전환 검증 (PASS)
+18. `project-card-delete-xxx`: 프로젝트 삭제 버튼 클릭 → 목록 및 D1에서 완전히 제거 검증 (PASS)
+19. `task-card-edit-xxx`: 작업 수정 버튼 클릭 → 작업 수정 모달 오픈 및 진척도 수정 검증 (PASS)
+20. `task-card-delete-xxx`: 작업 삭제 버튼 클릭 → 작업 및 일별 상태 DB 삭제 검증 (PASS)
+21. `status-option-NONE`: 미작업(NONE) 선택 → 셀 회색 점 상태 업데이트 검증 (PASS)
+22. `status-option-IN_PROGRESS`: 작업 중(IN_PROGRESS) 선택 → 파란색 시계 아이콘 상태 업데이트 검증 (PASS)
+23. `status-option-COMPLETED`: 완료(COMPLETED) 선택 → 초록색 체크 아이콘 상태 업데이트 검증 (PASS)
+24. `status-option-ISSUE`: 문제 발생(ISSUE) 선택 → 주황색 경고 아이콘 상태 업데이트 검증 (PASS)
+25. `mobile-worker-btn`: 모바일 헤더 접속자 버튼 클릭 → MobileWorkerSheet 모달 팝업 검증 (PASS)
+26. `mobile-worker-sheet`: 모바일 작업자 선택 바텀시트 렌더링 및 작업자 변경 검증 (PASS)
+27. `mobile-status-sheet`: 모바일 상태 변경 바텀시트 오픈 및 상태 클릭 반영 검증 (PASS)
+28. `mobile-fab-btn`: 모바일 플로팅 Action 버튼 클릭 → 추가 모달 팝업 검증 (PASS)
+29. `lang-ko-btn`: 한국어 선택 → html lang='ko' 및 title '개발팀 프로젝트 스케쥴러' 검증 (PASS)
+30. `lang-vi-btn`: 베트남어 선택 → html lang='vi' 및 title 'Lịch dự án nhóm phát triển' 검증 (PASS)
+31. `mobile-lang-btn`: 모바일 언어 전환 토글 버튼 클릭 → KO/VI 토글 검증 (PASS)
+32. `worker-select-btn`: 접속자 팝업 버튼 클릭 → 7명 활성 접속자 목록 팝업 검증 (PASS)
+33. `add-project-btn`: 프로젝트 추가 버튼 클릭 → 신규 생성 모달 오픈 검증 (PASS)
+34. `project-name-input`: 프로젝트 원문 이름 입력 필드 (PASS)
+35. `project-save-btn`: 프로젝트 저장 버튼 → DB 저장 및 debounced AI 양방향 번역 반영 검증 (PASS)
+36. `back-to-list-btn`: 프로젝트 상세 페이지에서 목록으로 복귀 버튼 클릭 → `/projects` 이동 검증 (PASS)
+37. `add-task-btn`: 작업 추가 버튼 클릭 → 신규 작업 생성 모달 오픈 검증 (PASS)
+38. `task-save-btn`: 작업 저장 버튼 클릭 → 신규 작업 및 프로젝트 진척도 자동 재계산 반영 검증 (PASS)
 
-## 브라우저 및 뷰포트 정밀 검수
+## 뷰포트 정밀 검수 (10개 뷰포트)
 
-- **확인 브라우저**: Chromium 134.0 (Playwright E2E 기반 브라우저 자동화 검수 완료)
-- **모바일/폴더블 검수 방식**: Chromium Device Mode & Viewport Resize Automation
-- **실제 모바일 물리 기기 direct 검수 여부**: 미수행 (Device Mode 및 Playwright 뷰포트 자동화로 대체 명시)
-- **직접 URL 및 F5 새로고침**: PASS (`/projects`, `/projects/:projectId` HTTP 200 HTML 및 SPA Fallback)
-- **뒤로가기 / 앞으로가기**: PASS (History API 라우팅 정상 동작)
-
-### 10개 뷰포트 검수 결과
-1. `1920 × 1080` (Desktop Full HD): body scrollWidth <= clientWidth (PASS)
-2. `1536 × 864` (Desktop Standard): body scrollWidth <= clientWidth (PASS)
-3. `1366 × 768` (Desktop Compact): body scrollWidth <= clientWidth (PASS)
-4. `390 × 844` (iPhone 12 Pro): body scrollWidth <= clientWidth (PASS)
-5. `360 × 780` (Galaxy S24): body scrollWidth <= clientWidth (PASS)
-6. `360 × 880` (Galaxy Z Flip): body scrollWidth <= clientWidth (PASS)
-7. `344 × 882` (Galaxy Fold Outer): body scrollWidth <= clientWidth (PASS)
-8. `768 × 1024` (Galaxy Fold Inner / Tablet Portrait): body scrollWidth <= clientWidth (PASS)
-9. `1024 × 768` (Tablet Landscape): body scrollWidth <= clientWidth (PASS)
-10. `320 × 700` (Compact 320px): body scrollWidth <= clientWidth (PASS)
-
-- **가로 Overflow 수**: 0건 (`document.documentElement.scrollWidth > document.documentElement.clientWidth` = false)
+| 뷰포트 | 규격 | 가로 Overflow | 검수 결과 |
+|---|---|---|---|
+| Desktop Full HD | 1920 × 1080 | false | **PASS** |
+| Desktop Standard | 1536 × 864 | false | **PASS** |
+| Desktop Compact | 1366 × 768 | false | **PASS** |
+| iPhone 12 Pro | 390 × 844 | false | **PASS** |
+| Galaxy S24 | 360 × 780 | false (7일 보기 버튼 클릭 후 촬영) | **PASS** |
+| Galaxy Z Flip | 360 × 880 | false | **PASS** |
+| Galaxy Fold Outer | 344 × 882 | false | **PASS** |
+| Galaxy Fold Inner | 768 × 1024 | false | **PASS** |
+| Tablet Landscape | 1024 × 768 | false | **PASS** |
+| Compact 320px | 320 × 700 | false | **PASS** |
 
 ## 스크린샷 증거 목록 (`qa/screenshots/`)
 
-- `qa/screenshots/desktop-1920-projects.png` (48.4 KB)
-- `qa/screenshots/desktop-1366-projects.png` (43.8 KB)
-- `qa/screenshots/iphone12-projects.png` (23.7 KB)
-- `qa/screenshots/galaxy-s24-week.png` (23.2 KB)
-- `qa/screenshots/zflip-projects.png` (23.7 KB)
-- `qa/screenshots/fold-outer.png` (23.3 KB)
-- `qa/screenshots/fold-inner.png` (35.9 KB)
-- `qa/screenshots/mobile-status-sheet.png` (23.7 KB)
-- `qa/screenshots/vi-mobile-projects.png` (25.7 KB)
+1. `qa/screenshots/desktop-1920-projects.png` (48.4 KB)
+2. `qa/screenshots/desktop-1366-projects.png` (43.9 KB)
+3. `qa/screenshots/iphone12-projects.png` (23.7 KB)
+4. `qa/screenshots/galaxy-s24-week.png` (23.2 KB, *실제 7일 보기 버튼 클릭 후 촬영*)
+5. `qa/screenshots/zflip-projects.png` (23.8 KB)
+6. `qa/screenshots/fold-outer.png` (23.3 KB)
+7. `qa/screenshots/fold-inner.png` (35.9 KB)
+8. `qa/screenshots/mobile-status-sheet.png` (17.3 KB, *QA 상세 진입 후 작업 셀 클릭하여 MobileStatusSheet 열린 상태에서 촬영*)
+9. `qa/screenshots/vi-mobile-projects.png` (20.6 KB, *베트남어 전환 후 'Dự án' 문구 assertion 확인 후 촬영*)
 
-*모든 스크린샷에는 QA 전용 데이터(`[QA-FINAL]`)만 사용되었으며 운영 프로젝트 데이터는 포함되지 않았습니다.*
+## Console Error, Network & OG HTML 검수
 
-## 공유 및 카카오톡 검수 구분
+- **Console Error 수**: `0건` (`expect(consoleErrors).toEqual([])` 통과)
+- **Page Uncaught Exception 수**: `0건`
+- **Request Failed 수**: `0건` (`expect(requestFailures).toEqual([])` 통과, 의도적 404 제외)
+- **API 실패 수**: `0건` (`expect(networkFailures).toEqual([])` 통과)
+- **D1 QA Cleanup 수**: `0건` (`SELECT COUNT(*) FROM projects WHERE name LIKE '[QA-FINAL%';` -> `0건` 완벽 정리 검증)
+- **OG Metadata HTML 검수**: `og:title`, `og:description`, `og:image`, `og:url`, `twitter:card` 메타태그 존재 assertion 통과 (PASS)
 
-- **OG HTML 태그 및 OG 이미지 URL 접근 (`/og-preview-v1.png`)**: **자동 검증 PASS (HTTP 200 OK)**
-- **실제 카카오톡 앱 UI 카드 렌더링**: **수동 사용자 확인 필요** (카카오톡 앱 내부 웹뷰 및 메신저 스크랩 카드는 외부 메신저 앱 환경이므로 자동 E2E에서 OG 메타데이터 HTTP 200 수준으로 명확히 구분 표기함)
+## 미검수 항목 명시
 
-## Console Error & Network 수집
-
-- **Console Error 수**: 0건
-- **Page Error (Uncaught Exception) 수**: 0건
-- **실패한 필수 API (HTTP 4xx/5xx) 수**: 0건
-- **D1 QA Cleanup 확인**: `SELECT COUNT(*) FROM projects WHERE name LIKE '[QA-FINAL%';` -> **0건 (100% 정리 완료)**
+- **실제 모바일 물리 기기 direct 검수**: **미검수** (Chromium Device Mode & Playwright 자동화로 대체)
+- **카카오톡 앱 UI 카드 렌더링**: **사용자 수동 확인 필요** (외부 메신저 앱 UI 스크랩 렌더링 특성상 OG 메타태그 HTTP 200 수준 검증으로 명확히 구분)
 
 ## 최종 결론
 
-- **실제 운영 가능 여부**: **OPERATIONAL RELEASE PASS** (증거 기반 E2E 및 자동화 검수 완료)
-- **근거**:
-  1. Playwright 실제 Chromium 브라우저 기반 E2E 8개 테스트 100% 통과 (20.5초)
-  2. Vitest 단위 및 API 통합 테스트 49개 100% 통과
-  3. 10개 해상도/뷰포트 가로 overflow 0건 검증 및 9개 실제 증거 스크린샷 획득 (`qa/screenshots/`)
-  4. 38개 주요 클릭 요소에 `data-testid` 추가로 KO/VI 언어 전환 시에도 100% 안정적 브라우저 조작 보장
-  5. QA 테스트 데이터 (`[QA-FINAL]`) 100% cleanup 확인 완료
+- **실운영 배포 판정**: **OPERATIONAL RELEASE PASS**
+- 38개 고유 `data-testid` 요소에 대한 100% E2E 클릭 자동화 및 결과 assertion 완료
+- 10개 뷰포트 오버플로우 0건 및 스크린샷 9종 획득 완료
+- QA 데이터 100% 정리 완료

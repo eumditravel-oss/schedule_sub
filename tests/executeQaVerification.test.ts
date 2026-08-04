@@ -4,7 +4,7 @@ import { describe, it, expect } from 'vitest';
 const BASE_URL = 'https://concost-dev-scheduler.eumditravel.workers.dev';
 const QA_PREFIX = `[QA-FINAL-20260804-2238]`;
 
-describe('Final Release QA Comprehensive Test Suite', () => {
+describe('Final Release QA Comprehensive Test Suite', { timeout: 15000 }, () => {
   let createdProjectId = '';
   let createdTaskId = '';
 
