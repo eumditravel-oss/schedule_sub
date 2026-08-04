@@ -197,6 +197,9 @@ export interface CountryHoliday {
   source: HolidaySource;
   source_year: number;
   is_verified: number;
+  is_manual?: number;
+  created_by_name?: string;
+  updated_by_name?: string;
 }
 
 export interface CalendarOverride {

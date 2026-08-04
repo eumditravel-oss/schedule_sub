@@ -1,9 +1,10 @@
 // src/components/modals/TaskModal.tsx
 import React, { useState, useEffect } from 'react';
-import { Task, Worker, Project } from '../../types';
+import { Task, Worker, Project, CountryHoliday, CalendarOverride } from '../../types';
+import { resolveWorkDayStatus } from '../../utils/workCalendar';
 import { useI18n } from '../../hooks/useI18n';
 import { useAutoTranslation } from '../../hooks/useAutoTranslation';
-import { X, Sparkles, RefreshCw, Calendar } from 'lucide-react';
+import { X, Sparkles, RefreshCw, Calendar, AlertCircle } from 'lucide-react';
 
 interface TaskModalProps {
   isOpen: boolean;
@@ -11,6 +12,9 @@ interface TaskModalProps {
   project?: Project | null;
   task: Task | null;
   currentWorker: Worker | null;
+  holidays?: CountryHoliday[];
+  overrides?: CalendarOverride[];
+  workers?: Worker[];
   onClose: () => void;
   onSave: (data: Partial<Task>) => Promise<any>;
 }
@@ -21,6 +25,9 @@ export const TaskModal: React.FC<TaskModalProps> = ({
   project,
   task,
   currentWorker,
+  holidays,
+  overrides,
+  workers,
   onClose,
   onSave,
 }) => {
@@ -145,6 +152,28 @@ export const TaskModal: React.FC<TaskModalProps> = ({
   };
 
   const currentWorkerName = task ? task.worker_name : currentWorker ? currentWorker.name : '';
+  const taskWorker = (workers && workers.find((w) => w.name === currentWorkerName)) || currentWorker;
+
+  const nonWorkingDaysNotice: Array<{ date: string; label: string }> = [];
+  if (startDate && endDate && startDate <= endDate && taskWorker) {
+    const s = new Date(`${startDate}T00:00:00`);
+    const e = new Date(`${endDate}T00:00:00`);
+    for (let cur = new Date(s); cur <= e; cur.setDate(cur.getDate() + 1)) {
+      const dStr = cur.toISOString().slice(0, 10);
+      const st = resolveWorkDayStatus(dStr, taskWorker as any, holidays || [], overrides || []);
+      if (!st.is_working_day) {
+        nonWorkingDaysNotice.push({
+          date: dStr,
+          label: lang === 'vi' ? st.label_vi : st.label_ko,
+        });
+      } else if (st.day_type === 'WORKDAY' && taskWorker.workweek_profile === 'MON_SAT' && cur.getDay() === 6) {
+        nonWorkingDaysNotice.push({
+          date: dStr,
+          label: lang === 'vi' ? 'Làm việc bình thường (Thứ 7)' : '베트남 정상 근무',
+        });
+      }
+    }
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 overflow-y-auto">
@@ -175,6 +204,27 @@ export const TaskModal: React.FC<TaskModalProps> = ({
               <span>
                 {lang === 'vi' ? `Thời gian dự án: ${project.start_date} ~ ${project.end_date}` : `프로젝트 기간: ${project.start_date} ~ ${project.end_date}`}
               </span>
+            </div>
+          )}
+
+          {/* Non-working days notice */}
+          {nonWorkingDaysNotice.length > 0 && (
+            <div data-testid="task-non-working-days-notice" className="bg-amber-50 border border-amber-200 px-3 py-2.5 rounded-lg text-amber-900 text-xs space-y-1">
+              <div className="font-bold flex items-center gap-1.5 text-amber-800">
+                <AlertCircle className="w-4 h-4 shrink-0 text-amber-600" />
+                <span>
+                  {lang === 'vi'
+                    ? 'Khoảng thời gian đã chọn có ngày không làm việc.'
+                    : '선택한 기간에 근무하지 않는 날짜가 포함되어 있습니다.'}
+                </span>
+              </div>
+              <ul className="pl-6 list-disc text-[11px] space-y-0.5 font-medium text-amber-800">
+                {nonWorkingDaysNotice.map((item) => (
+                  <li key={item.date}>
+                    {item.date}: {item.label}
+                  </li>
+                ))}
+              </ul>
             </div>
           )}
 

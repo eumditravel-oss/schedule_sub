@@ -227,6 +227,23 @@ export const api = {
     return handleResponse<any>(res);
   },
 
+  async addManualHoliday(data: { country_code: 'KR' | 'VN'; holiday_date: string; name_ko: string; name_vi: string }): Promise<CountryHoliday> {
+    const res = await fetch('/api/calendar/manual-holidays', {
+      method: 'POST',
+      headers: getWriteHeaders(),
+      body: JSON.stringify(data),
+    });
+    return handleResponse<CountryHoliday>(res);
+  },
+
+  async deleteManualHoliday(id: string): Promise<{ id: string }> {
+    const res = await fetch(`/api/calendar/manual-holidays/${id}`, {
+      method: 'DELETE',
+      headers: getWriteHeaders(),
+    });
+    return handleResponse<{ id: string }>(res);
+  },
+
   async getOverrides(params?: { worker_id?: string; country_code?: string; start?: string; end?: string }): Promise<CalendarOverride[]> {
     const query = new URLSearchParams(params as any).toString();
     const res = await fetch(`/api/calendar/overrides?${query}`);

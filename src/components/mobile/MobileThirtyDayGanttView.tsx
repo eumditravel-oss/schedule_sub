@@ -214,7 +214,13 @@ export const MobileThirtyDayGanttView: React.FC<MobileThirtyDayGanttViewProps> =
                   ))
                 ) : (
                   tasks.map((tItem) => {
-                    const workerObj = workers.find((w) => w.name === tItem.worker_name);
+                    const workerObj = workers.find((w) => w.id === tItem.worker_name || w.name === tItem.worker_name) || {
+                      id: tItem.worker_name,
+                      name: tItem.worker_name,
+                      country_code: 'KR' as any,
+                      workweek_profile: 'MON_FRI' as any,
+                    };
+
                     return (
                       <div key={tItem.id} className="flex h-10 items-center hover:bg-slate-50/50 transition">
                         {dateColumns.map((col) => {
@@ -225,27 +231,38 @@ export const MobileThirtyDayGanttView: React.FC<MobileThirtyDayGanttViewProps> =
                             overrides
                           );
                           const statusVal = tItem.daily_statuses?.[col.dateStr];
-                          const isWorkingDay = dayStatus.is_working_day;
+                          const isInSchedule = col.dateStr >= tItem.start_date && col.dateStr <= tItem.end_date;
+
+                          let bgClass = 'bg-white';
+                          if (dayStatus.day_type === 'PUBLIC_HOLIDAY') {
+                            bgClass = dayStatus.country_code === 'VN' ? 'bg-amber-100' : 'bg-rose-100';
+                          } else if (dayStatus.day_type === 'LEAVE') {
+                            bgClass = 'bg-violet-100';
+                          } else if (dayStatus.day_type === 'MANUAL_OFF') {
+                            bgClass = 'bg-orange-100';
+                          } else if (dayStatus.day_type === 'WORK_OVERRIDE') {
+                            bgClass = 'bg-cyan-100';
+                          } else if (!dayStatus.is_working_day) {
+                            bgClass = 'bg-slate-100';
+                          } else if (col.isToday) {
+                            bgClass = 'bg-blue-50';
+                          }
 
                           return (
                             <div
                               key={col.dateStr}
                               onClick={() => onTaskCellClick?.(tItem, col.dateStr)}
-                              className={`w-[30px] min-w-[30px] max-w-[30px] h-full border-r border-slate-100 p-0.5 flex items-center justify-center shrink-0 cursor-pointer transition ${
-                                !isWorkingDay
-                                  ? dayStatus.day_type === 'LEAVE'
-                                    ? 'bg-amber-100/80'
-                                    : 'bg-slate-100/90'
-                                  : col.isToday
-                                  ? 'bg-blue-50/40'
-                                  : ''
-                              }`}
+                              className={`w-[30px] min-w-[30px] max-w-[30px] h-full border-r border-slate-100 p-0.5 relative flex items-center justify-center shrink-0 cursor-pointer transition ${bgClass}`}
                             >
+                              {isInSchedule && (
+                                <div className="w-full h-4 bg-blue-600 rounded-xs z-10 opacity-90" />
+                              )}
+
                               {statusVal && statusVal !== 'NONE' ? (
-                                <div className={`w-3.5 h-3.5 rounded-full flex items-center justify-center text-[7px] font-bold ${getStatusColor(statusVal)}`}>
+                                <div className={`w-3.5 h-3.5 rounded-full flex items-center justify-center text-[7px] font-bold z-20 ${getStatusColor(statusVal)}`}>
                                   {statusVal[0]}
                                 </div>
-                              ) : !isWorkingDay ? (
+                              ) : !isInSchedule && !dayStatus.is_working_day ? (
                                 <span className="text-[7px] font-bold text-slate-400">
                                   {dayStatus.day_type === 'LEAVE' ? '휴' : 'Off'}
                                 </span>

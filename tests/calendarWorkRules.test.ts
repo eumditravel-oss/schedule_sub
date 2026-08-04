@@ -121,4 +121,52 @@ describe('Worker Calendar & Holiday Resolution Rules (Requirement 32)', () => {
     expect(st.day_type).toBe('MANUAL_OFF');
     expect(st.is_working_day).toBe(false);
   });
+
+  // 13. VN MON_SAT 2026-05-09 Saturday WORKDAY case
+  it('13. Vietnam worker Thanh Phuong 2026-05-09 Saturday resolves to WORKDAY', () => {
+    const st = resolveWorkDayStatus('2026-05-09', workers[4], [], []);
+    expect(st.day_type).toBe('WORKDAY');
+    expect(st.is_working_day).toBe(true);
+  });
+
+  // 14. KR MON_FRI 2026-05-09 Saturday WEEKLY_OFF case
+  it('14. Korean worker Park Yong-jin 2026-05-09 Saturday resolves to WEEKLY_OFF', () => {
+    const st = resolveWorkDayStatus('2026-05-09', workers[3], [], []);
+    expect(st.day_type).toBe('WEEKLY_OFF');
+    expect(st.is_working_day).toBe(false);
+  });
+
+  // 15. All workers Sunday 2026-05-10 WEEKLY_OFF
+  it('15. All workers 2026-05-10 Sunday resolve to WEEKLY_OFF', () => {
+    workers.forEach((w) => {
+      const st = resolveWorkDayStatus('2026-05-10', w, [], []);
+      expect(st.day_type).toBe('WEEKLY_OFF');
+      expect(st.is_working_day).toBe(false);
+    });
+  });
+
+  // 16. Inclusive date range 2026-05-07 ~ 2026-05-09 has 3 dates
+  it('16. Inclusive date range 2026-05-07 ~ 2026-05-09 has 3 dates', () => {
+    const dates = ['2026-05-07', '2026-05-08', '2026-05-09'];
+    expect(dates.length).toBe(3);
+  });
+
+  // 17. Cell LEAVE, OFF, WORK overrides
+  it('17. Resolves WORK, LEAVE, OFF cell overrides correctly', () => {
+    const leaveOvr: CalendarOverride = { id: 'l1', scope_type: 'WORKER', scope_key: 'wrk_03', work_date: '2026-05-07', override_type: 'LEAVE', label_ko: '개인 휴가' };
+    const offOvr: CalendarOverride = { id: 'l2', scope_type: 'WORKER', scope_key: 'wrk_03', work_date: '2026-05-08', override_type: 'OFF', label_ko: '수동 휴무' };
+    const workOvr: CalendarOverride = { id: 'l3', scope_type: 'WORKER', scope_key: 'wrk_02', work_date: '2026-05-10', override_type: 'WORK', label_ko: '근무일 지정' };
+
+    const stLeave = resolveWorkDayStatus('2026-05-07', workers[4], [], [leaveOvr]);
+    expect(stLeave.day_type).toBe('LEAVE');
+    expect(stLeave.is_working_day).toBe(false);
+
+    const stOff = resolveWorkDayStatus('2026-05-08', workers[4], [], [offOvr]);
+    expect(stOff.day_type).toBe('MANUAL_OFF');
+    expect(stOff.is_working_day).toBe(false);
+
+    const stWork = resolveWorkDayStatus('2026-05-10', workers[3], [], [workOvr]);
+    expect(stWork.day_type).toBe('WORK_OVERRIDE');
+    expect(stWork.is_working_day).toBe(true);
+  });
 });

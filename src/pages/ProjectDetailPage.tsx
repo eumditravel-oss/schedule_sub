@@ -1,7 +1,7 @@
 // src/pages/ProjectDetailPage.tsx
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Project, Task, Worker, CountryHoliday, CalendarOverride, DailyStatusType, WorkDayStatus, isExecutiveViewer, isEditableWorker } from '../types';
+import { Project, Task, Worker, CountryHoliday, CalendarOverride, DailyStatusType, WorkDayStatus, CountryCode, WorkweekProfile, isExecutiveViewer, isEditableWorker } from '../types';
 import { api, getCurrentWorkerId, setCurrentWorker as setCurrentWorkerApi } from '../services/api';
 import { calculateVisibleGanttSpan } from '../utils/dateUtils';
 import { resolveWorkDayStatus } from '../utils/workCalendar';
@@ -26,6 +26,9 @@ import { MobileWeekView } from '../components/mobile/MobileWeekView';
 import { MobileThirtyDayGanttView } from '../components/mobile/MobileThirtyDayGanttView';
 import { MobileScheduleInfoSheet } from '../components/mobile/MobileScheduleInfoSheet';
 import { CalendarManagerModal } from '../components/modals/CalendarManagerModal';
+import { CalendarLegend } from '../components/common/CalendarLegend';
+import { DayActionPanel } from '../components/modals/DayActionPanel';
+import { DateHeaderInfoPanel } from '../components/modals/DateHeaderInfoPanel';
 import {
   ArrowLeft,
   Plus,
@@ -116,6 +119,102 @@ export const ProjectDetailPage: React.FC = () => {
     taskName: '',
     currentStatus: 'NONE',
   });
+
+  const [dayActionState, setDayActionState] = useState<{
+    isOpen: boolean;
+    task: Task | null;
+    dateStr: string;
+    dayStatus: WorkDayStatus | null;
+    workerObj: Worker | null;
+  }>({
+    isOpen: false,
+    task: null,
+    dateStr: '',
+    dayStatus: null,
+    workerObj: null,
+  });
+
+  const [headerInfoState, setHeaderInfoState] = useState<{
+    isOpen: boolean;
+    dateStr: string;
+    dayName: string;
+  }>({
+    isOpen: false,
+    dateStr: '',
+    dayName: '',
+  });
+
+  const handleCellClick = (taskItem: Task, dateStr: string, dayStatus: WorkDayStatus, workerObj: Worker | null) => {
+    setDayActionState({
+      isOpen: true,
+      task: taskItem,
+      dateStr,
+      dayStatus,
+      workerObj,
+    });
+  };
+
+  const handleUpdateDailyStatus = async (taskId: string, dateStr: string, status: DailyStatusType) => {
+    try {
+      await api.updateDailyStatus(taskId, dateStr, status);
+      await fetchProjectDetail();
+    } catch (err: any) {
+      alert(getLocalizedErrorMessage(err, t));
+    }
+  };
+
+  const handleCreateOverrideFromCell = async (overrideType: 'LEAVE' | 'OFF' | 'WORK') => {
+    if (!dayActionState.task || !dayActionState.workerObj) return;
+    try {
+      await api.createOverride({
+        scope_type: 'WORKER',
+        scope_key: dayActionState.workerObj.id,
+        start_date: dayActionState.dateStr,
+        end_date: dayActionState.dateStr,
+        override_type: overrideType,
+        confirm_leave_schedule_cascade: true,
+      });
+      await fetchCalendarData();
+      await fetchProjectDetail();
+    } catch (err: any) {
+      if (err.code === 'LEAVE_SCHEDULE_CASCADE_CONFIRMATION_REQUIRED') {
+        if (confirm(err.message + '\n\n' + (lang === 'vi' ? 'Bạn có muốn chuyển lịch công việc không?' : '작업 일정을 이연하시겠습니까?'))) {
+          await api.createOverride({
+            scope_type: 'WORKER',
+            scope_key: dayActionState.workerObj.id,
+            start_date: dayActionState.dateStr,
+            end_date: dayActionState.dateStr,
+            override_type: overrideType,
+            confirm_leave_schedule_cascade: true,
+          });
+          await fetchCalendarData();
+          await fetchProjectDetail();
+          return;
+        }
+      }
+      alert(getLocalizedErrorMessage(err, t));
+    }
+  };
+
+  const handleClearOverrideFromCell = async (overrideId?: string) => {
+    if (!dayActionState.task || !dayActionState.workerObj) return;
+    try {
+      if (overrideId) {
+        await api.deleteOverride(overrideId);
+      } else {
+        const ovr = calendarOverrides.find(
+          (o) => o.scope_type === 'WORKER' && (o.scope_key === dayActionState.workerObj?.id || o.scope_key === dayActionState.workerObj?.name) && o.work_date === dayActionState.dateStr
+        );
+        if (ovr) {
+          await api.deleteOverride(ovr.id);
+        }
+      }
+      await fetchCalendarData();
+      await fetchProjectDetail();
+    } catch (err: any) {
+      alert(getLocalizedErrorMessage(err, t));
+    }
+  };
 
   // Date Range Hook
   const {
@@ -303,7 +402,7 @@ export const ProjectDetailPage: React.FC = () => {
     }
   };
 
-  const handleUpdateDailyStatus = async (status: DailyStatusType) => {
+  const handleMobileSheetStatusSelect = async (status: DailyStatusType) => {
     const { taskId, dateStr } = isMobileView ? mobileStatusSheetState : popoverState;
     if (!taskId || !dateStr) return;
     if (isViewer) {
@@ -458,49 +557,53 @@ export const ProjectDetailPage: React.FC = () => {
       <div className="bg-slate-50 border-b border-slate-200 px-3 md:px-5 py-2">
         {isMobileView ? (
           <div className="flex flex-col gap-2 w-full">
-            <div role="tablist" aria-label="Mobile View Modes" className="flex items-center p-0.5 bg-slate-200/80 rounded-lg text-xs font-semibold w-full">
-              <button
-                type="button"
-                role="tab"
-                aria-selected={mobileViewMode === 'SUMMARY'}
-                data-testid="mobile-view-summary-btn"
-                onClick={() => handleMobileViewChange('SUMMARY')}
-                className={`flex-1 h-8 rounded-md transition font-bold ${
-                  mobileViewMode === 'SUMMARY'
-                    ? 'bg-blue-600 text-white shadow-xs'
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                }`}
-              >
-                {t('summaryView')}
-              </button>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={mobileViewMode === 'WEEK'}
-                data-testid="mobile-view-week-btn"
-                onClick={() => handleMobileViewChange('WEEK')}
-                className={`flex-1 h-8 rounded-md transition font-bold ${
-                  mobileViewMode === 'WEEK'
-                    ? 'bg-blue-600 text-white shadow-xs'
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                }`}
-              >
-                {t('week7View')}
-              </button>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={mobileViewMode === 'GANTT'}
-                data-testid="mobile-view-gantt-btn"
-                onClick={() => handleMobileViewChange('GANTT')}
-                className={`flex-1 h-8 rounded-md transition font-bold ${
-                  mobileViewMode === 'GANTT'
-                    ? 'bg-blue-600 text-white shadow-xs'
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                }`}
-              >
-                {t('gantt30View')}
-              </button>
+            <div className="flex items-center justify-between">
+              <div role="tablist" aria-label="Mobile View Modes" className="flex items-center p-0.5 bg-slate-200/80 rounded-lg text-xs font-semibold flex-1 mr-2">
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={mobileViewMode === 'SUMMARY'}
+                  data-testid="mobile-view-summary-btn"
+                  onClick={() => handleMobileViewChange('SUMMARY')}
+                  className={`flex-1 h-8 rounded-md transition font-bold ${
+                    mobileViewMode === 'SUMMARY'
+                      ? 'bg-blue-600 text-white shadow-xs'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  {t('summaryView')}
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={mobileViewMode === 'WEEK'}
+                  data-testid="mobile-view-week-btn"
+                  onClick={() => handleMobileViewChange('WEEK')}
+                  className={`flex-1 h-8 rounded-md transition font-bold ${
+                    mobileViewMode === 'WEEK'
+                      ? 'bg-blue-600 text-white shadow-xs'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  {t('week7View')}
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={mobileViewMode === 'GANTT'}
+                  data-testid="mobile-view-gantt-btn"
+                  onClick={() => handleMobileViewChange('GANTT')}
+                  className={`flex-1 h-8 rounded-md transition font-bold ${
+                    mobileViewMode === 'GANTT'
+                      ? 'bg-blue-600 text-white shadow-xs'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  {t('gantt30View')}
+                </button>
+              </div>
+
+              <CalendarLegend isMobileView={true} />
             </div>
           </div>
         ) : (
@@ -514,6 +617,9 @@ export const ProjectDetailPage: React.FC = () => {
           />
         )}
       </div>
+
+      {/* Desktop Calendar Legend */}
+      {!isMobileView && <CalendarLegend isMobileView={false} />}
 
       {/* Main Content Area */}
       <main className="flex-1 p-3 md:p-5 overflow-x-hidden flex flex-col">
@@ -539,7 +645,11 @@ export const ProjectDetailPage: React.FC = () => {
                 currentWorker={currentWorker}
                 holidays={countryHolidays}
                 overrides={calendarOverrides}
-                onTaskCellClick={(tItem, dateStr) => handleMobileCellClick(tItem, dateStr)}
+                onTaskCellClick={(tItem, dateStr) => {
+                  const workerObj = workers.find((w) => w.name === tItem.worker_name) || null;
+                  const dayStatus = resolveWorkDayStatus(dateStr, (workerObj || { id: tItem.worker_name, name: tItem.worker_name }) as any, countryHolidays, calendarOverrides);
+                  handleCellClick(tItem, dateStr, dayStatus, workerObj);
+                }}
               />
             )}
             {mobileViewMode === 'GANTT' && (
@@ -551,7 +661,11 @@ export const ProjectDetailPage: React.FC = () => {
                 dateColumns={dateColumns}
                 holidays={countryHolidays}
                 overrides={calendarOverrides}
-                onTaskCellClick={(tItem, dateStr) => handleMobileCellClick(tItem, dateStr)}
+                onTaskCellClick={(tItem, dateStr) => {
+                  const workerObj = workers.find((w) => w.name === tItem.worker_name) || null;
+                  const dayStatus = resolveWorkDayStatus(dateStr, (workerObj || { id: tItem.worker_name, name: tItem.worker_name }) as any, countryHolidays, calendarOverrides);
+                  handleCellClick(tItem, dateStr, dayStatus, workerObj);
+                }}
               />
             )}
           </div>
@@ -585,18 +699,51 @@ export const ProjectDetailPage: React.FC = () => {
                 </tr>
 
                 <tr className="border-b border-slate-200">
-                  {dateColumns.map((col, idx) => (
-                    <th
-                      key={idx}
-                      style={{ width: `${GANTT_DAY_WIDTH_PX}px`, minWidth: `${GANTT_DAY_WIDTH_PX}px`, maxWidth: `${GANTT_DAY_WIDTH_PX}px` }}
-                      className={`text-center py-1.5 border-r border-slate-200 text-[11px] font-medium ${
-                        col.isToday ? 'bg-blue-100 text-blue-800 font-bold' : col.isWeekend ? 'bg-slate-50 text-slate-400' : 'bg-white text-slate-600'
-                      }`}
-                    >
-                      <div>{col.dayNum}</div>
-                      <div className="text-[10px] scale-90">{col.dayName}</div>
-                    </th>
-                  ))}
+                  {dateColumns.map((col, idx) => {
+                    const isSun = col.date.getDay() === 0;
+                    const isSat = col.date.getDay() === 6;
+                    const krHol = countryHolidays.find((h) => h.country_code === 'KR' && h.holiday_date === col.dateStr);
+                    const vnHol = countryHolidays.find((h) => h.country_code === 'VN' && h.holiday_date === col.dateStr);
+
+                    return (
+                      <th
+                        key={idx}
+                        data-testid="calendar-date-header"
+                        onClick={() => setHeaderInfoState({ isOpen: true, dateStr: col.dateStr, dayName: col.dayName })}
+                        style={{ width: `${GANTT_DAY_WIDTH_PX}px`, minWidth: `${GANTT_DAY_WIDTH_PX}px`, maxWidth: `${GANTT_DAY_WIDTH_PX}px` }}
+                        className={`text-center py-1 border-r border-slate-200 text-[11px] font-medium cursor-pointer transition select-none ${
+                          col.isToday
+                            ? 'ring-2 ring-blue-500 ring-inset bg-blue-100/80 text-blue-900 font-bold'
+                            : krHol || vnHol
+                            ? 'bg-rose-50/80 text-rose-800 font-bold'
+                            : isSun
+                            ? 'bg-slate-100 text-slate-500 font-medium'
+                            : isSat
+                            ? 'bg-slate-50 text-slate-700 font-semibold'
+                            : 'bg-white text-slate-600 hover:bg-slate-50'
+                        }`}
+                      >
+                        <div>{col.dayNum}</div>
+                        <div className="text-[9px] scale-90">{col.dayName}</div>
+                        {isSat && (
+                          <div className="text-[8px] font-bold text-slate-500 scale-75 whitespace-nowrap mt-0.5">
+                            KR OFF / VN WORK
+                          </div>
+                        )}
+                        {isSun && (
+                          <div className="text-[8px] font-bold text-slate-400 scale-75 whitespace-nowrap mt-0.5">
+                            OFF
+                          </div>
+                        )}
+                        {(krHol || vnHol) && (
+                          <div className="flex items-center justify-center gap-0.5 mt-0.5">
+                            {krHol && <span className="text-[8px] font-extrabold px-0.5 rounded bg-rose-100 text-rose-700 border border-rose-200">KR</span>}
+                            {vnHol && <span className="text-[8px] font-extrabold px-0.5 rounded bg-amber-100 text-amber-900 border border-amber-200">VN</span>}
+                          </div>
+                        )}
+                      </th>
+                    );
+                  })}
                 </tr>
               </thead>
 
@@ -615,23 +762,29 @@ export const ProjectDetailPage: React.FC = () => {
                   </tr>
                 ) : (
                   tasks.map((task) => {
-                    const { isVisible, startIndex, durationDays } = calculateVisibleGanttSpan(
-                      task.start_date,
-                      task.end_date,
-                      startDate,
-                      endDate
-                    );
                     const taskDisplayName = getTaskDisplayName(task);
-                    const workerObj = workers.find((w) => w.name === task.worker_name) || {
+                    const workerObj = workers.find((w) => w.id === task.worker_name || w.name === task.worker_name);
+
+                    if (!workerObj && workers.length > 0) {
+                      return (
+                        <tr key={task.id} className="bg-red-50">
+                          <td colSpan={dateColumns.length + 1} className="p-3 text-red-600 font-bold text-xs">
+                            데이터 오류: 작업자 프로필 정보가 없습니다 ({task.worker_name})
+                          </td>
+                        </tr>
+                      );
+                    }
+
+                    const targetWorkerObj = workerObj || {
                       id: task.worker_name,
                       name: task.worker_name,
-                      country_code: (task.worker_name.includes('탄') || task.worker_name.includes('끄엉') || task.worker_name.includes('꾸옥') || task.worker_name.includes('Thanh') || task.worker_name.includes('Manh') || task.worker_name.includes('Quoc')) ? 'VN' : 'KR',
-                      workweek_profile: (task.worker_name.includes('탄') || task.worker_name.includes('끄엉') || task.worker_name.includes('꾸옥') || task.worker_name.includes('Thanh') || task.worker_name.includes('Manh') || task.worker_name.includes('Quoc')) ? 'MON_SAT' : 'MON_FRI',
+                      country_code: 'KR' as CountryCode,
+                      workweek_profile: 'MON_FRI' as WorkweekProfile,
                     };
 
                     return (
-                      <tr key={task.id} data-testid={`task-row-${task.id}`} className="hover:bg-blue-50/40 transition group">
-                        <td className="sticky left-0 z-10 bg-white group-hover:bg-blue-50/40 px-3 py-2.5 border-r border-slate-200 w-[170px] md:w-[295px] min-w-[170px] md:min-w-[295px] max-w-[295px] align-middle">
+                      <tr key={task.id} data-testid={`task-row-${task.id}`} className="hover:bg-blue-50/30 transition group">
+                        <td className="sticky left-0 z-10 bg-white group-hover:bg-blue-50/30 px-3 py-2 border-r border-slate-200 w-[170px] md:w-[295px] min-w-[170px] md:min-w-[295px] max-w-[295px] align-middle">
                           <div className="flex items-center justify-between">
                             <div className="pr-1 overflow-hidden min-w-0">
                               <div className="flex items-center gap-1.5 truncate">
@@ -668,30 +821,64 @@ export const ProjectDetailPage: React.FC = () => {
                         </td>
 
                         {dateColumns.map((col, cIdx) => {
-                          const isBarStart = isVisible && cIdx === startIndex;
-                          const dayStatus = resolveWorkDayStatus(col.dateStr, workerObj as any, countryHolidays, calendarOverrides);
+                          const dayStatus = resolveWorkDayStatus(col.dateStr, targetWorkerObj as any, countryHolidays, calendarOverrides);
                           const statusVal = task.daily_statuses?.[col.dateStr];
+                          const isInSchedule = col.dateStr >= task.start_date && col.dateStr <= task.end_date;
+
+                          const isExactStart = col.dateStr === task.start_date;
+                          const isExactEnd = col.dateStr === task.end_date;
+                          const isFirstVisibleCell = cIdx === 0 && col.dateStr > task.start_date && isInSchedule;
+                          const isSingleDay = isExactStart && isExactEnd;
+
+                          let cellBgClass = 'bg-white';
+                          if (dayStatus.day_type === 'PUBLIC_HOLIDAY') {
+                            cellBgClass = dayStatus.country_code === 'VN' ? 'bg-amber-100/70' : 'bg-rose-100/70';
+                          } else if (dayStatus.day_type === 'LEAVE') {
+                            cellBgClass = 'bg-violet-100/80';
+                          } else if (dayStatus.day_type === 'MANUAL_OFF') {
+                            cellBgClass = 'bg-orange-100/80';
+                          } else if (dayStatus.day_type === 'WORK_OVERRIDE') {
+                            cellBgClass = 'bg-cyan-100/70';
+                          } else if (!dayStatus.is_working_day) {
+                            cellBgClass = 'bg-slate-100/90';
+                          } else if (col.isToday) {
+                            cellBgClass = 'bg-blue-50/50';
+                          }
 
                           return (
                             <td
                               key={cIdx}
+                              onClick={() => handleCellClick(task, col.dateStr, dayStatus, targetWorkerObj as any)}
                               style={{ width: `${GANTT_DAY_WIDTH_PX}px`, minWidth: `${GANTT_DAY_WIDTH_PX}px`, maxWidth: `${GANTT_DAY_WIDTH_PX}px` }}
-                              className={`p-0 relative border-r border-slate-200 align-middle ${
-                                !dayStatus.is_working_day
-                                  ? dayStatus.day_type === 'LEAVE'
-                                    ? 'bg-amber-100/70'
-                                    : 'bg-slate-100/90'
-                                  : col.isToday
-                                  ? 'bg-blue-50/60'
-                                  : 'bg-white'
+                              className={`p-0 relative border-r border-slate-200 align-middle cursor-pointer ${cellBgClass} ${
+                                col.isToday ? 'ring-2 ring-blue-500 ring-inset' : ''
                               }`}
                             >
-                              {isBarStart && (
+                              {isInSchedule && (
                                 <div
-                                  style={{ width: `${durationDays * GANTT_DAY_WIDTH_PX - 4}px` }}
-                                  className="absolute left-0.5 top-1/2 -translate-y-1/2 h-7 bg-blue-600 rounded-md shadow-xs text-white text-xs font-bold flex items-center px-2 z-10 transition-all truncate"
+                                  className={`h-7 my-auto relative flex items-center z-10 text-white font-bold text-xs bg-blue-600 transition-all ${
+                                    isSingleDay
+                                      ? 'rounded-md mx-0.5'
+                                      : isExactStart
+                                      ? 'rounded-l-md ml-0.5 mr-0'
+                                      : isExactEnd
+                                      ? 'rounded-r-md mr-0.5 ml-0'
+                                      : 'rounded-none mx-0'
+                                  }`}
                                 >
-                                  <span className="truncate">{taskDisplayName} ({task.progress}%)</span>
+                                  {(isExactStart || isFirstVisibleCell) && (
+                                    <span className="px-1.5 z-20 whitespace-nowrap truncate">
+                                      {taskDisplayName} ({task.progress}%)
+                                    </span>
+                                  )}
+                                </div>
+                              )}
+
+                              {statusVal && statusVal !== 'NONE' && (
+                                <div className="absolute top-1 right-1 z-20">
+                                  {statusVal === 'COMPLETED' && <div className="w-2 h-2 rounded-full bg-emerald-500" title="완료" />}
+                                  {statusVal === 'IN_PROGRESS' && <div className="w-2 h-2 rounded-full bg-blue-500" title="작업 중" />}
+                                  {statusVal === 'ISSUE' && <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" title="문제 발생" />}
                                 </div>
                               )}
                             </td>
@@ -730,6 +917,9 @@ export const ProjectDetailPage: React.FC = () => {
         projectId={projectId || ''}
         project={project}
         currentWorker={currentWorker}
+        holidays={countryHolidays}
+        overrides={calendarOverrides}
+        workers={workers}
       />
 
       <WorkerPromptModal
@@ -752,7 +942,7 @@ export const ProjectDetailPage: React.FC = () => {
         dateStr={mobileStatusSheetState.dateStr}
         currentStatus={mobileStatusSheetState.currentStatus}
         workStatus={mobileStatusSheetState.workStatus}
-        onSelect={handleUpdateDailyStatus}
+        onSelect={handleMobileSheetStatusSelect}
       />
 
       <CalendarManagerModal
@@ -761,6 +951,36 @@ export const ProjectDetailPage: React.FC = () => {
         workers={workers}
         currentWorker={currentWorker}
         onRefreshCalendar={fetchCalendarData}
+      />
+
+      {/* Day Action Panel (Desktop & Mobile) */}
+      {dayActionState.isOpen && dayActionState.task && (
+        <DayActionPanel
+          isOpen={dayActionState.isOpen}
+          onClose={() => setDayActionState((prev) => ({ ...prev, isOpen: false }))}
+          task={dayActionState.task}
+          dateStr={dayActionState.dateStr}
+          worker={dayActionState.workerObj}
+          currentWorker={currentWorker}
+          dayStatus={dayActionState.dayStatus || resolveWorkDayStatus(dayActionState.dateStr, (dayActionState.workerObj || { id: dayActionState.task.worker_name, name: dayActionState.task.worker_name }) as any, countryHolidays, calendarOverrides)}
+          holidays={countryHolidays}
+          overrides={calendarOverrides}
+          onUpdateStatus={handleUpdateDailyStatus}
+          onCreateOverride={handleCreateOverrideFromCell}
+          onClearOverride={handleClearOverrideFromCell}
+          isMobileView={isMobileView}
+        />
+      )}
+
+      {/* Date Header Info Panel */}
+      <DateHeaderInfoPanel
+        isOpen={headerInfoState.isOpen}
+        onClose={() => setHeaderInfoState((prev) => ({ ...prev, isOpen: false }))}
+        dateStr={headerInfoState.dateStr}
+        dayName={headerInfoState.dayName}
+        holidays={countryHolidays}
+        currentWorker={currentWorker}
+        onRefreshHolidays={fetchCalendarData}
       />
     </div>
   );

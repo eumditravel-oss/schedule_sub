@@ -22,6 +22,8 @@ import { CalendarManagerModal } from '../components/modals/CalendarManagerModal'
 import { MobileSummaryView } from '../components/mobile/MobileSummaryView';
 import { MobileWeekView } from '../components/mobile/MobileWeekView';
 import { MobileThirtyDayGanttView } from '../components/mobile/MobileThirtyDayGanttView';
+import { CalendarLegend } from '../components/common/CalendarLegend';
+import { DateHeaderInfoPanel } from '../components/modals/DateHeaderInfoPanel';
 import { Plus, ChevronRight, Calendar, Lock } from 'lucide-react';
 
 export type MobileViewMode = 'SUMMARY' | 'WEEK' | 'GANTT';
@@ -67,6 +69,16 @@ export const ProjectOverviewPage: React.FC = () => {
   const [isCalendarModalOpen, setIsCalendarModalOpen] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
+
+  const [headerInfoState, setHeaderInfoState] = useState<{
+    isOpen: boolean;
+    dateStr: string;
+    dayName: string;
+  }>({
+    isOpen: false,
+    dateStr: '',
+    dayName: '',
+  });
 
   // Date Range Hook
   const {
@@ -373,52 +385,57 @@ export const ProjectOverviewPage: React.FC = () => {
           )}
         </div>
 
-        {/* Mobile / Tablet View Mode Controls (Always visible in Active & Completed tabs) */}
+        {/* Controls Toolbar */}
+      <div className="bg-slate-50 border-b border-slate-200 px-3 md:px-5 py-2">
         {isMobileView ? (
           <div className="flex flex-col gap-2 w-full">
-            <div role="tablist" aria-label="Mobile View Modes" className="flex items-center p-0.5 bg-slate-200/80 rounded-lg text-xs font-semibold w-full">
-              <button
-                type="button"
-                role="tab"
-                aria-selected={mobileViewMode === 'SUMMARY'}
-                data-testid="mobile-view-summary-btn"
-                onClick={() => handleMobileViewChange('SUMMARY')}
-                className={`flex-1 h-8 rounded-md transition font-bold ${
-                  mobileViewMode === 'SUMMARY'
-                    ? 'bg-blue-600 text-white shadow-xs'
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                }`}
-              >
-                {t('summaryView')}
-              </button>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={mobileViewMode === 'WEEK'}
-                data-testid="mobile-view-week-btn"
-                onClick={() => handleMobileViewChange('WEEK')}
-                className={`flex-1 h-8 rounded-md transition font-bold ${
-                  mobileViewMode === 'WEEK'
-                    ? 'bg-blue-600 text-white shadow-xs'
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                }`}
-              >
-                {t('week7View')}
-              </button>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={mobileViewMode === 'GANTT'}
-                data-testid="mobile-view-gantt-btn"
-                onClick={() => handleMobileViewChange('GANTT')}
-                className={`flex-1 h-8 rounded-md transition font-bold ${
-                  mobileViewMode === 'GANTT'
-                    ? 'bg-blue-600 text-white shadow-xs'
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                }`}
-              >
-                {t('gantt30View')}
-              </button>
+            <div className="flex items-center justify-between">
+              <div role="tablist" aria-label="Mobile View Modes" className="flex items-center p-0.5 bg-slate-200/80 rounded-lg text-xs font-semibold flex-1 mr-2">
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={mobileViewMode === 'SUMMARY'}
+                  data-testid="mobile-view-summary-btn"
+                  onClick={() => handleMobileViewChange('SUMMARY')}
+                  className={`flex-1 h-8 rounded-md transition font-bold ${
+                    mobileViewMode === 'SUMMARY'
+                      ? 'bg-blue-600 text-white shadow-xs'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  {t('summaryView')}
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={mobileViewMode === 'WEEK'}
+                  data-testid="mobile-view-week-btn"
+                  onClick={() => handleMobileViewChange('WEEK')}
+                  className={`flex-1 h-8 rounded-md transition font-bold ${
+                    mobileViewMode === 'WEEK'
+                      ? 'bg-blue-600 text-white shadow-xs'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  {t('week7View')}
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={mobileViewMode === 'GANTT'}
+                  data-testid="mobile-view-gantt-btn"
+                  onClick={() => handleMobileViewChange('GANTT')}
+                  className={`flex-1 h-8 rounded-md transition font-bold ${
+                    mobileViewMode === 'GANTT'
+                      ? 'bg-blue-600 text-white shadow-xs'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  {t('gantt30View')}
+                </button>
+              </div>
+
+              <CalendarLegend isMobileView={true} />
             </div>
           </div>
         ) : (
@@ -431,6 +448,10 @@ export const ProjectOverviewPage: React.FC = () => {
             onToday={goToday}
           />
         )}
+      </div>
+
+      {/* Desktop Calendar Legend */}
+      {!isMobileView && <CalendarLegend isMobileView={false} />}
       </div>
 
       {/* Main Content Area */}
@@ -497,36 +518,47 @@ export const ProjectOverviewPage: React.FC = () => {
 
                 <tr className="border-b border-slate-200">
                   {dateColumns.map((col, idx) => {
+                    const isSun = col.date.getDay() === 0;
+                    const isSat = col.date.getDay() === 6;
                     const krHol = krHolidays.find((h) => h.holiday_date === col.dateStr);
                     const vnHol = vnHolidays.find((h) => h.holiday_date === col.dateStr);
-                    const tooltip = [
-                      krHol ? `KR: ${krHol.name_ko || krHol.name_local}` : null,
-                      vnHol ? `VN: ${vnHol.name_vi || vnHol.name_local}` : null,
-                    ]
-                      .filter(Boolean)
-                      .join(' / ');
 
                     return (
                       <th
                         key={idx}
-                        title={tooltip || undefined}
+                        data-testid="calendar-date-header"
+                        onClick={() => setHeaderInfoState({ isOpen: true, dateStr: col.dateStr, dayName: col.dayName })}
                         style={{ width: `${GANTT_DAY_WIDTH_PX}px`, minWidth: `${GANTT_DAY_WIDTH_PX}px`, maxWidth: `${GANTT_DAY_WIDTH_PX}px` }}
-                        className={`text-center py-1 border-r border-slate-200 text-[11px] font-medium ${
+                        className={`text-center py-1 border-r border-slate-200 text-[11px] font-medium cursor-pointer transition select-none ${
                           col.isToday
-                            ? 'bg-blue-100 text-blue-800 font-bold'
+                            ? 'ring-2 ring-blue-500 ring-inset bg-blue-100/80 text-blue-900 font-bold'
                             : krHol || vnHol
-                            ? 'bg-rose-50/80 text-rose-700 font-bold'
-                            : col.isWeekend
-                            ? 'bg-slate-50 text-slate-400'
-                            : 'bg-white text-slate-600'
+                            ? 'bg-rose-50/80 text-rose-800 font-bold'
+                            : isSun
+                            ? 'bg-slate-100 text-slate-500 font-medium'
+                            : isSat
+                            ? 'bg-slate-50 text-slate-700 font-semibold'
+                            : 'bg-white text-slate-600 hover:bg-slate-50'
                         }`}
                       >
                         <div>{col.dayNum}</div>
                         <div className="text-[9px] scale-90">{col.dayName}</div>
-                        <div className="flex items-center justify-center gap-0.5 mt-0.5">
-                          {krHol && <span className="text-[8px] font-extrabold px-0.5 rounded bg-rose-100 text-rose-700 border border-rose-200">KR</span>}
-                          {vnHol && <span className="text-[8px] font-extrabold px-0.5 rounded bg-rose-100 text-rose-700 border border-rose-200">VN</span>}
-                        </div>
+                        {isSat && (
+                          <div className="text-[8px] font-bold text-slate-500 scale-75 whitespace-nowrap mt-0.5">
+                            KR OFF / VN WORK
+                          </div>
+                        )}
+                        {isSun && (
+                          <div className="text-[8px] font-bold text-slate-400 scale-75 whitespace-nowrap mt-0.5">
+                            OFF
+                          </div>
+                        )}
+                        {(krHol || vnHol) && (
+                          <div className="flex items-center justify-center gap-0.5 mt-0.5">
+                            {krHol && <span className="text-[8px] font-extrabold px-0.5 rounded bg-rose-100 text-rose-700 border border-rose-200">KR</span>}
+                            {vnHol && <span className="text-[8px] font-extrabold px-0.5 rounded bg-amber-100 text-amber-900 border border-amber-200">VN</span>}
+                          </div>
+                        )}
                       </th>
                     );
                   })}
@@ -548,13 +580,6 @@ export const ProjectOverviewPage: React.FC = () => {
                   </tr>
                 ) : (
                   projects.map((project) => {
-                    const { isVisible, startIndex, durationDays } = calculateVisibleGanttSpan(
-                      project.start_date,
-                      project.end_date,
-                      startDate,
-                      endDate
-                    );
-                    const barWidthPx = durationDays * GANTT_DAY_WIDTH_PX - 4;
                     const displayName = getDisplayName(project);
                     const isFallback = isFallbackOriginal(project);
 
@@ -591,7 +616,11 @@ export const ProjectOverviewPage: React.FC = () => {
                         </td>
 
                         {dateColumns.map((col, cIdx) => {
-                          const isBarStart = isVisible && cIdx === startIndex;
+                          const isInSchedule = col.dateStr >= project.start_date && col.dateStr <= project.end_date;
+                          const isExactStart = col.dateStr === project.start_date;
+                          const isExactEnd = col.dateStr === project.end_date;
+                          const isFirstVisibleCell = cIdx === 0 && col.dateStr > project.start_date && isInSchedule;
+                          const isSingleDay = isExactStart && isExactEnd;
 
                           return (
                             <td
@@ -605,12 +634,27 @@ export const ProjectOverviewPage: React.FC = () => {
                                   : 'bg-white'
                               }`}
                             >
-                              {isBarStart && (
+                              {isInSchedule && (
                                 <div
-                                  style={{ width: `${barWidthPx}px` }}
-                                  className="absolute left-0.5 top-1/2 -translate-y-1/2 h-7 bg-gradient-to-r from-blue-600 to-cyan-500 rounded-md shadow-xs text-white text-xs font-bold flex items-center px-2 z-10 transition-all truncate"
+                                  className={`h-7 my-auto relative flex items-center z-10 text-white font-bold text-xs ${
+                                    project.status === 'COMPLETED'
+                                      ? 'bg-emerald-600'
+                                      : 'bg-gradient-to-r from-blue-600 to-cyan-500'
+                                  } transition-all ${
+                                    isSingleDay
+                                      ? 'rounded-md mx-0.5'
+                                      : isExactStart
+                                      ? 'rounded-l-md ml-0.5 mr-0'
+                                      : isExactEnd
+                                      ? 'rounded-r-md mr-0.5 ml-0'
+                                      : 'rounded-none mx-0'
+                                  }`}
                                 >
-                                  <span className="truncate">{displayName} ({project.progress}%)</span>
+                                  {(isExactStart || isFirstVisibleCell) && (
+                                    <span className="px-1.5 z-20 whitespace-nowrap truncate">
+                                      {displayName} ({project.progress}%)
+                                    </span>
+                                  )}
                                 </div>
                               )}
                             </td>
@@ -654,6 +698,17 @@ export const ProjectOverviewPage: React.FC = () => {
         workers={workers}
         currentWorker={currentWorker}
         onRefreshCalendar={fetchCalendarData}
+      />
+
+      {/* Date Header Info Panel */}
+      <DateHeaderInfoPanel
+        isOpen={headerInfoState.isOpen}
+        onClose={() => setHeaderInfoState((prev) => ({ ...prev, isOpen: false }))}
+        dateStr={headerInfoState.dateStr}
+        dayName={headerInfoState.dayName}
+        holidays={[...krHolidays, ...vnHolidays]}
+        currentWorker={currentWorker}
+        onRefreshHolidays={fetchCalendarData}
       />
     </div>
   );

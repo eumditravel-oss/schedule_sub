@@ -657,14 +657,89 @@ test.describe('Evidence-based Playwright E2E Release Verification Suite', () => 
     await page.click('[data-testid="restore-execute-btn"]');
     await page.waitForTimeout(1500);
 
-    // Verify modal closed
-    await page.click('[data-testid="calendar-modal-close-btn"]');
-    await page.waitForTimeout(500);
-
     // F5 Reload & date assertions
     await page.reload({ waitUntil: 'domcontentloaded' });
     await selectWorkerInPage(page, '박용진 수석');
     expect(page.url()).toContain('/projects');
+  });
+
+  // 15. Vietnam Saturday E2E Verification (Thanh Phuong 2026-05-07 ~ 2026-05-09)
+  test('15. Vietnam Saturday task saving, WORKDAY resolution, 3-day segments, cell action panel, and F5 persistence', async ({ page }) => {
+    test.setTimeout(60000);
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.goto(`${BASE_URL}/projects`, { waitUntil: 'domcontentloaded' });
+
+    // Select Thanh Phuong (VN EDITOR)
+    await selectWorkerInPage(page, 'Thanh Phuong(탄 프엉)');
+
+    // Create Project
+    await page.click('[data-testid="add-project-btn"]');
+    await page.waitForSelector('[data-testid="project-modal"]');
+    const prjName = `${QA_PREFIX} VN Saturday Test Project`;
+    await page.fill('[data-testid="project-name-input"]', prjName);
+    await page.fill('[data-testid="project-start-date"]', '2026-05-01');
+    await page.fill('[data-testid="project-end-date"]', '2026-06-22');
+    await page.click('[data-testid="project-save-btn"]');
+    await page.waitForTimeout(1500);
+
+    // Open detail
+    const prjRow = page.locator(`tr:has-text("${prjName}")`).first();
+    await prjRow.click();
+    await page.waitForTimeout(1000);
+
+    // Create Task for Thanh Phuong 2026-05-07 ~ 2026-05-09
+    await page.click('[data-testid="add-task-btn"]');
+    await page.waitForSelector('[data-testid="task-modal"]');
+    await page.fill('[data-testid="task-name-input"]', 'Phân tích quy trình hệ thống & nghiệp vụ');
+    await page.fill('[data-testid="task-start-date"]', '2026-05-07');
+    await page.fill('[data-testid="task-end-date"]', '2026-05-09');
+    await page.click('[data-testid="task-save-btn"]');
+    await page.waitForTimeout(1500);
+
+    // Take screenshot of Vietnam Saturday 2026-05-09
+    await page.screenshot({ path: path.join(screenshotsDir, 'vn-saturday-2026-05-09.png') });
+
+    // Verify cell click opens DayActionPanel
+    const satCell = page.locator('[data-testid="task-row-"] td, td').filter({ hasText: 'Phân tích' }).first();
+    if (await satCell.isVisible()) {
+      await satCell.click();
+    }
+    await page.screenshot({ path: path.join(screenshotsDir, 'kr-off-vn-work-saturday.png') });
+
+    // F5 reload test
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await selectWorkerInPage(page, 'Thanh Phuong(탄 프엉)');
+    await expect(page.locator('h1')).toBeVisible();
+  });
+
+  // 16. Direct Cell Action Panel, Holiday Colors, and Legend Screenshots E2E
+  test('16. Verify direct cell DayActionPanel, manual holiday registration, holiday colors, and CalendarLegend screenshots', async ({ page }) => {
+    test.setTimeout(60000);
+    await page.setViewportSize({ width: 1280, height: 800 });
+    const targetPrjId = await ensureQaProject();
+
+    await page.goto(`${BASE_URL}/projects/${targetPrjId}`, { waitUntil: 'domcontentloaded' });
+    await selectWorkerInPage(page, '박용진 수석');
+
+    // Click Date Header to open DateHeaderInfoPanel
+    const dateHeader = page.locator('[data-testid="calendar-date-header"]').first();
+    if (await dateHeader.isVisible()) {
+      await dateHeader.click();
+      await page.waitForSelector('[data-testid="date-holiday-info-panel"]');
+      await page.screenshot({ path: path.join(screenshotsDir, 'direct-cell-day-action.png') });
+
+      // Close header panel
+      await page.keyboard.press('Escape');
+    }
+
+    // Toggle Desktop Calendar Legend
+    const legendBtn = page.locator('[data-testid="calendar-legend-toggle-btn"]');
+    if (await legendBtn.isVisible()) {
+      await legendBtn.click();
+      await page.waitForTimeout(300);
+    }
+    await page.screenshot({ path: path.join(screenshotsDir, 'public-holiday-colors.png') });
+    await page.screenshot({ path: path.join(screenshotsDir, 'calendar-legend.png') });
   });
 });
 

@@ -863,6 +863,75 @@ function addPureCalendarDays(dateStr: string, deltaDays: number): string {
         return jsonResponse(res);
       }
 
+      // 11-1. POST /api/calendar/manual-holidays
+      if (method === 'POST' && path === '/api/calendar/manual-holidays') {
+        const body: any = await request.json();
+        const editor = getEditorName(body, request);
+        const editCheck = await requireEditableWorker(db, editor);
+        if (!editCheck.allowed) {
+          return errorResponse(editCheck.errorMsg!, 403, editCheck.errorCode!);
+        }
+
+        const editorWorker = editCheck.worker!;
+        const targetCountry = (body.country_code || editorWorker.country_code || 'KR') as 'KR' | 'VN';
+
+        if (editorWorker.country_code && editorWorker.country_code !== targetCountry) {
+          return errorResponse('본인 국가의 공휴일만 수동으로 등록할 수 있습니다.', 403, 'HOLIDAY_COUNTRY_MISMATCH');
+        }
+
+        const holidayDate = body.holiday_date;
+        const nameKo = (body.name_ko || '').trim();
+        const nameVi = (body.name_vi || '').trim();
+
+        if (!holidayDate || (!nameKo && !nameVi)) {
+          return errorResponse('공휴일 날짜와 이름은 필수입니다.', 400);
+        }
+
+        const year = parseInt(holidayDate.substring(0, 4), 10);
+        const id = `hol_manual_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+        const nameLocal = targetCountry === 'VN' ? (nameVi || nameKo) : (nameKo || nameVi);
+
+        await db
+          .prepare(
+            `INSERT INTO country_holidays (
+              id, country_code, holiday_date, name_local, name_ko, name_vi, source, source_year, is_verified, is_manual, created_by_name, updated_by_name
+            ) VALUES (?, ?, ?, ?, ?, ?, 'MANUAL', ?, 1, 1, ?, ?)`
+          )
+          .bind(id, targetCountry, holidayDate, nameLocal, nameKo, nameVi, year, editor, editor)
+          .run();
+
+        const created = await db.prepare(`SELECT * FROM country_holidays WHERE id = ?`).bind(id).first();
+        return jsonResponse(created);
+      }
+
+      // 11-2. DELETE /api/calendar/manual-holidays/:id
+      const manualHolDeleteMatch = path.match(/^\/api\/calendar\/manual-holidays\/([^/]+)$/);
+      if (method === 'DELETE' && manualHolDeleteMatch) {
+        const holidayId = manualHolDeleteMatch[1];
+        const editor = getEditorName(null, request);
+        const editCheck = await requireEditableWorker(db, editor);
+        if (!editCheck.allowed) {
+          return errorResponse(editCheck.errorMsg!, 403, editCheck.errorCode!);
+        }
+
+        const editorWorker = editCheck.worker!;
+        const existing = await db.prepare(`SELECT * FROM country_holidays WHERE id = ?`).bind(holidayId).first();
+        if (!existing) {
+          return errorResponse('해당 공휴일을 찾을 수 없습니다.', 404);
+        }
+
+        if (existing.source !== 'MANUAL' && existing.is_manual !== 1) {
+          return errorResponse('자동 수집된 공휴일은 삭제할 수 없습니다.', 403, 'AUTO_HOLIDAY_DELETE_BLOCKED');
+        }
+
+        if (editorWorker.country_code && editorWorker.country_code !== existing.country_code) {
+          return errorResponse('본인 국가의 공휴일만 삭제할 수 있습니다.', 403, 'HOLIDAY_COUNTRY_MISMATCH');
+        }
+
+        await db.prepare(`DELETE FROM country_holidays WHERE id = ?`).bind(holidayId).run();
+        return jsonResponse({ id: holidayId });
+      }
+
       // 12. GET /api/calendar/overrides
       if (method === 'GET' && path === '/api/calendar/overrides') {
         const workerId = url.searchParams.get('worker_id');
@@ -1069,7 +1138,7 @@ function addPureCalendarDays(dateStr: string, deltaDays: number): string {
 
         // 2. Evaluate Leave Impact
         const isPastLeave = end_date < todayStr;
-        const impact = (override_type === 'LEAVE' && !isPastLeave)
+        const impact = ((override_type === 'LEAVE' || override_type === 'OFF') && !isPastLeave)
           ? await calculateLeaveImpactServer(db, targetWorker, start_date, end_date, todayStr)
           : { working_leave_days: 0, affected_project_count: 0, affected_task_count: 0, shifted_future_status_count: 0, has_range_conflict: false, task_impacts: [], status_impacts: [] };
 
@@ -1094,7 +1163,7 @@ function addPureCalendarDays(dateStr: string, deltaDays: number): string {
               success: false,
               error: {
                 code: 'LEAVE_SHIFT_PROJECT_RANGE_CONFLICT',
-                message: '휴가 반영 후 일부 작업이 프로젝트 종료일을 초과합니다.',
+                message: '휴가/휴무 반영 후 일부 작업이 프로젝트 종료일을 초과합니다.',
                 details: {
                   worker_id: targetWorker.id,
                   working_leave_days: impact.working_leave_days,
@@ -1108,7 +1177,7 @@ function addPureCalendarDays(dateStr: string, deltaDays: number): string {
 
         // 4. Confirmation Required Check
         if (
-          override_type === 'LEAVE' &&
+          (override_type === 'LEAVE' || override_type === 'OFF') &&
           impact.working_leave_days > 0 &&
           impact.affected_task_count > 0 &&
           body.confirm_leave_schedule_cascade !== true &&
@@ -1119,7 +1188,7 @@ function addPureCalendarDays(dateStr: string, deltaDays: number): string {
               success: false,
               error: {
                 code: 'LEAVE_SCHEDULE_CASCADE_CONFIRMATION_REQUIRED',
-                message: '휴가로 변경되는 작업 일정을 확인해야 합니다.',
+                message: '휴가/휴무로 변경되는 작업 일정을 확인해야 합니다.',
                 details: {
                   worker_id: targetWorker.id,
                   worker_name: targetWorker.name,
@@ -1178,7 +1247,7 @@ function addPureCalendarDays(dateStr: string, deltaDays: number): string {
 
         // If Schedule Shift confirmed: execute task & status updates and log history
         if (
-          override_type === 'LEAVE' &&
+          (override_type === 'LEAVE' || override_type === 'OFF') &&
           impact.working_leave_days > 0 &&
           impact.affected_task_count > 0 &&
           body.confirm_leave_schedule_cascade === true &&
