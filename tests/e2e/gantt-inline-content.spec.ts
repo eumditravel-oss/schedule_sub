@@ -76,6 +76,7 @@ test.describe('Strict Gantt Inline Content & Build SHA E2E Suite', () => {
         end_date: '2026-08-20',
         worker_name: 'Manh Cuong(끄엉)',
         editor_name: 'Manh Cuong(끄엉)',
+        confirm_worker_schedule_conflict: true,
       }),
     });
 
