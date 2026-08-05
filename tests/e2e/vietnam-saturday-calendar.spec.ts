@@ -46,6 +46,15 @@ test.describe('Vietnam Saturday Work Calendar E2E Suite', () => {
     await page.goto(`${QA_BASE_URL}/projects`);
     await dismissBlockingModals(page);
 
+    const workerSelectorBtn = page.locator('[data-testid="worker-select-btn"]');
+    if (await workerSelectorBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
+      await workerSelectorBtn.click();
+      const pOption = page.locator('[data-testid^="worker-option-"]').filter({ hasText: '박용진' }).first();
+      if (await pOption.isVisible({ timeout: 2000 }).catch(() => false)) {
+        await pOption.click();
+      }
+    }
+
     // Open Calendar Manager Modal
     const manageBtn = page.locator('[data-testid="manage-holidays-btn"]');
     await expect(manageBtn).toBeVisible({ timeout: 10000 });
