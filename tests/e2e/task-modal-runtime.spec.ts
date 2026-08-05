@@ -50,7 +50,8 @@ test.describe('TaskModal Runtime Crash Fix & ScheduleBar E2E Verification', () =
     });
 
     await page.setViewportSize({ width: 1366, height: 768 });
-    await page.goto(QA_BASE_URL);
+    await page.goto(`${QA_BASE_URL}/projects`);
+    await dismissBlockingModals(page);
     const projectCell = page.locator('[data-testid^="project-row-"] td').first();
     await expect(projectCell).toBeVisible({ timeout: 15000 });
     await projectCell.click();
@@ -114,7 +115,8 @@ test.describe('TaskModal Runtime Crash Fix & ScheduleBar E2E Verification', () =
     });
 
     await page.setViewportSize({ width: 1366, height: 768 });
-    await page.goto(QA_BASE_URL);
+    await page.goto(`${QA_BASE_URL}/projects`);
+    await dismissBlockingModals(page);
     const projectCell = page.locator('[data-testid^="project-row-"] td').first();
     await expect(projectCell).toBeVisible({ timeout: 15000 });
     await projectCell.click();
