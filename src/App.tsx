@@ -9,6 +9,11 @@ function BuggyTestComponent(): JSX.Element {
 }
 
 export function App() {
+  const isDebugAllowed =
+    import.meta.env.MODE !== 'production' ||
+    (typeof window !== 'undefined' &&
+      (window.location.hostname.includes('-qa') || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'));
+
   return (
     <ErrorBoundary fallbackViewName="App Main Router">
       <BrowserRouter>
@@ -30,14 +35,16 @@ export function App() {
               </ErrorBoundary>
             }
           />
-          <Route
-            path="/debug-error-boundary-test"
-            element={
-              <ErrorBoundary fallbackViewName="Debug Error Test View">
-                <BuggyTestComponent />
-              </ErrorBoundary>
-            }
-          />
+          {isDebugAllowed && (
+            <Route
+              path="/debug-error-boundary-test"
+              element={
+                <ErrorBoundary fallbackViewName="Debug Error Test View">
+                  <BuggyTestComponent />
+                </ErrorBoundary>
+              }
+            />
+          )}
           <Route path="*" element={<Navigate to="/projects" replace />} />
         </Routes>
       </BrowserRouter>

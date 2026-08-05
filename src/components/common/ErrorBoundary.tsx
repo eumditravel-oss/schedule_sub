@@ -45,7 +45,7 @@ export class ErrorBoundary extends Component<Props, State> {
     if (this.state.hasError) {
       const isVi = typeof navigator !== 'undefined' && navigator.language?.toLowerCase().includes('vi');
       const viewName = this.props.fallbackViewName || 'Schedule Scheduler View';
-      const commitSha = '8bc2d6d';
+      const commitSha = import.meta.env.VITE_BUILD_SHA || 'unknown';
 
       return (
         <div

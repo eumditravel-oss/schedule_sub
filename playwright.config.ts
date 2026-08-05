@@ -11,7 +11,7 @@ export default defineConfig({
   reporter: [['html', { open: 'never' }], ['list']],
 
   use: {
-    baseURL: 'https://concost-dev-scheduler.eumditravel.workers.dev',
+    baseURL: process.env.PLAYWRIGHT_TEST_BASE_URL || 'https://concost-dev-scheduler-qa.eumditravel.workers.dev',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
   },

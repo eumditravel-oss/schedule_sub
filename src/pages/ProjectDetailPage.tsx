@@ -990,7 +990,7 @@ export const ProjectDetailPage: React.FC = () => {
 
                         <td colSpan={dateColumns.length} className="p-0 border-0 relative">
                           <div
-                            className="relative h-12"
+                            className="relative h-14"
                             style={{ minWidth: `${dateColumns.length * GANTT_DAY_WIDTH_PX}px` }}
                           >
                             {/* 1. Date Cells Background & Click Handler Layer */}
