@@ -349,9 +349,10 @@ export const CalendarManagerModal: React.FC<CalendarManagerModalProps> = ({
       return;
     }
 
-    const payloadSaturdays = vnSaturdays.map((item) => ({
+    const currentSaturdays = getVietnamSaturdaysInMonth(vnYear, vnMonth);
+    const payloadSaturdays = currentSaturdays.map((item) => ({
       date: item.date,
-      status: selectedVnStatus[item.date] !== undefined ? selectedVnStatus[item.date] : item.status,
+      status: selectedVnStatus[item.date] !== undefined ? selectedVnStatus[item.date] : 'WORK',
     }));
 
     setVnSaving(true);

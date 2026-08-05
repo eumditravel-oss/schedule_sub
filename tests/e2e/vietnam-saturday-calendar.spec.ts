@@ -63,6 +63,8 @@ test.describe('Vietnam Saturday Work Calendar E2E Suite', () => {
     const monthInput = page.locator('[data-testid="vn-saturday-month-input"]');
     await expect(monthInput).toBeVisible();
     await monthInput.fill('2026-08');
+    await monthInput.dispatchEvent('change');
+    await page.waitForTimeout(300);
 
     // Verify 5 Saturdays displayed
     const saturdays = ['2026-08-01', '2026-08-08', '2026-08-15', '2026-08-22', '2026-08-29'];
