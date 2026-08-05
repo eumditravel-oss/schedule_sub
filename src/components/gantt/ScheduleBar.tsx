@@ -38,26 +38,26 @@ export const ScheduleBar: React.FC<ScheduleBarProps> = ({
   const [showTooltip, setShowTooltip] = useState(false);
 
   // Status Styling Configuration
-  let baseColorClass = 'bg-slate-100 border-slate-300 text-slate-700';
-  let progressFillClass = 'bg-slate-400';
+  let baseColorClass = 'bg-slate-200 border-slate-400 text-slate-800';
+  let progressFillClass = 'bg-slate-500';
   let statusBadgeClass = 'bg-slate-200 text-slate-800 border-slate-300';
   let statusLabelKo = '예정';
   let statusLabelVi = 'Sắp tới';
 
   if (status === 'COMPLETED') {
-    baseColorClass = 'bg-emerald-100/90 border-emerald-300 text-emerald-900';
+    baseColorClass = 'bg-emerald-100 border-emerald-300 text-emerald-900';
     progressFillClass = 'bg-emerald-500';
     statusBadgeClass = 'bg-emerald-200 text-emerald-900 border-emerald-300';
     statusLabelKo = '완료';
     statusLabelVi = 'Hoàn thành';
   } else if (status === 'DELAYED') {
-    baseColorClass = 'bg-rose-100/90 border-rose-300 text-rose-900';
+    baseColorClass = 'bg-rose-100 border-rose-300 text-rose-900';
     progressFillClass = 'bg-rose-500';
     statusBadgeClass = 'bg-rose-200 text-rose-900 border-rose-300';
     statusLabelKo = '지연';
     statusLabelVi = 'Trễ hạn';
   } else if (status === 'IN_PROGRESS') {
-    baseColorClass = 'bg-blue-100/90 border-blue-300 text-blue-900';
+    baseColorClass = 'bg-blue-100 border-blue-300 text-blue-900';
     progressFillClass = 'bg-blue-500';
     statusBadgeClass = 'bg-blue-200 text-blue-900 border-blue-300';
     statusLabelKo = '진행 중';
@@ -70,22 +70,23 @@ export const ScheduleBar: React.FC<ScheduleBarProps> = ({
   return (
     <div
       data-testid="gantt-schedule-bar"
-      className="relative group my-auto pointer-events-auto cursor-pointer"
+      className={`relative group my-auto w-full min-w-0 pointer-events-auto cursor-pointer ${className}`}
       style={style}
       onMouseEnter={() => setShowTooltip(true)}
       onMouseLeave={() => setShowTooltip(false)}
       onClick={onClick}
     >
-      {/* Outer Continuous Bar Container */}
+      {/* Outer Continuous Bar Track */}
       <div
-        className={`h-5 rounded-md border text-xs font-bold relative overflow-hidden transition-all duration-150 shadow-2xs flex items-center ${baseColorClass} ${className}`}
+        data-testid="gantt-schedule-track"
+        className={`w-full min-w-0 h-5 rounded-md border text-xs font-bold relative overflow-hidden transition-all duration-150 shadow-2xs flex items-center ${baseColorClass}`}
       >
         {/* Actual Progress Overlay Fill */}
         {clampedActual > 0 && (
           <div
             data-testid="gantt-bar-actual-overlay"
             style={{ width: `${clampedActual}%` }}
-            className={`h-full transition-all duration-300 ${progressFillClass} opacity-85`}
+            className={`h-full transition-all duration-300 ${progressFillClass}`}
           />
         )}
 

@@ -1,7 +1,7 @@
 // tests/executeQaVerification.test.ts
 import { describe, it, expect } from 'vitest';
 
-const BASE_URL = 'https://concost-dev-scheduler.eumditravel.workers.dev';
+const BASE_URL = 'https://concost-dev-scheduler-qa.eumditravel.workers.dev';
 const QA_PREFIX = `[QA-FINAL-20260804-2238]`;
 
 describe('Final Release QA Comprehensive Test Suite', { timeout: 15000 }, () => {
@@ -103,11 +103,11 @@ describe('Final Release QA Comprehensive Test Suite', { timeout: 15000 }, () => 
         project_id: createdProjectId,
         worker_name: '박용진 수석',
         task_name: `${QA_PREFIX} 프로젝트 목록 화면 디버깅`,
-        start_date: '2026-08-04',
-        end_date: '2026-08-11',
+        start_date: '2026-08-10',
+        end_date: '2026-08-15',
         progress: 50,
         editor_name: '박용진 수석',
-        allow_conflict: true,
+        confirm_worker_schedule_conflict: true,
       }),
     });
     expect(res.status).toBe(201);
@@ -121,7 +121,7 @@ describe('Final Release QA Comprehensive Test Suite', { timeout: 15000 }, () => 
   it('6. PUT /api/tasks/:taskId/daily-status/:date updates daily status with editor info', async () => {
     expect(createdTaskId).not.toBe('');
 
-    const res = await fetch(`${BASE_URL}/api/tasks/${createdTaskId}/daily-status/2026-08-05`, {
+    const res = await fetch(`${BASE_URL}/api/tasks/${createdTaskId}/daily-status/2026-08-12`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -146,7 +146,7 @@ describe('Final Release QA Comprehensive Test Suite', { timeout: 15000 }, () => 
     expect(json.success).toBe(true);
     expect(json.data.project.id).toBe(createdProjectId);
     expect(json.data.tasks.length).toBeGreaterThan(0);
-    expect(json.data.tasks[0].daily_statuses['2026-08-05']).toBe('IN_PROGRESS');
+    expect(json.data.tasks[0].daily_statuses['2026-08-12']).toBe('IN_PROGRESS');
   });
 
   // 8. Project Completion & Read-Only Enforcement

@@ -70,6 +70,7 @@ describe('Worker Leave Schedule Cascade & Restore Security & Integrity Suite', {
         end_date: '2026-08-07',
         progress: 30,
         editor_name: '박용진 수석',
+        confirm_worker_schedule_conflict: true,
       }),
     });
     expect(taskARes.status).toBe(201);
@@ -89,6 +90,7 @@ describe('Worker Leave Schedule Cascade & Restore Security & Integrity Suite', {
         end_date: '2026-08-14',
         progress: 0,
         editor_name: '박용진 수석',
+        confirm_worker_schedule_conflict: true,
       }),
     });
     expect(taskBRes.status).toBe(201);
@@ -124,6 +126,7 @@ describe('Worker Leave Schedule Cascade & Restore Security & Integrity Suite', {
         end_date: '2026-08-07',
         progress: 20,
         editor_name: 'Thanh Phuong(탄 프엉)',
+        confirm_worker_schedule_conflict: true,
       }),
     });
     expect(vnTaskRes.status).toBe(201);

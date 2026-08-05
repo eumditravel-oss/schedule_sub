@@ -2,7 +2,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { differenceInPureCalendarDays, addPureCalendarDays } from '../src/utils/dateUtils';
 
-const BASE_URL = 'https://concost-dev-scheduler.eumditravel.workers.dev';
+const BASE_URL = 'https://concost-dev-scheduler-qa.eumditravel.workers.dev';
 const QA_PREFIX = `[QA-SHIFT-${Date.now()}]`;
 
 describe('Project Schedule Cascade Shifting & Integrity Suite', { timeout: 30000 }, () => {
@@ -38,6 +38,7 @@ describe('Project Schedule Cascade Shifting & Integrity Suite', { timeout: 30000
         end_date: '2026-08-12',
         progress: 25,
         editor_name: '박용진 수석',
+        confirm_worker_schedule_conflict: true,
       }),
     });
     const taskAJson: any = await taskARes.json();
@@ -55,6 +56,7 @@ describe('Project Schedule Cascade Shifting & Integrity Suite', { timeout: 30000
         end_date: '2026-08-20',
         progress: 50,
         editor_name: '박용진 수석',
+        confirm_worker_schedule_conflict: true,
       }),
     });
     const taskBJson: any = await taskBRes.json();

@@ -989,9 +989,17 @@ export const ProjectDetailPage: React.FC = () => {
                         </td>
 
                         <td colSpan={dateColumns.length} className="p-0 border-0 relative">
-                          <div className="w-full flex relative h-12">
+                          <div
+                            className="relative h-12"
+                            style={{ minWidth: `${dateColumns.length * GANTT_DAY_WIDTH_PX}px` }}
+                          >
                             {/* 1. Date Cells Background & Click Handler Layer */}
-                            <div className="flex w-full h-full">
+                            <div
+                              className="grid w-full h-full"
+                              style={{
+                                gridTemplateColumns: `repeat(${dateColumns.length}, minmax(${GANTT_DAY_WIDTH_PX}px, 1fr))`,
+                              }}
+                            >
                               {dateColumns.map((col, cIdx) => {
                                 const dayStatus = resolveWorkDayStatus(col.dateStr, targetWorkerObj as any, countryHolidays, calendarOverrides);
                                 const statusVal = task.daily_statuses?.[col.dateStr];
@@ -1015,8 +1023,8 @@ export const ProjectDetailPage: React.FC = () => {
                                   <div
                                     key={cIdx}
                                     onClick={() => handleCellClick(task, col.dateStr, dayStatus, targetWorkerObj as any)}
-                                    style={{ width: `${GANTT_DAY_WIDTH_PX}px`, minWidth: `${GANTT_DAY_WIDTH_PX}px`, maxWidth: `${GANTT_DAY_WIDTH_PX}px` }}
-                                    className={`h-full relative border-r border-slate-200 shrink-0 cursor-pointer ${cellBgClass} ${
+                                    style={{ minWidth: `${GANTT_DAY_WIDTH_PX}px` }}
+                                    className={`h-full relative border-r border-slate-200 cursor-pointer ${cellBgClass} ${
                                       col.isToday ? 'ring-2 ring-blue-500 ring-inset' : ''
                                     }`}
                                   >
@@ -1047,7 +1055,7 @@ export const ProjectDetailPage: React.FC = () => {
 
                               return (
                                 <div
-                                  className="absolute inset-0 grid pointer-events-none z-10"
+                                  className="absolute inset-0 grid pointer-events-none z-10 w-full h-full"
                                   style={{
                                     gridTemplateColumns: `repeat(${dateColumns.length}, minmax(${GANTT_DAY_WIDTH_PX}px, 1fr))`,
                                   }}
@@ -1056,7 +1064,7 @@ export const ProjectDetailPage: React.FC = () => {
                                     style={{
                                       gridColumn: `${spanInfo.startIndex + 1} / span ${spanInfo.spanCount}`,
                                     }}
-                                    className="px-0.5 flex items-center h-full"
+                                    className="px-0.5 flex items-center h-full w-full min-w-0 pointer-events-auto"
                                   >
                                     <ScheduleBar
                                       title={taskDisplayName}
@@ -1068,7 +1076,6 @@ export const ProjectDetailPage: React.FC = () => {
                                       actualProgress={task.actual_progress ?? task.progress ?? 0}
                                       status={task.schedule_state || (task.progress === 100 ? 'COMPLETED' : 'IN_PROGRESS')}
                                       onClick={() => handleEditTask(task)}
-                                      className="w-full"
                                     />
                                   </div>
                                 </div>

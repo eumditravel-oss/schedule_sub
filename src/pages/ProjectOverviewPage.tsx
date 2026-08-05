@@ -720,14 +720,22 @@ export const ProjectOverviewPage: React.FC = () => {
                         </td>
 
                         <td colSpan={dateColumns.length} className="p-0 border-0 relative">
-                          <div className="w-full flex relative h-12">
+                          <div
+                            className="relative h-12"
+                            style={{ minWidth: `${dateColumns.length * GANTT_DAY_WIDTH_PX}px` }}
+                          >
                             {/* 1. Date Cells Background Layer */}
-                            <div className="flex w-full h-full">
+                            <div
+                              className="grid w-full h-full"
+                              style={{
+                                gridTemplateColumns: `repeat(${dateColumns.length}, minmax(${GANTT_DAY_WIDTH_PX}px, 1fr))`,
+                              }}
+                            >
                               {dateColumns.map((col, cIdx) => (
                                 <div
                                   key={cIdx}
-                                  style={{ width: `${GANTT_DAY_WIDTH_PX}px`, minWidth: `${GANTT_DAY_WIDTH_PX}px`, maxWidth: `${GANTT_DAY_WIDTH_PX}px` }}
-                                  className={`h-full border-r border-slate-200 shrink-0 ${
+                                  style={{ minWidth: `${GANTT_DAY_WIDTH_PX}px` }}
+                                  className={`h-full border-r border-slate-200 ${
                                     col.isToday
                                       ? 'bg-blue-50/70'
                                       : col.isWeekend
@@ -753,7 +761,7 @@ export const ProjectOverviewPage: React.FC = () => {
 
                               return (
                                 <div
-                                  className="absolute inset-0 grid pointer-events-none z-10"
+                                  className="absolute inset-0 grid pointer-events-none z-10 w-full h-full"
                                   style={{
                                     gridTemplateColumns: `repeat(${dateColumns.length}, minmax(${GANTT_DAY_WIDTH_PX}px, 1fr))`,
                                   }}
@@ -762,7 +770,7 @@ export const ProjectOverviewPage: React.FC = () => {
                                     style={{
                                       gridColumn: `${spanInfo.startIndex + 1} / span ${spanInfo.spanCount}`,
                                     }}
-                                    className="px-0.5 flex items-center h-full"
+                                    className="px-0.5 flex items-center h-full w-full min-w-0 pointer-events-auto"
                                   >
                                     <ScheduleBar
                                       title={displayName}
@@ -774,7 +782,6 @@ export const ProjectOverviewPage: React.FC = () => {
                                       actualProgress={project.actual_progress ?? project.progress ?? 0}
                                       status={project.schedule_state || (project.status === 'COMPLETED' ? 'COMPLETED' : 'IN_PROGRESS')}
                                       onClick={() => navigate(`/projects/${project.id}`)}
-                                      className="w-full"
                                     />
                                   </div>
                                 </div>

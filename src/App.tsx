@@ -4,6 +4,10 @@ import { ProjectOverviewPage } from './pages/ProjectOverviewPage';
 import { ProjectDetailPage } from './pages/ProjectDetailPage';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
 
+function BuggyTestComponent(): JSX.Element {
+  throw new Error('Intentional Error Boundary Test Trigger');
+}
+
 export function App() {
   return (
     <ErrorBoundary fallbackViewName="App Main Router">
@@ -23,6 +27,14 @@ export function App() {
             element={
               <ErrorBoundary fallbackViewName="Project Detail Page">
                 <ProjectDetailPage />
+              </ErrorBoundary>
+            }
+          />
+          <Route
+            path="/debug-error-boundary-test"
+            element={
+              <ErrorBoundary fallbackViewName="Debug Error Test View">
+                <BuggyTestComponent />
               </ErrorBoundary>
             }
           />
