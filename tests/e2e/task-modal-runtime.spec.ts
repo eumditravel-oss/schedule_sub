@@ -5,9 +5,41 @@ import * as path from 'path';
 
 const SCREENSHOT_DIR = path.join(process.cwd(), 'qa', 'screenshots');
 
-test.beforeAll(() => {
+let qaProjectId = '';
+
+test.beforeAll(async () => {
   if (!fs.existsSync(SCREENSHOT_DIR)) {
     fs.mkdirSync(SCREENSHOT_DIR, { recursive: true });
+  }
+
+  try {
+    const res = await fetch(`${QA_BASE_URL}/api/projects`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-editor-name': encodeURIComponent('박용진 수석'),
+      },
+      body: JSON.stringify({
+        name: `[QA-TASK-MODAL-TEST] 시드 프로젝트`,
+        start_date: '2026-08-01',
+        end_date: '2026-08-30',
+        progress: 0,
+        editor_name: '박용진 수석',
+      }),
+    });
+    if (res.status === 201) {
+      const data: any = await res.json();
+      qaProjectId = data.id || data.data?.id;
+    }
+  } catch {}
+});
+
+test.afterAll(async () => {
+  if (qaProjectId) {
+    await fetch(`${QA_BASE_URL}/api/projects/${qaProjectId}`, {
+      method: 'DELETE',
+      headers: { 'x-editor-name': encodeURIComponent('박용진 수석') },
+    }).catch(() => {});
   }
 });
 
@@ -30,8 +62,6 @@ async function dismissBlockingModals(page: any) {
     }
   }
 }
-
-const QA_BASE_URL = 'https://concost-dev-scheduler-qa.eumditravel.workers.dev';
 
 test.describe('TaskModal Runtime Crash Fix & ScheduleBar E2E Verification', () => {
 
