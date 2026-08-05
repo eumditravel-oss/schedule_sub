@@ -18,6 +18,7 @@ import { TaskModal } from '../components/modals/TaskModal';
 import { StatusPopover } from '../components/modals/StatusPopover';
 import { WorkerSelector } from '../components/common/WorkerSelector';
 import { WorkerPromptModal } from '../components/modals/WorkerPromptModal';
+import { WorkerDayCellBackground } from '../components/gantt/WorkerDayCellBackground';
 import { GanttViewControls } from '../components/common/GanttViewControls';
 import { MobileAppHeader } from '../components/mobile/MobileAppHeader';
 import { MobileWorkerSheet } from '../components/mobile/MobileWorkerSheet';
@@ -1017,38 +1018,25 @@ export const ProjectDetailPage: React.FC = () => {
                                 const dayStatus = resolveWorkDayStatus(col.dateStr, targetWorkerObj as any, countryHolidays, calendarOverrides);
                                 const statusVal = task.daily_statuses?.[col.dateStr];
 
-                                let cellBgClass = 'bg-white';
-                                if (dayStatus.day_type === 'PUBLIC_HOLIDAY') {
-                                  cellBgClass = dayStatus.country_code === 'VN' ? 'bg-amber-100/70' : 'bg-rose-100/70';
-                                } else if (dayStatus.day_type === 'LEAVE') {
-                                  cellBgClass = 'bg-violet-100/80';
-                                } else if (dayStatus.day_type === 'MANUAL_OFF') {
-                                  cellBgClass = 'bg-orange-100/80';
-                                } else if (dayStatus.day_type === 'WORK_OVERRIDE') {
-                                  cellBgClass = 'bg-cyan-100/70';
-                                } else if (!dayStatus.is_working_day) {
-                                  cellBgClass = 'bg-slate-100/90';
-                                } else if (col.isToday) {
-                                  cellBgClass = 'bg-blue-50/50';
-                                }
-
                                 return (
-                                  <div
+                                  <WorkerDayCellBackground
                                     key={cIdx}
-                                    onClick={() => handleCellClick(task, col.dateStr, dayStatus, targetWorkerObj as any)}
+                                    dateStr={col.dateStr}
+                                    worker={targetWorkerObj as any}
+                                    dayStatus={dayStatus}
+                                    isToday={col.isToday}
                                     style={{ minWidth: `${GANTT_DAY_WIDTH_PX}px` }}
-                                    className={`h-full relative border-r border-slate-200 cursor-pointer ${cellBgClass} ${
-                                      col.isToday ? 'ring-2 ring-blue-500 ring-inset' : ''
-                                    }`}
+                                    onClick={() => handleCellClick(task, col.dateStr, dayStatus, targetWorkerObj as any)}
+                                    className="h-full cursor-pointer"
                                   >
                                     {statusVal && statusVal !== 'NONE' && (
-                                      <div className="absolute top-1 right-1 z-20">
-                                        {statusVal === 'COMPLETED' && <div className="w-2 h-2 rounded-full bg-emerald-500" title="완료" />}
-                                        {statusVal === 'IN_PROGRESS' && <div className="w-2 h-2 rounded-full bg-blue-500" title="작업 중" />}
-                                        {statusVal === 'ISSUE' && <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" title="문제 발생" />}
+                                      <div className="absolute top-1 right-1 z-30 pointer-events-none">
+                                        {statusVal === 'COMPLETED' && <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-xs" title="완료" />}
+                                        {statusVal === 'IN_PROGRESS' && <div className="w-2 h-2 rounded-full bg-blue-500 shadow-xs" title="작업 중" />}
+                                        {statusVal === 'ISSUE' && <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse shadow-xs" title="문제 발생" />}
                                       </div>
                                     )}
-                                  </div>
+                                  </WorkerDayCellBackground>
                                 );
                               })}
                             </div>

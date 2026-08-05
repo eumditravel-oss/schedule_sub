@@ -7,6 +7,7 @@ import { ChevronLeft, ChevronRight, Calendar as CalendarIcon } from 'lucide-reac
 import { addDays, subDays, format, parseISO, startOfDay } from 'date-fns';
 import { generateDateColumns } from '../../utils/dateUtils';
 import { resolveWorkDayStatus } from '../../utils/workCalendar';
+import { WorkerDayCellBackground } from '../gantt/WorkerDayCellBackground';
 
 interface MobileWeekViewProps {
   mode: 'OVERVIEW' | 'DETAIL';
@@ -248,42 +249,26 @@ export const MobileWeekView: React.FC<MobileWeekViewProps> = ({
                       const statusVal = tItem.daily_statuses?.[col.dateStr];
                       const isInSchedule = col.dateStr >= tItem.start_date && col.dateStr <= tItem.end_date;
 
-                      let bgClass = 'bg-white';
-                      if (dayStatus.day_type === 'PUBLIC_HOLIDAY') {
-                        bgClass = dayStatus.country_code === 'VN' ? 'bg-amber-100' : 'bg-rose-100';
-                      } else if (dayStatus.day_type === 'LEAVE') {
-                        bgClass = 'bg-violet-100';
-                      } else if (dayStatus.day_type === 'MANUAL_OFF') {
-                        bgClass = 'bg-orange-100';
-                      } else if (dayStatus.day_type === 'WORK_OVERRIDE') {
-                        bgClass = 'bg-cyan-100';
-                      } else if (!dayStatus.is_working_day) {
-                        bgClass = 'bg-slate-100';
-                      } else if (col.isToday) {
-                        bgClass = 'bg-blue-50';
-                      }
-
                       return (
-                        <div
+                        <WorkerDayCellBackground
                           key={col.dateStr}
-                          data-testid={`mobile-week-cell-${col.dateStr}`}
+                          dateStr={col.dateStr}
+                          worker={workerObj as any}
+                          dayStatus={dayStatus}
+                          isToday={col.isToday}
                           onClick={() => onTaskCellClick?.(tItem, col.dateStr)}
-                          className={`p-1 relative flex items-center justify-center cursor-pointer transition ${bgClass}`}
+                          className="p-1 cursor-pointer flex items-center justify-center min-h-[36px]"
                         >
                           {isInSchedule && (
                             <div className="w-full h-4 bg-blue-600 rounded-xs z-10 opacity-90" />
                           )}
 
                           {statusVal && statusVal !== 'NONE' ? (
-                            <div className={`w-3.5 h-3.5 rounded-full flex items-center justify-center text-[7px] font-bold z-20 ${getStatusColor(statusVal)}`}>
+                            <div className={`w-3.5 h-3.5 rounded-full flex items-center justify-center text-[7px] font-bold z-30 ${getStatusColor(statusVal)}`}>
                               {statusVal[0]}
                             </div>
-                          ) : !isInSchedule && !dayStatus.is_working_day ? (
-                            <span className="text-[7px] font-bold text-slate-400">
-                              {dayStatus.day_type === 'LEAVE' ? '휴' : 'Off'}
-                            </span>
                           ) : null}
-                        </div>
+                        </WorkerDayCellBackground>
                       );
                     })}
                   </div>

@@ -6,6 +6,7 @@ import { useResponsiveLayout } from '../../hooks/useResponsiveLayout';
 import { ChevronsLeft, ChevronsRight, AlertTriangle } from 'lucide-react';
 import { getCountryOffState, resolveWorkDayStatus } from '../../utils/workCalendar';
 import { ScheduleBar, ScheduleBarStatus } from '../gantt/ScheduleBar';
+import { WorkerDayCellBackground } from '../gantt/WorkerDayCellBackground';
 
 interface MobileThirtyDayGanttViewProps {
   mode: 'OVERVIEW' | 'DETAIL';
@@ -315,39 +316,23 @@ export const MobileThirtyDayGanttView: React.FC<MobileThirtyDayGanttViewProps> =
                               overrides
                             );
                             const statusVal = tItem.daily_statuses?.[col.dateStr];
-                            const isInSchedule = col.dateStr >= tItem.start_date && col.dateStr <= tItem.end_date;
-
-                            let bgClass = 'bg-white';
-                            if (dayStatus.day_type === 'PUBLIC_HOLIDAY') {
-                              bgClass = dayStatus.country_code === 'VN' ? 'bg-amber-100' : 'bg-rose-100';
-                            } else if (dayStatus.day_type === 'LEAVE') {
-                              bgClass = 'bg-violet-100';
-                            } else if (dayStatus.day_type === 'MANUAL_OFF') {
-                              bgClass = 'bg-orange-100';
-                            } else if (dayStatus.day_type === 'WORK_OVERRIDE') {
-                              bgClass = 'bg-cyan-100';
-                            } else if (!dayStatus.is_working_day) {
-                              bgClass = 'bg-slate-100';
-                            } else if (col.isToday) {
-                              bgClass = 'bg-blue-50';
-                            }
 
                             return (
-                              <div
+                              <WorkerDayCellBackground
                                 key={col.dateStr}
+                                dateStr={col.dateStr}
+                                worker={workerObj as any}
+                                dayStatus={dayStatus}
+                                isToday={col.isToday}
                                 onClick={() => onTaskCellClick?.(tItem, col.dateStr)}
-                                className={`w-[30px] min-w-[30px] max-w-[30px] h-full border-r border-slate-100 p-0.5 relative flex items-center justify-center shrink-0 cursor-pointer transition ${bgClass}`}
+                                className="w-[30px] min-w-[30px] max-w-[30px] h-full p-0.5 flex items-center justify-center shrink-0 cursor-pointer"
                               >
                                 {statusVal && statusVal !== 'NONE' ? (
-                                  <div className={`w-3.5 h-3.5 rounded-full flex items-center justify-center text-[7px] font-bold z-20 ${getStatusColor(statusVal)}`}>
+                                  <div className={`w-3.5 h-3.5 rounded-full flex items-center justify-center text-[7px] font-bold z-30 ${getStatusColor(statusVal)}`}>
                                     {statusVal[0]}
                                   </div>
-                                ) : !isInSchedule && !dayStatus.is_working_day ? (
-                                  <span className="text-[7px] font-bold text-slate-400">
-                                    {dayStatus.day_type === 'LEAVE' ? '휴' : 'Off'}
-                                  </span>
                                 ) : null}
-                              </div>
+                              </WorkerDayCellBackground>
                             );
                           })}
                         </div>

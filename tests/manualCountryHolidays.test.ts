@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { getCountryOffState } from '../src/utils/workCalendar';
+import fs from 'fs';
+import path from 'path';
 
 describe('Manual Country Holidays & Off State Calculation', () => {
   it('should correctly classify Sunday as BOTH_OFF', () => {
@@ -63,5 +65,27 @@ describe('Manual Country Holidays & Off State Calculation', () => {
     expect(res.state).toBe('BOTH_WORK');
     expect(res.krIsOff).toBe(false);
     expect(res.vnIsOff).toBe(false);
+  });
+
+  it('should verify backend scheduleCalendar.ts uses valid task columns (worker_name, progress) and NO assignee/status columns in manual holiday queries', () => {
+    const serviceFilePath = path.join(__dirname, '../worker/services/scheduleCalendar.ts');
+    const content = fs.readFileSync(serviceFilePath, 'utf-8');
+
+    // Extract calculateManualHolidayImpactServer and saveManualHolidaysMonthServer functions
+    const startIdx = content.indexOf('calculateManualHolidayImpactServer');
+    expect(startIdx).toBeGreaterThan(0);
+
+    const manualHolidayCodeSection = content.substring(startIdx);
+
+    // Verify invalid columns are NOT queried in SQL statements on tasks table
+    expect(manualHolidayCodeSection).not.toMatch(/\bt\.assignee\b/);
+    expect(manualHolidayCodeSection).not.toMatch(/\bt\.status\b/);
+    expect(manualHolidayCodeSection).not.toContain('assignee IN');
+
+    // Verify correct columns ARE queried
+    expect(manualHolidayCodeSection).toContain('t.worker_name');
+    expect(manualHolidayCodeSection).toContain('t.progress');
+    expect(manualHolidayCodeSection).toContain("p.status = 'ACTIVE'");
+    expect(manualHolidayCodeSection).toContain('PUBLIC_HOLIDAY_PROJECT_RANGE_CONFLICT');
   });
 });

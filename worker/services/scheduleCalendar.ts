@@ -465,6 +465,17 @@ export async function calculateVietnamSaturdayImpactServer(
   };
 }
 
+// ── Manual Country Holidays Services (Cascade Shift, Project Conflict Check & Atomic Batch Save) ──
+
+function getHolidayNamesFallback(countryCode: 'KR' | 'VN', nameKo?: string, nameVi?: string) {
+  const fallbackKo = countryCode === 'KR' ? '한국 공휴일' : '베트남 공휴일';
+  const fallbackVi = countryCode === 'VN' ? 'Ngày lễ Việt Nam' : 'Ngày lễ Hàn Quốc';
+  const finalKo = nameKo && nameKo.trim() ? nameKo.trim() : fallbackKo;
+  const finalVi = nameVi && nameVi.trim() ? nameVi.trim() : fallbackVi;
+  const nameLocal = countryCode === 'KR' ? finalKo : finalVi;
+  return { finalKo, finalVi, nameLocal };
+}
+
 export async function getManualHolidaysServer(
   db: any,
   countryCode: 'KR' | 'VN',
@@ -477,9 +488,8 @@ export async function getManualHolidaysServer(
 
   const res = await db
     .prepare(
-      `SELECT id, country_code, holiday_date, name_local, name_ko, name_vi, source, is_verified, created_by_name, updated_by_name
-       FROM country_holidays
-       WHERE country_code = ? AND holiday_date >= ? AND holiday_date <= ?
+      `SELECT * FROM country_holidays
+       WHERE country_code = ? AND holiday_date >= ? AND holiday_date <= ? AND source = 'MANUAL'
        ORDER BY holiday_date ASC`
     )
     .bind(countryCode, startDate, endDate)
@@ -498,99 +508,12 @@ export async function calculateManualHolidayImpactServer(
   const monthStr = String(month).padStart(2, '0');
   const startDate = `${year}-${monthStr}-01`;
   const endDate = `${year}-${monthStr}-31`;
+  const todayStr = formatUtcDate(new Date());
 
-  // Existing holidays
+  // 1. Get existing manual holidays for the month
   const existingRes = await db
     .prepare(
-      `SELECT holiday_date FROM country_holidays WHERE country_code = ? AND holiday_date >= ? AND holiday_date <= ?`
-    )
-    .bind(countryCode, startDate, endDate)
-    .all();
-  const existingSet = new Set((existingRes.results || []).map((r: any) => r.holiday_date));
-
-  // Valid new weekday holidays
-  const newSet = new Set(
-    holidays
-      .map((h) => h.date)
-      .filter((d) => {
-        const dow = getDayOfWeek(d);
-        return dow !== 0 && dow !== 6;
-      })
-  );
-
-  const addedDates: string[] = (Array.from(newSet) as string[]).filter((d: string) => !existingSet.has(d));
-  const removedDates: string[] = (Array.from(existingSet) as string[]).filter((d: string) => !newSet.has(d));
-
-  // Workers affected
-  const workersRes = await db
-    .prepare(
-      `SELECT id, name, country_code, workweek_profile, ui_language FROM workers WHERE is_active = 1 AND country_code = ?`
-    )
-    .bind(countryCode)
-    .all();
-  const targetWorkers = workersRes.results || [];
-
-  let affectedTaskCount = 0;
-  let affectedProjectCount = 0;
-  const projectSet = new Set<string>();
-
-  if (addedDates.length > 0 && targetWorkers.length > 0) {
-    const workerIds = targetWorkers.map((w: any) => w.id);
-    const workerNames = targetWorkers.map((w: any) => w.name);
-    const phHolders = [...workerIds.map(() => '?'), ...workerNames.map(() => '?')].join(',');
-
-    const tasksRes = await db
-      .prepare(
-        `SELECT id, project_id, start_date, end_date, assignee FROM tasks
-         WHERE status != 'COMPLETED' AND (assignee IN (${phHolders}) OR assignee IS NULL)`
-      )
-      .bind(...workerIds, ...workerNames)
-      .all();
-
-    const activeTasks = tasksRes.results || [];
-
-    for (const t of activeTasks) {
-      if (!t.start_date || !t.end_date) continue;
-      const overlaps = addedDates.some((d) => d >= t.start_date && d <= t.end_date);
-      if (overlaps) {
-        affectedTaskCount++;
-        if (t.project_id) projectSet.add(t.project_id);
-      }
-    }
-  }
-
-  affectedProjectCount = projectSet.size;
-
-  return {
-    country_code: countryCode,
-    year,
-    month,
-    added_holidays: addedDates,
-    removed_holidays: removedDates,
-    affected_worker_count: targetWorkers.length,
-    affected_project_count: affectedProjectCount,
-    affected_task_count: affectedTaskCount,
-  };
-}
-
-export async function saveManualHolidaysMonthServer(
-  db: any,
-  countryCode: 'KR' | 'VN',
-  year: number,
-  month: number,
-  holidays: Array<{ date: string; name_ko?: string; name_vi?: string }>,
-  editorName: string,
-  editorId: string,
-  restoreShiftedTasks: boolean = false
-) {
-  const monthStr = String(month).padStart(2, '0');
-  const startDate = `${year}-${monthStr}-01`;
-  const endDate = `${year}-${monthStr}-31`;
-
-  // 1. Get existing holidays
-  const existingRes = await db
-    .prepare(
-      `SELECT holiday_date FROM country_holidays WHERE country_code = ? AND holiday_date >= ? AND holiday_date <= ?`
+      `SELECT holiday_date FROM country_holidays WHERE country_code = ? AND holiday_date >= ? AND holiday_date <= ? AND source = 'MANUAL'`
     )
     .bind(countryCode, startDate, endDate)
     .all();
@@ -603,145 +526,442 @@ export async function saveManualHolidaysMonthServer(
   });
   const newSet = new Set(validHolidays.map((h) => h.date));
 
-  const addedDates: string[] = (Array.from(newSet) as string[]).filter((d: string) => !existingSet.has(d));
-  const removedDates: string[] = (Array.from(existingSet) as string[]).filter((d: string) => !newSet.has(d));
+  const addedDates: string[] = (Array.from(newSet) as string[]).filter((d: string) => !existingSet.has(d)).sort();
+  const removedDates: string[] = (Array.from(existingSet) as string[]).filter((d: string) => !newSet.has(d)).sort();
 
-  // 3. Clear existing holidays for the month
-  await db
-    .prepare(`DELETE FROM country_holidays WHERE country_code = ? AND holiday_date >= ? AND holiday_date <= ?`)
-    .bind(countryCode, startDate, endDate)
-    .run();
+  // 3. Get target workers in country
+  const workersRes = await db
+    .prepare(`SELECT id, name, country_code, workweek_profile FROM workers WHERE is_active = 1 AND country_code = ?`)
+    .bind(countryCode)
+    .all();
+  const targetWorkers: any[] = workersRes.results || [];
 
-  // 4. Insert new manual holidays
-  for (const h of validHolidays) {
-    const id = `hol_manual_${countryCode}_${h.date}`;
-    const nameKo = h.name_ko || (countryCode === 'KR' ? '한국 공휴일' : '베트남 공휴일');
-    const nameVi = h.name_vi || (countryCode === 'VN' ? 'Ngày lễ Việt Nam' : 'Ngày lễ Hàn Quốc');
-    const nameLocal = countryCode === 'KR' ? nameKo : nameVi;
-
-    await db
-      .prepare(
-        `INSERT INTO country_holidays
-         (id, country_code, holiday_date, name_local, name_ko, name_vi, source, source_year, is_verified, created_by_name, updated_by_name)
-         VALUES (?, ?, ?, ?, ?, ?, 'MANUAL', ?, 1, ?, ?)`
-      )
-      .bind(id, countryCode, h.date, nameLocal, nameKo, nameVi, year, editorName, editorName)
-      .run();
+  if (targetWorkers.length === 0 || addedDates.length === 0) {
+    return {
+      country_code: countryCode,
+      year,
+      month,
+      added_holidays: addedDates,
+      removed_holidays: removedDates,
+      affected_worker_count: targetWorkers.length,
+      affected_project_count: 0,
+      affected_task_count: 0,
+      shifted_future_status_count: 0,
+      has_range_conflict: false,
+      task_impacts: [],
+      status_impacts: [],
+    };
   }
 
-  // 5. Calculate task schedule shifts for added holidays
-  const shiftedTaskLogs: any[] = [];
-  if (addedDates.length > 0) {
-    const workersRes = await db
-      .prepare(
-        `SELECT id, name, country_code, workweek_profile, ui_language FROM workers WHERE is_active = 1 AND country_code = ?`
-      )
-      .bind(countryCode)
-      .all();
-    const targetWorkers = workersRes.results || [];
+  // 4. Fetch ACTIVE projects & incomplete tasks (progress < 100) with project JOIN
+  const tasksRes = await db
+    .prepare(
+      `SELECT
+         t.id,
+         t.project_id,
+         t.worker_name,
+         t.task_name,
+         t.start_date,
+         t.end_date,
+         t.progress,
+         t.schedule_revision,
+         p.name AS project_name,
+         p.start_date AS project_start_date,
+         p.end_date AS project_end_date,
+         p.status AS project_status
+       FROM tasks t
+       JOIN projects p ON p.id = t.project_id
+       WHERE p.status = 'ACTIVE' AND (t.progress IS NULL OR t.progress < 100)
+       ORDER BY t.worker_name ASC, t.start_date ASC, t.id ASC`
+    )
+    .all();
 
-    if (targetWorkers.length > 0) {
-      const workerIds = targetWorkers.map((w: any) => w.id);
-      const workerNames = targetWorkers.map((w: any) => w.name);
-      const phHolders = [...workerIds.map(() => '?'), ...workerNames.map(() => '?')].join(',');
+  const allActiveTasks: any[] = tasksRes.results || [];
 
-      const tasksRes = await db
-        .prepare(
-          `SELECT id, project_id, task_name, start_date, end_date, assignee, status FROM tasks
-           WHERE status != 'COMPLETED' AND (assignee IN (${phHolders}) OR assignee IS NULL)`
-        )
-        .bind(...workerIds, ...workerNames)
-        .all();
+  const taskImpacts: any[] = [];
+  const statusImpacts: any[] = [];
+  const affectedProjectIds = new Set<string>();
+  let hasRangeConflict = false;
 
-      const activeTasks = tasksRes.results || [];
+  // Group tasks by worker
+  for (const worker of targetWorkers) {
+    const workerTasks = allActiveTasks.filter(
+      (t: any) => t.worker_name === worker.id || t.worker_name === worker.name
+    );
 
-      for (const t of activeTasks) {
-        if (!t.start_date || !t.end_date) continue;
-        const matchingWorker = targetWorkers.find((w: any) => w.id === t.assignee || w.name === t.assignee) || targetWorkers[0];
-        let dateShiftCount = 0;
+    if (workerTasks.length === 0) continue;
 
-        for (const ad of addedDates) {
-          if (ad >= t.start_date && ad <= t.end_date) {
-            dateShiftCount++;
+    // Track cumulative shift for this worker
+    let accumulatedDays = 0;
+
+    for (const t of workerTasks) {
+      if (!t.start_date || !t.end_date) continue;
+
+      const oldStart = t.start_date;
+      const oldEnd = t.end_date;
+
+      // Count how many added holidays fall within or before this task
+      let addedHolidaysForTask = 0;
+      for (const ad of addedDates) {
+        if (ad >= oldStart && ad <= oldEnd) {
+          addedHolidaysForTask++;
+        }
+      }
+
+      // Check if task needs shifting
+      const isTaskInProgress = oldStart < addedDates[0] && oldEnd >= addedDates[0];
+      const isTaskFuture = oldStart >= addedDates[0];
+      const isAffected = addedHolidaysForTask > 0 || isTaskFuture || accumulatedDays > 0;
+
+      if (!isAffected) continue;
+
+      let newStart = oldStart;
+      let newEnd = oldEnd;
+      let shiftMode: 'EXTEND_END' | 'SHIFT_START_AND_END' = 'SHIFT_START_AND_END';
+
+      // Original planned working days count
+      let plannedWorkingDays = 0;
+      let curr = oldStart;
+      while (curr <= oldEnd) {
+        if (await isWorkerWorkingDayServer(db, worker, curr)) {
+          plannedWorkingDays++;
+        }
+        curr = addDays(curr, 1);
+      }
+      if (plannedWorkingDays === 0) plannedWorkingDays = 1;
+
+      if (isTaskInProgress) {
+        shiftMode = 'EXTEND_END';
+        newStart = oldStart;
+        // Extend end date by added holidays count taking new holiday into account
+        let targetEnd = oldEnd;
+        let added = 0;
+        const totalExtend = addedHolidaysForTask + accumulatedDays;
+        while (added < totalExtend) {
+          targetEnd = addDays(targetEnd, 1);
+          if ((await isWorkerWorkingDayServer(db, worker, targetEnd)) && !addedDates.includes(targetEnd)) {
+            added++;
           }
         }
-
-        if (dateShiftCount > 0) {
-          // Extend end_date by working days
-          let newEndDate = t.end_date;
-          let added = 0;
-          while (added < dateShiftCount) {
-            newEndDate = addDays(newEndDate, 1);
-            if (await isWorkerWorkingDayServer(db, matchingWorker, newEndDate)) {
-              added++;
-            }
+        newEnd = targetEnd;
+        accumulatedDays += addedHolidaysForTask;
+      } else {
+        shiftMode = 'SHIFT_START_AND_END';
+        const totalShiftDays = addedHolidaysForTask + accumulatedDays;
+        let sAdv = 0;
+        let targetStart = oldStart;
+        while (sAdv < totalShiftDays) {
+          targetStart = addDays(targetStart, 1);
+          if ((await isWorkerWorkingDayServer(db, worker, targetStart)) && !addedDates.includes(targetStart)) {
+            sAdv++;
           }
+        }
+        newStart = targetStart;
 
-          await db
-            .prepare(`UPDATE tasks SET end_date = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`)
-            .bind(newEndDate, t.id)
-            .run();
+        let targetEnd = newStart;
+        let eCount = 0;
+        while (true) {
+          if ((await isWorkerWorkingDayServer(db, worker, targetEnd)) && !addedDates.includes(targetEnd)) {
+            eCount++;
+            if (eCount === plannedWorkingDays) break;
+          }
+          targetEnd = addDays(targetEnd, 1);
+        }
+        newEnd = targetEnd;
+        accumulatedDays += addedHolidaysForTask;
+      }
 
-          shiftedTaskLogs.push({
+      const rangeConflict = newEnd > t.project_end_date;
+      const exceededDays = rangeConflict ? differenceInPureCalendarDays(newEnd, t.project_end_date) : 0;
+      if (rangeConflict) hasRangeConflict = true;
+
+      affectedProjectIds.add(t.project_id);
+
+      taskImpacts.push({
+        task: t,
+        old_start_date: oldStart,
+        old_end_date: oldEnd,
+        new_start_date: newStart,
+        new_end_date: newEnd,
+        shift_mode: shiftMode,
+        planned_working_days: plannedWorkingDays,
+        range_conflict: rangeConflict,
+        exceeded_days: exceededDays,
+      });
+
+      // Daily Status Shift Calculation (Only future dates >= todayStr)
+      const stRes = await db
+        .prepare(`SELECT * FROM daily_status WHERE task_id = ? AND work_date >= ?`)
+        .bind(t.id, todayStr)
+        .all();
+      const stList: any[] = stRes.results || [];
+
+      for (const st of stList) {
+        if (st.work_date >= oldStart) {
+          const calendarOffset = differenceInPureCalendarDays(newStart, oldStart);
+          const nWorkDate = addDays(st.work_date, calendarOffset);
+
+          statusImpacts.push({
+            daily_status_id: st.id,
             task_id: t.id,
-            project_id: t.project_id,
-            old_end_date: t.end_date,
-            new_end_date: newEndDate,
-            shift_days: dateShiftCount,
+            old_work_date: st.work_date,
+            new_work_date: nWorkDate,
+            status: st.status,
+            original_updated_by_name: st.updated_by_name || null,
+            original_created_at: st.created_at || null,
+            original_updated_at: st.updated_at || null,
           });
         }
       }
     }
   }
 
-  // 6. Handle restoration if removedDates and restoreShiftedTasks = true
-  if (removedDates.length > 0 && restoreShiftedTasks) {
-    const logsRes = await db
+  return {
+    country_code: countryCode,
+    year,
+    month,
+    added_holidays: addedDates,
+    removed_holidays: removedDates,
+    affected_worker_count: targetWorkers.length,
+    affected_project_count: affectedProjectIds.size,
+    affected_task_count: taskImpacts.length,
+    shifted_future_status_count: statusImpacts.length,
+    has_range_conflict: hasRangeConflict,
+    task_impacts: taskImpacts,
+    status_impacts: statusImpacts,
+  };
+}
+
+export async function saveManualHolidaysMonthServer(
+  db: any,
+  countryCode: 'KR' | 'VN',
+  year: number,
+  month: number,
+  holidays: Array<{ date: string; name_ko?: string; name_vi?: string }>,
+  editorId?: string,
+  editorName: string = 'System',
+  restoreShiftedTasks: boolean = false
+) {
+  const monthStr = String(month).padStart(2, '0');
+  const startDate = `${year}-${monthStr}-01`;
+  const endDate = `${year}-${monthStr}-31`;
+
+  // 1. Calculate impact
+  const impact = await calculateManualHolidayImpactServer(db, countryCode, year, month, holidays);
+
+  // 2. Check project range conflict -> HTTP 409
+  if (impact.has_range_conflict) {
+    const conflictingTasks = impact.task_impacts.filter((ti: any) => ti.range_conflict);
+    const err = new Error(
+      `공휴일 적용 후 작업 종료일이 프로젝트 종료일을 초과합니다. (${conflictingTasks.length}개 작업 충돌)`
+    ) as any;
+    err.code = 'PUBLIC_HOLIDAY_PROJECT_RANGE_CONFLICT';
+    err.status = 409;
+    err.details = {
+      country_code: countryCode,
+      year,
+      month,
+      conflicting_tasks: conflictingTasks.map((ct: any) => ({
+        country: countryCode,
+        holiday_dates: impact.added_holidays,
+        project_name: ct.task.project_name,
+        task_name: ct.task.task_name,
+        old_start_date: ct.old_start_date,
+        old_end_date: ct.old_end_date,
+        new_start_date: ct.new_start_date,
+        new_end_date: ct.new_end_date,
+        project_end_date: ct.task.project_end_date,
+        exceeded_days: ct.exceeded_days,
+      })),
+    };
+    throw err;
+  }
+
+  const batchQueries: any[] = [];
+  const nowIso = new Date().toISOString();
+  const eventId = `evt_hol_${countryCode}_${year}_${month}_${Date.now()}`;
+  const restoreToken = `tok_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+
+  // 3. Clear existing manual holidays for the month & Insert new
+  batchQueries.push(
+    db
+      .prepare(`DELETE FROM country_holidays WHERE country_code = ? AND holiday_date >= ? AND holiday_date <= ? AND source = 'MANUAL'`)
+      .bind(countryCode, startDate, endDate)
+  );
+
+  const validHolidays = holidays.filter((h) => {
+    const dow = getDayOfWeek(h.date);
+    return dow !== 0 && dow !== 6;
+  });
+
+  for (const h of validHolidays) {
+    const id = `hol_manual_${countryCode}_${h.date}`;
+    const { finalKo, finalVi, nameLocal } = getHolidayNamesFallback(countryCode, h.name_ko, h.name_vi);
+
+    batchQueries.push(
+      db
+        .prepare(
+          `INSERT INTO country_holidays
+           (id, country_code, holiday_date, name_local, name_ko, name_vi, source, source_year, is_verified, created_by_name, updated_by_name)
+           VALUES (?, ?, ?, ?, ?, ?, 'MANUAL', ?, 1, ?, ?)`
+        )
+        .bind(id, countryCode, h.date, nameLocal, finalKo, finalVi, year, editorName, editorName)
+    );
+  }
+
+  // 3.5 Insert Event Log Parent Record BEFORE child logs
+  batchQueries.push(
+    db
       .prepare(
-        `SELECT affected_tasks_json FROM country_holiday_shift_logs
-         WHERE country_code = ? AND year = ? AND month = ? AND action_type = 'ADD'
-         ORDER BY created_at DESC LIMIT 10`
+        `INSERT INTO country_holiday_shift_events
+         (id, country_code, year, month, holiday_date, action_type, event_status, affected_project_count, affected_task_count, shifted_status_count, changed_by_id, changed_by_name, created_at, restore_token)
+         VALUES (?, ?, ?, ?, ?, 'HOLIDAY_ADDED', 'ACTIVE', ?, ?, ?, ?, ?, ?, ?)`
+      )
+      .bind(
+        eventId,
+        countryCode,
+        year,
+        month,
+        startDate,
+        impact.affected_project_count,
+        impact.affected_task_count,
+        impact.shifted_future_status_count,
+        editorId || null,
+        editorName,
+        nowIso,
+        restoreToken
+      )
+  );
+
+  // 4. Update task schedules atomically
+  for (const ti of impact.task_impacts) {
+    const nextRev = (ti.task.schedule_revision || 1) + 1;
+    batchQueries.push(
+      db
+        .prepare(
+          `UPDATE tasks
+           SET start_date = ?, end_date = ?, schedule_revision = ?, updated_at = CURRENT_TIMESTAMP
+           WHERE id = ?`
+        )
+        .bind(ti.new_start_date, ti.new_end_date, nextRev, ti.task.id)
+    );
+
+    // Log task shift
+    const tLogId = `log_task_${eventId}_${ti.task.id}`;
+    batchQueries.push(
+      db
+        .prepare(
+          `INSERT INTO country_holiday_task_logs
+           (id, event_id, task_id, project_id, old_start_date, old_end_date, new_start_date, new_end_date, task_revision_after_shift, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        )
+        .bind(
+          tLogId,
+          eventId,
+          ti.task.id,
+          ti.task.project_id,
+          ti.old_start_date,
+          ti.old_end_date,
+          ti.new_start_date,
+          ti.new_end_date,
+          nextRev,
+          nowIso
+        )
+    );
+  }
+
+  // 5. Shift daily_status records atomically
+  for (const si of impact.status_impacts) {
+    batchQueries.push(
+      db.prepare(`DELETE FROM daily_status WHERE id = ?`).bind(si.daily_status_id)
+    );
+    batchQueries.push(
+      db
+        .prepare(
+          `INSERT INTO daily_status
+           (id, task_id, work_date, status, updated_by_name, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?)`
+        )
+        .bind(
+          si.daily_status_id,
+          si.task_id,
+          si.new_work_date,
+          si.status,
+          si.original_updated_by_name || editorName,
+          si.original_created_at || nowIso,
+          si.original_updated_at || nowIso
+        )
+    );
+
+    // Log status shift
+    const sLogId = `log_stat_${eventId}_${si.daily_status_id}`;
+    batchQueries.push(
+      db
+        .prepare(
+          `INSERT INTO country_holiday_status_logs
+           (id, event_id, task_id, daily_status_id, old_work_date, new_work_date, status, original_updated_by_name, original_updated_at, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        )
+        .bind(
+          sLogId,
+          eventId,
+          si.task_id,
+          si.daily_status_id,
+          si.old_work_date,
+          si.new_work_date,
+          si.status,
+          si.original_updated_by_name,
+          si.original_updated_at,
+          nowIso
+        )
+    );
+  }
+
+  // 6. Handle restoration if removedHolidays and restoreShiftedTasks = true
+  if (impact.removed_holidays.length > 0 && restoreShiftedTasks) {
+    const recentEvtRes = await db
+      .prepare(
+        `SELECT * FROM country_holiday_shift_events
+         WHERE country_code = ? AND year = ? AND month = ? AND action_type = 'HOLIDAY_ADDED' AND event_status = 'ACTIVE'
+         ORDER BY created_at DESC LIMIT 1`
       )
       .bind(countryCode, year, month)
-      .all();
+      .first();
 
-    const previousShiftLogs = logsRes.results || [];
-    for (const logItem of previousShiftLogs) {
-      try {
-        const tasksJson = JSON.parse(logItem.affected_tasks_json || '[]');
-        for (const tj of tasksJson) {
-          if (tj.task_id && tj.old_end_date) {
-            await db
-              .prepare(`UPDATE tasks SET end_date = ? WHERE id = ? AND end_date = ?`)
-              .bind(tj.old_end_date, tj.task_id, tj.new_end_date)
-              .run();
-          }
-        }
-      } catch (e) {
-        // Safe parse fallback
+    if (recentEvtRes) {
+      const prevTaskLogsRes = await db
+        .prepare(`SELECT * FROM country_holiday_task_logs WHERE event_id = ?`)
+        .bind(recentEvtRes.id)
+        .all();
+      const prevTaskLogs: any[] = prevTaskLogsRes.results || [];
+
+      for (const ptl of prevTaskLogs) {
+        // Restore task start_date and end_date to old_start_date & old_end_date
+        batchQueries.push(
+          db
+            .prepare(
+              `UPDATE tasks
+               SET start_date = ?, end_date = ?, schedule_revision = schedule_revision + 1, updated_at = CURRENT_TIMESTAMP
+               WHERE id = ? AND start_date = ? AND end_date = ?`
+            )
+            .bind(ptl.old_start_date, ptl.old_end_date, ptl.task_id, ptl.new_start_date, ptl.new_end_date)
+        );
       }
+
+      batchQueries.push(
+        db
+          .prepare(
+            `UPDATE country_holiday_shift_events
+             SET event_status = 'RESTORED', restored_at = ?
+             WHERE id = ?`
+          )
+          .bind(nowIso, recentEvtRes.id)
+      );
     }
   }
 
-  // 7. Save shift log
-  const logId = `hol_log_${countryCode}_${year}_${month}_${Date.now()}`;
-  await db
-    .prepare(
-      `INSERT INTO country_holiday_shift_logs
-       (id, country_code, year, month, holiday_date, action_type, affected_tasks_json, created_by_id, created_by_name, created_at)
-       VALUES (?, ?, ?, ?, ?, 'UPDATE', ?, ?, ?, CURRENT_TIMESTAMP)`
-    )
-    .bind(
-      logId,
-      countryCode,
-      year,
-      month,
-      startDate,
-      JSON.stringify(shiftedTaskLogs),
-      editorId || null,
-      editorName || 'System'
-    )
-    .run();
+  // 8. Execute atomic batch
+  await db.batch(batchQueries);
 
   return {
     success: true,
@@ -749,7 +969,8 @@ export async function saveManualHolidaysMonthServer(
     year,
     month,
     saved_holidays_count: validHolidays.length,
-    shifted_tasks_count: shiftedTaskLogs.length,
+    shifted_tasks_count: impact.affected_task_count,
+    shifted_status_count: impact.shifted_future_status_count,
+    restore_token: restoreToken,
   };
 }
-

@@ -43,11 +43,20 @@ function jsonResponse(data: any, status = 200) {
   });
 }
 
-function errorResponse(message: string, status = 400, code?: string) {
-  return new Response(JSON.stringify({ success: false, error: { message, code } }), {
-    status,
-    headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
-  });
+function errorResponse(message: string, status = 400, code?: string, details?: any) {
+  return new Response(
+    JSON.stringify({
+      success: false,
+      error: { message, code: code || 'BAD_REQUEST', ...(details ? { details } : {}) },
+    }),
+    {
+      status,
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
+      },
+    }
+  );
 }
 
 function getEditorName(body: any, request: Request): string {
@@ -380,17 +389,21 @@ async function requireCountryCalendarManager(db: any, request: Request, body?: a
         const holidays = body.holidays || [];
         const restoreShiftedTasks = body.restore_shifted_tasks === true;
 
-        const result = await saveManualHolidaysMonthServer(
-          db,
-          country,
-          year,
-          month,
-          holidays,
-          permCheck.editorName,
-          permCheck.editorId,
-          restoreShiftedTasks
-        );
-        return jsonResponse(result);
+        try {
+          const result = await saveManualHolidaysMonthServer(
+            db,
+            country,
+            year,
+            month,
+            holidays,
+            permCheck.editorId,
+            permCheck.editorName,
+            restoreShiftedTasks
+          );
+          return jsonResponse(result);
+        } catch (e: any) {
+          return errorResponse(e.message || 'Save failed', e.status || 500, e.code || 'MANUAL_HOLIDAY_ERROR', e.details);
+        }
       }
 
       // 1.1 GET /api/calendar/vietnam-saturdays
