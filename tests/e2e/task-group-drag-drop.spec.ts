@@ -166,17 +166,17 @@ test.describe('Task Grouping, Drag & Drop, Reorder and Move UI Suite', () => {
   });
 
   test('4. Verify CEO / COO Viewer RBAC (Drag Handles Hidden & Direct API Blocked)', async ({ page }) => {
-    await page.addInitScript(() => {
+    await page.goto(`${QA_BASE_URL}/projects/${createdProjectId}`);
+    await page.evaluate(() => {
       localStorage.setItem('schedule_current_worker_id', 'wrk_01');
       localStorage.setItem('schedule_current_worker_name', '최경진 대표');
     });
-
-    await page.goto(`${QA_BASE_URL}/projects/${createdProjectId}`);
+    await page.reload();
     await page.waitForLoadState('networkidle');
 
-    // Drag handles count should be 0
+    // Drag handles count should be 0 for Executive Viewer
     const dragHandles = page.locator('[data-testid^="task-row-drag-handle-"], [data-testid^="task-group-drag-handle-"]');
-    expect(await dragHandles.count()).toBe(0);
+    await expect(dragHandles).toHaveCount(0, { timeout: 10000 });
 
     // Direct API PATCH check -> 403 EXECUTIVE_READ_ONLY
     const directRes = await fetch(`${QA_BASE_URL}/api/projects/${createdProjectId}/task-structure-order`, {
