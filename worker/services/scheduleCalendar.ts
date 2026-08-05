@@ -401,14 +401,10 @@ export async function calculateVietnamSaturdayImpactServer(
 ) {
   const currentCalendar = await getVietnamSaturdayCalendarServer(db, year, month);
 
-  // Find saturdays transitioning from WORK to OFF
-  const newOffDates: string[] = [];
-  for (const s of saturdays) {
-    const existing = currentCalendar.saturdays.find((item: any) => item.date === s.date);
-    if (s.status === 'OFF' && (!existing || existing.status === 'WORK') && !existing?.is_public_holiday) {
-      newOffDates.push(s.date);
-    }
-  }
+  // Find all saturdays set to OFF (excluding public holidays)
+  const newOffDates: string[] = saturdays
+    .filter((s) => s.status === 'OFF' && !currentCalendar.saturdays.find((item: any) => item.date === s.date)?.is_public_holiday)
+    .map((s) => s.date);
 
   // Find target VN workers
   let workerQuery = `SELECT * FROM workers WHERE country_code = 'VN' AND is_active = 1`;
