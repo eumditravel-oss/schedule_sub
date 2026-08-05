@@ -86,7 +86,7 @@ test.describe('Task Grouping, Drag & Drop, Reorder and Move UI Suite', () => {
     await page.click('[data-testid="task-save-btn"]');
     await page.waitForSelector('[data-testid="task-modal"]', { state: 'detached' });
 
-    const taskHandle = page.locator('[data-testid^="task-drag-handle-"]').first();
+    const taskHandle = page.locator('[data-testid^="task-row-drag-handle-"]').first();
     await expect(taskHandle).toBeVisible({ timeout: 15000 });
 
     const groupRows = page.locator('[data-testid^="task-group-row-"]');
@@ -175,7 +175,7 @@ test.describe('Task Grouping, Drag & Drop, Reorder and Move UI Suite', () => {
     await page.waitForLoadState('networkidle');
 
     // Drag handles count should be 0
-    const dragHandles = page.locator('[data-testid^="task-drag-handle-"]');
+    const dragHandles = page.locator('[data-testid^="task-row-drag-handle-"], [data-testid^="task-group-drag-handle-"]');
     expect(await dragHandles.count()).toBe(0);
 
     // Direct API PATCH check -> 403 EXECUTIVE_READ_ONLY

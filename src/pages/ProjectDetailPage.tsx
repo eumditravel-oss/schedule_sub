@@ -157,7 +157,7 @@ const SortableTaskRow: React.FC<SortableTaskRowProps> = ({
             {!isViewer && !isCompleted && (
               <button
                 type="button"
-                data-testid={`task-drag-handle-${tItem.id}`}
+                data-testid={`task-row-drag-handle-${tItem.id}`}
                 {...attributes}
                 {...listeners}
                 className="w-5 h-7 flex items-center justify-center rounded-xs text-slate-300 hover:text-slate-600 hover:bg-slate-100 cursor-grab active:cursor-grabbing shrink-0 transition"
