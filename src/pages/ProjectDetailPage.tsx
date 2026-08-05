@@ -31,6 +31,8 @@ import { CalendarLegend } from '../components/common/CalendarLegend';
 import { DayActionPanel } from '../components/modals/DayActionPanel';
 import { DateHeaderInfoPanel } from '../components/modals/DateHeaderInfoPanel';
 import { WorkerUtilizationBadge } from '../components/common/WorkerUtilizationBadge';
+import { ScheduleShiftHistoryModal } from '../components/modals/ScheduleShiftHistoryModal';
+import { BuildVersionIndicator } from '../components/common/BuildVersionIndicator';
 import {
   ArrowLeft,
   Plus,
@@ -42,6 +44,9 @@ import {
   Calendar,
   Lock,
   AlertTriangle,
+  History,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 
 export const ProjectDetailPage: React.FC = () => {
@@ -79,6 +84,7 @@ export const ProjectDetailPage: React.FC = () => {
   const [isWorkerPromptOpen, setIsWorkerPromptOpen] = useState(false);
   const [isMobileWorkerSheetOpen, setIsMobileWorkerSheetOpen] = useState(false);
   const [isCalendarModalOpen, setIsCalendarModalOpen] = useState(false);
+  const [isShiftHistoryOpen, setIsShiftHistoryOpen] = useState(false);
 
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
@@ -603,73 +609,167 @@ export const ProjectDetailPage: React.FC = () => {
         </header>
       )}
 
-      {/* Controls Toolbar */}
-      <div className="bg-slate-50 border-b border-slate-200 px-3 md:px-5 py-2">
-        {isMobileView ? (
-          <div className="flex flex-col gap-2 w-full">
-            <div className="flex items-center justify-between">
-              <div role="tablist" aria-label="Mobile View Modes" className="flex items-center p-0.5 bg-slate-200/80 rounded-lg text-xs font-semibold flex-1 mr-2">
+      {/* Desktop Toolbar & Navigation Controls */}
+      {isMobileView ? (
+        <div className="bg-white border-b border-slate-200 p-3 flex flex-col gap-2 w-full shadow-2xs">
+          <div className="flex items-center justify-between">
+            <div role="tablist" aria-label="Mobile View Modes" className="flex items-center p-0.5 bg-slate-200/80 rounded-lg text-xs font-semibold flex-1 mr-2">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={mobileViewMode === 'SUMMARY'}
+                data-testid="mobile-view-summary-btn"
+                onClick={() => handleMobileViewChange('SUMMARY')}
+                className={`flex-1 h-8 rounded-md transition font-bold ${
+                  mobileViewMode === 'SUMMARY'
+                    ? 'bg-blue-600 text-white shadow-xs'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                {t('summaryView')}
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={mobileViewMode === 'WEEK'}
+                data-testid="mobile-view-week-btn"
+                onClick={() => handleMobileViewChange('WEEK')}
+                className={`flex-1 h-8 rounded-md transition font-bold ${
+                  mobileViewMode === 'WEEK'
+                    ? 'bg-blue-600 text-white shadow-xs'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                {t('week7View')}
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={mobileViewMode === 'GANTT'}
+                data-testid="mobile-view-gantt-btn"
+                onClick={() => handleMobileViewChange('GANTT')}
+                className={`flex-1 h-8 rounded-md transition font-bold ${
+                  mobileViewMode === 'GANTT'
+                    ? 'bg-blue-600 text-white shadow-xs'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                {t('gantt30View')}
+              </button>
+            </div>
+
+            <CalendarLegend isMobileView={true} />
+          </div>
+        </div>
+      ) : (
+        <section data-testid="desktop-schedule-toolbar" className="bg-white border-b border-slate-200 px-4 md:px-6 py-2.5 space-y-2 text-slate-900 shadow-2xs">
+          {/* Toolbar Main Row */}
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            {/* Left: Back button & Project Title Badge */}
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => navigate('/projects')}
+                className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-bold transition flex items-center gap-1 shadow-2xs"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" />
+                <span>{t('backToList')}</span>
+              </button>
+              <span className="text-slate-300">|</span>
+              <span className="font-extrabold text-xs text-slate-900 bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200">
+                {project ? getProjectDisplayName(project) : t('loading')}
+              </span>
+            </div>
+
+            {/* Center: View Mode Toggle & Date Range Badge */}
+            <div className="flex items-center gap-2 shrink-0">
+              <div className="flex items-center p-0.5 bg-slate-100 rounded-lg border border-slate-200 text-xs font-semibold">
                 <button
                   type="button"
-                  role="tab"
-                  aria-selected={mobileViewMode === 'SUMMARY'}
-                  data-testid="mobile-view-summary-btn"
-                  onClick={() => handleMobileViewChange('SUMMARY')}
-                  className={`flex-1 h-8 rounded-md transition font-bold ${
-                    mobileViewMode === 'SUMMARY'
-                      ? 'bg-blue-600 text-white shadow-xs'
-                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                  }`}
-                >
-                  {t('summaryView')}
-                </button>
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={mobileViewMode === 'WEEK'}
-                  data-testid="mobile-view-week-btn"
-                  onClick={() => handleMobileViewChange('WEEK')}
-                  className={`flex-1 h-8 rounded-md transition font-bold ${
-                    mobileViewMode === 'WEEK'
-                      ? 'bg-blue-600 text-white shadow-xs'
-                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                  }`}
-                >
-                  {t('week7View')}
-                </button>
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={mobileViewMode === 'GANTT'}
-                  data-testid="mobile-view-gantt-btn"
-                  onClick={() => handleMobileViewChange('GANTT')}
-                  className={`flex-1 h-8 rounded-md transition font-bold ${
-                    mobileViewMode === 'GANTT'
-                      ? 'bg-blue-600 text-white shadow-xs'
-                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  data-testid="view-30days-btn"
+                  onClick={() => changeViewMode('THIRTY_DAYS')}
+                  className={`px-3 py-1.5 rounded-md transition font-bold ${
+                    viewMode === 'THIRTY_DAYS'
+                      ? 'bg-white text-blue-700 shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
                   {t('gantt30View')}
                 </button>
+                <button
+                  type="button"
+                  data-testid="view-month-btn"
+                  onClick={() => changeViewMode('MONTH')}
+                  className={`px-3 py-1.5 rounded-md transition font-bold ${
+                    viewMode === 'MONTH'
+                      ? 'bg-white text-blue-700 shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  {t('viewMonth')}
+                </button>
               </div>
 
-              <CalendarLegend isMobileView={true} />
+              <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-extrabold text-slate-800 shrink-0">
+                <Calendar className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                <span>{rangeTitle}</span>
+              </div>
+            </div>
+
+            {/* Right: Navigation Controls & Shift History */}
+            <div className="flex items-center gap-2 shrink-0">
+              <div className="flex items-center gap-1 bg-white border border-slate-300 p-0.5 rounded-lg shadow-2xs shrink-0">
+                <button
+                  type="button"
+                  data-testid="nav-prev-btn"
+                  onClick={goPrevious}
+                  className="h-7 px-2.5 rounded hover:bg-slate-100 text-slate-700 font-bold text-xs transition flex items-center gap-1"
+                  aria-label={t('prev')}
+                >
+                  <ChevronLeft className="w-4 h-4 text-slate-500" />
+                  <span>{t('prev')}</span>
+                </button>
+
+                <button
+                  type="button"
+                  data-testid="nav-today-btn"
+                  onClick={goToday}
+                  className="h-7 px-3 bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold rounded text-xs transition border border-blue-200"
+                >
+                  {t('today')}
+                </button>
+
+                <button
+                  type="button"
+                  data-testid="nav-next-btn"
+                  onClick={goNext}
+                  className="h-7 px-2.5 rounded hover:bg-slate-100 text-slate-700 font-bold text-xs transition flex items-center gap-1"
+                  aria-label={t('next')}
+                >
+                  <span>{t('next')}</span>
+                  <ChevronRight className="w-4 h-4 text-slate-500" />
+                </button>
+              </div>
+
+              <button
+                type="button"
+                data-testid="schedule-shift-history-btn"
+                onClick={() => setIsShiftHistoryOpen(true)}
+                className="h-8 px-2.5 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-bold flex items-center gap-1 transition shadow-2xs shrink-0"
+                title={lang === 'vi' ? 'Lịch sử thay đổi' : '변경 이력'}
+              >
+                <History className="w-3.5 h-3.5 text-blue-600" />
+                <span className="hidden lg:inline">{lang === 'vi' ? 'Lịch sử' : '변경 이력'}</span>
+              </button>
             </div>
           </div>
-        ) : (
-          <GanttViewControls
-            viewMode={viewMode}
-            rangeTitle={rangeTitle}
-            onViewModeChange={changeViewMode}
-            onPrevious={goPrevious}
-            onNext={goNext}
-            onToday={goToday}
-          />
-        )}
-      </div>
 
-      {/* Desktop Calendar Legend */}
-      {!isMobileView && <CalendarLegend isMobileView={false} />}
+          {/* Legend Row */}
+          <div className="pt-1.5 border-t border-slate-100">
+            <CalendarLegend isMobileView={false} />
+          </div>
+        </section>
+      )}
 
       {/* Main Content Area */}
       <main className="flex-1 p-3 md:p-5 overflow-x-hidden flex flex-col">
@@ -1048,13 +1148,15 @@ export const ProjectDetailPage: React.FC = () => {
         onRefreshHolidays={fetchCalendarData}
       />
 
-      {/* Worker Schedule Conflict Modal */}
-      <WorkerConflictModal
-        isOpen={conflictModalState.isOpen}
-        onClose={() => setConflictModalState({ isOpen: false, conflicts: [], pendingTaskData: null })}
-        onConfirmSave={handleConfirmTaskConflictSave}
-        conflicts={conflictModalState.conflicts}
+      {/* Schedule Shift History Modal */}
+      <ScheduleShiftHistoryModal
+        isOpen={isShiftHistoryOpen}
+        onClose={() => setIsShiftHistoryOpen(false)}
+        projectId={projectId || ''}
       />
+
+      {/* Build Version Indicator */}
+      <BuildVersionIndicator />
     </div>
   );
 };

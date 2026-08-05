@@ -252,6 +252,34 @@ export default {
     }
 
     try {
+      // 0. GET /api/version
+      if (method === 'GET' && path === '/api/version') {
+        const isQa = url.hostname.includes('-qa') || url.hostname.includes('qa-') || url.searchParams.get('env') === 'qa';
+        return jsonResponse({
+          commit: 'd90c933',
+          environment: isQa ? 'qa' : 'production',
+          deployed_at: '2026-08-05T09:50:00Z',
+        });
+      }
+
+      // 0.1 GET /api/projects/:id/shift-logs
+      const getShiftLogsMatch = path.match(/^\/api\/projects\/([^/]+)\/shift-logs$/);
+      if (method === 'GET' && getShiftLogsMatch) {
+        const prjId = getShiftLogsMatch[1];
+        const projectLogsRes = await db
+          .prepare(`SELECT * FROM project_schedule_shift_logs WHERE project_id = ? ORDER BY created_at DESC`)
+          .bind(prjId)
+          .all();
+        const leaveLogsRes = await db
+          .prepare(`SELECT lsl.*, t.task_name, p.name as project_name FROM leave_schedule_shift_task_logs lsl JOIN tasks t ON lsl.task_id = t.id JOIN projects p ON lsl.project_id = p.id WHERE lsl.project_id = ? ORDER BY lsl.created_at DESC`)
+          .bind(prjId)
+          .all();
+        return jsonResponse({
+          project_shift_logs: projectLogsRes.results || [],
+          leave_shift_logs: leaveLogsRes.results || [],
+        });
+      }
+
       // 1. GET /api/workers
       if (method === 'GET' && path === '/api/workers') {
         const workers = await db

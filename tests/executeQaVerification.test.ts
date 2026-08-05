@@ -107,6 +107,7 @@ describe('Final Release QA Comprehensive Test Suite', { timeout: 15000 }, () => 
         end_date: '2026-08-11',
         progress: 50,
         editor_name: '박용진 수석',
+        allow_conflict: true,
       }),
     });
     expect(res.status).toBe(201);

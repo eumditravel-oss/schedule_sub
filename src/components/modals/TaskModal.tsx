@@ -298,25 +298,41 @@ export const TaskModal: React.FC<TaskModalProps> = ({
           {/* Compact Workday Summary */}
           {startDate && endDate && startDate <= endDate && (
             <div data-testid="task-workday-summary" className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 font-bold text-xs space-y-2">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  <span>
-                    {lang === 'vi'
-                      ? `${breakdown.calendar_span_days} ngày theo lịch · ${breakdown.planned_working_days} ngày làm việc · Loại trừ ${breakdown.excluded_non_working_days} ngày nghỉ`
-                      : `달력 ${breakdown.calendar_span_days}일 · 실근무 ${breakdown.planned_working_days}일 · 휴무 제외 ${breakdown.excluded_non_working_days}일`}
-                  </span>
-                  <span data-testid="task-calendar-span-days" className="hidden">{breakdown.calendar_span_days}</span>
-                  <span data-testid="task-planned-working-days" className="hidden">{breakdown.planned_working_days}</span>
-                  <span data-testid="task-excluded-days" className="hidden">{breakdown.excluded_non_working_days}</span>
+              <div className="flex items-center justify-between gap-2 flex-wrap sm:flex-nowrap">
+                <div className="grid grid-cols-3 gap-1.5 flex-1">
+                  {/* Slate Chip: Calendar Days */}
+                  <div
+                    data-testid="task-calendar-span-days"
+                    className="px-2.5 py-1.5 rounded-lg bg-slate-200/70 border border-slate-300 text-slate-800 text-center font-extrabold text-[11px] leading-none"
+                  >
+                    {lang === 'vi' ? `${breakdown.calendar_span_days} ngày lịch` : `달력 ${breakdown.calendar_span_days}일`}
+                  </div>
+
+                  {/* Blue Chip: Working Days */}
+                  <div
+                    data-testid="task-planned-working-days"
+                    className="px-2.5 py-1.5 rounded-lg bg-blue-100 border border-blue-300 text-blue-900 text-center font-extrabold text-[11px] leading-none"
+                  >
+                    {lang === 'vi' ? `${breakdown.planned_working_days} ngày làm` : `실근무 ${breakdown.planned_working_days}일`}
+                  </div>
+
+                  {/* Amber Chip: Excluded Days */}
+                  <div
+                    data-testid="task-excluded-days"
+                    className="px-2.5 py-1.5 rounded-lg bg-amber-100 border border-amber-300 text-amber-900 text-center font-extrabold text-[11px] leading-none"
+                  >
+                    {lang === 'vi' ? `Trừ ${breakdown.excluded_non_working_days} ngày` : `휴무 제외 ${breakdown.excluded_non_working_days}일`}
+                  </div>
                 </div>
+
                 {breakdown.excluded_non_working_days > 0 && (
                   <button
                     type="button"
                     data-testid="task-toggle-excluded-btn"
                     onClick={() => setShowExcludedDetail(!showExcludedDetail)}
-                    className="text-[11px] text-blue-600 hover:underline shrink-0"
+                    className="text-[11px] text-blue-600 hover:underline shrink-0 font-bold px-1"
                   >
-                    {showExcludedDetail ? (lang === 'vi' ? 'Ẩn chi tiết' : '접기') : (lang === 'vi' ? 'Chi tiết ngày nghỉ' : '제외일 상세')}
+                    {showExcludedDetail ? (lang === 'vi' ? 'Ẩn chi tiết' : '접기') : (lang === 'vi' ? 'Chi tiết' : '제외일 상세')}
                   </button>
                 )}
               </div>

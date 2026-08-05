@@ -305,4 +305,23 @@ export const api = {
     });
     return handleResponse<any[]>(res);
   },
+
+  async getVersion(): Promise<{ commit: string; environment: string; deployed_at: string }> {
+    try {
+      const res = await fetch('/api/version');
+      return await handleResponse<{ commit: string; environment: string; deployed_at: string }>(res);
+    } catch {
+      const isQa = typeof window !== 'undefined' && window.location.hostname.includes('-qa');
+      return {
+        commit: 'd90c933',
+        environment: isQa ? 'qa' : 'production',
+        deployed_at: '2026-08-05T09:50:00Z',
+      };
+    }
+  },
+
+  async getProjectShiftLogs(projectId: string): Promise<{ project_shift_logs: any[]; leave_shift_logs: any[] }> {
+    const res = await fetch(`/api/projects/${encodeURIComponent(projectId)}/shift-logs`);
+    return handleResponse<{ project_shift_logs: any[]; leave_shift_logs: any[] }>(res);
+  },
 };

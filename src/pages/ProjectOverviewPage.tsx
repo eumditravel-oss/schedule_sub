@@ -24,7 +24,9 @@ import { MobileWeekView } from '../components/mobile/MobileWeekView';
 import { MobileThirtyDayGanttView } from '../components/mobile/MobileThirtyDayGanttView';
 import { CalendarLegend } from '../components/common/CalendarLegend';
 import { DateHeaderInfoPanel } from '../components/modals/DateHeaderInfoPanel';
-import { Plus, ChevronRight, Calendar, Lock } from 'lucide-react';
+import { TodaySummaryCard } from '../components/common/TodaySummaryCard';
+import { BuildVersionIndicator } from '../components/common/BuildVersionIndicator';
+import { Plus, ChevronRight, ChevronLeft, Calendar, Lock } from 'lucide-react';
 
 export type MobileViewMode = 'SUMMARY' | 'WEEK' | 'GANTT';
 
@@ -339,120 +341,182 @@ export const ProjectOverviewPage: React.FC = () => {
         </header>
       )}
 
-      {/* Navigation / Tab Controls */}
-      <div className="bg-white border-b border-slate-200 px-3 md:px-5 py-2.5 flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-2xs">
-        {/* Left: Active vs Completed Tabs */}
-        <div className="flex items-center gap-2">
-          <div className="flex p-0.5 bg-slate-100 rounded-lg border border-slate-200/80 text-xs font-semibold">
-            <button
-              type="button"
-              data-testid="active-tab-btn"
-              onClick={() => setActiveTab('ACTIVE')}
-              className={`px-3 py-1.5 rounded-md transition font-bold ${
-                activeTab === 'ACTIVE'
-                  ? 'bg-blue-600 text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              {t('activeProjects')}
-            </button>
-            <button
-              type="button"
-              data-testid="completed-tab-btn"
-              onClick={() => setActiveTab('COMPLETED')}
-              className={`px-3 py-1.5 rounded-md transition font-bold ${
-                activeTab === 'COMPLETED'
-                  ? 'bg-blue-600 text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              {t('completedProjects')}
-            </button>
+      {/* Desktop Toolbar & Navigation Controls */}
+      {isMobileView ? (
+        <div className="bg-white border-b border-slate-200 p-3 flex flex-col gap-2 w-full shadow-2xs">
+          <div className="flex items-center justify-between">
+            <div role="tablist" aria-label="Mobile View Modes" className="flex items-center p-0.5 bg-slate-200/80 rounded-lg text-xs font-semibold flex-1 mr-2">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={mobileViewMode === 'SUMMARY'}
+                data-testid="mobile-view-summary-btn"
+                onClick={() => handleMobileViewChange('SUMMARY')}
+                className={`flex-1 h-8 rounded-md transition font-bold ${
+                  mobileViewMode === 'SUMMARY'
+                    ? 'bg-blue-600 text-white shadow-xs'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                {t('summaryView')}
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={mobileViewMode === 'WEEK'}
+                data-testid="mobile-view-week-btn"
+                onClick={() => handleMobileViewChange('WEEK')}
+                className={`flex-1 h-8 rounded-md transition font-bold ${
+                  mobileViewMode === 'WEEK'
+                    ? 'bg-blue-600 text-white shadow-xs'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                {t('week7View')}
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={mobileViewMode === 'GANTT'}
+                data-testid="mobile-view-gantt-btn"
+                onClick={() => handleMobileViewChange('GANTT')}
+                className={`flex-1 h-8 rounded-md transition font-bold ${
+                  mobileViewMode === 'GANTT'
+                    ? 'bg-blue-600 text-white shadow-xs'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                {t('gantt30View')}
+              </button>
+            </div>
+
+            <CalendarLegend isMobileView={true} />
           </div>
-
-          {activeTab === 'COMPLETED' && (
-            <select
-              value={selectedYear}
-              onChange={(e) => setSelectedYear(e.target.value)}
-              className="h-8 text-xs font-bold bg-white border border-slate-200 rounded-lg px-2 text-slate-700 shadow-2xs focus:ring-1 focus:ring-blue-500"
-            >
-              {completedYears.map((yr) => (
-                <option key={yr} value={yr}>
-                  {yr}{lang === 'vi' ? '' : '년'}
-                </option>
-              ))}
-            </select>
-          )}
         </div>
+      ) : (
+        <section data-testid="desktop-schedule-toolbar" className="bg-white border-b border-slate-200 px-4 md:px-6 py-2.5 space-y-2 text-slate-900 shadow-2xs">
+          {/* Toolbar Main Row */}
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            {/* Left: Active vs Completed Tabs */}
+            <div className="flex items-center gap-2 shrink-0">
+              <div className="flex p-0.5 bg-slate-100 rounded-lg border border-slate-200 text-xs font-semibold">
+                <button
+                  type="button"
+                  data-testid="active-tab-btn"
+                  onClick={() => setActiveTab('ACTIVE')}
+                  className={`px-3 py-1.5 rounded-md transition font-bold ${
+                    activeTab === 'ACTIVE'
+                      ? 'bg-blue-600 text-white shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  {t('activeProjects')}
+                </button>
+                <button
+                  type="button"
+                  data-testid="completed-tab-btn"
+                  onClick={() => setActiveTab('COMPLETED')}
+                  className={`px-3 py-1.5 rounded-md transition font-bold ${
+                    activeTab === 'COMPLETED'
+                      ? 'bg-blue-600 text-white shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  {t('completedProjects')}
+                </button>
+              </div>
 
-        {/* Controls Toolbar */}
-      <div className="bg-slate-50 border-b border-slate-200 px-3 md:px-5 py-2">
-        {isMobileView ? (
-          <div className="flex flex-col gap-2 w-full">
-            <div className="flex items-center justify-between">
-              <div role="tablist" aria-label="Mobile View Modes" className="flex items-center p-0.5 bg-slate-200/80 rounded-lg text-xs font-semibold flex-1 mr-2">
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={mobileViewMode === 'SUMMARY'}
-                  data-testid="mobile-view-summary-btn"
-                  onClick={() => handleMobileViewChange('SUMMARY')}
-                  className={`flex-1 h-8 rounded-md transition font-bold ${
-                    mobileViewMode === 'SUMMARY'
-                      ? 'bg-blue-600 text-white shadow-xs'
-                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                  }`}
+              {activeTab === 'COMPLETED' && (
+                <select
+                  value={selectedYear}
+                  onChange={(e) => setSelectedYear(e.target.value)}
+                  className="h-8 text-xs font-bold bg-white border border-slate-200 rounded-lg px-2 text-slate-700 shadow-2xs focus:ring-1 focus:ring-blue-500"
                 >
-                  {t('summaryView')}
-                </button>
+                  {completedYears.map((yr) => (
+                    <option key={yr} value={yr}>
+                      {yr}{lang === 'vi' ? '' : '년'}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+
+            {/* Center: View Mode Toggle & Date Range Badge */}
+            <div className="flex items-center gap-2 shrink-0">
+              <div className="flex items-center p-0.5 bg-slate-100 rounded-lg border border-slate-200 text-xs font-semibold">
                 <button
                   type="button"
-                  role="tab"
-                  aria-selected={mobileViewMode === 'WEEK'}
-                  data-testid="mobile-view-week-btn"
-                  onClick={() => handleMobileViewChange('WEEK')}
-                  className={`flex-1 h-8 rounded-md transition font-bold ${
-                    mobileViewMode === 'WEEK'
-                      ? 'bg-blue-600 text-white shadow-xs'
-                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                  }`}
-                >
-                  {t('week7View')}
-                </button>
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={mobileViewMode === 'GANTT'}
-                  data-testid="mobile-view-gantt-btn"
-                  onClick={() => handleMobileViewChange('GANTT')}
-                  className={`flex-1 h-8 rounded-md transition font-bold ${
-                    mobileViewMode === 'GANTT'
-                      ? 'bg-blue-600 text-white shadow-xs'
-                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  data-testid="view-30days-btn"
+                  onClick={() => changeViewMode('THIRTY_DAYS')}
+                  className={`px-3 py-1.5 rounded-md transition font-bold ${
+                    viewMode === 'THIRTY_DAYS'
+                      ? 'bg-white text-blue-700 shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
                   {t('gantt30View')}
                 </button>
+                <button
+                  type="button"
+                  data-testid="view-month-btn"
+                  onClick={() => changeViewMode('MONTH')}
+                  className={`px-3 py-1.5 rounded-md transition font-bold ${
+                    viewMode === 'MONTH'
+                      ? 'bg-white text-blue-700 shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  {t('viewMonth')}
+                </button>
               </div>
 
-              <CalendarLegend isMobileView={true} />
+              <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-extrabold text-slate-800 shrink-0">
+                <Calendar className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                <span>{rangeTitle}</span>
+              </div>
+            </div>
+
+            {/* Right: Navigation Controls (Prev / Today / Next) */}
+            <div className="flex items-center gap-1 bg-white border border-slate-300 p-0.5 rounded-lg shadow-2xs shrink-0">
+              <button
+                type="button"
+                data-testid="nav-prev-btn"
+                onClick={goPrevious}
+                className="h-7 px-2.5 rounded hover:bg-slate-100 text-slate-700 font-bold text-xs transition flex items-center gap-1"
+                aria-label={t('prev')}
+              >
+                <ChevronLeft className="w-4 h-4 text-slate-500" />
+                <span>{t('prev')}</span>
+              </button>
+
+              <button
+                type="button"
+                data-testid="nav-today-btn"
+                onClick={goToday}
+                className="h-7 px-3 bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold rounded text-xs transition border border-blue-200"
+              >
+                {t('today')}
+              </button>
+
+              <button
+                type="button"
+                data-testid="nav-next-btn"
+                onClick={goNext}
+                className="h-7 px-2.5 rounded hover:bg-slate-100 text-slate-700 font-bold text-xs transition flex items-center gap-1"
+                aria-label={t('next')}
+              >
+                <span>{t('next')}</span>
+                <ChevronRight className="w-4 h-4 text-slate-500" />
+              </button>
             </div>
           </div>
-        ) : (
-          <GanttViewControls
-            viewMode={viewMode}
-            rangeTitle={rangeTitle}
-            onViewModeChange={changeViewMode}
-            onPrevious={goPrevious}
-            onNext={goNext}
-            onToday={goToday}
-          />
-        )}
-      </div>
 
-      {/* Desktop Calendar Legend */}
-      {!isMobileView && <CalendarLegend isMobileView={false} />}
-      </div>
+          {/* Legend Row */}
+          <div className="pt-1.5 border-t border-slate-100">
+            <CalendarLegend isMobileView={false} />
+          </div>
+        </section>
+      )}
 
       {/* Main Content Area */}
       <main className="flex-1 p-3 md:p-5 overflow-x-hidden flex flex-col">
@@ -489,10 +553,19 @@ export const ProjectOverviewPage: React.FC = () => {
           </div>
         ) : (
           /* Desktop Table View */
-          <div
-            ref={scrollContainerRef}
-            className="flex-1 bg-white border border-slate-200 rounded-xl shadow-sm overflow-x-auto overflow-y-auto custom-scrollbar relative max-w-full"
-          >
+          <div className="space-y-3 flex-1 flex flex-col">
+            <TodaySummaryCard
+              currentWorker={currentWorker}
+              tasks={projects.flatMap((p: any) => p.tasks || [])}
+              projects={projects}
+              holidays={[...krHolidays, ...vnHolidays]}
+              overrides={calendarOverrides}
+            />
+
+            <div
+              ref={scrollContainerRef}
+              className="flex-1 bg-white border border-slate-200 rounded-xl shadow-sm overflow-x-auto overflow-y-auto custom-scrollbar relative max-w-full"
+            >
             <table className="w-full border-collapse text-left min-w-max">
               <thead className="sticky top-0 z-20 bg-slate-100 text-xs uppercase tracking-wider text-slate-700">
                 <tr className="border-b border-slate-200">
@@ -695,8 +768,9 @@ export const ProjectOverviewPage: React.FC = () => {
               </tbody>
             </table>
           </div>
-        )}
-      </main>
+        </div>
+      )}
+    </main>
 
       {/* Modals */}
       <ProjectModal
@@ -738,6 +812,9 @@ export const ProjectOverviewPage: React.FC = () => {
         currentWorker={currentWorker}
         onRefreshHolidays={fetchCalendarData}
       />
+
+      {/* Build Version Indicator */}
+      <BuildVersionIndicator />
     </div>
   );
 };

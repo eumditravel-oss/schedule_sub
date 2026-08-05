@@ -3,6 +3,7 @@ import React from 'react';
 import { Project, Task, Worker } from '../../types';
 import { useI18n } from '../../hooks/useI18n';
 import { X, Calendar, User, CheckCircle, Edit2, AlertCircle } from 'lucide-react';
+import { BuildVersionIndicator } from '../common/BuildVersionIndicator';
 
 interface MobileScheduleInfoSheetProps {
   isOpen: boolean;
@@ -119,9 +120,9 @@ export const MobileScheduleInfoSheet: React.FC<MobileScheduleInfoSheetProps> = (
           )}
         </div>
 
-        {/* Footer Actions */}
-        {!isReadOnly && onEdit && (
-          <div className="pt-2">
+        {/* Footer Actions & Version */}
+        <div className="pt-2 flex flex-col gap-2">
+          {!isReadOnly && onEdit && (
             <button
               type="button"
               data-testid="mobile-info-sheet-edit-btn"
@@ -134,8 +135,12 @@ export const MobileScheduleInfoSheet: React.FC<MobileScheduleInfoSheetProps> = (
               <Edit2 className="w-4 h-4" />
               <span>{t('edit')}</span>
             </button>
+          )}
+
+          <div className="flex justify-center pt-1">
+            <BuildVersionIndicator inline={true} />
           </div>
-        )}
+        </div>
       </div>
     </div>
   );
