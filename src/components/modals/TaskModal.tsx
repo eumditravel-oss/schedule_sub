@@ -598,6 +598,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
           <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
             <button
               type="button"
+              data-testid="task-cancel-btn"
               onClick={onClose}
               className="px-4 h-10 rounded-lg border border-slate-300 hover:bg-slate-50 font-bold text-slate-700"
             >
@@ -605,7 +606,8 @@ export const TaskModal: React.FC<TaskModalProps> = ({
             </button>
             <button
               type="submit"
-              data-testid="task-submit-btn"
+              data-testid="task-save-btn"
+              id="task-submit-btn"
               disabled={saving || totalAllocationSum !== 100}
               className="px-5 h-10 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold disabled:opacity-50 flex items-center gap-1.5 shadow-sm shadow-blue-200"
             >
