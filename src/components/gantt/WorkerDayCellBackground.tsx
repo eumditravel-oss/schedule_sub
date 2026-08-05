@@ -2,7 +2,7 @@
 import React from 'react';
 import { Worker, WorkDayStatus, CountryHoliday, CalendarOverride } from '../../types';
 import { CountryOffState } from '../../utils/workCalendar';
-import { resolveCalendarVisualState, CalendarVisualToken } from '../../utils/calendarVisualTokens';
+import { resolveCalendarVisualState, CalendarVisualToken, TODAY_OUTLINE_STYLE } from '../../utils/calendarVisualTokens';
 
 interface WorkerDayCellBackgroundProps {
   dateStr: string;
@@ -43,14 +43,11 @@ export const WorkerDayCellBackground: React.FC<WorkerDayCellBackgroundProps> = (
   const isWorking = token.visualState === 'WORKDAY' || token.visualState === 'WORK_OVERRIDE';
   const offReason = dayStatus?.label_ko || token.label;
 
-  const todayStyle = isToday ? 'ring-2 ring-blue-500 ring-inset z-30' : '';
-
-  // Strong Color Hatch Pattern Gradient for non-working visual states
+  // Subtle Color Hatch Pattern Gradient (3px color, 7px transparent gap)
   let hatchPatternStyle: React.CSSProperties | undefined;
   if (!isWorking && token.hatchColor) {
-    const bgGap = token.hatchBg || 'transparent';
     hatchPatternStyle = {
-      backgroundImage: `repeating-linear-gradient(135deg, ${token.hatchColor} 0px, ${token.hatchColor} 5px, ${bgGap} 5px, ${bgGap} 10px)`,
+      backgroundImage: `repeating-linear-gradient(135deg, ${token.hatchColor} 0px, ${token.hatchColor} 3px, transparent 3px, transparent 10px)`,
     };
   }
 
@@ -65,7 +62,7 @@ export const WorkerDayCellBackground: React.FC<WorkerDayCellBackgroundProps> = (
       aria-label={ariaLabel}
       onClick={onClick}
       style={style}
-      className={`relative border-r border-slate-200 transition select-none ${token.baseClass} ${todayStyle} ${className}`}
+      className={`relative border-r border-slate-200 transition select-none ${token.baseClass} ${className}`}
     >
       {/* Layer 0: Base Cell Content / Background */}
       <div className="absolute inset-0 z-0" />
@@ -73,12 +70,21 @@ export const WorkerDayCellBackground: React.FC<WorkerDayCellBackgroundProps> = (
       {/* Layer 10: ScheduleBar & Cell Inner Children */}
       <div className="relative z-10 h-full w-full">{children}</div>
 
-      {/* Layer 20: Strong Hatch Pattern Overlay (Repeats over ScheduleBar Track for visibility) */}
+      {/* Layer 20: Subtle Hatch Pattern Overlay (pointer-events-none) */}
       {hatchPatternStyle && (
         <div
           data-testid="worker-off-hatch-overlay"
           style={hatchPatternStyle}
-          className="absolute inset-0 z-20 pointer-events-none"
+          className="absolute inset-0 z-20 pointer-events-none opacity-100"
+        />
+      )}
+
+      {/* Layer 30: Today Pure Inset Blue Outline Overlay (Transparent inside, pointer-events-none, never covers ScheduleBar) */}
+      {isToday && (
+        <div
+          data-testid="worker-today-outline"
+          style={TODAY_OUTLINE_STYLE}
+          className="absolute inset-0 z-30 pointer-events-none rounded-none"
         />
       )}
     </div>

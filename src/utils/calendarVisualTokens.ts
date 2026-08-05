@@ -1,4 +1,5 @@
 // src/utils/calendarVisualTokens.ts
+import React from 'react';
 import { Worker, WorkDayStatus, CountryCode, CountryHoliday, CalendarOverride } from '../types';
 import { getCountryOffState, CountryOffState } from './workCalendar';
 
@@ -18,69 +19,62 @@ export interface CalendarVisualToken {
   borderClass: string;
   textClass: string;
   hatchColor: string | null;
-  hatchBg: string | null;
   label: string;
 }
 
 export const CALENDAR_VISUAL_TOKENS: Record<CalendarVisualState, CalendarVisualToken> = {
   BOTH_OFF: {
     visualState: 'BOTH_OFF',
-    baseClass: 'bg-rose-100/80',
-    headerClass: 'bg-rose-100 border-rose-300 text-rose-900',
+    baseClass: 'bg-rose-100',
+    headerClass: 'bg-rose-100 border-rose-300 text-rose-900 font-bold',
     borderClass: 'border-rose-300',
     textClass: 'text-rose-900',
-    hatchColor: 'rgba(225, 29, 72, 0.65)',
-    hatchBg: 'rgba(255, 228, 230, 0.18)',
+    hatchColor: 'rgba(244, 63, 94, 0.20)',
     label: '양국 휴무',
   },
   KR_ONLY_OFF: {
     visualState: 'KR_ONLY_OFF',
-    baseClass: 'bg-orange-100/80',
-    headerClass: 'bg-orange-50 border-orange-200 text-orange-900',
-    borderClass: 'border-orange-300',
+    baseClass: 'bg-orange-50',
+    headerClass: 'bg-orange-50 border-orange-200 text-orange-900 font-bold',
+    borderClass: 'border-orange-200',
     textClass: 'text-orange-900',
-    hatchColor: 'rgba(234, 88, 12, 0.65)',
-    hatchBg: 'rgba(255, 237, 213, 0.18)',
+    hatchColor: 'rgba(249, 115, 22, 0.18)',
     label: '한국만 휴무',
   },
   VN_ONLY_OFF: {
     visualState: 'VN_ONLY_OFF',
-    baseClass: 'bg-amber-100/85',
-    headerClass: 'bg-amber-50 border-amber-200 text-amber-900',
-    borderClass: 'border-amber-300',
+    baseClass: 'bg-amber-50',
+    headerClass: 'bg-amber-50 border-amber-200 text-amber-900 font-bold',
+    borderClass: 'border-amber-200',
     textClass: 'text-amber-900',
-    hatchColor: 'rgba(217, 119, 6, 0.70)',
-    hatchBg: 'rgba(254, 243, 199, 0.18)',
+    hatchColor: 'rgba(245, 158, 11, 0.20)',
     label: '베트남만 휴무',
   },
   PERSONAL_LEAVE: {
     visualState: 'PERSONAL_LEAVE',
-    baseClass: 'bg-violet-100/85',
-    headerClass: 'bg-violet-100 border-violet-300 text-violet-900',
-    borderClass: 'border-violet-300',
+    baseClass: 'bg-violet-50',
+    headerClass: 'bg-violet-50 border-violet-200 text-violet-900 font-bold',
+    borderClass: 'border-violet-200',
     textClass: 'text-violet-900',
-    hatchColor: 'rgba(124, 58, 237, 0.70)',
-    hatchBg: 'rgba(237, 233, 254, 0.18)',
+    hatchColor: 'rgba(139, 92, 246, 0.20)',
     label: '개인 휴가',
   },
   MANUAL_OFF: {
     visualState: 'MANUAL_OFF',
-    baseClass: 'bg-orange-100/90',
-    headerClass: 'bg-orange-100 border-orange-400 text-orange-950',
-    borderClass: 'border-orange-400',
+    baseClass: 'bg-orange-50',
+    headerClass: 'bg-orange-50 border-orange-300 text-orange-950 font-bold',
+    borderClass: 'border-orange-300',
     textClass: 'text-orange-950',
-    hatchColor: 'rgba(194, 65, 12, 0.72)',
-    hatchBg: 'rgba(255, 237, 213, 0.18)',
+    hatchColor: 'rgba(234, 88, 12, 0.22)',
     label: '수동 휴무',
   },
   WORK_OVERRIDE: {
     visualState: 'WORK_OVERRIDE',
-    baseClass: 'bg-cyan-100/80',
-    headerClass: 'bg-cyan-100 border-cyan-300 text-cyan-900',
-    borderClass: 'border-cyan-300',
+    baseClass: 'bg-cyan-50',
+    headerClass: 'bg-cyan-50 border-cyan-200 text-cyan-900 font-bold',
+    borderClass: 'border-cyan-200',
     textClass: 'text-cyan-900',
     hatchColor: null,
-    hatchBg: null,
     label: '근무일 지정',
   },
   WORKDAY: {
@@ -90,9 +84,14 @@ export const CALENDAR_VISUAL_TOKENS: Record<CalendarVisualState, CalendarVisualT
     borderClass: 'border-slate-200',
     textClass: 'text-slate-700',
     hatchColor: null,
-    hatchBg: null,
     label: '일반 근무',
   },
+};
+
+export const TODAY_OUTLINE_STYLE: React.CSSProperties = {
+  boxShadow: 'inset 0 0 0 2px rgb(59, 130, 246)',
+  zIndex: 30,
+  pointerEvents: 'none',
 };
 
 export function resolveCalendarVisualState(

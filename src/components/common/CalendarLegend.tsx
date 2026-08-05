@@ -26,7 +26,7 @@ export const CalendarLegend: React.FC<CalendarLegendProps> = ({ isMobileView }) 
       labelVi: 'Nghỉ cả hai nước',
       colorClass: `${CALENDAR_VISUAL_TOKENS.BOTH_OFF.baseClass} border ${CALENDAR_VISUAL_TOKENS.BOTH_OFF.borderClass} ${CALENDAR_VISUAL_TOKENS.BOTH_OFF.textClass} font-bold`,
       hatchStyle: {
-        backgroundImage: `repeating-linear-gradient(135deg, ${CALENDAR_VISUAL_TOKENS.BOTH_OFF.hatchColor} 0px, ${CALENDAR_VISUAL_TOKENS.BOTH_OFF.hatchColor} 4px, transparent 4px, transparent 8px)`,
+        backgroundImage: `repeating-linear-gradient(135deg, ${CALENDAR_VISUAL_TOKENS.BOTH_OFF.hatchColor} 0px, ${CALENDAR_VISUAL_TOKENS.BOTH_OFF.hatchColor} 3px, transparent 3px, transparent 10px)`,
       },
     },
     {
@@ -36,7 +36,7 @@ export const CalendarLegend: React.FC<CalendarLegendProps> = ({ isMobileView }) 
       colorClass: `${CALENDAR_VISUAL_TOKENS.KR_ONLY_OFF.baseClass} border ${CALENDAR_VISUAL_TOKENS.KR_ONLY_OFF.borderClass} ${CALENDAR_VISUAL_TOKENS.KR_ONLY_OFF.textClass} font-bold`,
       badge: 'KR',
       hatchStyle: {
-        backgroundImage: `repeating-linear-gradient(135deg, ${CALENDAR_VISUAL_TOKENS.KR_ONLY_OFF.hatchColor} 0px, ${CALENDAR_VISUAL_TOKENS.KR_ONLY_OFF.hatchColor} 4px, transparent 4px, transparent 8px)`,
+        backgroundImage: `repeating-linear-gradient(135deg, ${CALENDAR_VISUAL_TOKENS.KR_ONLY_OFF.hatchColor} 0px, ${CALENDAR_VISUAL_TOKENS.KR_ONLY_OFF.hatchColor} 3px, transparent 3px, transparent 10px)`,
       },
     },
     {
@@ -46,7 +46,7 @@ export const CalendarLegend: React.FC<CalendarLegendProps> = ({ isMobileView }) 
       colorClass: `${CALENDAR_VISUAL_TOKENS.VN_ONLY_OFF.baseClass} border ${CALENDAR_VISUAL_TOKENS.VN_ONLY_OFF.borderClass} ${CALENDAR_VISUAL_TOKENS.VN_ONLY_OFF.textClass} font-bold`,
       badge: 'VN',
       hatchStyle: {
-        backgroundImage: `repeating-linear-gradient(135deg, ${CALENDAR_VISUAL_TOKENS.VN_ONLY_OFF.hatchColor} 0px, ${CALENDAR_VISUAL_TOKENS.VN_ONLY_OFF.hatchColor} 4px, transparent 4px, transparent 8px)`,
+        backgroundImage: `repeating-linear-gradient(135deg, ${CALENDAR_VISUAL_TOKENS.VN_ONLY_OFF.hatchColor} 0px, ${CALENDAR_VISUAL_TOKENS.VN_ONLY_OFF.hatchColor} 3px, transparent 3px, transparent 10px)`,
       },
     },
     {
@@ -55,7 +55,7 @@ export const CalendarLegend: React.FC<CalendarLegendProps> = ({ isMobileView }) 
       labelVi: 'Nghỉ phép cá nhân',
       colorClass: `${CALENDAR_VISUAL_TOKENS.PERSONAL_LEAVE.baseClass} border ${CALENDAR_VISUAL_TOKENS.PERSONAL_LEAVE.borderClass} ${CALENDAR_VISUAL_TOKENS.PERSONAL_LEAVE.textClass} font-bold`,
       hatchStyle: {
-        backgroundImage: `repeating-linear-gradient(135deg, ${CALENDAR_VISUAL_TOKENS.PERSONAL_LEAVE.hatchColor} 0px, ${CALENDAR_VISUAL_TOKENS.PERSONAL_LEAVE.hatchColor} 4px, transparent 4px, transparent 8px)`,
+        backgroundImage: `repeating-linear-gradient(135deg, ${CALENDAR_VISUAL_TOKENS.PERSONAL_LEAVE.hatchColor} 0px, ${CALENDAR_VISUAL_TOKENS.PERSONAL_LEAVE.hatchColor} 3px, transparent 3px, transparent 10px)`,
       },
     },
     {
@@ -64,7 +64,7 @@ export const CalendarLegend: React.FC<CalendarLegendProps> = ({ isMobileView }) 
       labelVi: 'Nghỉ bổ sung',
       colorClass: `${CALENDAR_VISUAL_TOKENS.MANUAL_OFF.baseClass} border ${CALENDAR_VISUAL_TOKENS.MANUAL_OFF.borderClass} ${CALENDAR_VISUAL_TOKENS.MANUAL_OFF.textClass} font-bold`,
       hatchStyle: {
-        backgroundImage: `repeating-linear-gradient(135deg, ${CALENDAR_VISUAL_TOKENS.MANUAL_OFF.hatchColor} 0px, ${CALENDAR_VISUAL_TOKENS.MANUAL_OFF.hatchColor} 4px, transparent 4px, transparent 8px)`,
+        backgroundImage: `repeating-linear-gradient(135deg, ${CALENDAR_VISUAL_TOKENS.MANUAL_OFF.hatchColor} 0px, ${CALENDAR_VISUAL_TOKENS.MANUAL_OFF.hatchColor} 3px, transparent 3px, transparent 10px)`,
       },
     },
     {
@@ -131,7 +131,7 @@ export const CalendarLegend: React.FC<CalendarLegendProps> = ({ isMobileView }) 
                     className={`p-2 rounded-lg flex items-center gap-2 relative overflow-hidden ${item.colorClass}`}
                   >
                     {item.hatchStyle && (
-                      <div className="absolute inset-0 pointer-events-none opacity-40" style={item.hatchStyle} />
+                      <div className="absolute inset-0 pointer-events-none opacity-100" style={item.hatchStyle} />
                     )}
                     {item.badge ? (
                       <span className="px-1 py-0.5 rounded text-[10px] font-extrabold bg-white/80 border border-slate-300 shrink-0 z-10">
@@ -175,7 +175,7 @@ export const CalendarLegend: React.FC<CalendarLegendProps> = ({ isMobileView }) 
             className={`px-2 py-0.5 rounded-md flex items-center gap-1 text-[11px] relative overflow-hidden select-none ${item.colorClass}`}
           >
             {item.hatchStyle && (
-              <div className="absolute inset-0 pointer-events-none opacity-40" style={item.hatchStyle} />
+              <div className="absolute inset-0 pointer-events-none opacity-100" style={item.hatchStyle} />
             )}
             {item.badge ? (
               <span className="px-1 py-0.2 rounded text-[9px] font-extrabold bg-white/80 border border-slate-300 shrink-0 z-10">

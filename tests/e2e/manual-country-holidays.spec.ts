@@ -121,6 +121,18 @@ test.describe('Manual Country Holidays & Worker Off Hatch E2E Tests', () => {
       'x-worker-name': encodeURIComponent('박용진 수석'),
     };
 
+    // Cleanup any existing leftover QA projects with the same name
+    const existingPrjsRes = await request.get('/api/projects?status=ACTIVE', { headers: authHeaders });
+    if (existingPrjsRes.ok()) {
+      const existingBody = await existingPrjsRes.json();
+      const list = existingBody.data || existingBody;
+      for (const p of list) {
+        if (p.name === 'QA Holiday Integrity Test Project') {
+          await request.delete(`/api/projects/${p.id}`, { headers: authHeaders });
+        }
+      }
+    }
+
     // 1. Create QA Project
     const prjRes = await request.post('/api/projects', {
       data: {
@@ -129,7 +141,7 @@ test.describe('Manual Country Holidays & Worker Off Hatch E2E Tests', () => {
         description_ko: '수동 공휴일 이연 무결성 QA 프로젝트',
         description_vi: 'QA Holiday Test Project',
         start_date: '2026-09-01',
-        end_date: '2026-09-30',
+        end_date: '2026-10-31',
         status: 'ACTIVE',
         editor_id: 'wrk_02',
         editor_name: '박용진 수석',

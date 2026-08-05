@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { CalendarOverride, CountryHoliday } from '../../types';
 import { getCountryOffState, CountryOffInfo } from '../../utils/workCalendar';
 import { Info, X } from 'lucide-react';
+import { CALENDAR_VISUAL_TOKENS, TODAY_OUTLINE_STYLE } from '../../utils/calendarVisualTokens';
 
 interface CalendarDateHeaderCellProps {
   dateStr: string;
@@ -30,17 +31,15 @@ export const CalendarDateHeaderCell: React.FC<CalendarDateHeaderCellProps> = ({
   const dayOfWeekNamesVi = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
   const dayOfWeekStr = lang === 'vi' ? dayOfWeekNamesVi[d.getDay()] : dayOfWeekNamesKo[d.getDay()];
 
-  // Style classes based on state
-  let bgBorderClass = 'bg-white border-slate-200 text-slate-700';
+  // Style classes based on visual token (100% background color match with worker cells)
+  let visualToken = CALENDAR_VISUAL_TOKENS.WORKDAY;
   if (offInfo.state === 'BOTH_OFF') {
-    bgBorderClass = 'bg-rose-100 border-rose-300 text-rose-900';
+    visualToken = CALENDAR_VISUAL_TOKENS.BOTH_OFF;
   } else if (offInfo.state === 'KR_ONLY_OFF') {
-    bgBorderClass = 'bg-orange-50 border-orange-200 text-orange-900';
+    visualToken = CALENDAR_VISUAL_TOKENS.KR_ONLY_OFF;
   } else if (offInfo.state === 'VN_ONLY_OFF') {
-    bgBorderClass = 'bg-amber-50 border-amber-200 text-amber-900';
+    visualToken = CALENDAR_VISUAL_TOKENS.VN_ONLY_OFF;
   }
-
-  const todayClass = isToday ? 'ring-2 ring-blue-500 ring-inset font-bold' : '';
 
   // Aria label construction
   let ariaText = `${dateStr} ${dayOfWeekStr}`;
@@ -66,9 +65,17 @@ export const CalendarDateHeaderCell: React.FC<CalendarDateHeaderCellProps> = ({
       data-country-off-state={offInfo.state}
       aria-label={ariaText}
       onClick={() => hasHoliday && setShowInfo(!showInfo)}
-      className={`relative flex flex-col items-center justify-center p-1 border-r border-b text-center cursor-pointer transition-colors duration-150 select-none ${bgBorderClass} ${todayClass} ${customClass}`}
+      className={`relative flex flex-col items-center justify-center p-1 border-r border-b text-center cursor-pointer transition-colors duration-150 select-none ${visualToken.headerClass} ${customClass}`}
       style={{ height: '48px', minWidth: '40px' }}
     >
+      {/* Today Pure Inset Blue Outline Overlay (Transparent inside) */}
+      {isToday && (
+        <div
+          data-testid="header-today-outline"
+          style={TODAY_OUTLINE_STYLE}
+          className="absolute inset-0 z-30 pointer-events-none rounded-none"
+        />
+      )}
       {/* 2px accent stripe for manual public holidays */}
       {hasHoliday && (
         <div
