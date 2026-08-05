@@ -68,7 +68,7 @@ describe('Project Schedule Cascade Shifting & Integrity Suite', { timeout: 30000
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status: 'IN_PROGRESS', editor_name: '박용진 수석' }),
     });
-  });
+  }, 30000);
 
   afterAll(async () => {
     if (projectId) {
@@ -77,7 +77,7 @@ describe('Project Schedule Cascade Shifting & Integrity Suite', { timeout: 30000
         headers: { 'x-editor-name': encodeURIComponent('박용진 수석') },
       });
     }
-  });
+  }, 30000);
 
   // 1. Pure Calendar Date Calculation Unit Tests
   it('1. Pure calendar date calculations accurately handle positive/negative days, month/year boundaries & leap years', () => {
