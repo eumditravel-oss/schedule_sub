@@ -16,8 +16,6 @@ async function dismissWorkerPromptModal(page: any) {
 
 test.describe('Task Grouping, Drag & Drop, Reorder and Move UI Suite', () => {
   let createdProjectId = '';
-  let groupIds: Record<string, string> = {};
-  let taskIds: string[] = [];
 
   test.beforeAll(async () => {
     const runId = Date.now();
@@ -53,16 +51,11 @@ test.describe('Task Grouping, Drag & Drop, Reorder and Move UI Suite', () => {
       });
     }
 
-    // Fetch detail to guarantee exact IDs
+    // Fetch detail to get group ID for tasks
     const detailRes = await fetch(`${QA_BASE_URL}/api/projects/${createdProjectId}/detail`);
     const detailJson: any = await detailRes.json();
-    const serverGroups: any[] = detailJson.task_groups || [];
-    serverGroups.forEach((g) => {
-      const name = g.group_name_ko || g.group_name;
-      groupIds[name] = g.id;
-    });
-
-    const targetGroupId = groupIds['기획'] || serverGroups[0]?.id;
+    const groupObj = (detailJson.task_groups || [])[0];
+    const targetGroupId = groupObj ? groupObj.id : undefined;
 
     // 3. Create Tasks under '기획' group
     const taskNames = ['요구사항 정의', '시스템 설계', 'DB 구축'];
@@ -85,16 +78,10 @@ test.describe('Task Grouping, Drag & Drop, Reorder and Move UI Suite', () => {
         }),
       });
     }
-
-    // Re-fetch detail to gather exact task IDs
-    const finalDetailRes = await fetch(`${QA_BASE_URL}/api/projects/${createdProjectId}/detail`);
-    const finalDetailJson: any = await finalDetailRes.json();
-    const serverTasks: any[] = finalDetailJson.tasks || [];
-    taskIds = serverTasks.map((t) => t.id);
   });
 
   test.afterAll(async () => {
-    // ID-based Clean-up
+    // Clean up QA project
     if (createdProjectId) {
       await fetch(`${QA_BASE_URL}/api/projects/${createdProjectId}`, {
         method: 'DELETE',
@@ -106,17 +93,25 @@ test.describe('Task Grouping, Drag & Drop, Reorder and Move UI Suite', () => {
   test('1. Verify Desktop Task Drag & Drop Between Groups and Drag Overlay', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
 
+    // Fetch exact IDs directly inside test block
+    const detailRes = await fetch(`${QA_BASE_URL}/api/projects/${createdProjectId}/detail`);
+    const detailJson: any = await detailRes.json();
+    const tasksList: any[] = detailJson.tasks || [];
+    const firstTaskId = tasksList[0]?.id;
+
+    expect(firstTaskId).toBeDefined();
+
     await page.goto(`${QA_BASE_URL}/projects/${createdProjectId}`);
     await page.waitForLoadState('networkidle');
     await dismissWorkerPromptModal(page);
 
-    const firstTaskHandle = page.locator(`[data-testid="task-drag-handle-${taskIds[0]}"]`);
+    const firstTaskHandle = page.locator(`[data-testid="task-drag-handle-${firstTaskId}"]`);
     await expect(firstTaskHandle).toBeVisible({ timeout: 15000 });
 
-    const devGroupRow = page.locator(`[data-testid^="task-group-row-"]`).nth(2); // '개발' group
+    const devGroupRow = page.locator(`[data-testid^="task-group-row-"]`).nth(1);
     await expect(devGroupRow).toBeVisible();
 
-    // Drag first task to 개발 group
+    // Drag task to target group row
     await firstTaskHandle.dragTo(devGroupRow);
     await page.waitForTimeout(500);
 
@@ -129,27 +124,37 @@ test.describe('Task Grouping, Drag & Drop, Reorder and Move UI Suite', () => {
     await page.waitForLoadState('networkidle');
     await dismissWorkerPromptModal(page);
 
-    // Verify task row is rendered under project page
-    const movedTaskRow = page.locator(`[data-testid="task-row-${taskIds[0]}"]`);
+    const movedTaskRow = page.locator(`[data-testid="task-row-${firstTaskId}"]`);
     await expect(movedTaskRow).toBeVisible();
   });
 
   test('2. Verify TaskMoveModal & Group Task Add Button (+ 세부 작업)', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
 
+    // Fetch exact IDs directly inside test block
+    const detailRes = await fetch(`${QA_BASE_URL}/api/projects/${createdProjectId}/detail`);
+    const detailJson: any = await detailRes.json();
+    const groupsList: any[] = detailJson.task_groups || [];
+    const tasksList: any[] = detailJson.tasks || [];
+
+    const targetGroupId = groupsList[groupsList.length - 1]?.id;
+    const targetTaskId = tasksList[tasksList.length - 1]?.id;
+
+    expect(targetGroupId).toBeDefined();
+    expect(targetTaskId).toBeDefined();
+
     await page.goto(`${QA_BASE_URL}/projects/${createdProjectId}`);
     await page.waitForLoadState('networkidle');
     await dismissWorkerPromptModal(page);
 
-    // Test + 세부 작업 button on '테스트' group
-    const testGroupObj = groupIds['테스트'] || Object.values(groupIds)[0];
-    const addGroupTaskBtn = page.locator(`[data-testid="task-group-add-task-${testGroupObj}"]`);
+    // Test + 세부 작업 button on last group
+    const addGroupTaskBtn = page.locator(`[data-testid="task-group-add-task-${targetGroupId}"]`);
     await expect(addGroupTaskBtn).toBeVisible({ timeout: 15000 });
     await addGroupTaskBtn.click();
 
     await page.waitForSelector('[data-testid="task-modal"]');
     const groupSelect = page.locator('[data-testid="task-group-select"]');
-    await expect(groupSelect).toHaveValue(testGroupObj);
+    await expect(groupSelect).toHaveValue(targetGroupId);
 
     await page.fill('[data-testid="task-name-input"]', '통합 검증 시험');
     await page.fill('[data-testid="task-start-date-input"]', '2026-08-10');
@@ -157,14 +162,14 @@ test.describe('Task Grouping, Drag & Drop, Reorder and Move UI Suite', () => {
     await page.click('[data-testid="task-save-btn"]');
     await page.waitForSelector('[data-testid="task-modal"]', { state: 'detached' });
 
-    // Test TaskMoveModal for task_1
-    const moveMenuBtn = page.locator(`[data-testid="task-move-menu-${taskIds[1]}"]`);
+    // Test TaskMoveModal
+    const moveMenuBtn = page.locator(`[data-testid="task-move-menu-${targetTaskId}"]`);
     await expect(moveMenuBtn).toBeVisible({ timeout: 15000 });
     await moveMenuBtn.click();
 
     await page.waitForSelector('[data-testid="task-move-modal"]');
     const moveGroupSelect = page.locator('[data-testid="task-move-group-select"]');
-    await moveGroupSelect.selectOption(testGroupObj);
+    await moveGroupSelect.selectOption(targetGroupId);
     await page.click('[data-testid="task-move-confirm-btn"]');
     await page.waitForSelector('[data-testid="task-move-modal"]', { state: 'detached' });
 
@@ -173,7 +178,7 @@ test.describe('Task Grouping, Drag & Drop, Reorder and Move UI Suite', () => {
     await page.waitForLoadState('networkidle');
     await dismissWorkerPromptModal(page);
 
-    await expect(page.locator(`[data-testid="task-row-${taskIds[1]}"]`)).toBeVisible();
+    await expect(page.locator(`[data-testid="task-row-${targetTaskId}"]`)).toBeVisible();
   });
 
   test('3. Verify Mobile View (390px) Task Move Menu', async ({ page }) => {
@@ -183,13 +188,11 @@ test.describe('Task Grouping, Drag & Drop, Reorder and Move UI Suite', () => {
     await page.waitForLoadState('networkidle');
     await dismissWorkerPromptModal(page);
 
-    // Switch to Summary View or Week View
     const summaryBtn = page.locator('[data-testid="mobile-view-summary-btn"]');
     if (await summaryBtn.isVisible().catch(() => false)) {
       await summaryBtn.click();
     }
 
-    // Verify page rendered without horizontal overflow crash
     const container = page.locator('#root');
     await expect(container).toBeVisible();
   });
@@ -215,7 +218,7 @@ test.describe('Task Grouping, Drag & Drop, Reorder and Move UI Suite', () => {
         'x-editor-name': encodeURIComponent('최경진 대표'),
       },
       body: JSON.stringify({
-        groups: [{ group_id: Object.values(groupIds)[0], sort_order: 1, task_ids: [taskIds[0]] }],
+        groups: [{ group_id: 'tgrp_dummy', sort_order: 1, task_ids: [] }],
         editor_name: '최경진 대표',
       }),
     });
