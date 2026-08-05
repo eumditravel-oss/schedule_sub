@@ -97,8 +97,10 @@ export function useAutoTranslation({
 
   const setManualText = (text: string) => {
     cancelTranslation();
+    requestIdRef.current += 1;
     setTranslatedText(text);
     setStatus('MANUAL');
+    setError(null);
   };
 
   const translateNow = async (): Promise<string> => {

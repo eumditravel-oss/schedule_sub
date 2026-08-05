@@ -138,7 +138,7 @@ test.describe('Strict Gantt Inline Content & Build SHA E2E Suite', () => {
     await page.screenshot({ path: path.join(SCREENSHOT_DIR, 'gantt-no-tooltip.png') });
   });
 
-  test('2. Mandatory Verification of Desktop Inline Title and Planned/Actual Progress Chips', async ({ page }) => {
+  test('2. Mandatory Verification of Desktop Inline Title', async ({ page }) => {
     await page.setViewportSize({ width: 1366, height: 768 });
     await page.goto('/projects');
     await dismissBlockingModals(page);
@@ -149,11 +149,6 @@ test.describe('Strict Gantt Inline Content & Build SHA E2E Suite', () => {
     const inlineTitle = firstBar.locator('[data-testid="gantt-bar-inline-title"]');
     await expect(inlineTitle).toBeVisible();
     await expect(inlineTitle).not.toHaveText('');
-
-    const inlineProgress = firstBar.locator('[data-testid="gantt-bar-inline-progress"]');
-    await expect(inlineProgress).toBeVisible();
-    await expect(inlineProgress).toContainText('예정');
-    await expect(inlineProgress).toContainText('실제');
 
     const track = firstBar.locator('[data-testid="gantt-schedule-track"]');
     const trackBox = await track.boundingBox();
@@ -177,11 +172,6 @@ test.describe('Strict Gantt Inline Content & Build SHA E2E Suite', () => {
 
     const detailInlineTitle = detailBar.locator('[data-testid="gantt-bar-inline-title"]');
     await expect(detailInlineTitle).toBeVisible();
-
-    const detailInlineProgress = detailBar.locator('[data-testid="gantt-bar-inline-progress"]');
-    await expect(detailInlineProgress).toBeVisible();
-    await expect(detailInlineProgress).toContainText('예정');
-    await expect(detailInlineProgress).toContainText('실제');
 
     await page.screenshot({ path: path.join(SCREENSHOT_DIR, 'gantt-inline-info-detail.png') });
   });

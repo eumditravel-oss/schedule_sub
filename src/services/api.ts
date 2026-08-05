@@ -1,5 +1,5 @@
 // src/services/api.ts
-import { ApiResponse, Project, Task, Worker, DailyStatusType, CountryHoliday, CalendarOverride } from '../types';
+import { ApiResponse, Project, Task, TaskGroup, Worker, DailyStatusType, CountryHoliday, CalendarOverride } from '../types';
 
 const WORKER_ID_KEY = 'schedule_current_worker_id';
 const WORKER_NAME_KEY = 'schedule_current_worker_name';
@@ -111,9 +111,50 @@ export const api = {
     return Array.from(years).sort((a, b) => b.localeCompare(a));
   },
 
-  async getProjectDetail(id: string): Promise<{ project: Project; tasks: Task[] }> {
+  async getProjectDetail(id: string): Promise<{ project: Project; tasks: Task[]; task_groups: TaskGroup[] }> {
     const res = await fetch(`/api/projects/${id}/detail`);
-    return handleResponse<{ project: Project; tasks: Task[] }>(res);
+    return handleResponse<{ project: Project; tasks: Task[]; task_groups: TaskGroup[] }>(res);
+  },
+
+  async createTaskGroup(projectId: string, data: Partial<TaskGroup>): Promise<TaskGroup> {
+    const res = await fetch(`/api/projects/${projectId}/task-groups`, {
+      method: 'POST',
+      headers: getWriteHeaders(),
+      body: JSON.stringify(data),
+    });
+    return handleResponse<TaskGroup>(res);
+  },
+
+  async updateTaskGroup(id: string, data: Partial<TaskGroup>): Promise<TaskGroup> {
+    const res = await fetch(`/api/task-groups/${id}`, {
+      method: 'PATCH',
+      headers: getWriteHeaders(),
+      body: JSON.stringify(data),
+    });
+    return handleResponse<TaskGroup>(res);
+  },
+
+  async deleteTaskGroup(id: string, options?: { move_to_group_id?: string; delete_tasks?: boolean }): Promise<{ id: string }> {
+    let url = `/api/task-groups/${id}`;
+    const params = new URLSearchParams();
+    if (options?.move_to_group_id) params.set('move_to_group_id', options.move_to_group_id);
+    if (options?.delete_tasks) params.set('delete_tasks', 'true');
+    if (params.toString()) url += `?${params.toString()}`;
+
+    const res = await fetch(url, {
+      method: 'DELETE',
+      headers: getWriteHeaders(),
+    });
+    return handleResponse<{ id: string }>(res);
+  },
+
+  async updateTaskStructureOrder(projectId: string, groups: Array<{ group_id: string; sort_order: number; task_ids: string[] }>): Promise<any> {
+    const res = await fetch(`/api/projects/${projectId}/task-structure-order`, {
+      method: 'PATCH',
+      headers: getWriteHeaders(),
+      body: JSON.stringify({ groups }),
+    });
+    return handleResponse<any>(res);
   },
 
   async createProject(data: Partial<Project>): Promise<Project> {

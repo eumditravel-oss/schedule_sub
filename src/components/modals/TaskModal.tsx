@@ -1,6 +1,6 @@
 // src/components/modals/TaskModal.tsx
 import React, { useState, useEffect } from 'react';
-import { Task, Worker, Project, CountryHoliday, CalendarOverride, ProgressMode, AvailabilityPolicy, TaskAssignee } from '../../types';
+import { Task, Worker, Project, TaskGroup, CountryHoliday, CalendarOverride, ProgressMode, AvailabilityPolicy, TaskAssignee } from '../../types';
 import { calculateTaskWorkdayBreakdown } from '../../utils/workCalendar';
 import { useI18n } from '../../hooks/useI18n';
 import { useAutoTranslation } from '../../hooks/useAutoTranslation';
@@ -12,6 +12,7 @@ interface TaskModalProps {
   project?: Project | null;
   task: Task | null;
   currentWorker: Worker | null;
+  taskGroups?: TaskGroup[];
   holidays?: CountryHoliday[];
   overrides?: CalendarOverride[];
   workers?: Worker[];
@@ -25,6 +26,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
   project,
   task,
   currentWorker,
+  taskGroups = [],
   holidays,
   overrides,
   workers = [],
@@ -39,11 +41,13 @@ export const TaskModal: React.FC<TaskModalProps> = ({
 
   const workerLang: 'ko' | 'vi' = currentWorker?.ui_language || (lang === 'vi' ? 'vi' : 'ko');
   const [inputLang, setInputLang] = useState<'ko' | 'vi'>(workerLang);
+  const [taskGroupId, setTaskGroupId] = useState<string>('');
   const [taskNameInput, setTaskNameInput] = useState('');
   const [targetText, setTargetText] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [saving, setSaving] = useState(false);
+  const [manualLock, setManualLock] = useState(false);
 
   // Multi-Assignees & Modes State
   const [primaryWorkerId, setPrimaryWorkerId] = useState<string>('');
@@ -67,16 +71,26 @@ export const TaskModal: React.FC<TaskModalProps> = ({
   });
 
   useEffect(() => {
-    if (autoStatus === 'TRANSLATING') {
-      setTargetText('');
-    } else if (autoTranslatedText) {
-      setTargetText(autoTranslatedText);
+    if (!manualLock) {
+      if (autoStatus === 'TRANSLATING') {
+        setTargetText('');
+      } else if (autoTranslatedText) {
+        setTargetText(autoTranslatedText);
+      }
     }
-  }, [autoTranslatedText, autoStatus]);
+  }, [autoTranslatedText, autoStatus, manualLock]);
 
   useEffect(() => {
     const src = currentWorker?.ui_language || (task?.source_language as 'ko' | 'vi') || workerLang;
     setInputLang(src);
+
+    if (task) {
+      setTaskGroupId(task.task_group_id || taskGroups[0]?.id || '');
+      setManualLock(task.translation_status === 'MANUAL');
+    } else {
+      setTaskGroupId(taskGroups[0]?.id || '');
+      setManualLock(false);
+    }
 
     if (task) {
       const initialSourceText = src === 'vi' ? (task.task_name_vi || task.task_name) : (task.task_name_ko || task.task_name);
@@ -198,12 +212,22 @@ export const TaskModal: React.FC<TaskModalProps> = ({
     const val = e.target.value;
     setTargetText(val);
     setManualText(val);
+    setManualLock(true);
+  };
+
+  const handleRegenerate = () => {
+    setManualLock(false);
+    setManualText('');
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!taskNameInput.trim()) {
       alert(t('taskSaveFailed'));
+      return;
+    }
+    if (!taskGroupId) {
+      alert(lang === 'vi' ? 'Vui lòng chọn nhóm công việc.' : '공정 대분류를 선택하세요.');
       return;
     }
     if (startDate && endDate && endDate < startDate) {
@@ -245,6 +269,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
 
       const payload: Partial<Task> & Record<string, any> = {
         project_id: projectId,
+        task_group_id: taskGroupId,
         worker_name: pWorker?.name || '',
         primary_worker_id: primaryWorkerId,
         assignee_ids: selectedAssigneeIds,
@@ -258,7 +283,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
         start_date: startDate,
         end_date: endDate,
         source_language: inputLang,
-        translation_status: autoStatus === 'MANUAL' ? 'MANUAL' : 'COMPLETED',
+        translation_status: manualLock ? 'MANUAL' : (autoStatus === 'MANUAL' ? 'MANUAL' : 'COMPLETED'),
       };
 
       if (inputLang === 'ko') {
@@ -284,16 +309,15 @@ export const TaskModal: React.FC<TaskModalProps> = ({
         data-testid="task-modal"
         className="w-full max-w-xl bg-white rounded-2xl shadow-2xl overflow-hidden border border-slate-200 text-slate-900 animate-in fade-in zoom-in-95 duration-150 my-8"
       >
-        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 bg-slate-50/50">
-          <h3 className="font-bold text-slate-900 text-sm">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50">
+          <h3 className="font-bold text-slate-900 text-base">
             {task ? t('editTask') : t('addTask')}
           </h3>
           <button
             type="button"
-            data-testid="task-close-btn"
+            data-testid="task-modal-close-btn"
             onClick={onClose}
-            aria-label={t('cancel')}
-            className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100"
+            className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-200 transition"
           >
             <X className="w-5 h-5" />
           </button>
@@ -546,18 +570,32 @@ export const TaskModal: React.FC<TaskModalProps> = ({
                 </span>
               )}
             </div>
-            <input
-              type="text"
-              data-testid="task-translated-input"
-              value={targetText}
-              onChange={handleTargetTextChange}
-              placeholder={
-                autoStatus === 'TRANSLATING'
-                  ? (lang === 'vi' ? 'Đang dịch...' : '번역 중...')
-                  : (targetLang === 'vi' ? 'Bản dịch tự động' : '자동 번역 내용')
-              }
-              className="w-full h-10 px-3 rounded-lg border border-slate-300 focus:outline-none focus:border-blue-500 font-medium text-slate-900 bg-slate-50"
-            />
+            <div className="relative">
+              <input
+                type="text"
+                data-testid="task-translated-input"
+                value={targetText}
+                onChange={handleTargetTextChange}
+                placeholder={
+                  autoStatus === 'TRANSLATING'
+                    ? (lang === 'vi' ? 'Đang dịch...' : '번역 중...')
+                    : (targetLang === 'vi' ? 'Bản dịch tự động' : '자동 번역 내용')
+                }
+                className={`w-full h-10 px-3 pr-20 rounded-lg border font-medium text-slate-900 ${
+                  manualLock ? 'border-amber-400 bg-amber-50/30' : 'border-slate-300 bg-slate-50'
+                }`}
+              />
+              <button
+                type="button"
+                data-testid="task-translation-regenerate-btn"
+                onClick={handleRegenerate}
+                title={lang === 'vi' ? 'Dịch tự động lại' : '자동번역 다시 생성'}
+                className="absolute right-1.5 top-1.5 bottom-1.5 px-2 text-[10px] font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded border border-blue-200 transition flex items-center gap-1"
+              >
+                <RefreshCw className="w-3 h-3" />
+                <span>{lang === 'vi' ? 'Dịch lại' : '재생성'}</span>
+              </button>
+            </div>
           </div>
 
           {/* Schedule Date Range */}

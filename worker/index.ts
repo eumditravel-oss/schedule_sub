@@ -778,11 +778,42 @@ async function validateAndNormalizeTaskAssigneesServer(
           return errorResponse('프로젝트를 찾을 수 없습니다.', 404);
         }
 
+        let taskGroupsRes = await db
+          .prepare(`SELECT * FROM task_groups WHERE project_id = ? AND deleted_at IS NULL ORDER BY sort_order ASC, created_at ASC`)
+          .bind(projectId)
+          .all();
+        let taskGroups: any[] = taskGroupsRes.results || [];
+
+        // Fallback: If no task groups exist for this project, create a default group
+        if (taskGroups.length === 0) {
+          const defaultGroupId = `tgrp_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+          await db
+            .prepare(
+              `INSERT INTO task_groups (
+                id, project_id, group_name, group_name_ko, group_name_vi,
+                source_language, translation_status, color_key, sort_order, created_by_name
+              ) VALUES (?, ?, '기존 작업', '기존 작업', 'Công việc hiện có', 'ko', 'COMPLETED', 'BLUE', 1, 'system_fallback')`
+            )
+            .bind(defaultGroupId, projectId)
+            .run();
+
+          await db
+            .prepare(`UPDATE tasks SET task_group_id = ? WHERE project_id = ? AND task_group_id IS NULL`)
+            .bind(defaultGroupId, projectId)
+            .run();
+
+          taskGroupsRes = await db
+            .prepare(`SELECT * FROM task_groups WHERE project_id = ? AND deleted_at IS NULL ORDER BY sort_order ASC, created_at ASC`)
+            .bind(projectId)
+            .all();
+          taskGroups = taskGroupsRes.results || [];
+        }
+
         const calendarBatch = await fetchCalendarBatchData(db);
         const [allActiveProjectsRes, allActiveTasksRes, tasksRes] = await Promise.all([
           db.prepare(`SELECT * FROM projects WHERE status = 'ACTIVE'`).all(),
           db.prepare(`SELECT * FROM tasks`).all(),
-          db.prepare(`SELECT * FROM tasks WHERE project_id = ? ORDER BY start_date ASC, created_at ASC`).bind(projectId).all(),
+          db.prepare(`SELECT * FROM tasks WHERE project_id = ? ORDER BY task_sort_order ASC, start_date ASC, created_at ASC`).bind(projectId).all(),
         ]);
 
         const allActiveProjects = allActiveProjectsRes.results || [];
@@ -791,7 +822,7 @@ async function validateAndNormalizeTaskAssigneesServer(
         const rawTasks = tasksRes.results || [];
         const dailyStatusMap: Record<string, Record<string, string>> = {};
 
-        const tasks = await Promise.all(
+        await Promise.all(
           rawTasks.map(async (t: any) => {
             const statusRes = await db
               .prepare(`SELECT work_date, status, updated_by_name, updated_at FROM daily_status WHERE task_id = ?`)
@@ -811,12 +842,15 @@ async function validateAndNormalizeTaskAssigneesServer(
         const rawTaskIds = rawTasks.map((t: any) => t.id);
         const taskAssigneesMap = await fetchTaskAssigneesMapServer(db, rawTaskIds);
 
+        const defaultGroupId = taskGroups[0]?.id || null;
+
         const formattedTasks = await Promise.all(
           rawTasks.map(async (t: any) => {
             const daily_statuses = dailyStatusMap[t.id] || {};
             const assignees = taskAssigneesMap[t.id] || (t.worker_name ? [{ worker_id: t.worker_name, name: t.worker_name, assignment_role: 'PRIMARY', allocation_percent: 100 }] : []);
             const tWithAssignees = {
               ...t,
+              task_group_id: t.task_group_id || defaultGroupId,
               assignees,
               assignee_ids: assignees.map((a: any) => a.worker_id),
               primary_worker_id: t.primary_worker_id || (assignees.find((a: any) => a.assignment_role === 'PRIMARY')?.worker_id || assignees[0]?.worker_id),
@@ -862,13 +896,13 @@ async function validateAndNormalizeTaskAssigneesServer(
         );
 
         let total_conflicts = 0;
-        tasks.forEach((t: any) => {
+        formattedTasks.forEach((t: any) => {
           if (t.schedule_conflicts && t.schedule_conflicts.length > 0) {
             total_conflicts += t.schedule_conflicts.length;
           }
         });
 
-        const participating = Array.from(new Set(tasks.map((t: any) => t.worker_name)));
+        const participating = Array.from(new Set(formattedTasks.map((t: any) => t.worker_name)));
 
         return jsonResponse({
           project: {
@@ -877,8 +911,240 @@ async function validateAndNormalizeTaskAssigneesServer(
             conflict_count: total_conflicts,
             participating_workers: participating,
           },
-          tasks,
+          tasks: formattedTasks,
+          task_groups: taskGroups,
         });
+      }
+
+      // 4.1 POST /api/projects/:projectId/task-groups (공정 대분류 생성)
+      const postTaskGroupMatch = path.match(/^\/api\/projects\/([^/]+)\/task-groups$/);
+      if (method === 'POST' && postTaskGroupMatch) {
+        const projectId = postTaskGroupMatch[1];
+        if (await isProjectCompleted(db, projectId)) {
+          return errorResponse('완료된 프로젝트는 읽기 전용입니다.', 403, 'PROJECT_COMPLETED_READ_ONLY');
+        }
+
+        const body: any = await request.json();
+        const editor = getEditorName(body, request);
+        const editCheck = await requireEditableWorker(db, editor);
+        if (!editCheck.allowed) {
+          return errorResponse(editCheck.errorMsg!, 403, editCheck.errorCode!);
+        }
+
+        const groupName = (body.group_name || body.name || '').trim();
+        if (!groupName) {
+          return errorResponse('공정 대분류 이름은 필수입니다.', 400);
+        }
+
+        // Get max sort_order
+        const maxSortRes = await db
+          .prepare(`SELECT MAX(sort_order) as max_sort FROM task_groups WHERE project_id = ? AND deleted_at IS NULL`)
+          .bind(projectId)
+          .first();
+        const nextSortOrder = (maxSortRes?.max_sort || 0) + 1;
+
+        const transResult = await translateProjectOrTaskName(env.AI, groupName);
+
+        const groupNameKo = body.group_name_ko || transResult.name_ko;
+        const groupNameVi = body.group_name_vi || transResult.name_vi;
+        const sourceLang = body.source_language || transResult.source_language;
+        const colorKey = ['BLUE', 'GREEN', 'ORANGE', 'VIOLET', 'SLATE'].includes(body.color_key) ? body.color_key : 'BLUE';
+
+        const id = `tgrp_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+
+        await db
+          .prepare(
+            `INSERT INTO task_groups (
+              id, project_id, group_name, group_name_ko, group_name_vi,
+              source_language, translation_status, color_key, sort_order,
+              created_by_name, updated_by_name
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          )
+          .bind(
+            id,
+            projectId,
+            groupName,
+            groupNameKo,
+            groupNameVi,
+            sourceLang,
+            body.translation_status || transResult.translation_status,
+            colorKey,
+            nextSortOrder,
+            editor,
+            editor
+          )
+          .run();
+
+        const created = await db.prepare(`SELECT * FROM task_groups WHERE id = ?`).bind(id).first();
+        return jsonResponse(created, 201);
+      }
+
+      // 4.2 PATCH /api/task-groups/:id (공정 대분류 수정)
+      const patchTaskGroupMatch = path.match(/^\/api\/task-groups\/([^/]+)$/);
+      if (method === 'PATCH' && patchTaskGroupMatch) {
+        const groupId = patchTaskGroupMatch[1];
+        const existing: any = await db.prepare(`SELECT * FROM task_groups WHERE id = ? AND deleted_at IS NULL`).bind(groupId).first();
+        if (!existing) {
+          return errorResponse('공정 대분류를 찾을 수 없습니다.', 404);
+        }
+
+        if (await isProjectCompleted(db, existing.project_id)) {
+          return errorResponse('완료된 프로젝트는 읽기 전용입니다.', 403, 'PROJECT_COMPLETED_READ_ONLY');
+        }
+
+        const body: any = await request.json();
+        const editor = getEditorName(body, request);
+        const editCheck = await requireEditableWorker(db, editor);
+        if (!editCheck.allowed) {
+          return errorResponse(editCheck.errorMsg!, 403, editCheck.errorCode!);
+        }
+
+        let groupName = existing.group_name;
+        let groupNameKo = existing.group_name_ko;
+        let groupNameVi = existing.group_name_vi;
+        let sourceLang = existing.source_language;
+        let transStatus = existing.translation_status;
+
+        if (body.group_name !== undefined || body.name !== undefined) {
+          const newName = (body.group_name || body.name || '').trim();
+          if (newName && newName !== existing.group_name) {
+            groupName = newName;
+            const transResult = await translateProjectOrTaskName(env.AI, groupName);
+            groupNameKo = transResult.name_ko;
+            groupNameVi = transResult.name_vi;
+            sourceLang = transResult.source_language;
+            transStatus = transResult.translation_status;
+          }
+        }
+
+        if (body.group_name_ko !== undefined) groupNameKo = body.group_name_ko;
+        if (body.group_name_vi !== undefined) groupNameVi = body.group_name_vi;
+        if (body.translation_status !== undefined) transStatus = body.translation_status;
+
+        const colorKey = body.color_key && ['BLUE', 'GREEN', 'ORANGE', 'VIOLET', 'SLATE'].includes(body.color_key) ? body.color_key : existing.color_key;
+        const sortOrder = body.sort_order !== undefined ? Number(body.sort_order) : existing.sort_order;
+
+        await db
+          .prepare(
+            `UPDATE task_groups SET
+              group_name = ?, group_name_ko = ?, group_name_vi = ?,
+              source_language = ?, translation_status = ?, color_key = ?, sort_order = ?,
+              updated_by_name = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?`
+          )
+          .bind(groupName, groupNameKo, groupNameVi, sourceLang, transStatus, colorKey, sortOrder, editor, groupId)
+          .run();
+
+        const updated = await db.prepare(`SELECT * FROM task_groups WHERE id = ?`).bind(groupId).first();
+        return jsonResponse(updated);
+      }
+
+      // 4.3 DELETE /api/task-groups/:id (공정 대분류 삭제)
+      const delTaskGroupMatch = path.match(/^\/api\/task-groups\/([^/]+)$/);
+      if (method === 'DELETE' && delTaskGroupMatch) {
+        const groupId = delTaskGroupMatch[1];
+        const existing: any = await db.prepare(`SELECT * FROM task_groups WHERE id = ? AND deleted_at IS NULL`).bind(groupId).first();
+        if (!existing) {
+          return errorResponse('공정 대분류를 찾을 수 없습니다.', 404);
+        }
+
+        if (await isProjectCompleted(db, existing.project_id)) {
+          return errorResponse('완료된 프로젝트는 읽기 전용입니다.', 403, 'PROJECT_COMPLETED_READ_ONLY');
+        }
+
+        const editor = request.headers.get('x-editor-name');
+        const editCheck = await requireEditableWorker(db, editor ? decodeURIComponent(editor) : '');
+        if (!editCheck.allowed) {
+          return errorResponse(editCheck.errorMsg!, 403, editCheck.errorCode!);
+        }
+
+        const taskCountRes = await db
+          .prepare(`SELECT COUNT(*) as cnt FROM tasks WHERE task_group_id = ?`)
+          .bind(groupId)
+          .first();
+        const taskCount = Number(taskCountRes?.cnt || 0);
+
+        const moveToGroupId = url.searchParams.get('move_to_group_id');
+        const deleteTasks = url.searchParams.get('delete_tasks') === 'true';
+
+        if (taskCount > 0 && !moveToGroupId && !deleteTasks) {
+          return new Response(
+            JSON.stringify({
+              success: false,
+              error: {
+                code: 'TASK_GROUP_NOT_EMPTY',
+                message: `이 공정에는 ${taskCount}개의 세부 작업이 있습니다.`,
+                details: { task_count: taskCount, group_id: groupId },
+              },
+            }),
+            { status: 409, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } }
+          );
+        }
+
+        const batch: any[] = [];
+        if (taskCount > 0) {
+          if (moveToGroupId) {
+            batch.push(
+              db.prepare(`UPDATE tasks SET task_group_id = ? WHERE task_group_id = ?`).bind(moveToGroupId, groupId)
+            );
+          } else if (deleteTasks) {
+            const taskIdsRes = await db.prepare(`SELECT id FROM tasks WHERE task_group_id = ?`).bind(groupId).all();
+            for (const t of taskIdsRes.results || []) {
+              batch.push(db.prepare(`DELETE FROM daily_status WHERE task_id = ?`).bind(t.id));
+              batch.push(db.prepare(`DELETE FROM task_assignees WHERE task_id = ?`).bind(t.id));
+            }
+            batch.push(db.prepare(`DELETE FROM tasks WHERE task_group_id = ?`).bind(groupId));
+          }
+        }
+
+        batch.push(
+          db.prepare(`UPDATE task_groups SET deleted_at = CURRENT_TIMESTAMP, updated_by_name = ? WHERE id = ?`).bind(editCheck.worker!.name, groupId)
+        );
+
+        await db.batch(batch);
+        return jsonResponse({ id: groupId });
+      }
+
+      // 4.4 PATCH /api/projects/:projectId/task-structure-order (대분류 및 세부작업 순서/그룹 이동)
+      const patchOrderMatch = path.match(/^\/api\/projects\/([^/]+)\/task-structure-order$/);
+      if (method === 'PATCH' && patchOrderMatch) {
+        const projectId = patchOrderMatch[1];
+        if (await isProjectCompleted(db, projectId)) {
+          return errorResponse('완료된 프로젝트는 읽기 전용입니다.', 403, 'PROJECT_COMPLETED_READ_ONLY');
+        }
+
+        const body: any = await request.json();
+        const editor = getEditorName(body, request);
+        const editCheck = await requireEditableWorker(db, editor);
+        if (!editCheck.allowed) {
+          return errorResponse(editCheck.errorMsg!, 403, editCheck.errorCode!);
+        }
+
+        const groupsList: Array<{ group_id: string; sort_order: number; task_ids: string[] }> = body.groups || [];
+        const batch: any[] = [];
+
+        groupsList.forEach((grp, gIdx) => {
+          const gSortOrder = grp.sort_order !== undefined ? grp.sort_order : (gIdx + 1);
+          batch.push(
+            db.prepare(`UPDATE task_groups SET sort_order = ? WHERE id = ? AND project_id = ?`).bind(gSortOrder, grp.group_id, projectId)
+          );
+
+          if (grp.task_ids && Array.isArray(grp.task_ids)) {
+            grp.task_ids.forEach((tId, tIdx) => {
+              batch.push(
+                db
+                  .prepare(`UPDATE tasks SET task_group_id = ?, task_sort_order = ? WHERE id = ? AND project_id = ?`)
+                  .bind(grp.group_id, tIdx + 1, tId, projectId)
+              );
+            });
+          }
+        });
+
+        if (batch.length > 0) {
+          await db.batch(batch);
+        }
+
+        return jsonResponse({ success: true, project_id: projectId });
       }
 
       // 5. GET /api/projects/:id
@@ -2350,20 +2616,42 @@ function addPureCalendarDays(dateStr: string, deltaDays: number): string {
         const transResult = await translateProjectOrTaskName(env.AI, validated.task_name);
         const nowIso = new Date().toISOString();
 
+        let taskGroupId = body.task_group_id;
+        if (!taskGroupId) {
+          const firstGroup = await db
+            .prepare(`SELECT id FROM task_groups WHERE project_id = ? AND deleted_at IS NULL ORDER BY sort_order ASC LIMIT 1`)
+            .bind(validated.project_id)
+            .first();
+          if (firstGroup) {
+            taskGroupId = firstGroup.id;
+          }
+        }
+
+        let taskSortOrder = Number(body.task_sort_order || 0);
+        if (!taskSortOrder) {
+          const maxSort = await db
+            .prepare(`SELECT MAX(task_sort_order) as max_sort FROM tasks WHERE project_id = ? AND (task_group_id = ? OR task_group_id IS NULL)`)
+            .bind(validated.project_id, taskGroupId)
+            .first();
+          taskSortOrder = (maxSort?.max_sort || 0) + 1;
+        }
+
         const dbQueries: any[] = [];
         dbQueries.push(
           db
             .prepare(
               `INSERT INTO tasks (
-                id, project_id, worker_name, primary_worker_id, task_name, start_date, end_date, progress,
+                id, project_id, task_group_id, task_sort_order, worker_name, primary_worker_id, task_name, start_date, end_date, progress,
                 progress_mode, availability_policy, completion_confirmed,
                 created_by_name, updated_by_name,
                 task_name_ko, task_name_vi, source_language, translation_status, translation_error
-              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?)`
+              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?)`
             )
             .bind(
               id,
               validated.project_id,
+              taskGroupId,
+              taskSortOrder,
               assignValidation.primaryWorkerName,
               assignValidation.primaryWorkerId,
               validated.task_name,
@@ -2488,11 +2776,18 @@ function addPureCalendarDays(dateStr: string, deltaDays: number): string {
           trans_error = transResult.translation_error;
         }
 
+        if (body.task_name_ko !== undefined) task_name_ko = body.task_name_ko;
+        if (body.task_name_vi !== undefined) task_name_vi = body.task_name_vi;
+        if (body.translation_status !== undefined) trans_status = body.translation_status;
+
         const newName = validated.task_name ?? existing.task_name;
         const newStart = validated.start_date ?? existing.start_date;
         const newEnd = validated.end_date ?? existing.end_date;
         const newProgress = validated.progress ?? existing.progress;
         const completionConfirmed = body.completion_confirmed !== undefined ? Number(body.completion_confirmed) : (existing.completion_confirmed || 0);
+
+        const targetGroupId = body.task_group_id || existing.task_group_id;
+        const targetSortOrder = body.task_sort_order !== undefined ? Number(body.task_sort_order) : (existing.task_sort_order || 0);
 
         if (body.confirm_worker_schedule_conflict !== true) {
           const [allActiveProjectsRes, allActiveTasksRes, batch] = await Promise.all([
@@ -2552,6 +2847,8 @@ function addPureCalendarDays(dateStr: string, deltaDays: number): string {
           db
             .prepare(
               `UPDATE tasks SET
+                task_group_id = ?,
+                task_sort_order = ?,
                 worker_name = ?,
                 primary_worker_id = ?,
                 task_name = ?,
@@ -2572,6 +2869,8 @@ function addPureCalendarDays(dateStr: string, deltaDays: number): string {
               WHERE id = ?`
             )
             .bind(
+              targetGroupId,
+              targetSortOrder,
               assignValidation.primaryWorkerName,
               assignValidation.primaryWorkerId,
               newName,

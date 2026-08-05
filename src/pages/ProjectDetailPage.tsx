@@ -1,8 +1,10 @@
 // src/pages/ProjectDetailPage.tsx
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Project, Task, Worker, CountryHoliday, CalendarOverride, DailyStatusType, WorkDayStatus, CountryCode, WorkweekProfile, ScheduleConflictDetail, isExecutiveViewer, isEditableWorker } from '../types';
+import { Project, Task, TaskGroup, TaskGroupColorKey, Worker, CountryHoliday, CalendarOverride, DailyStatusType, WorkDayStatus, CountryCode, WorkweekProfile, ScheduleConflictDetail, isExecutiveViewer, isEditableWorker } from '../types';
 import { WorkerConflictModal } from '../components/modals/WorkerConflictModal';
+import { TaskGroupModal } from '../components/modals/TaskGroupModal';
+import { TaskGroupDeleteModal } from '../components/modals/TaskGroupDeleteModal';
 import { api, getCurrentWorkerId, setCurrentWorker as setCurrentWorkerApi } from '../services/api';
 import { calculateVisibleGanttSpan } from '../utils/dateUtils';
 import { resolveWorkDayStatus, getCountryOffState } from '../utils/workCalendar';
@@ -51,6 +53,8 @@ import {
   History,
   ChevronLeft,
   ChevronRight,
+  FolderPlus,
+  ChevronDown,
 } from 'lucide-react';
 
 export const ProjectDetailPage: React.FC = () => {
@@ -62,6 +66,27 @@ export const ProjectDetailPage: React.FC = () => {
 
   const [project, setProject] = useState<Project | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [taskGroups, setTaskGroups] = useState<TaskGroup[]>([]);
+  const [collapsedGroupIds, setCollapsedGroupIds] = useState<Record<string, boolean>>(() => {
+    try {
+      const saved = localStorage.getItem(`schedule_task_group_collapsed_${projectId}`);
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return {};
+  });
+
+  const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
+  const [selectedGroup, setSelectedGroup] = useState<TaskGroup | null>(null);
+  const [deleteGroupModalState, setDeleteGroupModalState] = useState<{
+    isOpen: boolean;
+    group: TaskGroup | null;
+    taskCount: number;
+  }>({
+    isOpen: false,
+    group: null,
+    taskCount: 0,
+  });
+
   const [workers, setWorkers] = useState<Worker[]>([]);
   const [countryHolidays, setCountryHolidays] = useState<CountryHoliday[]>([]);
   const [calendarOverrides, setCalendarOverrides] = useState<CalendarOverride[]>([]);
@@ -289,11 +314,100 @@ export const ProjectDetailPage: React.FC = () => {
       const data = await api.getProjectDetail(projectId);
       setProject(data.project);
       setTasks(data.tasks || []);
+      setTaskGroups(data.task_groups || []);
     } catch (err: any) {
       alert(getLocalizedErrorMessage(err, t));
       navigate('/projects');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const toggleGroupCollapse = (groupId: string) => {
+    setCollapsedGroupIds((prev) => {
+      const next = { ...prev, [groupId]: !prev[groupId] };
+      try {
+        localStorage.setItem(`schedule_task_group_collapsed_${projectId}`, JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+  };
+
+  const handleOpenAddGroup = () => {
+    if (isViewer) {
+      alert(lang === 'vi' ? 'Tài khoản quản lý chỉ có quyền xem lịch trình.' : '경영진 계정은 일정을 조회할 수만 있습니다.');
+      return;
+    }
+    if (isCompleted) {
+      alert(t('readOnlyCompletedNotice'));
+      return;
+    }
+    if (!requireWorkerSelection()) return;
+    setSelectedGroup(null);
+    setIsGroupModalOpen(true);
+  };
+
+  const handleOpenEditGroup = (group: TaskGroup) => {
+    if (isViewer) {
+      alert(lang === 'vi' ? 'Tài khoản quản lý chỉ có quyền xem lịch trình.' : '경영진 계정은 일정을 조회할 수만 있습니다.');
+      return;
+    }
+    if (isCompleted) {
+      alert(t('readOnlyCompletedNotice'));
+      return;
+    }
+    if (!requireWorkerSelection()) return;
+    setSelectedGroup(group);
+    setIsGroupModalOpen(true);
+  };
+
+  const handleSaveGroup = async (data: Partial<TaskGroup>) => {
+    if (!projectId) return;
+    try {
+      if (selectedGroup) {
+        await api.updateTaskGroup(selectedGroup.id, data);
+      } else {
+        await api.createTaskGroup(projectId, data);
+      }
+      await fetchProjectDetail();
+    } catch (err: any) {
+      alert(getLocalizedErrorMessage(err, t));
+    }
+  };
+
+  const handleDeleteGroup = async (group: TaskGroup) => {
+    if (isViewer || isCompleted) return;
+    if (!requireWorkerSelection()) return;
+
+    const groupTasks = tasks.filter((t) => t.task_group_id === group.id);
+    if (groupTasks.length > 0) {
+      setDeleteGroupModalState({
+        isOpen: true,
+        group,
+        taskCount: groupTasks.length,
+      });
+      return;
+    }
+
+    const gName = lang === 'vi' ? (group.group_name_vi || group.group_name) : (group.group_name_ko || group.group_name);
+    if (!confirm(lang === 'vi' ? `Bạn có chắc muốn xóa nhóm [${gName}]?` : `공정 대분류 [${gName}]을 삭제하시겠습니까?`)) return;
+
+    try {
+      await api.deleteTaskGroup(group.id);
+      await fetchProjectDetail();
+    } catch (err: any) {
+      alert(getLocalizedErrorMessage(err, t));
+    }
+  };
+
+  const handleConfirmDeleteGroup = async (options: { move_to_group_id?: string; delete_tasks?: boolean }) => {
+    if (!deleteGroupModalState.group) return;
+    try {
+      await api.deleteTaskGroup(deleteGroupModalState.group.id, options);
+      await fetchProjectDetail();
+      setDeleteGroupModalState({ isOpen: false, group: null, taskCount: 0 });
+    } catch (err: any) {
+      alert(getLocalizedErrorMessage(err, t));
     }
   };
 
@@ -581,6 +695,15 @@ export const ProjectDetailPage: React.FC = () => {
               <>
                 <button
                   type="button"
+                  data-testid="add-task-group-btn"
+                  onClick={handleOpenAddGroup}
+                  className="h-9 px-3 rounded-lg border border-blue-200 bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold text-xs flex items-center gap-1.5 transition shadow-xs"
+                >
+                  <FolderPlus className="w-4 h-4 text-blue-600" />
+                  <span>{lang === 'vi' ? '+ Thêm nhóm' : '+ 공정 대분류 추가'}</span>
+                </button>
+                <button
+                  type="button"
                   data-testid="add-task-btn"
                   onClick={handleOpenAddTask}
                   className={PRIMARY_BUTTON_H36_CLASS}
@@ -834,11 +957,12 @@ export const ProjectDetailPage: React.FC = () => {
                 <tr className="border-b border-slate-200">
                   <th
                     rowSpan={2}
-                    className="sticky left-0 z-30 bg-slate-100 px-3 py-2.5 font-bold text-slate-800 border-r border-slate-200 w-[170px] md:w-[295px] min-w-[170px] md:min-w-[295px] max-w-[295px]"
+                    className="sticky left-0 z-30 bg-slate-100 px-3 py-2 font-bold text-slate-800 border-r border-slate-200 w-[360px] lg:w-[420px] min-w-[360px] lg:min-w-[420px]"
                   >
-                    <div className="flex justify-between items-center text-xs font-bold text-slate-900">
-                      <span>{t('worker')} / {t('taskContent')}</span>
-                      <span className="hidden md:inline text-[10px] text-slate-500 font-normal">{t('progress')}</span>
+                    <div className="flex items-center text-xs font-bold text-slate-900 justify-between">
+                      <span className="w-[180px] lg:w-[220px] truncate">{lang === 'vi' ? 'Công việc chi tiết' : '세부 작업명'}</span>
+                      <span className="w-[126px] lg:w-[150px] truncate px-1">{lang === 'vi' ? 'Người phụ trách' : '작업자'}</span>
+                      <span className="w-[48px] lg:w-[50px] text-right">{lang === 'vi' ? 'Thao tác' : '액션'}</span>
                     </div>
                   </th>
                   {monthGroups.map((mg, idx) => (
@@ -921,214 +1045,239 @@ export const ProjectDetailPage: React.FC = () => {
                       {t('loading')}
                     </td>
                   </tr>
-                ) : tasks.length === 0 ? (
-                  <tr>
-                    <td colSpan={dateColumns.length + 1} className="py-12 text-center text-slate-500 font-medium">
-                      {t('noTasks')}
-                    </td>
-                  </tr>
                 ) : (
-                  tasks.map((task) => {
-                    const taskDisplayName = getTaskDisplayName(task);
-                    const workerObj = workers.find((w) => w.id === task.worker_name || w.name === task.worker_name);
+                  (() => {
+                    const groupsToRender = taskGroups.length > 0 ? taskGroups : [
+                      { id: 'default', project_id: projectId!, group_name: '기존 작업', group_name_ko: '기존 작업', group_name_vi: 'Công việc hiện có', color_key: 'BLUE' as TaskGroupColorKey, sort_order: 1 }
+                    ];
 
-                    if (!workerObj && workers.length > 0) {
-                      return (
-                        <tr key={task.id} className="bg-red-50">
-                          <td colSpan={dateColumns.length + 1} className="p-3 text-red-600 font-bold text-xs">
-                            데이터 오류: 작업자 프로필 정보가 없습니다 ({task.worker_name})
-                          </td>
-                        </tr>
-                      );
-                    }
-
-                    const targetWorkerObj = workerObj || {
-                      id: task.worker_name,
-                      name: task.worker_name,
-                      country_code: 'KR' as CountryCode,
-                      workweek_profile: 'MON_FRI' as WorkweekProfile,
+                    const GROUP_BORDER_COLORS: Record<TaskGroupColorKey, string> = {
+                      BLUE: 'border-l-blue-500',
+                      GREEN: 'border-l-emerald-500',
+                      ORANGE: 'border-l-amber-500',
+                      VIOLET: 'border-l-purple-500',
+                      SLATE: 'border-l-slate-500',
                     };
 
-                    return (
-                      <tr key={task.id} data-testid={`task-row-${task.id}`} className="hover:bg-blue-50/30 transition group">
-                        <td className="sticky left-0 z-10 bg-white group-hover:bg-blue-50/30 px-3 py-2 border-r border-slate-200 w-[170px] md:w-[295px] min-w-[170px] md:min-w-[295px] max-w-[295px] align-middle">
-                          <div className="flex items-center justify-between">
-                            <div className="pr-1 overflow-hidden min-w-0">
-                              <div className="flex items-center gap-1.5 truncate">
-                                {task.has_schedule_conflict && (
-                                  <span
-                                    data-testid="task-conflict-badge"
-                                    className="p-0.5 rounded bg-rose-100 text-rose-700 shrink-0 cursor-help"
-                                    title={`일정 중복 경고: ${task.schedule_conflicts?.map((c) => `${c.conflict_project_name} (${c.overlapping_working_days}일 중복)`).join(', ')}`}
+                    return groupsToRender.map((group, gIdx) => {
+                      const groupNum = gIdx + 1;
+                      const groupName = lang === 'vi' ? (group.group_name_vi || group.group_name) : (group.group_name_ko || group.group_name);
+                      const groupTasks = tasks.filter((tItem) => tItem.task_group_id === group.id || (!tItem.task_group_id && gIdx === 0));
+                      const isCollapsed = !!collapsedGroupIds[group.id];
+
+                      return (
+                        <React.Fragment key={group.id}>
+                          {/* Task Group Header Row */}
+                          <tr
+                            data-testid={`task-group-row-${group.id}`}
+                            className="bg-slate-100/90 hover:bg-slate-200/80 transition"
+                          >
+                            <td className={`sticky left-0 z-10 bg-slate-100/90 px-3 py-1 border-r border-slate-200 border-b border-l-4 ${GROUP_BORDER_COLORS[group.color_key || 'BLUE']} h-10 align-middle w-[360px] lg:w-[420px]`}>
+                              <div className="flex items-center justify-between text-xs font-bold text-slate-800">
+                                <div className="flex items-center gap-1.5 min-w-0 pr-2">
+                                  <button
+                                    type="button"
+                                    data-testid={`task-group-toggle-${group.id}`}
+                                    onClick={() => toggleGroupCollapse(group.id)}
+                                    className="p-1 rounded hover:bg-slate-300/60 text-slate-600 transition shrink-0"
                                   >
-                                    <AlertTriangle className="w-3.5 h-3.5 text-rose-600 animate-pulse" />
+                                    {isCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                                  </button>
+                                  <span className="font-extrabold text-slate-900 truncate">
+                                    {groupNum}. {groupName}
                                   </span>
+                                  {isCollapsed && (
+                                    <span className="text-[11px] text-slate-500 font-semibold shrink-0">
+                                      · {groupTasks.length}{lang === 'vi' ? ' công việc' : '개 작업'}
+                                    </span>
+                                  )}
+                                </div>
+
+                                {!isViewer && !isCompleted && group.id !== 'default' && (
+                                  <div className="flex items-center gap-1 shrink-0">
+                                    <button
+                                      type="button"
+                                      data-testid={`task-group-edit-${group.id}`}
+                                      onClick={() => handleOpenEditGroup(group)}
+                                      className="p-1 rounded hover:bg-slate-300/60 text-slate-600 transition"
+                                      title={lang === 'vi' ? 'Sửa nhóm' : '대분류 수정'}
+                                    >
+                                      <Edit2 className="w-3.5 h-3.5" />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      data-testid={`task-group-delete-${group.id}`}
+                                      onClick={() => handleDeleteGroup(group)}
+                                      className="p-1 rounded hover:bg-rose-200 text-rose-700 transition"
+                                      title={lang === 'vi' ? 'Xóa nhóm' : '대분류 삭제'}
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
                                 )}
-                                {(() => {
-                                  const assignees = task.assignees || [];
-                                  const hasMulti = assignees.length > 1;
-                                  const primaryName = task.worker_name || assignees.find((a) => a.assignment_role === 'PRIMARY')?.name || '담당자 미정';
-                                  const tooltipText = assignees.length > 0
-                                    ? assignees.map((a) => `${a.assignment_role === 'PRIMARY' ? '[주]' : '[보조]'} ${a.name} (${a.allocation_percent}%)`).join('\n')
-                                    : primaryName;
+                              </div>
+                            </td>
+                            <td colSpan={dateColumns.length} className="h-10 bg-slate-100/60 border-b border-slate-200" />
+                          </tr>
 
-                                  const modeLabel = task.progress_mode === 'STATUS_BASED' ? '실제(상태)' : '실제(자동)';
-                                  const isReviewNeeded = task.schedule_state === 'COMPLETION_REVIEW';
+                          {/* Detail Tasks Rows */}
+                          {!isCollapsed && groupTasks.map((task, tIdx) => {
+                            const taskNumStr = `${groupNum}.${tIdx + 1}`;
+                            const taskDisplayName = getTaskDisplayName(task);
+                            const workerObj = workers.find((w) => w.id === task.worker_name || w.name === task.worker_name);
+                            const targetWorkerObj = workerObj || {
+                              id: task.worker_name,
+                              name: task.worker_name,
+                              country_code: 'KR' as CountryCode,
+                              workweek_profile: 'MON_FRI' as WorkweekProfile,
+                            };
 
-                                  return (
-                                    <>
-                                      <div
-                                        data-testid={`task-assignees-chip-${task.id}`}
-                                        title={tooltipText}
-                                        className="flex items-center gap-1 shrink-0 cursor-help"
-                                      >
-                                        <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
-                                          {primaryName}
+                            const spanInfo = getGanttSpanColumns(task.start_date, task.end_date, dateColumns);
+
+                            return (
+                              <tr
+                                key={task.id}
+                                data-testid={`task-row-${task.id}`}
+                                className="hover:bg-blue-50/30 transition group h-11 border-b border-slate-200"
+                              >
+                                {/* Left Info Column (3 sub-columns: Task Name, Assignees, Actions) */}
+                                <td className="sticky left-0 z-10 bg-white group-hover:bg-blue-50/30 px-3 py-1 border-r border-slate-200 w-[360px] lg:w-[420px] h-11 align-middle">
+                                  <div className="flex items-center justify-between text-xs w-full">
+                                    {/* Sub-col 1: Task Number + Task Name */}
+                                    <div className="w-[180px] lg:w-[220px] flex items-center gap-1.5 min-w-0 pr-1">
+                                      {task.has_schedule_conflict && (
+                                        <span
+                                          data-testid="task-conflict-badge"
+                                          className="p-0.5 rounded bg-rose-100 text-rose-700 shrink-0 cursor-help"
+                                          title={`일정 중복 경고: ${task.schedule_conflicts?.map((c) => `${c.conflict_project_name} (${c.overlapping_working_days}일 중복)`).join(', ')}`}
+                                        >
+                                          <AlertTriangle className="w-3.5 h-3.5 text-rose-600 animate-pulse" />
                                         </span>
-                                        {hasMulti && (
-                                          <span className="px-1 py-0.5 rounded text-[9px] font-extrabold bg-indigo-100 text-indigo-800 border border-indigo-200">
-                                            +{assignees.length - 1}
-                                          </span>
-                                        )}
-                                      </div>
-
+                                      )}
+                                      <span className="font-bold text-slate-500 shrink-0 text-[11px]">{taskNumStr}</span>
                                       <span className="font-semibold text-slate-900 truncate text-xs" title={taskDisplayName}>
                                         {taskDisplayName}
                                       </span>
-                                    </>
-                                  );
-                                })()}
-                              </div>
-                              <div className="mt-0.5 text-[10px] text-slate-500 flex items-center justify-between">
-                                <span className="truncate">{task.start_date.slice(5)} ~ {task.end_date.slice(5)}</span>
-                                <div className="flex items-center gap-1 shrink-0 ml-1">
-                                  {task.schedule_state === 'COMPLETION_REVIEW' && (
-                                    <span data-testid="completion-review-badge" className="px-1 py-0.5 text-[9px] font-bold bg-amber-100 text-amber-800 rounded border border-amber-300">
-                                      완료 확인 필요
-                                    </span>
-                                  )}
-                                  <span className="font-bold">
-                                    예정 {task.planned_progress ?? task.progress ?? 0}% / {task.progress_mode === 'STATUS_BASED' ? '실제(상태)' : '실제(자동)'} {task.actual_progress ?? task.progress ?? 0}%
-                                  </span>
-                                </div>
-                              </div>
-                            </div>
+                                    </div>
 
-                            {!isViewer && !isCompleted && (
-                              <div className="flex items-center gap-1 shrink-0">
-                                <button
-                                  type="button"
-                                  data-testid={`task-edit-${task.id}`}
-                                  onClick={() => handleEditTask(task)}
-                                  className="p-1 rounded hover:bg-slate-200 text-slate-500 transition"
-                                >
-                                  <Edit2 className="w-3.5 h-3.5" />
-                                </button>
-                                <button
-                                  type="button"
-                                  data-testid={`task-delete-${task.id}`}
-                                  onClick={() => handleDeleteTask(task)}
-                                  className="p-1 rounded hover:bg-red-100 text-red-600 transition"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
-                              </div>
-                            )}
-                          </div>
-                        </td>
+                                    {/* Sub-col 2: Assignees Chips */}
+                                    <div className="w-[126px] lg:w-[150px] flex items-center gap-1 min-w-0 px-1 overflow-hidden">
+                                      {(() => {
+                                        const assignees = task.assignees || [];
+                                        const primaryName = task.worker_name || assignees.find((a) => a.assignment_role === 'PRIMARY')?.name || '담당자 미정';
+                                        const hasMulti = assignees.length > 1;
 
-                        <td colSpan={dateColumns.length} className="p-0 border-0 relative">
-                          <div
-                            className="relative h-14"
-                            style={{ minWidth: `${dateColumns.length * GANTT_DAY_WIDTH_PX}px` }}
-                          >
-                            {/* 1. Date Cells Background & Click Handler Layer */}
-                            <div
-                              className="grid w-full h-full"
-                              style={{
-                                gridTemplateColumns: `repeat(${dateColumns.length}, minmax(${GANTT_DAY_WIDTH_PX}px, 1fr))`,
-                              }}
-                            >
-                              {dateColumns.map((col, cIdx) => {
-                                const dayStatus = resolveWorkDayStatus(col.dateStr, targetWorkerObj as any, countryHolidays, calendarOverrides);
-                                const countryOffInfo = getCountryOffState(col.dateStr, calendarOverrides, countryHolidays);
-                                const statusVal = task.daily_statuses?.[col.dateStr];
+                                        return (
+                                          <div data-testid={`task-assignees-chip-${task.id}`} className="flex items-center gap-1 truncate">
+                                            <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200 truncate max-w-[95px]">
+                                              {primaryName}
+                                            </span>
+                                            {hasMulti && (
+                                              <span className="px-1 py-0.5 rounded text-[9px] font-extrabold bg-indigo-100 text-indigo-800 border border-indigo-200 shrink-0">
+                                                +{assignees.length - 1}
+                                              </span>
+                                            )}
+                                          </div>
+                                        );
+                                      })()}
+                                    </div>
 
-                                return (
-                                  <WorkerDayCellBackground
-                                    key={cIdx}
-                                    dateStr={col.dateStr}
-                                    worker={targetWorkerObj as any}
-                                    assignees={task.assignees}
-                                    availabilityPolicy={task.availability_policy}
-                                    dayStatus={dayStatus}
-                                    countryOffState={countryOffInfo}
-                                    countryHolidays={countryHolidays}
-                                    calendarOverrides={calendarOverrides}
-                                    workers={workers}
-                                    isToday={col.isToday}
-                                    style={{ minWidth: `${GANTT_DAY_WIDTH_PX}px` }}
-                                    onClick={() => handleCellClick(task, col.dateStr, dayStatus, targetWorkerObj as any)}
-                                    className="h-full cursor-pointer"
-                                  >
-                                    {statusVal && statusVal !== 'NONE' && (
-                                      <div className="absolute top-1 right-1 z-30 pointer-events-none">
-                                        {statusVal === 'COMPLETED' && <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-xs" title="완료" />}
-                                        {statusVal === 'IN_PROGRESS' && <div className="w-2 h-2 rounded-full bg-blue-500 shadow-xs" title="작업 중" />}
-                                        {statusVal === 'ISSUE' && <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse shadow-xs" title="문제 발생" />}
-                                      </div>
-                                    )}
-                                  </WorkerDayCellBackground>
-                                );
-                              })}
-                            </div>
-
-                            {/* 2. CSS Grid Overlay Layer for Continuous Schedule Bar */}
-                            {(() => {
-                              const spanInfo = getGanttSpanColumns(task.start_date, task.end_date, dateColumns);
-                              if (!spanInfo) return null;
-
-                              const taskBreakdown = calculateTaskWorkdayBreakdown(
-                                targetWorkerObj as any,
-                                task.start_date,
-                                task.end_date,
-                                countryHolidays,
-                                calendarOverrides
-                              );
-
-                              return (
-                                <div
-                                  className="absolute inset-0 grid pointer-events-none z-10 w-full h-full"
-                                  style={{
-                                    gridTemplateColumns: `repeat(${dateColumns.length}, minmax(${GANTT_DAY_WIDTH_PX}px, 1fr))`,
-                                  }}
-                                >
-                                  <div
-                                    style={{
-                                      gridColumn: `${spanInfo.startIndex + 1} / span ${spanInfo.spanCount}`,
-                                    }}
-                                    className="px-0.5 flex items-center h-full w-full min-w-0 pointer-events-auto"
-                                  >
-                                    <ScheduleBar
-                                      title={taskDisplayName}
-                                      startDate={task.start_date}
-                                      endDate={task.end_date}
-                                      calendarSpanDays={taskBreakdown.calendar_span_days}
-                                      plannedWorkingDays={taskBreakdown.planned_working_days}
-                                      plannedProgress={task.planned_progress ?? task.progress ?? 0}
-                                      actualProgress={task.actual_progress ?? task.progress ?? 0}
-                                      status={task.schedule_state || (task.progress === 100 ? 'COMPLETED' : 'IN_PROGRESS')}
-                                      onClick={() => handleEditTask(task)}
-                                    />
+                                    {/* Sub-col 3: Action Buttons */}
+                                    <div className="w-[48px] lg:w-[50px] flex items-center justify-end gap-1 shrink-0">
+                                      {!isViewer && !isCompleted && (
+                                        <>
+                                          <button
+                                            type="button"
+                                            data-testid={`task-edit-${task.id}`}
+                                            onClick={() => handleEditTask(task)}
+                                            className="p-1 rounded hover:bg-slate-200 text-slate-500 transition"
+                                            title={lang === 'vi' ? 'Sửa' : '수정'}
+                                          >
+                                            <Edit2 className="w-3.5 h-3.5" />
+                                          </button>
+                                          <button
+                                            type="button"
+                                            data-testid={`task-delete-${task.id}`}
+                                            onClick={() => handleDeleteTask(task)}
+                                            className="p-1 rounded hover:bg-rose-100 text-rose-600 transition"
+                                            title={lang === 'vi' ? 'Xóa' : '삭제'}
+                                          >
+                                            <Trash2 className="w-3.5 h-3.5" />
+                                          </button>
+                                        </>
+                                      )}
+                                    </div>
                                   </div>
-                                </div>
-                              );
-                            })()}
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })
+                                </td>
+
+                                {/* Gantt Date Cells with Overlay ScheduleBar */}
+                                {dateColumns.map((col, cIdx) => {
+                                  const dayStatus = resolveWorkDayStatus(
+                                    col.dateStr,
+                                    targetWorkerObj as any,
+                                    countryHolidays,
+                                    calendarOverrides
+                                  );
+
+                                  const isFirstCol = spanInfo ? spanInfo.startIndex === cIdx : false;
+                                  const spanCount = spanInfo ? spanInfo.spanCount : 1;
+
+                                  return (
+                                    <td
+                                      key={cIdx}
+                                      onClick={() => handleCellClick(task, col.dateStr, dayStatus, workerObj || null)}
+                                      style={{
+                                        width: `${GANTT_DAY_WIDTH_PX}px`,
+                                        minWidth: `${GANTT_DAY_WIDTH_PX}px`,
+                                        maxWidth: `${GANTT_DAY_WIDTH_PX}px`,
+                                        height: '44px',
+                                      }}
+                                      className="relative border-r border-slate-200 p-0 text-center align-middle cursor-pointer hover:brightness-95 transition"
+                                    >
+                                      <WorkerDayCellBackground
+                                        dateStr={col.dateStr}
+                                        worker={targetWorkerObj as any}
+                                        assignees={task.assignees}
+                                        availabilityPolicy={task.availability_policy}
+                                        dayStatus={dayStatus}
+                                        countryHolidays={countryHolidays}
+                                        calendarOverrides={calendarOverrides}
+                                        workers={workers}
+                                        isToday={col.isToday}
+                                      />
+
+                                      {/* Gantt Schedule Bar Overlay */}
+                                      {isFirstCol && (
+                                        <div
+                                          className="absolute left-0 top-0 bottom-0 z-30 flex items-center px-1"
+                                          style={{
+                                            width: `${spanCount * GANTT_DAY_WIDTH_PX}px`,
+                                          }}
+                                        >
+                                          <ScheduleBar
+                                            title={taskDisplayName}
+                                            startDate={task.start_date}
+                                            endDate={task.end_date}
+                                            calendarSpanDays={spanCount}
+                                            plannedWorkingDays={task.planned_working_days || spanCount}
+                                            plannedProgress={task.planned_progress ?? task.progress ?? 0}
+                                            actualProgress={task.actual_progress ?? task.progress ?? 0}
+                                            status={task.schedule_state || 'UPCOMING'}
+                                            hasConflict={task.has_schedule_conflict}
+                                            onClick={() => handleEditTask(task)}
+                                          />
+                                        </div>
+                                      )}
+                                    </td>
+                                  );
+                                })}
+                              </tr>
+                            );
+                          })}
+                        </React.Fragment>
+                      );
+                    });
+                  })()
                 )}
               </tbody>
             </table>
@@ -1159,9 +1308,27 @@ export const ProjectDetailPage: React.FC = () => {
         projectId={projectId || ''}
         project={project}
         currentWorker={currentWorker}
+        taskGroups={taskGroups}
         holidays={countryHolidays}
         overrides={calendarOverrides}
         workers={workers}
+      />
+
+      <TaskGroupModal
+        isOpen={isGroupModalOpen}
+        group={selectedGroup}
+        currentWorker={currentWorker}
+        onClose={() => setIsGroupModalOpen(false)}
+        onSave={handleSaveGroup}
+      />
+
+      <TaskGroupDeleteModal
+        isOpen={deleteGroupModalState.isOpen}
+        group={deleteGroupModalState.group}
+        otherGroups={taskGroups.filter((g) => g.id !== deleteGroupModalState.group?.id)}
+        taskCount={deleteGroupModalState.taskCount}
+        onClose={() => setDeleteGroupModalState({ isOpen: false, group: null, taskCount: 0 })}
+        onConfirm={handleConfirmDeleteGroup}
       />
 
       <WorkerPromptModal

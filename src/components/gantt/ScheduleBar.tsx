@@ -174,49 +174,19 @@ export const ScheduleBar: React.FC<ScheduleBarProps> = ({
           />
         )}
 
-        {/* Inline Content Layer (z-40 ensures text & progress chips stay crisp over z-20 hatch overlay) */}
+        {/* Inline Content Layer (z-40 ensures title stays crisp) */}
         <div
           data-testid={isMobile ? 'mobile-gantt-inline-content' : 'gantt-bar-inline-content'}
-          className="absolute inset-0 z-40 flex items-center justify-between px-1.5 w-full h-full min-w-0 overflow-hidden pointer-events-none"
+          className="absolute inset-0 z-40 flex items-center px-1.5 w-full h-full min-w-0 overflow-hidden pointer-events-none"
         >
-          {isMobileThresholdFull ? (
-            <>
-              <span
-                data-testid="gantt-bar-inline-title"
-                className="bg-white/90 text-slate-900 border border-white/70 rounded px-2 h-5 text-xs font-semibold flex items-center overflow-hidden text-ellipsis whitespace-nowrap min-w-0 shadow-2xs max-w-[55%]"
-              >
-                {title}
-              </span>
-              <span
-                data-testid="gantt-bar-inline-progress"
-                className="bg-slate-900/80 text-white rounded px-1.5 h-5 text-[11px] font-bold flex items-center whitespace-nowrap shadow-2xs shrink-0 ml-auto"
-              >
-                {longProgressText}
-              </span>
-            </>
-          ) : isMobileThresholdTitle ? (
-            <>
-              <span
-                data-testid="gantt-bar-inline-title"
-                className="bg-white/90 text-slate-900 border border-white/70 rounded px-1.5 h-5 text-[11px] font-semibold flex items-center overflow-hidden text-ellipsis whitespace-nowrap min-w-0 shadow-2xs max-w-[45%]"
-              >
-                {title}
-              </span>
-              <span
-                data-testid="gantt-bar-inline-progress"
-                className="bg-slate-900/80 text-white rounded px-1.5 h-5 text-[11px] font-bold flex items-center whitespace-nowrap shadow-2xs shrink-0 ml-auto"
-              >
-                {mediumProgressText}
-              </span>
-            </>
-          ) : isMobileThresholdProgressOnly ? (
+          {barWidth >= 50 && (
             <span
-              data-testid="gantt-bar-inline-progress"
-              className="bg-slate-900/80 text-white rounded px-1.5 h-5 text-[10.5px] font-bold flex items-center whitespace-nowrap shadow-2xs mx-auto"
+              data-testid="gantt-bar-inline-title"
+              className="bg-white/90 text-slate-900 border border-white/70 rounded px-1.5 h-5 text-[11px] font-semibold flex items-center overflow-hidden text-ellipsis whitespace-nowrap min-w-0 shadow-2xs max-w-full"
             >
-              {shortProgressText}
+              {title}
             </span>
-          ) : null}
+          )}
         </div>
 
         {/* Conflict Warning Indicator */}

@@ -136,9 +136,29 @@ export interface Project {
   confirm_worker_schedule_conflict?: boolean;
 }
 
+export type TaskGroupColorKey = 'BLUE' | 'GREEN' | 'ORANGE' | 'VIOLET' | 'SLATE';
+
+export interface TaskGroup {
+  id: string;
+  project_id: string;
+  group_name: string;
+  group_name_ko?: string | null;
+  group_name_vi?: string | null;
+  source_language?: string;
+  translation_status?: TranslationStatus;
+  color_key: TaskGroupColorKey;
+  sort_order: number;
+  created_by_name?: string;
+  updated_by_name?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
 export interface Task {
   id: string;
   project_id: string;
+  task_group_id?: string | null;
+  task_sort_order?: number;
   worker_name: string;
   task_name: string;
   start_date: string;
