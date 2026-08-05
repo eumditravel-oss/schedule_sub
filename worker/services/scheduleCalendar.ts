@@ -299,3 +299,173 @@ export async function calculateLeaveImpactServer(
     status_impacts: statusImpacts,
   };
 }
+
+// ── Vietnam Saturday Calendar Services ──
+
+export function getVietnamSaturdaysInMonth(year: number, month: number): Array<{ week_of_month: number; date: string; day_num: number }> {
+  const saturdays: Array<{ week_of_month: number; date: string; day_num: number }> = [];
+  const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  let weekIndex = 1;
+
+  for (let day = 1; day <= daysInMonth; day++) {
+    const d = new Date(Date.UTC(year, month - 1, day));
+    if (d.getUTCDay() === 6) { // Saturday
+      const dateStr = formatUtcDate(d);
+      saturdays.push({
+        week_of_month: weekIndex,
+        date: dateStr,
+        day_num: day,
+      });
+      weekIndex++;
+    }
+  }
+  return saturdays;
+}
+
+export async function getVietnamSaturdayCalendarServer(db: any, year: number, month: number) {
+  const saturdays = getVietnamSaturdaysInMonth(year, month);
+  if (saturdays.length === 0) {
+    return { year, month, saturdays: [] };
+  }
+
+  const startDate = saturdays[0].date;
+  const endDate = saturdays[saturdays.length - 1].date;
+
+  // 1. Fetch public holidays for VN
+  const holidaysRes = await db
+    .prepare(`SELECT holiday_date, name_ko, name_vi FROM country_holidays WHERE country_code = 'VN' AND holiday_date >= ? AND holiday_date <= ?`)
+    .bind(startDate, endDate)
+    .all();
+  const holidays: any[] = holidaysRes.results || [];
+  const holidayMap = new Map<string, any>();
+  for (const h of holidays) holidayMap.set(h.holiday_date, h);
+
+  // 2. Fetch country overrides for VN
+  const overridesRes = await db
+    .prepare(`SELECT * FROM calendar_overrides WHERE scope_type = 'COUNTRY' AND scope_key = 'VN' AND work_date >= ? AND work_date <= ?`)
+    .bind(startDate, endDate)
+    .all();
+  const overrides: any[] = overridesRes.results || [];
+  const overrideMap = new Map<string, any>();
+  for (const o of overrides) overrideMap.set(o.work_date, o);
+
+  const resultSaturdays = saturdays.map((sat) => {
+    const hol = holidayMap.get(sat.date);
+    const ovr = overrideMap.get(sat.date);
+
+    let status: 'WORK' | 'OFF' = 'WORK';
+    let source: 'MON_SAT_DEFAULT' | 'COUNTRY_OVERRIDE' | 'PUBLIC_HOLIDAY' = 'MON_SAT_DEFAULT';
+    let label_ko: string | null = null;
+    let label_vi: string | null = null;
+    let is_public_holiday = false;
+
+    if (hol) {
+      status = 'OFF';
+      source = 'PUBLIC_HOLIDAY';
+      label_ko = hol.name_ko || '베트남 공휴일';
+      label_vi = hol.name_vi || 'Ngày lễ VN';
+      is_public_holiday = true;
+    } else if (ovr) {
+      status = ovr.override_type === 'WORK' ? 'WORK' : 'OFF';
+      source = 'COUNTRY_OVERRIDE';
+      label_ko = ovr.label_ko || (status === 'OFF' ? '베트남 토요일 정기 휴무' : '베트남 토요일 근무');
+      label_vi = ovr.label_vi || (status === 'OFF' ? 'Nghỉ thứ Bảy định kỳ VN' : 'Làm việc thứ Bảy VN');
+    }
+
+    return {
+      week_of_month: sat.week_of_month,
+      date: sat.date,
+      day_num: sat.day_num,
+      status,
+      source,
+      label_ko,
+      label_vi,
+      is_public_holiday,
+    };
+  });
+
+  return {
+    year,
+    month,
+    saturdays: resultSaturdays,
+  };
+}
+
+export async function calculateVietnamSaturdayImpactServer(
+  db: any,
+  year: number,
+  month: number,
+  targetScope: string,
+  saturdays: Array<{ date: string; status: 'WORK' | 'OFF' }>,
+  targetWorkerIds?: string[]
+) {
+  const currentCalendar = await getVietnamSaturdayCalendarServer(db, year, month);
+
+  // Find saturdays transitioning from WORK to OFF
+  const newOffDates: string[] = [];
+  for (const s of saturdays) {
+    const existing = currentCalendar.saturdays.find((item: any) => item.date === s.date);
+    if (s.status === 'OFF' && (!existing || existing.status === 'WORK') && !existing?.is_public_holiday) {
+      newOffDates.push(s.date);
+    }
+  }
+
+  // Find target VN workers
+  let workerQuery = `SELECT * FROM workers WHERE country_code = 'VN' AND is_active = 1`;
+  const workersRes = await db.prepare(workerQuery).all();
+  let vnWorkers: WorkerProfile[] = workersRes.results || [];
+  if (targetWorkerIds && targetWorkerIds.length > 0) {
+    vnWorkers = vnWorkers.filter((w) => targetWorkerIds.includes(w.id));
+  }
+
+  if (newOffDates.length === 0 || vnWorkers.length === 0) {
+    return {
+      affected_saturday_off_count: 0,
+      affected_worker_count: vnWorkers.length,
+      affected_project_count: 0,
+      affected_task_count: 0,
+      has_range_conflict: false,
+      worker_impacts: [],
+    };
+  }
+
+  const earliestOffDate = newOffDates[0];
+  const latestOffDate = newOffDates[newOffDates.length - 1];
+  const todayStr = formatUtcDate(new Date());
+
+  const workerImpacts: any[] = [];
+  const affectedProjectIds = new Set<string>();
+  const affectedTaskIds = new Set<string>();
+  let hasRangeConflict = false;
+
+  for (const worker of vnWorkers) {
+    // Calculate leave-style impact for the OFF period
+    const impact = await calculateLeaveImpactServer(db, worker, earliestOffDate, latestOffDate, todayStr);
+    if (impact.affected_task_count > 0) {
+      for (const t of impact.task_impacts) {
+        affectedProjectIds.add(t.task.project_id);
+        affectedTaskIds.add(t.task.id);
+      }
+      if (impact.has_range_conflict) {
+        hasRangeConflict = true;
+      }
+    }
+    workerImpacts.push({
+      worker_id: worker.id,
+      worker_name: worker.name,
+      affected_task_count: impact.affected_task_count,
+      has_range_conflict: impact.has_range_conflict,
+      task_impacts: impact.task_impacts,
+    });
+  }
+
+  return {
+    affected_saturday_off_count: newOffDates.length,
+    affected_worker_count: vnWorkers.length,
+    affected_project_count: affectedProjectIds.size,
+    affected_task_count: affectedTaskIds.size,
+    has_range_conflict: hasRangeConflict,
+    worker_impacts: workerImpacts,
+  };
+}
+

@@ -608,6 +608,10 @@ export const ProjectOverviewPage: React.FC = () => {
                     const isSat = col.date.getDay() === 6;
                     const krHol = krHolidays.find((h) => h.holiday_date === col.dateStr);
                     const vnHol = vnHolidays.find((h) => h.holiday_date === col.dateStr);
+                    const vnSatOvr = calendarOverrides.find(
+                      (o: any) => o.scope_type === 'COUNTRY' && o.scope_key === 'VN' && o.work_date === col.dateStr
+                    );
+                    const isVnSatOff = vnSatOvr ? vnSatOvr.override_type === 'OFF' : false;
 
                     return (
                       <th
@@ -630,8 +634,13 @@ export const ProjectOverviewPage: React.FC = () => {
                         <div>{col.dayNum}</div>
                         <div className="text-[9px] scale-90">{col.dayName}</div>
                         {isSat && (
-                          <div className="text-[8px] font-bold text-slate-500 scale-75 whitespace-nowrap mt-0.5">
-                            KR OFF / VN WORK
+                          <div
+                            data-testid={`gantt-header-sat-badge-${col.dateStr}`}
+                            className={`text-[8px] font-bold scale-75 whitespace-nowrap mt-0.5 ${
+                              isVnSatOff ? 'text-rose-600 font-extrabold' : 'text-slate-500'
+                            }`}
+                          >
+                            {isVnSatOff ? 'KR OFF / VN OFF' : 'KR OFF / VN WORK'}
                           </div>
                         )}
                         {isSun && (

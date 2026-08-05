@@ -8,6 +8,8 @@ import {
   countWorkerWorkingDaysServer,
   addWorkerWorkingDaysServer,
   calculateLeaveImpactServer,
+  getVietnamSaturdayCalendarServer,
+  calculateVietnamSaturdayImpactServer,
   WorkerProfile,
 } from './services/scheduleCalendar';
 import {
@@ -92,6 +94,21 @@ async function requireEditableWorker(db: any, editorName: string): Promise<{ all
     return { allowed: false, errorMsg: '경영진 계정은 일정을 조회할 수만 있습니다.', errorCode: 'EXECUTIVE_READ_ONLY' };
   }
   return { allowed: true, worker };
+}
+
+async function requireCountryCalendarManager(db: any, editorName: string): Promise<{ allowed: boolean; worker?: any; errorMsg?: string; errorCode?: string }> {
+  const editable = await requireEditableWorker(db, editorName);
+  if (!editable.allowed) return editable;
+
+  if (!editable.worker.can_manage_country_calendar) {
+    return {
+      allowed: false,
+      errorMsg: '국가 달력 관리 권한이 필요합니다.',
+      errorCode: 'COUNTRY_CALENDAR_PERMISSION_REQUIRED',
+    };
+  }
+
+  return { allowed: true, worker: editable.worker };
 }
 
 function getKoreaDateString(): string {
@@ -273,9 +290,119 @@ export default {
       // 1. GET /api/workers
       if (method === 'GET' && path === '/api/workers') {
         const workers = await db
-          .prepare(`SELECT id, name, is_active, sort_order, country_code, workweek_profile, access_role, ui_language FROM workers WHERE is_active = 1 ORDER BY sort_order ASC`)
+          .prepare(`SELECT id, name, is_active, sort_order, country_code, workweek_profile, access_role, ui_language, can_manage_country_calendar FROM workers WHERE is_active = 1 ORDER BY sort_order ASC`)
           .all();
         return jsonResponse(workers.results || []);
+      }
+
+      // 1.1 GET /api/calendar/vietnam-saturdays
+      if (method === 'GET' && path === '/api/calendar/vietnam-saturdays') {
+        const now = new Date();
+        const year = Number(url.searchParams.get('year') || now.getFullYear());
+        const month = Number(url.searchParams.get('month') || now.getMonth() + 1);
+        const data = await getVietnamSaturdayCalendarServer(db, year, month);
+        return jsonResponse(data);
+      }
+
+      // 1.2 POST /api/calendar/vietnam-saturdays/impact
+      if (method === 'POST' && path === '/api/calendar/vietnam-saturdays/impact') {
+        const body: any = await request.json();
+        const year = Number(body.year);
+        const month = Number(body.month);
+        const targetScope = body.target_scope || 'ALL_VN';
+        const saturdays = body.saturdays || [];
+        const targetWorkerIds = body.target_worker_ids || [];
+
+        const impact = await calculateVietnamSaturdayImpactServer(db, year, month, targetScope, saturdays, targetWorkerIds);
+        return jsonResponse(impact);
+      }
+
+      // 1.3 PUT /api/calendar/vietnam-saturdays
+      if (method === 'PUT' && path === '/api/calendar/vietnam-saturdays') {
+        const body: any = await request.json();
+        const editor = getEditorName(body, request);
+        const permCheck = await requireCountryCalendarManager(db, editor);
+        if (!permCheck.allowed) {
+          return errorResponse(permCheck.errorMsg!, 403, permCheck.errorCode!);
+        }
+
+        const year = Number(body.year);
+        const month = Number(body.month);
+        const targetScope = body.target_scope || 'ALL_VN';
+        const saturdays: Array<{ date: string; status: 'WORK' | 'OFF' }> = body.saturdays || [];
+        const shiftSchedule = body.shift_schedule === true;
+        const targetWorkerIds: string[] = body.target_worker_ids || [];
+
+        // Save overrides atomically
+        for (const sat of saturdays) {
+          if (sat.status === 'OFF') {
+            await db
+              .prepare(
+                `INSERT INTO calendar_overrides (
+                  id, scope_type, scope_key, work_date, override_type, label_ko, label_vi, created_by_name, updated_by_name
+                ) VALUES (?, 'COUNTRY', 'VN', ?, 'OFF', '베트남 토요일 정기 휴무', 'Nghỉ thứ Bảy định kỳ VN', ?, ?)
+                ON CONFLICT(scope_type, scope_key, work_date) DO UPDATE SET
+                  override_type = 'OFF',
+                  updated_by_name = excluded.updated_by_name,
+                  updated_at = CURRENT_TIMESTAMP`
+              )
+              .bind(`ovr_vn_sat_${sat.date}`, sat.date, editor, editor)
+              .run();
+          } else if (sat.status === 'WORK') {
+            await db
+              .prepare(`DELETE FROM calendar_overrides WHERE scope_type = 'COUNTRY' AND scope_key = 'VN' AND work_date = ? AND override_type = 'OFF'`)
+              .bind(sat.date)
+              .run();
+          }
+        }
+
+        // Calculate impact if schedule shift is requested
+        let impactData: any = null;
+        if (shiftSchedule) {
+          impactData = await calculateVietnamSaturdayImpactServer(db, year, month, targetScope, saturdays, targetWorkerIds);
+        }
+
+        // Insert batch event record
+        const batchId = `vn_sat_batch_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+        await db
+          .prepare(
+            `INSERT INTO country_calendar_batch_events (
+              id, country_code, year, month, event_type, selected_dates_json,
+              affected_worker_count, affected_project_count, affected_task_count,
+              changed_by_name, status
+            ) VALUES (?, 'VN', ?, ?, 'VN_SATURDAY_OFF_BATCH', ?, ?, ?, ?, ?, 'ACTIVE')`
+          )
+          .bind(
+            batchId,
+            year,
+            month,
+            JSON.stringify(saturdays),
+            impactData?.affected_worker_count || 0,
+            impactData?.affected_project_count || 0,
+            impactData?.affected_task_count || 0,
+            editor
+          )
+          .run();
+
+        // Perform task schedule shift if requested
+        if (shiftSchedule && impactData && impactData.worker_impacts) {
+          for (const wImpact of impactData.worker_impacts) {
+            for (const tImp of wImpact.task_impacts) {
+              await db
+                .prepare(`UPDATE tasks SET start_date = ?, end_date = ?, schedule_revision = schedule_revision + 1, updated_by_name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`)
+                .bind(tImp.new_start_date, tImp.new_end_date, editor, tImp.task.id)
+                .run();
+            }
+          }
+        }
+
+        return jsonResponse({
+          batch_id: batchId,
+          year,
+          month,
+          saturdays,
+          affected: impactData,
+        });
       }
 
       // 2. GET /api/projects

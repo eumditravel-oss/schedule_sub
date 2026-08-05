@@ -26,6 +26,7 @@ export interface Worker {
   workweek_profile?: WorkweekProfile;
   access_role?: AccessRole;
   ui_language?: UiLanguage;
+  can_manage_country_calendar?: number;
   created_at?: string;
   updated_at?: string;
 }
@@ -38,6 +39,11 @@ export function isExecutiveViewer(worker?: Partial<Worker> | null): boolean {
 export function isEditableWorker(worker?: Partial<Worker> | null): boolean {
   if (!worker) return false;
   return worker.access_role === 'EDITOR' && !isExecutiveViewer(worker);
+}
+
+export function canManageCountryCalendar(worker?: Partial<Worker> | null): boolean {
+  if (!worker) return false;
+  return isEditableWorker(worker) && worker.can_manage_country_calendar === 1;
 }
 
 export function getWorkerUiLanguage(worker?: Partial<Worker> | null): UiLanguage {

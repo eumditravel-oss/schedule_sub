@@ -259,6 +259,29 @@ export const api = {
     return handleResponse<CalendarOverride[]>(res);
   },
 
+  async getVietnamSaturdayCalendar(year: number, month: number): Promise<any> {
+    const res = await fetch(`/api/calendar/vietnam-saturdays?year=${year}&month=${month}`);
+    return handleResponse<any>(res);
+  },
+
+  async calculateVietnamSaturdayImpact(payload: any): Promise<any> {
+    const res = await fetch('/api/calendar/vietnam-saturdays/impact', {
+      method: 'POST',
+      headers: getWriteHeaders(),
+      body: JSON.stringify(payload),
+    });
+    return handleResponse<any>(res);
+  },
+
+  async updateVietnamSaturdayCalendar(payload: any): Promise<any> {
+    const res = await fetch('/api/calendar/vietnam-saturdays', {
+      method: 'PUT',
+      headers: getWriteHeaders(),
+      body: JSON.stringify(payload),
+    });
+    return handleResponse<any>(res);
+  },
+
   async deleteOverride(id: string): Promise<{ id: string }> {
     const res = await fetch(`/api/calendar/overrides/${id}`, {
       method: 'DELETE',
