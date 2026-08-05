@@ -289,6 +289,35 @@ export interface GanttDateColumn {
   monthStr: string;
 }
 
+export interface TaskWorkdayBreakdown {
+  calendar_span_days: number;
+  planned_working_days: number;
+  excluded_non_working_days: number;
+  excluded_weekly_off_days: number;
+  excluded_public_holiday_days: number;
+  excluded_leave_days: number;
+  excluded_manual_off_days: number;
+  included_work_override_days: number;
+  excluded_dates_detail: Array<{
+    date: string;
+    type: string;
+    label_ko: string;
+    label_vi: string;
+  }>;
+}
+
+export interface WorkerUtilization {
+  worker_id: string;
+  worker_name: string;
+  country_code: CountryCode;
+  workweek_profile: WorkweekProfile;
+  available_working_days: number;
+  assigned_working_days: number;
+  utilization_rate: number;
+  overloaded_working_days: number;
+  status_level: 'EASY' | 'OPTIMAL' | 'OVERLOADED';
+}
+
 export interface ApiResponse<T> {
   success: boolean;
   data?: T;

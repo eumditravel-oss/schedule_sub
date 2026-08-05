@@ -18,12 +18,26 @@ export interface WorkDayStatus {
 
 export function resolveWorkDayStatusServer(
   dateStr: string,
-  worker: { id: string; name: string; country_code?: string; workweek_profile?: string },
+  worker: { id: string; name: string; country_code?: string; workweek_profile?: string } | null | undefined,
   countryHolidays: any[],
   overrides: any[]
 ): WorkDayStatus {
-  const countryCode = (worker.country_code || 'KR') as CountryCode;
-  const profile = (worker.workweek_profile || 'MON_FRI') as WorkweekProfile;
+  if (!worker || !worker.country_code || !worker.workweek_profile) {
+    return {
+      date: dateStr,
+      worker_id: worker?.id || '',
+      worker_name: worker?.name || '',
+      country_code: worker?.country_code as CountryCode,
+      day_type: 'MANUAL_OFF',
+      is_working_day: false,
+      label_ko: '작업자 캘린더 정보 오류',
+      label_vi: 'Lỗi thông tin lịch làm việc của nhân viên',
+      source: 'ERROR',
+    };
+  }
+
+  const countryCode = worker.country_code as CountryCode;
+  const profile = worker.workweek_profile as WorkweekProfile;
 
   const d = new Date(`${dateStr}T00:00:00`);
   const dayOfWeek = d.getDay();

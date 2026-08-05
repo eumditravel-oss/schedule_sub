@@ -1,7 +1,7 @@
 // src/components/modals/TaskModal.tsx
 import React, { useState, useEffect } from 'react';
 import { Task, Worker, Project, CountryHoliday, CalendarOverride } from '../../types';
-import { resolveWorkDayStatus } from '../../utils/workCalendar';
+import { resolveWorkDayStatus, calculateTaskWorkdayBreakdown } from '../../utils/workCalendar';
 import { useI18n } from '../../hooks/useI18n';
 import { useAutoTranslation } from '../../hooks/useAutoTranslation';
 import { X, Sparkles, RefreshCw, Calendar, AlertCircle } from 'lucide-react';
@@ -100,6 +100,19 @@ export const TaskModal: React.FC<TaskModalProps> = ({
     setManualText(val);
   };
 
+  const currentWorkerName = task ? task.worker_name : currentWorker ? currentWorker.name : '';
+  const taskWorker = (workers && workers.find((w) => w.name === currentWorkerName || w.id === currentWorkerName)) || currentWorker;
+
+  const [showExcludedDetail, setShowExcludedDetail] = useState(false);
+
+  const breakdown = calculateTaskWorkdayBreakdown(
+    taskWorker,
+    startDate,
+    endDate,
+    holidays || [],
+    overrides || []
+  );
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!taskNameInput.trim()) {
@@ -116,6 +129,16 @@ export const TaskModal: React.FC<TaskModalProps> = ({
         alert(lang === 'vi' ? 'Lịch công việc phải nằm trong thời gian của dự án.' : '작업 일정은 프로젝트 기간 안에서만 설정할 수 있습니다.');
         return;
       }
+    }
+
+    if (breakdown.has_profile_error) {
+      alert(lang === 'vi' ? 'Không thể xác minh thông tin lịch làm việc của nhân viên.' : '작업자 캘린더 정보를 확인할 수 없습니다.');
+      return;
+    }
+
+    if (breakdown.planned_working_days === 0) {
+      alert(lang === 'vi' ? 'Không có ngày làm việc thực tế trong khoảng thời gian đã chọn.' : '선택한 기간에 실제 근무 가능한 날짜가 없습니다.');
+      return;
     }
 
     try {
@@ -150,30 +173,6 @@ export const TaskModal: React.FC<TaskModalProps> = ({
     }
   };
 
-  const currentWorkerName = task ? task.worker_name : currentWorker ? currentWorker.name : '';
-  const taskWorker = (workers && workers.find((w) => w.name === currentWorkerName)) || currentWorker;
-
-  const nonWorkingDaysNotice: Array<{ date: string; label: string }> = [];
-  if (startDate && endDate && startDate <= endDate && taskWorker) {
-    const s = new Date(`${startDate}T00:00:00`);
-    const e = new Date(`${endDate}T00:00:00`);
-    for (let cur = new Date(s); cur <= e; cur.setDate(cur.getDate() + 1)) {
-      const dStr = cur.toISOString().slice(0, 10);
-      const st = resolveWorkDayStatus(dStr, taskWorker as any, holidays || [], overrides || []);
-      if (!st.is_working_day) {
-        nonWorkingDaysNotice.push({
-          date: dStr,
-          label: lang === 'vi' ? st.label_vi : st.label_ko,
-        });
-      } else if (st.day_type === 'WORKDAY' && taskWorker.workweek_profile === 'MON_SAT' && cur.getDay() === 6) {
-        nonWorkingDaysNotice.push({
-          date: dStr,
-          label: lang === 'vi' ? 'Làm việc bình thường (Thứ 7)' : '베트남 정상 근무',
-        });
-      }
-    }
-  }
-
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 overflow-y-auto">
       <div
@@ -203,27 +202,6 @@ export const TaskModal: React.FC<TaskModalProps> = ({
               <span>
                 {lang === 'vi' ? `Thời gian dự án: ${project.start_date} ~ ${project.end_date}` : `프로젝트 기간: ${project.start_date} ~ ${project.end_date}`}
               </span>
-            </div>
-          )}
-
-          {/* Non-working days notice */}
-          {nonWorkingDaysNotice.length > 0 && (
-            <div data-testid="task-non-working-days-notice" className="bg-amber-50 border border-amber-200 px-3 py-2.5 rounded-lg text-amber-900 text-xs space-y-1">
-              <div className="font-bold flex items-center gap-1.5 text-amber-800">
-                <AlertCircle className="w-4 h-4 shrink-0 text-amber-600" />
-                <span>
-                  {lang === 'vi'
-                    ? 'Khoảng thời gian đã chọn có ngày không làm việc.'
-                    : '선택한 기간에 근무하지 않는 날짜가 포함되어 있습니다.'}
-                </span>
-              </div>
-              <ul className="pl-6 list-disc text-[11px] space-y-0.5 font-medium text-amber-800">
-                {nonWorkingDaysNotice.map((item) => (
-                  <li key={item.date}>
-                    {item.date}: {item.label}
-                  </li>
-                ))}
-              </ul>
             </div>
           )}
 
@@ -317,9 +295,44 @@ export const TaskModal: React.FC<TaskModalProps> = ({
             </div>
           </div>
 
+          {/* Compact Workday Summary */}
+          {startDate && endDate && startDate <= endDate && (
+            <div data-testid="task-workday-summary" className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 font-bold text-xs space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span>
+                    {lang === 'vi'
+                      ? `${breakdown.calendar_span_days} ngày theo lịch · ${breakdown.planned_working_days} ngày làm việc · Loại trừ ${breakdown.excluded_non_working_days} ngày nghỉ`
+                      : `달력 ${breakdown.calendar_span_days}일 · 실근무 ${breakdown.planned_working_days}일 · 휴무 제외 ${breakdown.excluded_non_working_days}일`}
+                  </span>
+                  <span data-testid="task-calendar-span-days" className="hidden">{breakdown.calendar_span_days}</span>
+                  <span data-testid="task-planned-working-days" className="hidden">{breakdown.planned_working_days}</span>
+                  <span data-testid="task-excluded-days" className="hidden">{breakdown.excluded_non_working_days}</span>
+                </div>
+                {breakdown.excluded_non_working_days > 0 && (
+                  <button
+                    type="button"
+                    data-testid="task-toggle-excluded-btn"
+                    onClick={() => setShowExcludedDetail(!showExcludedDetail)}
+                    className="text-[11px] text-blue-600 hover:underline shrink-0"
+                  >
+                    {showExcludedDetail ? (lang === 'vi' ? 'Ẩn chi tiết' : '접기') : (lang === 'vi' ? 'Chi tiết ngày nghỉ' : '제외일 상세')}
+                  </button>
+                )}
+              </div>
 
-
-          {/* Footer Actions */}
+              {showExcludedDetail && breakdown.excluded_dates_detail.length > 0 && (
+                <div className="pt-2 border-t border-slate-200 max-h-32 overflow-y-auto space-y-1 text-[11px] font-medium">
+                  {breakdown.excluded_dates_detail.map((item) => (
+                    <div key={item.date} className="flex items-center justify-between py-0.5 border-b border-slate-100 last:border-0">
+                      <span className="font-bold text-slate-800">{item.date}</span>
+                      <span className="text-slate-500">{lang === 'vi' ? item.label_vi : item.label_ko}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
           <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
             <button
               type="button"

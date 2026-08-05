@@ -15,12 +15,26 @@ import { Worker, CountryHoliday, CalendarOverride, WorkDayStatus, CountryCode, W
  */
 export function resolveWorkDayStatus(
   dateStr: string,
-  worker: { id: string; name: string; country_code?: CountryCode; workweek_profile?: WorkweekProfile },
+  worker: { id: string; name: string; country_code?: CountryCode; workweek_profile?: WorkweekProfile } | null | undefined,
   countryHolidays: CountryHoliday[],
   overrides: CalendarOverride[]
 ): WorkDayStatus {
-  const countryCode = worker.country_code || 'KR';
-  const profile = worker.workweek_profile || 'MON_FRI';
+  if (!worker || !worker.country_code || !worker.workweek_profile) {
+    return {
+      date: dateStr,
+      worker_id: worker?.id || '',
+      worker_name: worker?.name || '',
+      country_code: worker?.country_code,
+      day_type: 'MANUAL_OFF',
+      is_working_day: false,
+      label_ko: '작업자 캘린더 정보 오류',
+      label_vi: 'Lỗi thông tin lịch làm việc của nhân viên',
+      source: 'ERROR',
+    };
+  }
+
+  const countryCode = worker.country_code;
+  const profile = worker.workweek_profile;
 
   // Parse Day of Week (0 = Sun, 1 = Mon, ..., 6 = Sat)
   const d = new Date(`${dateStr}T00:00:00`);
@@ -157,5 +171,108 @@ export function resolveWorkDayStatus(
     label_ko: '근무일',
     label_vi: 'Ngày làm việc',
     source: 'WEEKLY',
+  };
+}
+
+export function calculateTaskWorkdayBreakdown(
+  worker: { id: string; name: string; country_code?: CountryCode; workweek_profile?: WorkweekProfile } | null | undefined,
+  startDate: string,
+  endDate: string,
+  countryHolidays: CountryHoliday[],
+  overrides: CalendarOverride[]
+) {
+  if (!worker || !worker.country_code || !worker.workweek_profile || !startDate || !endDate) {
+    return {
+      calendar_span_days: 0,
+      planned_working_days: 0,
+      excluded_non_working_days: 0,
+      excluded_weekly_off_days: 0,
+      excluded_public_holiday_days: 0,
+      excluded_leave_days: 0,
+      excluded_manual_off_days: 0,
+      included_work_override_days: 0,
+      excluded_dates_detail: [],
+      has_profile_error: true,
+    };
+  }
+
+  let curr = new Date(`${startDate}T00:00:00`);
+  const end = new Date(`${endDate}T00:00:00`);
+
+  if (isNaN(curr.getTime()) || isNaN(end.getTime()) || curr > end) {
+    return {
+      calendar_span_days: 0,
+      planned_working_days: 0,
+      excluded_non_working_days: 0,
+      excluded_weekly_off_days: 0,
+      excluded_public_holiday_days: 0,
+      excluded_leave_days: 0,
+      excluded_manual_off_days: 0,
+      included_work_override_days: 0,
+      excluded_dates_detail: [],
+      has_profile_error: false,
+    };
+  }
+
+  let calendar_span_days = 0;
+  let planned_working_days = 0;
+  let excluded_weekly_off_days = 0;
+  let excluded_public_holiday_days = 0;
+  let excluded_leave_days = 0;
+  let excluded_manual_off_days = 0;
+  let included_work_override_days = 0;
+
+  const excluded_dates_detail: Array<{ date: string; type: string; label_ko: string; label_vi: string }> = [];
+
+  while (curr <= end) {
+    const yyyy = curr.getFullYear();
+    const mm = String(curr.getMonth() + 1).padStart(2, '0');
+    const dd = String(curr.getDate()).padStart(2, '0');
+    const dateStr = `${yyyy}-${mm}-${dd}`;
+
+    calendar_span_days++;
+
+    const status = resolveWorkDayStatus(dateStr, worker, countryHolidays, overrides);
+
+    if (status.is_working_day) {
+      planned_working_days++;
+      if (status.day_type === 'WORK_OVERRIDE') {
+        included_work_override_days++;
+      }
+    } else {
+      if (status.day_type === 'WEEKLY_OFF') {
+        excluded_weekly_off_days++;
+      } else if (status.day_type === 'PUBLIC_HOLIDAY') {
+        excluded_public_holiday_days++;
+      } else if (status.day_type === 'LEAVE') {
+        excluded_leave_days++;
+      } else if (status.day_type === 'MANUAL_OFF') {
+        excluded_manual_off_days++;
+      }
+
+      excluded_dates_detail.push({
+        date: dateStr,
+        type: status.day_type,
+        label_ko: status.label_ko,
+        label_vi: status.label_vi,
+      });
+    }
+
+    curr.setDate(curr.getDate() + 1);
+  }
+
+  const excluded_non_working_days = calendar_span_days - planned_working_days;
+
+  return {
+    calendar_span_days,
+    planned_working_days,
+    excluded_non_working_days,
+    excluded_weekly_off_days,
+    excluded_public_holiday_days,
+    excluded_leave_days,
+    excluded_manual_off_days,
+    included_work_override_days,
+    excluded_dates_detail,
+    has_profile_error: false,
   };
 }

@@ -30,6 +30,7 @@ import { CalendarManagerModal } from '../components/modals/CalendarManagerModal'
 import { CalendarLegend } from '../components/common/CalendarLegend';
 import { DayActionPanel } from '../components/modals/DayActionPanel';
 import { DateHeaderInfoPanel } from '../components/modals/DateHeaderInfoPanel';
+import { WorkerUtilizationBadge } from '../components/common/WorkerUtilizationBadge';
 import {
   ArrowLeft,
   Plus,
@@ -556,6 +557,14 @@ export const ProjectDetailPage: React.FC = () => {
             <WorkerSelector
               currentWorker={currentWorker}
               onWorkerChange={handleSelectWorkerProfile}
+            />
+
+            <WorkerUtilizationBadge
+              worker={currentWorker}
+              tasks={tasks}
+              holidays={countryHolidays}
+              overrides={calendarOverrides}
+              compact={true}
             />
 
             {!isViewer && (!isCompleted ? (

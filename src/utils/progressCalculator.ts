@@ -27,12 +27,7 @@ export function calculateTaskProgress(
   referenceTodayStr?: string
 ): TaskProgressMetrics {
   const todayStr = referenceTodayStr || getTodayStrForWorker(worker);
-  const workerObj = worker || {
-    id: task.worker_name,
-    name: task.worker_name,
-    country_code: 'KR' as const,
-    workweek_profile: 'MON_FRI' as const,
-  };
+  const workerObj = worker;
 
   const dates: string[] = [];
   let curDate = new Date(`${task.start_date}T00:00:00Z`);

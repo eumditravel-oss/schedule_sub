@@ -1887,6 +1887,24 @@ function addPureCalendarDays(dateStr: string, deltaDays: number): string {
           }
         }
 
+        const batch = await fetchCalendarBatchData(db);
+        const taskWorker = batch.workers.find((w: any) => w.id === validated.worker_name || w.name === validated.worker_name);
+        if (!taskWorker || !taskWorker.country_code || !taskWorker.workweek_profile) {
+          return errorResponse('작업자 캘린더 정보를 확인할 수 없습니다.', 400, 'WORKER_PROFILE_NOT_FOUND');
+        }
+
+        const taskMetrics = calculateTaskProgressServer(
+          { start_date: validated.start_date, end_date: validated.end_date },
+          taskWorker,
+          batch.holidays,
+          batch.overrides
+        );
+        if (taskMetrics.planned_working_days === 0) {
+          const isVi = editCheck.worker?.ui_language === 'vi';
+          const msg = isVi ? 'Không có ngày làm việc thực tế trong khoảng thời gian đã chọn.' : '선택한 기간에 실제 근무 가능한 날짜가 없습니다.';
+          return errorResponse(msg, 400, 'WORKING_DAY_RANGE_EMPTY');
+        }
+
         if (body.confirm_worker_schedule_conflict !== true) {
           const [allActiveProjectsRes, allActiveTasksRes, batch] = await Promise.all([
             db.prepare(`SELECT * FROM projects WHERE status = 'ACTIVE'`).all(),
@@ -2006,14 +2024,34 @@ function addPureCalendarDays(dateStr: string, deltaDays: number): string {
         const validated = updateTaskSchema.parse({ ...body, editor_name: editor });
 
         const project = await db.prepare(`SELECT * FROM projects WHERE id = ?`).bind(existing.project_id).first();
+        const targetWorkerName = validated.worker_name ?? existing.worker_name;
+        const targetStart = validated.start_date ?? existing.start_date;
+        const targetEnd = validated.end_date ?? existing.end_date;
+
         if (project) {
-          const targetStart = validated.start_date ?? existing.start_date;
-          const targetEnd = validated.end_date ?? existing.end_date;
           if (targetStart < project.start_date || targetEnd > project.end_date || targetStart > targetEnd) {
             const isVi = editCheck.worker?.ui_language === 'vi';
             const msg = isVi ? 'Lịch công việc phải nằm trong thời gian của dự án.' : '작업 일정은 프로젝트 기간 안에서만 설정할 수 있습니다.';
             return errorResponse(msg, 409, 'TASK_OUTSIDE_PROJECT_RANGE');
           }
+        }
+
+        const batch = await fetchCalendarBatchData(db);
+        const taskWorker = batch.workers.find((w: any) => w.id === targetWorkerName || w.name === targetWorkerName);
+        if (!taskWorker || !taskWorker.country_code || !taskWorker.workweek_profile) {
+          return errorResponse('작업자 캘린더 정보를 확인할 수 없습니다.', 400, 'WORKER_PROFILE_NOT_FOUND');
+        }
+
+        const taskMetrics = calculateTaskProgressServer(
+          { start_date: targetStart, end_date: targetEnd },
+          taskWorker,
+          batch.holidays,
+          batch.overrides
+        );
+        if (taskMetrics.planned_working_days === 0) {
+          const isVi = editCheck.worker?.ui_language === 'vi';
+          const msg = isVi ? 'Không có ngày làm việc thực tế trong khoảng thời gian đã chọn.' : '선택한 기간에 실제 근무 가능한 날짜가 없습니다.';
+          return errorResponse(msg, 400, 'WORKING_DAY_RANGE_EMPTY');
         }
 
         let task_name_ko = existing.task_name_ko;

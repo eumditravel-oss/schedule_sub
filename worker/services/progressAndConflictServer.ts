@@ -27,12 +27,7 @@ export function calculateTaskProgressServer(
   referenceTodayStr?: string
 ): TaskProgressMetricsServer {
   const todayStr = referenceTodayStr || getTodayStrForWorkerServer(worker);
-  const workerObj = worker || {
-    id: task.worker_name,
-    name: task.worker_name,
-    country_code: 'KR',
-    workweek_profile: 'MON_FRI',
-  };
+  const workerObj = worker;
 
   const dates: string[] = [];
   let curDate = new Date(`${task.start_date}T00:00:00Z`);
@@ -190,12 +185,11 @@ export function detectWorkerTaskConflictsServer(
 
   const targetWorker = workers.find(
     (w) => w.id === target.worker_name || w.name === target.worker_name
-  ) || {
-    id: target.worker_name,
-    name: target.worker_name,
-    country_code: 'KR',
-    workweek_profile: 'MON_FRI',
-  };
+  );
+
+  if (!targetWorker || !targetWorker.country_code || !targetWorker.workweek_profile) {
+    return [];
+  }
 
   const activeProjectMap = new Map<string, any>();
   allProjects.forEach((p) => {
@@ -238,19 +232,21 @@ export function detectWorkerTaskConflictsServer(
         curDate.setUTCDate(curDate.getUTCDate() + 1);
       }
 
-      conflicts.push({
-        worker_id: targetWorker.id,
-        worker_name: targetWorker.name,
-        current_project_id: target.project_id,
-        conflict_project_id: otherProject.id,
-        conflict_project_name: otherProject.name_ko || otherProject.name,
-        current_task_id: target.id,
-        conflict_task_id: otherTask.id,
-        conflict_task_name: otherTask.task_name_ko || otherTask.task_name,
-        overlap_start_date: overlapStart,
-        overlap_end_date: overlapEnd,
-        overlapping_working_days: overlappingWorkingDays,
-      });
+      if (overlappingWorkingDays > 0) {
+        conflicts.push({
+          worker_id: targetWorker.id,
+          worker_name: targetWorker.name,
+          current_project_id: target.project_id,
+          conflict_project_id: otherProject.id,
+          conflict_project_name: otherProject.name_ko || otherProject.name,
+          current_task_id: target.id,
+          conflict_task_id: otherTask.id,
+          conflict_task_name: otherTask.task_name_ko || otherTask.task_name,
+          overlap_start_date: overlapStart,
+          overlap_end_date: overlapEnd,
+          overlapping_working_days: overlappingWorkingDays,
+        });
+      }
     }
   }
 

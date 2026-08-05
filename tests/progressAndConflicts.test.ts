@@ -2,6 +2,8 @@
 import { describe, it, expect } from 'vitest';
 import { calculateTaskProgress, calculateProjectProgress } from '../src/utils/progressCalculator';
 import { detectWorkerTaskConflicts } from '../src/utils/conflictDetector';
+import { calculateTaskWorkdayBreakdown, resolveWorkDayStatus } from '../src/utils/workCalendar';
+import { calculateWorkerUtilization } from '../src/components/common/WorkerUtilizationBadge';
 import { Task, Project, Worker, CountryHoliday, CalendarOverride } from '../src/types';
 
 describe('Phase 2 Automated Progress & Worker Conflict Test Suite (Requirement 21)', () => {
@@ -341,5 +343,101 @@ describe('Phase 2 Automated Progress & Worker Conflict Test Suite (Requirement 2
     expect(conflicts[0].conflict_task_name).toBe('기존 작업 1');
     // Overlap: 2026-08-05 (Wed), 2026-08-06 (Thu), 2026-08-07 (Fri) => 3 working days
     expect(conflicts[0].overlapping_working_days).toBe(3);
+  });
+
+  // 24. KR Saturday Auto Exclusion
+  it('24. KR MON_FRI worker Saturday auto exclusion', () => {
+    const bd = calculateTaskWorkdayBreakdown(krWorker, '2026-05-09', '2026-05-09', [], []);
+    expect(bd.calendar_span_days).toBe(1);
+    expect(bd.planned_working_days).toBe(0);
+    expect(bd.excluded_weekly_off_days).toBe(1);
+    expect(bd.excluded_non_working_days).toBe(1);
+  });
+
+  // 25. VN Saturday Workday Inclusion
+  it('25. VN MON_SAT worker Saturday workday inclusion', () => {
+    const bd = calculateTaskWorkdayBreakdown(vnWorker, '2026-05-09', '2026-05-09', [], []);
+    expect(bd.calendar_span_days).toBe(1);
+    expect(bd.planned_working_days).toBe(1);
+    expect(bd.excluded_weekly_off_days).toBe(0);
+  });
+
+  // 26. All Workers Sunday Exclusion
+  it('26. All workers Sunday auto exclusion', () => {
+    const krBd = calculateTaskWorkdayBreakdown(krWorker, '2026-05-10', '2026-05-10', [], []);
+    const vnBd = calculateTaskWorkdayBreakdown(vnWorker, '2026-05-10', '2026-05-10', [], []);
+    expect(krBd.planned_working_days).toBe(0);
+    expect(vnBd.planned_working_days).toBe(0);
+  });
+
+  // 27. Public Holiday Exclusions
+  it('27. KR and VN public holiday exclusions', () => {
+    const krHolidays: CountryHoliday[] = [{ id: 'h_kr', country_code: 'KR', holiday_date: '2026-05-05', name_local: '어린이날', source: 'KASI', source_year: 2026, is_verified: 1 }];
+    const vnHolidays: CountryHoliday[] = [{ id: 'h_vn', country_code: 'VN', holiday_date: '2026-04-30', name_local: 'Ngày Giải phóng', source: 'NAGER', source_year: 2026, is_verified: 1 }];
+
+    const krBd = calculateTaskWorkdayBreakdown(krWorker, '2026-05-05', '2026-05-05', krHolidays, []);
+    const vnBd = calculateTaskWorkdayBreakdown(vnWorker, '2026-04-30', '2026-04-30', vnHolidays, []);
+    expect(krBd.excluded_public_holiday_days).toBe(1);
+    expect(vnBd.excluded_public_holiday_days).toBe(1);
+  });
+
+  // 28. LEAVE and OFF Exclusions
+  it('28. LEAVE and OFF overrides excluded from planned working days', () => {
+    const overrides: CalendarOverride[] = [
+      { id: 'o_leave', scope_type: 'WORKER', scope_key: 'wrk_02', work_date: '2026-05-11', override_type: 'LEAVE' },
+      { id: 'o_off', scope_type: 'WORKER', scope_key: 'wrk_02', work_date: '2026-05-12', override_type: 'OFF' },
+    ];
+    const bd = calculateTaskWorkdayBreakdown(krWorker, '2026-05-11', '2026-05-12', [], overrides);
+    expect(bd.planned_working_days).toBe(0);
+    expect(bd.excluded_leave_days).toBe(1);
+    expect(bd.excluded_manual_off_days).toBe(1);
+  });
+
+  // 29. WORK Override Inclusion
+  it('29. WORK override includes weekend in planned working days', () => {
+    const overrides: CalendarOverride[] = [
+      { id: 'o_work', scope_type: 'WORKER', scope_key: 'wrk_02', work_date: '2026-05-09', override_type: 'WORK' },
+    ];
+    const bd = calculateTaskWorkdayBreakdown(krWorker, '2026-05-09', '2026-05-09', [], overrides);
+    expect(bd.planned_working_days).toBe(1);
+    expect(bd.included_work_override_days).toBe(1);
+  });
+
+  // 30. KR Saturday Overlap No Conflict vs VN Saturday Overlap Conflict
+  it('30. KR Saturday overlap has 0 working days conflict; VN Saturday overlap has 1 day conflict', () => {
+    const projects: Project[] = [
+      { id: 'p1', name: 'P1', start_date: '2026-05-01', end_date: '2026-05-31', progress: 0, status: 'ACTIVE' },
+      { id: 'p2', name: 'P2', start_date: '2026-05-01', end_date: '2026-05-31', progress: 0, status: 'ACTIVE' },
+    ];
+
+    const krTask: Task = { id: 't_kr1', project_id: 'p1', worker_name: '박용진 수석', task_name: 'KR1', start_date: '2026-05-09', end_date: '2026-05-09', progress: 0 };
+    const krTarget = { id: 't_kr2', project_id: 'p2', worker_name: '박용진 수석', start_date: '2026-05-09', end_date: '2026-05-09' };
+    const krConflicts = detectWorkerTaskConflicts(krTarget, projects, [krTask], [krWorker], [], []);
+    expect(krConflicts.length).toBe(0);
+
+    const vnTask: Task = { id: 't_vn1', project_id: 'p1', worker_name: 'Thanh Phuong(탄 프엉)', task_name: 'VN1', start_date: '2026-05-09', end_date: '2026-05-09', progress: 0 };
+    const vnTarget = { id: 't_vn2', project_id: 'p2', worker_name: 'Thanh Phuong(탄 프엉)', start_date: '2026-05-09', end_date: '2026-05-09' };
+    const vnConflicts = detectWorkerTaskConflicts(vnTarget, projects, [vnTask], [vnWorker], [], []);
+    expect(vnConflicts.length).toBe(1);
+    expect(vnConflicts[0].overlapping_working_days).toBe(1);
+  });
+
+  // 31. Worker Profile Missing Error
+  it('31. Missing worker profile returns profile error', () => {
+    const st = resolveWorkDayStatus('2026-05-09', null as any, [], []);
+    expect(st.source).toBe('ERROR');
+    expect(st.label_ko).toBe('작업자 캘린더 정보 오류');
+  });
+
+  // 32. Worker Utilization Calculation
+  it('32. Calculates worker monthly utilization rate and status level', () => {
+    const tasks: Task[] = [
+      { id: 't1', project_id: 'p1', worker_name: '박용진 수석', task_name: 'Task 1', start_date: '2026-08-01', end_date: '2026-08-31', progress: 0 },
+    ];
+    const util = calculateWorkerUtilization(krWorker, tasks, [], [], '2026-08-05');
+    expect(util.available_working_days).toBeGreaterThan(0);
+    expect(util.assigned_working_days).toBe(util.available_working_days);
+    expect(util.utilization_rate).toBe(100);
+    expect(util.status_level).toBe('OPTIMAL');
   });
 });
