@@ -173,11 +173,28 @@ test.describe('P0 Project Actions & Complete CRUD Regression Suite', () => {
     const updatedName = `[QA-PROJECT-ACTIONS-${runId}] 이름 수정 완료`;
     const nameInput = page.locator('[data-testid="project-name-input"]');
     await expect(nameInput).toBeVisible({ timeout: 5000 });
-    // Use triple-click + type to ensure React synthetic onChange fires
-    await nameInput.click({ clickCount: 3 });
-    await nameInput.press('Control+a');
-    await nameInput.type(updatedName, { delay: 30 });
+
+    // Use React fiber-compatible native input value setter to trigger synthetic onChange
+    await nameInput.evaluate((el: HTMLInputElement, value: string) => {
+      const nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
+      if (nativeInputValueSetter) {
+        nativeInputValueSetter.call(el, value);
+      } else {
+        el.value = value;
+      }
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+    }, updatedName);
+
     await page.waitForTimeout(300);
+
+    // Verify the input value was correctly set
+    const inputVal = await nameInput.inputValue();
+    if (inputVal !== updatedName) {
+      // Fallback: use fill()
+      await nameInput.fill(updatedName);
+      await page.waitForTimeout(300);
+    }
 
     const saveBtn = page.locator('[data-testid="project-save-btn"]');
     await expect(saveBtn).toBeEnabled({ timeout: 3000 });
@@ -185,7 +202,7 @@ test.describe('P0 Project Actions & Complete CRUD Regression Suite', () => {
 
     // Wait for network to settle after save
     await page.waitForLoadState('networkidle');
-    await page.waitForTimeout(500);
+    await page.waitForTimeout(1000);
 
     // Reload to verify persistence
     const projectRow = page.locator(`[data-testid="project-row-${createdProjectId}"]`);
