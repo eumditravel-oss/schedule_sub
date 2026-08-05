@@ -244,6 +244,13 @@ test.describe('Strict Gantt Inline Content & Build SHA E2E Suite', () => {
     await expect(versionIndicator).toBeVisible({ timeout: 10000 });
     await expect(versionIndicator).not.toContainText('Build mismatch');
 
+    // Wait for async /api/version state update
+    await page.waitForFunction(() => {
+      const el = document.querySelector('[data-testid="build-version-indicator"]');
+      const backend = el?.getAttribute('data-backend-sha');
+      return backend && backend !== 'unknown';
+    }, { timeout: 10000 });
+
     const frontendSha = await versionIndicator.getAttribute('data-frontend-sha');
     const backendSha = await versionIndicator.getAttribute('data-backend-sha');
 
