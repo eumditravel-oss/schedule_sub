@@ -84,11 +84,11 @@ export const TaskModal: React.FC<TaskModalProps> = ({
     const src = currentWorker?.ui_language || (task?.source_language as 'ko' | 'vi') || workerLang;
     setInputLang(src);
 
-    if (task) {
+    if (task && task.id) {
       setTaskGroupId(task.task_group_id || taskGroups[0]?.id || '');
       setManualLock(task.translation_status === 'MANUAL');
     } else {
-      setTaskGroupId(taskGroups[0]?.id || '');
+      setTaskGroupId((task as any)?.task_group_id || taskGroups[0]?.id || '');
       setManualLock(false);
     }
 

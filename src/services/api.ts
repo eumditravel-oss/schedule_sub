@@ -148,11 +148,22 @@ export const api = {
     return handleResponse<{ id: string }>(res);
   },
 
-  async updateTaskStructureOrder(projectId: string, groups: Array<{ group_id: string; sort_order: number; task_ids: string[] }>): Promise<any> {
+  async updateTaskStructureOrder(
+    projectId: string,
+    groups: Array<{ group_id: string; sort_order: number; task_ids: string[] }>,
+    details?: {
+      moved_task_id?: string;
+      source_group_id?: string;
+      target_group_id?: string;
+      target_index?: number;
+      change_type?: string;
+      group_reordered?: boolean;
+    }
+  ): Promise<any> {
     const res = await fetch(`/api/projects/${projectId}/task-structure-order`, {
       method: 'PATCH',
       headers: getWriteHeaders(),
-      body: JSON.stringify({ groups }),
+      body: JSON.stringify({ groups, ...details }),
     });
     return handleResponse<any>(res);
   },

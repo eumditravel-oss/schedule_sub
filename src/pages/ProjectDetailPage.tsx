@@ -5,6 +5,7 @@ import { Project, Task, TaskGroup, TaskGroupColorKey, Worker, CountryHoliday, Ca
 import { WorkerConflictModal } from '../components/modals/WorkerConflictModal';
 import { TaskGroupModal } from '../components/modals/TaskGroupModal';
 import { TaskGroupDeleteModal } from '../components/modals/TaskGroupDeleteModal';
+import { TaskMoveModal } from '../components/modals/TaskMoveModal';
 import { api, getCurrentWorkerId, setCurrentWorker as setCurrentWorkerApi } from '../services/api';
 import { calculateVisibleGanttSpan } from '../utils/dateUtils';
 import { resolveWorkDayStatus, getCountryOffState } from '../utils/workCalendar';
@@ -40,6 +41,26 @@ import { ScheduleBar } from '../components/gantt/ScheduleBar';
 import { getGanttSpanColumns } from '../utils/ganttOverlay';
 import { calculateTaskWorkdayBreakdown } from '../utils/workCalendar';
 import {
+  DndContext,
+  DragOverlay,
+  PointerSensor,
+  TouchSensor,
+  useSensor,
+  useSensors,
+  DragStartEvent,
+  DragEndEvent,
+  DragOverEvent,
+  useDroppable,
+  closestCenter,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  useSortable,
+  verticalListSortingStrategy,
+  arrayMove,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import {
   ArrowLeft,
   Plus,
   Edit2,
@@ -55,7 +76,442 @@ import {
   ChevronRight,
   FolderPlus,
   ChevronDown,
+  GripVertical,
+  ArrowRightLeft,
+  RotateCw,
 } from 'lucide-react';
+
+interface SortableTaskRowProps {
+  tItem: Task;
+  tIdx: number;
+  groupNum: number;
+  dateColumns: any[];
+  workers: Worker[];
+  countryHolidays: CountryHoliday[];
+  calendarOverrides: CalendarOverride[];
+  isViewer: boolean;
+  isCompleted: boolean;
+  lang: string;
+  t: (key: any) => string;
+  onEditTask: (tItem: Task) => void;
+  onDeleteTask: (tItem: Task) => void;
+  onMoveTask: (tItem: Task) => void;
+  onCellClick: (tItem: Task, dateStr: string, dayStatus: any, workerObj: any) => void;
+}
+
+const SortableTaskRow: React.FC<SortableTaskRowProps> = ({
+  tItem,
+  tIdx,
+  groupNum,
+  dateColumns,
+  workers,
+  countryHolidays,
+  calendarOverrides,
+  isViewer,
+  isCompleted,
+  lang,
+  t,
+  onEditTask,
+  onDeleteTask,
+  onMoveTask,
+  onCellClick,
+}) => {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({
+    id: tItem.id,
+    disabled: isViewer || isCompleted,
+  });
+
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.35 : 1,
+  };
+
+  const taskNumStr = `${groupNum}.${tIdx + 1}`;
+  const taskTitle = lang === 'vi' ? (tItem.task_name_vi || tItem.task_name) : (tItem.task_name_ko || tItem.task_name);
+
+  const assignees = tItem.assignees || [];
+  const primaryAssignee = assignees.find((a) => a.assignment_role === 'PRIMARY') || assignees[0];
+  const primaryWorkerName = primaryAssignee ? (primaryAssignee.name || primaryAssignee.worker_id) : (tItem.worker_name || '미배정');
+  const extraCount = Math.max(0, assignees.length - 1);
+
+  const spanInfo = getGanttSpanColumns(tItem.start_date, tItem.end_date, dateColumns);
+
+  return (
+    <tr
+      ref={setNodeRef}
+      style={style}
+      data-testid={`task-row-${tItem.id}`}
+      className={`hover:bg-slate-50 transition border-b border-slate-200 h-11 ${isDragging ? 'bg-blue-50/50' : ''}`}
+    >
+      <td className="sticky left-0 z-10 bg-white hover:bg-slate-50 border-r border-slate-200 px-2 py-1 align-middle w-[360px] lg:w-[420px]">
+        <div className="flex items-center justify-between text-xs min-w-0">
+          <div className="flex items-center gap-1.5 min-w-0 w-[180px] lg:w-[220px]">
+            {!isViewer && !isCompleted && (
+              <button
+                type="button"
+                data-testid={`task-drag-handle-${tItem.id}`}
+                {...attributes}
+                {...listeners}
+                className="w-5 h-7 flex items-center justify-center rounded-xs text-slate-300 hover:text-slate-600 hover:bg-slate-100 cursor-grab active:cursor-grabbing shrink-0 transition"
+                title="드래그하여 공정 이동 또는 순서 변경"
+              >
+                <GripVertical className="w-3.5 h-3.5" />
+              </button>
+            )}
+            <span className="font-bold text-slate-400 shrink-0 text-[11px]">{taskNumStr}</span>
+            <span className="font-extrabold text-slate-800 truncate" title={taskTitle}>
+              {taskTitle}
+            </span>
+          </div>
+
+          <div className="w-[126px] lg:w-[150px] shrink-0 px-1 truncate flex items-center gap-1">
+            <span className="px-1.5 py-0.5 rounded-md bg-slate-100 border border-slate-200 text-slate-700 font-bold text-[11px] truncate max-w-[100px]">
+              {primaryWorkerName}
+            </span>
+            {extraCount > 0 && (
+              <span className="px-1 py-0.5 rounded-full bg-blue-100 text-blue-700 font-bold text-[10px] shrink-0" title={`추가 담당자 ${extraCount}명`}>
+                +{extraCount}
+              </span>
+            )}
+          </div>
+
+          <div className="w-[48px] lg:w-[50px] shrink-0 flex items-center justify-end gap-1">
+            {!isViewer && !isCompleted && (
+              <>
+                <button
+                  type="button"
+                  data-testid={`task-move-menu-${tItem.id}`}
+                  onClick={() => onMoveTask(tItem)}
+                  className="p-1 rounded-md text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition"
+                  title={lang === 'vi' ? 'Chuyển sang nhóm khác' : '다른 공정으로 이동'}
+                >
+                  <ArrowRightLeft className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  type="button"
+                  data-testid={`task-edit-btn-${tItem.id}`}
+                  onClick={() => onEditTask(tItem)}
+                  className="p-1 rounded-md text-slate-400 hover:text-blue-600 hover:bg-slate-100 transition"
+                >
+                  <Edit2 className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  type="button"
+                  data-testid={`task-delete-btn-${tItem.id}`}
+                  onClick={() => onDeleteTask(tItem)}
+                  className="p-1 rounded-md text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      </td>
+
+      {dateColumns.map((col, cIdx) => {
+        const isInRange = col.dateStr >= tItem.start_date && col.dateStr <= tItem.end_date;
+        const workerObj = workers.find((w) => w.name === tItem.worker_name) || null;
+        const dayStatus = resolveWorkDayStatus(col.dateStr, (workerObj || { id: tItem.worker_name, name: tItem.worker_name }) as any, countryHolidays, calendarOverrides);
+
+        const isFirstCol = spanInfo ? spanInfo.startIndex === cIdx : false;
+        const spanCount = spanInfo ? spanInfo.spanCount : 1;
+
+        return (
+          <td
+            key={cIdx}
+            data-testid={`task-cell-${tItem.id}-${col.dateStr}`}
+            onClick={() => onCellClick(tItem, col.dateStr, dayStatus, workerObj)}
+            style={{ width: `${GANTT_DAY_WIDTH_PX}px`, minWidth: `${GANTT_DAY_WIDTH_PX}px`, maxWidth: `${GANTT_DAY_WIDTH_PX}px` }}
+            className={`relative p-0 border-r border-slate-200 text-center select-none cursor-pointer ${
+              isInRange ? 'bg-blue-50/40' : ''
+            }`}
+          >
+            <WorkerDayCellBackground
+              dateStr={col.dateStr}
+              worker={workerObj as any}
+              assignees={tItem.assignees}
+              availabilityPolicy={tItem.availability_policy}
+              dayStatus={dayStatus}
+              countryHolidays={countryHolidays}
+              calendarOverrides={calendarOverrides}
+              workers={workers}
+              isToday={col.isToday}
+            />
+
+            {isFirstCol && (
+              <div
+                className="absolute left-0 top-0 bottom-0 z-30 flex items-center px-1"
+                style={{ width: `${spanCount * GANTT_DAY_WIDTH_PX}px` }}
+              >
+                <ScheduleBar
+                  title={taskTitle}
+                  startDate={tItem.start_date}
+                  endDate={tItem.end_date}
+                  calendarSpanDays={spanCount}
+                  plannedWorkingDays={tItem.planned_working_days || spanCount}
+                  plannedProgress={tItem.planned_progress ?? tItem.progress ?? 0}
+                  actualProgress={tItem.actual_progress ?? tItem.progress ?? 0}
+                  status={tItem.schedule_state || 'UPCOMING'}
+                  hasConflict={tItem.has_schedule_conflict}
+                  onClick={() => onEditTask(tItem)}
+                />
+              </div>
+            )}
+          </td>
+        );
+      })}
+    </tr>
+  );
+};
+
+interface DroppableTaskGroupRowProps {
+  group: TaskGroup;
+  groupNum: number;
+  groupTasks: Task[];
+  isCollapsed: boolean;
+  dateColumnsCount: number;
+  isViewer: boolean;
+  isCompleted: boolean;
+  lang: string;
+  onToggleCollapse: (groupId: string) => void;
+  onOpenEditGroup: (group: TaskGroup) => void;
+  onOpenDeleteGroup: (group: TaskGroup, taskCount: number) => void;
+  onOpenAddTaskInGroup: (groupId: string) => void;
+  isOver: boolean;
+}
+
+const DroppableTaskGroupRow: React.FC<DroppableTaskGroupRowProps> = ({
+  group,
+  groupNum,
+  groupTasks,
+  isCollapsed,
+  dateColumnsCount,
+  isViewer,
+  isCompleted,
+  lang,
+  onToggleCollapse,
+  onOpenEditGroup,
+  onOpenDeleteGroup,
+  onOpenAddTaskInGroup,
+  isOver,
+}) => {
+  const { setNodeRef: setDropNodeRef } = useDroppable({
+    id: `drop-group-${group.id}`,
+  });
+
+  const {
+    attributes,
+    listeners,
+    setNodeRef: setSortableNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({
+    id: group.id,
+    disabled: isViewer || isCompleted,
+  });
+
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.4 : 1,
+  };
+
+  const groupName = lang === 'vi' ? (group.group_name_vi || group.group_name) : (group.group_name_ko || group.group_name);
+  const colorKey = group.color_key || 'BLUE';
+
+  const GROUP_BORDER_COLORS: Record<TaskGroupColorKey, string> = {
+    BLUE: 'border-l-blue-500',
+    GREEN: 'border-l-emerald-500',
+    ORANGE: 'border-l-amber-500',
+    VIOLET: 'border-l-purple-500',
+    SLATE: 'border-l-slate-500',
+  };
+
+  return (
+    <tr
+      ref={(node) => {
+        setDropNodeRef(node);
+        setSortableNodeRef(node);
+      }}
+      style={style}
+      data-testid={`task-group-row-${group.id}`}
+      data-testid-dropzone={`task-group-drop-zone-${group.id}`}
+      className={`transition h-10 border-b border-slate-200 ${
+        isOver
+          ? 'bg-blue-100/90 border-2 border-dashed border-blue-500'
+          : 'bg-slate-100/90 hover:bg-slate-200/80'
+      }`}
+    >
+      <td
+        className={`sticky left-0 z-10 px-2 py-1 border-r border-slate-200 border-l-4 ${GROUP_BORDER_COLORS[colorKey]} align-middle w-[360px] lg:w-[420px] ${
+          isOver ? 'bg-blue-100' : 'bg-slate-100/90'
+        }`}
+      >
+        <div className="flex items-center justify-between text-xs font-bold text-slate-800">
+          <div className="flex items-center gap-1 min-w-0 pr-2">
+            {!isViewer && !isCompleted && (
+              <button
+                type="button"
+                data-testid={`task-group-drag-handle-${group.id}`}
+                {...attributes}
+                {...listeners}
+                className="w-5 h-7 flex items-center justify-center rounded-xs text-slate-400 hover:text-slate-700 hover:bg-slate-200/70 cursor-grab active:cursor-grabbing shrink-0 transition"
+                title="공정 순서 변경"
+              >
+                <GripVertical className="w-3.5 h-3.5" />
+              </button>
+            )}
+
+            <button
+              type="button"
+              data-testid={`task-group-toggle-${group.id}`}
+              onClick={() => onToggleCollapse(group.id)}
+              className="p-1 rounded-md hover:bg-slate-200 text-slate-600 transition shrink-0"
+            >
+              {isCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+            </button>
+
+            <span className="font-extrabold text-blue-900 shrink-0 text-xs">{groupNum}.</span>
+            <span className="font-extrabold text-slate-900 truncate" title={groupName}>
+              {groupName}
+            </span>
+            <span className="px-1.5 py-0.5 rounded-full bg-slate-200 text-slate-700 font-bold text-[10px] shrink-0 ml-1">
+              {groupTasks.length}
+            </span>
+
+            {isOver && (
+              <span className="px-1.5 py-0.5 rounded-md bg-blue-600 text-white font-bold text-[10px] animate-pulse shrink-0 ml-1">
+                {lang === 'vi' ? 'Thả vào đây để chuyển nhóm' : '여기에 놓아 공정 이동'}
+              </span>
+            )}
+          </div>
+
+          <div className="flex items-center gap-1 shrink-0">
+            {!isViewer && !isCompleted && (
+              <>
+                <button
+                  type="button"
+                  data-testid={`task-group-add-task-${group.id}`}
+                  onClick={() => onOpenAddTaskInGroup(group.id)}
+                  className="px-2 py-0.5 rounded-md bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 font-bold text-[11px] flex items-center gap-0.5 transition"
+                >
+                  <Plus className="w-3 h-3 text-blue-600" />
+                  <span>{lang === 'vi' ? '+ Thêm' : '+ 세부 작업'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  data-testid={`task-group-edit-${group.id}`}
+                  onClick={() => onOpenEditGroup(group)}
+                  className="p-1 rounded-md text-slate-500 hover:text-blue-600 hover:bg-slate-200/60 transition"
+                >
+                  <Edit2 className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  type="button"
+                  data-testid={`task-group-delete-${group.id}`}
+                  onClick={() => onOpenDeleteGroup(group, groupTasks.length)}
+                  className="p-1 rounded-md text-slate-500 hover:text-rose-600 hover:bg-slate-200/60 transition"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      </td>
+
+      <td colSpan={dateColumnsCount} className={`p-0 ${isOver ? 'bg-blue-50/50' : ''}`} />
+    </tr>
+  );
+};
+
+const EmptyGroupDropZoneCard: React.FC<{
+  groupId: string;
+  dateColumnsCount: number;
+  lang: string;
+  isOver: boolean;
+}> = ({ groupId, dateColumnsCount, lang, isOver }) => {
+  const { setNodeRef } = useDroppable({
+    id: `drop-group-${groupId}`,
+  });
+
+  return (
+    <tr
+      ref={setNodeRef}
+      data-testid={`task-group-empty-drop-zone-${groupId}`}
+      className={`h-9 border-b border-dashed border-slate-300 transition ${
+        isOver ? 'bg-blue-100 border-blue-500 font-bold text-blue-800' : 'bg-slate-50/70 text-slate-400'
+      }`}
+    >
+      <td className="sticky left-0 z-10 bg-slate-50 px-4 py-1.5 border-r border-slate-200 text-xs font-semibold text-center italic">
+        {lang === 'vi' ? 'Kéo công việc chi tiết vào đây' : '세부 작업을 여기에 끌어오세요'}
+      </td>
+      <td colSpan={dateColumnsCount} />
+    </tr>
+  );
+};
+
+const TaskDragOverlay: React.FC<{ activeDragItem: any; lang: string }> = ({ activeDragItem, lang }) => {
+  if (!activeDragItem) return null;
+
+  if (activeDragItem.type === 'TASK' && activeDragItem.task) {
+    const tItem = activeDragItem.task;
+    const taskTitle = lang === 'vi' ? (tItem.task_name_vi || tItem.task_name) : (tItem.task_name_ko || tItem.task_name);
+    const assignees = tItem.assignees || [];
+    const primaryAssignee = assignees.find((a: any) => a.assignment_role === 'PRIMARY') || assignees[0];
+    const primaryWorkerName = primaryAssignee ? (primaryAssignee.name || primaryAssignee.worker_id) : (tItem.worker_name || '미배정');
+    const extraCount = Math.max(0, assignees.length - 1);
+
+    return (
+      <div
+        data-testid="task-drag-overlay"
+        className="w-[320px] h-10 px-3 bg-white border border-blue-400 rounded-xl shadow-xl flex items-center justify-between text-xs opacity-95 pointer-events-none cursor-grabbing"
+      >
+        <div className="flex items-center gap-2 truncate min-w-0">
+          <GripVertical className="w-4 h-4 text-blue-600 shrink-0" />
+          <span className="font-extrabold text-slate-800 truncate">{taskTitle}</span>
+        </div>
+        <div className="flex items-center gap-1 shrink-0 ml-2">
+          <span className="px-1.5 py-0.5 rounded-md bg-blue-50 border border-blue-200 text-blue-800 font-bold text-[11px]">
+            {primaryWorkerName}
+          </span>
+          {extraCount > 0 && (
+            <span className="px-1.5 py-0.5 rounded-full bg-blue-600 text-white font-bold text-[10px]">
+              +{extraCount}
+            </span>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  if (activeDragItem.type === 'GROUP' && activeDragItem.group) {
+    const group = activeDragItem.group;
+    const groupName = lang === 'vi' ? (group.group_name_vi || group.group_name) : (group.group_name_ko || group.group_name);
+    return (
+      <div
+        data-testid="task-drag-overlay"
+        className="w-[300px] h-10 px-3 bg-slate-900 text-white rounded-xl shadow-2xl flex items-center gap-2 text-xs font-extrabold opacity-95 pointer-events-none cursor-grabbing"
+      >
+        <GripVertical className="w-4 h-4 text-blue-400" />
+        <span>{groupName}</span>
+      </div>
+    );
+  }
+
+  return null;
+};
 
 export const ProjectDetailPage: React.FC = () => {
   const { projectId } = useParams<{ projectId: string }>();
@@ -86,6 +542,54 @@ export const ProjectDetailPage: React.FC = () => {
     group: null,
     taskCount: 0,
   });
+
+  // Task Move Modal State
+  const [moveModalState, setMoveModalState] = useState<{
+    isOpen: boolean;
+    task: Task | null;
+  }>({
+    isOpen: false,
+    task: null,
+  });
+
+  // Toast with Undo state
+  const [toastState, setToastState] = useState<{
+    isOpen: boolean;
+    message: string;
+    undoData?: {
+      previousGroups: TaskGroup[];
+      previousTasks: Task[];
+    } | null;
+  }>({
+    isOpen: false,
+    message: '',
+    undoData: null,
+  });
+
+  // DND Active State
+  const [activeDragItem, setActiveDragItem] = useState<{
+    type: 'TASK' | 'GROUP';
+    id: string;
+    task?: Task;
+    group?: TaskGroup;
+  } | null>(null);
+
+  const [overGroupId, setOverGroupId] = useState<string | null>(null);
+
+  const pointerSensor = useSensor(PointerSensor, {
+    activationConstraint: {
+      distance: 5,
+    },
+  });
+
+  const touchSensor = useSensor(TouchSensor, {
+    activationConstraint: {
+      delay: 250,
+      tolerance: 5,
+    },
+  });
+
+  const sensors = useSensors(pointerSensor, touchSensor);
 
   const [workers, setWorkers] = useState<Worker[]>([]);
   const [countryHolidays, setCountryHolidays] = useState<CountryHoliday[]>([]);
@@ -407,6 +911,255 @@ export const ProjectDetailPage: React.FC = () => {
       await fetchProjectDetail();
       setDeleteGroupModalState({ isOpen: false, group: null, taskCount: 0 });
     } catch (err: any) {
+      alert(getLocalizedErrorMessage(err, t));
+    }
+  };
+
+  const handleOpenAddTaskInGroup = (groupId: string) => {
+    if (isViewer) {
+      alert(lang === 'vi' ? 'Tài khoản quản lý chỉ có quyền xem lịch trình.' : '경영진 계정은 일정을 조회할 수만 있습니다.');
+      return;
+    }
+    if (isCompleted) {
+      alert(t('readOnlyCompletedNotice'));
+      return;
+    }
+    if (!requireWorkerSelection()) return;
+
+    setSelectedTask({
+      task_group_id: groupId,
+    } as any);
+    setIsTaskModalOpen(true);
+  };
+
+  // Helper to build group structure payload for API
+  const buildGroupStructurePayload = (groupsList: TaskGroup[], tasksList: Task[]) => {
+    const payloadGroups = groupsList.map((grp, gIdx) => {
+      const groupTasks = tasksList.filter(
+        (tItem) => tItem.task_group_id === grp.id || (!tItem.task_group_id && gIdx === 0)
+      );
+      return {
+        group_id: grp.id,
+        sort_order: gIdx + 1,
+        task_ids: groupTasks.map((tItem) => tItem.id),
+      };
+    });
+    return { groups: payloadGroups };
+  };
+
+  const handleDragStart = (event: DragStartEvent) => {
+    const { active } = event;
+    const activeId = String(active.id);
+
+    const taskObj = tasks.find((tItem) => tItem.id === activeId);
+    if (taskObj) {
+      setActiveDragItem({ type: 'TASK', id: activeId, task: taskObj });
+      return;
+    }
+
+    const groupObj = taskGroups.find((g) => g.id === activeId);
+    if (groupObj) {
+      setActiveDragItem({ type: 'GROUP', id: activeId, group: groupObj });
+    }
+  };
+
+  const handleDragOver = (event: DragOverEvent) => {
+    const { over } = event;
+    if (!over) {
+      setOverGroupId(null);
+      return;
+    }
+    const overId = String(over.id);
+    if (overId.startsWith('drop-group-')) {
+      setOverGroupId(overId.replace('drop-group-', ''));
+    } else {
+      const overTask = tasks.find((tItem) => tItem.id === overId);
+      if (overTask && overTask.task_group_id) {
+        setOverGroupId(overTask.task_group_id);
+      }
+    }
+  };
+
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
+    setActiveDragItem(null);
+    setOverGroupId(null);
+
+    if (!over || isViewer || isCompleted) return;
+
+    const activeId = String(active.id);
+    const overId = String(over.id);
+
+    const previousGroups = [...taskGroups];
+    const previousTasks = [...tasks];
+
+    // CASE 1: Task Dragging
+    const activeTask = tasks.find((tItem) => tItem.id === activeId);
+    if (activeTask) {
+      let targetGroupId: string | null = null;
+      let targetIndex = 0;
+
+      if (overId.startsWith('drop-group-')) {
+        targetGroupId = overId.replace('drop-group-', '');
+        const targetTasks = tasks.filter((tItem) => tItem.task_group_id === targetGroupId);
+        targetIndex = targetTasks.length;
+      } else {
+        const overTask = tasks.find((tItem) => tItem.id === overId);
+        if (overTask) {
+          targetGroupId = overTask.task_group_id || taskGroups[0]?.id;
+          const targetGroupTasks = tasks.filter((tItem) => (tItem.task_group_id || taskGroups[0]?.id) === targetGroupId);
+          targetIndex = targetGroupTasks.findIndex((tItem) => tItem.id === overId);
+        }
+      }
+
+      if (!targetGroupId) return;
+
+      const sourceGroupId = activeTask.task_group_id || taskGroups[0]?.id;
+      const targetGroupObj = taskGroups.find((g) => g.id === targetGroupId) || taskGroups[0];
+      const targetGroupName = lang === 'vi' ? (targetGroupObj?.group_name_vi || targetGroupObj?.group_name) : (targetGroupObj?.group_name_ko || targetGroupObj?.group_name);
+
+      const updatedTasks = tasks.map((tItem) => {
+        if (tItem.id === activeId) {
+          return { ...tItem, task_group_id: targetGroupId! };
+        }
+        return tItem;
+      });
+
+      setTasks(updatedTasks);
+
+      const isGroupChanged = sourceGroupId !== targetGroupId;
+      const toastMsg = isGroupChanged
+        ? (lang === 'vi' ? `Đã chuyển công việc sang nhóm '${targetGroupName}'.` : `작업을 '${targetGroupName}' 공정으로 이동했습니다.`)
+        : (lang === 'vi' ? 'Đã thay đổi thứ tự công việc.' : '작업 순서를 변경했습니다.');
+
+      setToastState({
+        isOpen: true,
+        message: toastMsg,
+        undoData: { previousGroups, previousTasks },
+      });
+
+      setTimeout(() => {
+        setToastState((prev) => (prev.message === toastMsg ? { ...prev, isOpen: false } : prev));
+      }, 5000);
+
+      try {
+        const payload = buildGroupStructurePayload(taskGroups, updatedTasks);
+        await api.updateTaskStructureOrder(projectId!, payload.groups, {
+          moved_task_id: activeId,
+          source_group_id: sourceGroupId,
+          target_group_id: targetGroupId,
+          target_index: targetIndex,
+        });
+      } catch (err: any) {
+        setTasks(previousTasks);
+        setToastState({
+          isOpen: true,
+          message: getLocalizedErrorMessage(err, t),
+          undoData: null,
+        });
+      }
+      return;
+    }
+
+    // CASE 2: TaskGroup Dragging
+    const activeGroupIndex = taskGroups.findIndex((g) => g.id === activeId);
+    let overGroupIndex = taskGroups.findIndex((g) => g.id === overId || `drop-group-${g.id}` === overId);
+
+    if (activeGroupIndex !== -1 && overGroupIndex !== -1 && activeGroupIndex !== overGroupIndex) {
+      const reorderedGroups = arrayMove(taskGroups, activeGroupIndex, overGroupIndex).map((g, idx) => ({
+        ...g,
+        sort_order: idx + 1,
+      }));
+
+      setTaskGroups(reorderedGroups);
+
+      const toastMsg = lang === 'vi' ? 'Đã thay đổi thứ tự nhóm công việc.' : '공정 대분류 순서를 변경했습니다.';
+      setToastState({
+        isOpen: true,
+        message: toastMsg,
+        undoData: { previousGroups, previousTasks },
+      });
+
+      setTimeout(() => {
+        setToastState((prev) => (prev.message === toastMsg ? { ...prev, isOpen: false } : prev));
+      }, 5000);
+
+      try {
+        const payload = buildGroupStructurePayload(reorderedGroups, tasks);
+        await api.updateTaskStructureOrder(projectId!, payload.groups, {
+          group_reordered: true,
+        });
+      } catch (err: any) {
+        setTaskGroups(previousGroups);
+        setToastState({
+          isOpen: true,
+          message: getLocalizedErrorMessage(err, t),
+          undoData: null,
+        });
+      }
+    }
+  };
+
+  const handleUndoStructure = async () => {
+    if (!toastState.undoData || !projectId) return;
+    const { previousGroups, previousTasks } = toastState.undoData;
+
+    setTaskGroups(previousGroups);
+    setTasks(previousTasks);
+    setToastState({ isOpen: false, message: '', undoData: null });
+
+    try {
+      const payload = buildGroupStructurePayload(previousGroups, previousTasks);
+      await api.updateTaskStructureOrder(projectId, payload.groups, {
+        change_type: 'UNDO_RESTORED',
+      });
+    } catch (err: any) {
+      alert(getLocalizedErrorMessage(err, t));
+      await fetchProjectDetail();
+    }
+  };
+
+  const handleMoveTaskToGroup = async (taskId: string, targetGroupId: string) => {
+    if (!projectId) return;
+    const activeTask = tasks.find((tItem) => tItem.id === taskId);
+    if (!activeTask) return;
+
+    const previousGroups = [...taskGroups];
+    const previousTasks = [...tasks];
+    const sourceGroupId = activeTask.task_group_id || taskGroups[0]?.id;
+
+    const targetGroupObj = taskGroups.find((g) => g.id === targetGroupId) || taskGroups[0];
+    const targetGroupName = lang === 'vi' ? (targetGroupObj?.group_name_vi || targetGroupObj?.group_name) : (targetGroupObj?.group_name_ko || targetGroupObj?.group_name);
+
+    const updatedTasks = tasks.map((tItem) => {
+      if (tItem.id === taskId) {
+        return { ...tItem, task_group_id: targetGroupId };
+      }
+      return tItem;
+    });
+
+    setTasks(updatedTasks);
+
+    const toastMsg = lang === 'vi' ? `Đã chuyển công việc sang nhóm '${targetGroupName}'.` : `작업을 '${targetGroupName}' 공정으로 이동했습니다.`;
+    setToastState({
+      isOpen: true,
+      message: toastMsg,
+      undoData: { previousGroups, previousTasks },
+    });
+
+    setTimeout(() => {
+      setToastState((prev) => (prev.message === toastMsg ? { ...prev, isOpen: false } : prev));
+    }, 5000);
+
+    try {
+      const payload = buildGroupStructurePayload(taskGroups, updatedTasks);
+      await api.updateTaskStructureOrder(projectId, payload.groups, {
+        moved_task_id: taskId,
+        source_group_id: sourceGroupId,
+        target_group_id: targetGroupId,
+      });
+    } catch (err: any) {
+      setTasks(previousTasks);
       alert(getLocalizedErrorMessage(err, t));
     }
   };
@@ -1051,232 +1804,86 @@ export const ProjectDetailPage: React.FC = () => {
                       { id: 'default', project_id: projectId!, group_name: '기존 작업', group_name_ko: '기존 작업', group_name_vi: 'Công việc hiện có', color_key: 'BLUE' as TaskGroupColorKey, sort_order: 1 }
                     ];
 
-                    const GROUP_BORDER_COLORS: Record<TaskGroupColorKey, string> = {
-                      BLUE: 'border-l-blue-500',
-                      GREEN: 'border-l-emerald-500',
-                      ORANGE: 'border-l-amber-500',
-                      VIOLET: 'border-l-purple-500',
-                      SLATE: 'border-l-slate-500',
-                    };
+                    const groupIds = groupsToRender.map((g) => g.id);
 
-                    return groupsToRender.map((group, gIdx) => {
-                      const groupNum = gIdx + 1;
-                      const groupName = lang === 'vi' ? (group.group_name_vi || group.group_name) : (group.group_name_ko || group.group_name);
-                      const groupTasks = tasks.filter((tItem) => tItem.task_group_id === group.id || (!tItem.task_group_id && gIdx === 0));
-                      const isCollapsed = !!collapsedGroupIds[group.id];
-
-                      return (
-                        <React.Fragment key={group.id}>
-                          {/* Task Group Header Row */}
-                          <tr
-                            data-testid={`task-group-row-${group.id}`}
-                            className="bg-slate-100/90 hover:bg-slate-200/80 transition"
-                          >
-                            <td className={`sticky left-0 z-10 bg-slate-100/90 px-3 py-1 border-r border-slate-200 border-b border-l-4 ${GROUP_BORDER_COLORS[group.color_key || 'BLUE']} h-10 align-middle w-[360px] lg:w-[420px]`}>
-                              <div className="flex items-center justify-between text-xs font-bold text-slate-800">
-                                <div className="flex items-center gap-1.5 min-w-0 pr-2">
-                                  <button
-                                    type="button"
-                                    data-testid={`task-group-toggle-${group.id}`}
-                                    onClick={() => toggleGroupCollapse(group.id)}
-                                    className="p-1 rounded hover:bg-slate-300/60 text-slate-600 transition shrink-0"
-                                  >
-                                    {isCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                                  </button>
-                                  <span className="font-extrabold text-slate-900 truncate">
-                                    {groupNum}. {groupName}
-                                  </span>
-                                  {isCollapsed && (
-                                    <span className="text-[11px] text-slate-500 font-semibold shrink-0">
-                                      · {groupTasks.length}{lang === 'vi' ? ' công việc' : '개 작업'}
-                                    </span>
-                                  )}
-                                </div>
-
-                                {!isViewer && !isCompleted && group.id !== 'default' && (
-                                  <div className="flex items-center gap-1 shrink-0">
-                                    <button
-                                      type="button"
-                                      data-testid={`task-group-edit-${group.id}`}
-                                      onClick={() => handleOpenEditGroup(group)}
-                                      className="p-1 rounded hover:bg-slate-300/60 text-slate-600 transition"
-                                      title={lang === 'vi' ? 'Sửa nhóm' : '대분류 수정'}
-                                    >
-                                      <Edit2 className="w-3.5 h-3.5" />
-                                    </button>
-                                    <button
-                                      type="button"
-                                      data-testid={`task-group-delete-${group.id}`}
-                                      onClick={() => handleDeleteGroup(group)}
-                                      className="p-1 rounded hover:bg-rose-200 text-rose-700 transition"
-                                      title={lang === 'vi' ? 'Xóa nhóm' : '대분류 삭제'}
-                                    >
-                                      <Trash2 className="w-3.5 h-3.5" />
-                                    </button>
-                                  </div>
-                                )}
-                              </div>
-                            </td>
-                            <td colSpan={dateColumns.length} className="h-10 bg-slate-100/60 border-b border-slate-200" />
-                          </tr>
-
-                          {/* Detail Tasks Rows */}
-                          {!isCollapsed && groupTasks.map((task, tIdx) => {
-                            const taskNumStr = `${groupNum}.${tIdx + 1}`;
-                            const taskDisplayName = getTaskDisplayName(task);
-                            const workerObj = workers.find((w) => w.id === task.worker_name || w.name === task.worker_name);
-                            const targetWorkerObj = workerObj || {
-                              id: task.worker_name,
-                              name: task.worker_name,
-                              country_code: 'KR' as CountryCode,
-                              workweek_profile: 'MON_FRI' as WorkweekProfile,
-                            };
-
-                            const spanInfo = getGanttSpanColumns(task.start_date, task.end_date, dateColumns);
+                    return (
+                      <DndContext
+                        sensors={sensors}
+                        collisionDetection={closestCenter}
+                        onDragStart={handleDragStart}
+                        onDragOver={handleDragOver}
+                        onDragEnd={handleDragEnd}
+                      >
+                        <SortableContext items={groupIds} strategy={verticalListSortingStrategy}>
+                          {groupsToRender.map((group, gIdx) => {
+                            const groupNum = gIdx + 1;
+                            const groupTasks = tasks.filter((tItem) => tItem.task_group_id === group.id || (!tItem.task_group_id && gIdx === 0));
+                            const isCollapsed = !!collapsedGroupIds[group.id];
+                            const taskIds = groupTasks.map((tItem) => tItem.id);
 
                             return (
-                              <tr
-                                key={task.id}
-                                data-testid={`task-row-${task.id}`}
-                                className="hover:bg-blue-50/30 transition group h-11 border-b border-slate-200"
-                              >
-                                {/* Left Info Column (3 sub-columns: Task Name, Assignees, Actions) */}
-                                <td className="sticky left-0 z-10 bg-white group-hover:bg-blue-50/30 px-3 py-1 border-r border-slate-200 w-[360px] lg:w-[420px] h-11 align-middle">
-                                  <div className="flex items-center justify-between text-xs w-full">
-                                    {/* Sub-col 1: Task Number + Task Name */}
-                                    <div className="w-[180px] lg:w-[220px] flex items-center gap-1.5 min-w-0 pr-1">
-                                      {task.has_schedule_conflict && (
-                                        <span
-                                          data-testid="task-conflict-badge"
-                                          className="p-0.5 rounded bg-rose-100 text-rose-700 shrink-0 cursor-help"
-                                          title={`일정 중복 경고: ${task.schedule_conflicts?.map((c) => `${c.conflict_project_name} (${c.overlapping_working_days}일 중복)`).join(', ')}`}
-                                        >
-                                          <AlertTriangle className="w-3.5 h-3.5 text-rose-600 animate-pulse" />
-                                        </span>
-                                      )}
-                                      <span className="font-bold text-slate-500 shrink-0 text-[11px]">{taskNumStr}</span>
-                                      <span className="font-semibold text-slate-900 truncate text-xs" title={taskDisplayName}>
-                                        {taskDisplayName}
-                                      </span>
-                                    </div>
+                              <React.Fragment key={group.id}>
+                                {/* Task Group Header Row */}
+                                <DroppableTaskGroupRow
+                                  group={group}
+                                  groupNum={groupNum}
+                                  groupTasks={groupTasks}
+                                  isCollapsed={isCollapsed}
+                                  dateColumnsCount={dateColumns.length}
+                                  isViewer={isViewer}
+                                  isCompleted={isCompleted}
+                                  lang={lang}
+                                  onToggleCollapse={toggleGroupCollapse}
+                                  onOpenEditGroup={handleOpenEditGroup}
+                                  onOpenDeleteGroup={(grp: TaskGroup, count: number) => setDeleteGroupModalState({ isOpen: true, group: grp, taskCount: count })}
+                                  onOpenAddTaskInGroup={handleOpenAddTaskInGroup}
+                                  isOver={overGroupId === group.id}
+                                />
 
-                                    {/* Sub-col 2: Assignees Chips */}
-                                    <div className="w-[126px] lg:w-[150px] flex items-center gap-1 min-w-0 px-1 overflow-hidden">
-                                      {(() => {
-                                        const assignees = task.assignees || [];
-                                        const primaryName = task.worker_name || assignees.find((a) => a.assignment_role === 'PRIMARY')?.name || '담당자 미정';
-                                        const hasMulti = assignees.length > 1;
-
-                                        return (
-                                          <div data-testid={`task-assignees-chip-${task.id}`} className="flex items-center gap-1 truncate">
-                                            <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200 truncate max-w-[95px]">
-                                              {primaryName}
-                                            </span>
-                                            {hasMulti && (
-                                              <span className="px-1 py-0.5 rounded text-[9px] font-extrabold bg-indigo-100 text-indigo-800 border border-indigo-200 shrink-0">
-                                                +{assignees.length - 1}
-                                              </span>
-                                            )}
-                                          </div>
-                                        );
-                                      })()}
-                                    </div>
-
-                                    {/* Sub-col 3: Action Buttons */}
-                                    <div className="w-[48px] lg:w-[50px] flex items-center justify-end gap-1 shrink-0">
-                                      {!isViewer && !isCompleted && (
-                                        <>
-                                          <button
-                                            type="button"
-                                            data-testid={`task-edit-${task.id}`}
-                                            onClick={() => handleEditTask(task)}
-                                            className="p-1 rounded hover:bg-slate-200 text-slate-500 transition"
-                                            title={lang === 'vi' ? 'Sửa' : '수정'}
-                                          >
-                                            <Edit2 className="w-3.5 h-3.5" />
-                                          </button>
-                                          <button
-                                            type="button"
-                                            data-testid={`task-delete-${task.id}`}
-                                            onClick={() => handleDeleteTask(task)}
-                                            className="p-1 rounded hover:bg-rose-100 text-rose-600 transition"
-                                            title={lang === 'vi' ? 'Xóa' : '삭제'}
-                                          >
-                                            <Trash2 className="w-3.5 h-3.5" />
-                                          </button>
-                                        </>
-                                      )}
-                                    </div>
-                                  </div>
-                                </td>
-
-                                {/* Gantt Date Cells with Overlay ScheduleBar */}
-                                {dateColumns.map((col, cIdx) => {
-                                  const dayStatus = resolveWorkDayStatus(
-                                    col.dateStr,
-                                    targetWorkerObj as any,
-                                    countryHolidays,
-                                    calendarOverrides
-                                  );
-
-                                  const isFirstCol = spanInfo ? spanInfo.startIndex === cIdx : false;
-                                  const spanCount = spanInfo ? spanInfo.spanCount : 1;
-
-                                  return (
-                                    <td
-                                      key={cIdx}
-                                      onClick={() => handleCellClick(task, col.dateStr, dayStatus, workerObj || null)}
-                                      style={{
-                                        width: `${GANTT_DAY_WIDTH_PX}px`,
-                                        minWidth: `${GANTT_DAY_WIDTH_PX}px`,
-                                        maxWidth: `${GANTT_DAY_WIDTH_PX}px`,
-                                        height: '44px',
-                                      }}
-                                      className="relative border-r border-slate-200 p-0 text-center align-middle cursor-pointer hover:brightness-95 transition"
-                                    >
-                                      <WorkerDayCellBackground
-                                        dateStr={col.dateStr}
-                                        worker={targetWorkerObj as any}
-                                        assignees={task.assignees}
-                                        availabilityPolicy={task.availability_policy}
-                                        dayStatus={dayStatus}
-                                        countryHolidays={countryHolidays}
-                                        calendarOverrides={calendarOverrides}
-                                        workers={workers}
-                                        isToday={col.isToday}
+                                {/* Detail Tasks in Group */}
+                                {!isCollapsed && (
+                                  <SortableContext items={taskIds} strategy={verticalListSortingStrategy}>
+                                    {groupTasks.length > 0 ? (
+                                      groupTasks.map((tItem, tIdx) => (
+                                        <SortableTaskRow
+                                          key={tItem.id}
+                                          tItem={tItem}
+                                          tIdx={tIdx}
+                                          groupNum={groupNum}
+                                          dateColumns={dateColumns}
+                                          workers={workers}
+                                          countryHolidays={countryHolidays}
+                                          calendarOverrides={calendarOverrides}
+                                          isViewer={isViewer}
+                                          isCompleted={isCompleted}
+                                          lang={lang}
+                                          t={t}
+                                          onEditTask={handleEditTask}
+                                          onDeleteTask={handleDeleteTask}
+                                          onMoveTask={(tObj: Task) => setMoveModalState({ isOpen: true, task: tObj })}
+                                          onCellClick={handleCellClick}
+                                        />
+                                      ))
+                                    ) : (
+                                      <EmptyGroupDropZoneCard
+                                        groupId={group.id}
+                                        dateColumnsCount={dateColumns.length}
+                                        lang={lang}
+                                        isOver={overGroupId === group.id}
                                       />
-
-                                      {/* Gantt Schedule Bar Overlay */}
-                                      {isFirstCol && (
-                                        <div
-                                          className="absolute left-0 top-0 bottom-0 z-30 flex items-center px-1"
-                                          style={{
-                                            width: `${spanCount * GANTT_DAY_WIDTH_PX}px`,
-                                          }}
-                                        >
-                                          <ScheduleBar
-                                            title={taskDisplayName}
-                                            startDate={task.start_date}
-                                            endDate={task.end_date}
-                                            calendarSpanDays={spanCount}
-                                            plannedWorkingDays={task.planned_working_days || spanCount}
-                                            plannedProgress={task.planned_progress ?? task.progress ?? 0}
-                                            actualProgress={task.actual_progress ?? task.progress ?? 0}
-                                            status={task.schedule_state || 'UPCOMING'}
-                                            hasConflict={task.has_schedule_conflict}
-                                            onClick={() => handleEditTask(task)}
-                                          />
-                                        </div>
-                                      )}
-                                    </td>
-                                  );
-                                })}
-                              </tr>
+                                    )}
+                                  </SortableContext>
+                                )}
+                              </React.Fragment>
                             );
                           })}
-                        </React.Fragment>
-                      );
-                    });
+                        </SortableContext>
+
+                        <DragOverlay>
+                          <TaskDragOverlay activeDragItem={activeDragItem} lang={lang} />
+                        </DragOverlay>
+                      </DndContext>
+                    );
                   })()
                 )}
               </tbody>
@@ -1398,6 +2005,36 @@ export const ProjectDetailPage: React.FC = () => {
         onClose={() => setIsShiftHistoryOpen(false)}
         projectId={projectId || ''}
       />
+
+      {/* Task Move Modal */}
+      <TaskMoveModal
+        isOpen={moveModalState.isOpen}
+        task={moveModalState.task}
+        taskGroups={taskGroups}
+        onClose={() => setMoveModalState({ isOpen: false, task: null })}
+        onMove={handleMoveTaskToGroup}
+      />
+
+      {/* Structure Undo Toast */}
+      {toastState.isOpen && (
+        <div
+          data-testid="structure-undo-toast"
+          className="fixed bottom-6 right-6 z-50 bg-slate-900 text-white px-4 py-3 rounded-2xl shadow-2xl border border-slate-700 flex items-center gap-3 animate-in fade-in slide-in-from-bottom-4 duration-200 text-xs font-bold"
+        >
+          <span>{toastState.message}</span>
+          {toastState.undoData && (
+            <button
+              type="button"
+              data-testid="structure-undo-btn"
+              onClick={handleUndoStructure}
+              className="px-2.5 py-1 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-extrabold transition shadow-xs flex items-center gap-1"
+            >
+              <RotateCw className="w-3.5 h-3.5" />
+              <span>{lang === 'vi' ? 'Hoàn tác' : '실행 취소'}</span>
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Build Version Indicator */}
       <BuildVersionIndicator />

@@ -1127,30 +1127,84 @@ async function validateAndNormalizeTaskAssigneesServer(
         }
 
         const groupsList: Array<{ group_id: string; sort_order: number; task_ids: string[] }> = body.groups || [];
+        if (groupsList.length === 0) {
+          return errorResponse('구조 변경 정보가 비어있습니다.', 400);
+        }
+
+        // Verify active groups exist for this project
+        const groupIds = groupsList.map((g) => g.group_id);
+        const activeGroupsRes = await db
+          .prepare(`SELECT id, project_id FROM task_groups WHERE project_id = ? AND deleted_at IS NULL`)
+          .bind(projectId)
+          .all();
+        const activeGroupIds = new Set((activeGroupsRes.results || []).map((g: any) => g.id));
+
+        for (const gId of groupIds) {
+          if (!activeGroupIds.has(gId)) {
+            return errorResponse('삭제되었거나 존재하지 않는 공정 대분류입니다.', 409, 'TASK_GROUP_NOT_AVAILABLE');
+          }
+        }
+
+        // Collect all task IDs and verify project_id consistency
+        const allTaskIds: string[] = [];
+        groupsList.forEach((grp) => {
+          if (grp.task_ids && Array.isArray(grp.task_ids)) {
+            allTaskIds.push(...grp.task_ids);
+          }
+        });
+
+        // Check duplicate task_ids
+        if (new Set(allTaskIds).size !== allTaskIds.length) {
+          return errorResponse('요청에 중복된 세부 작업이 포함되어 있습니다.', 400, 'DUPLICATE_TASK_ID');
+        }
+
         const batch: any[] = [];
+        const nowIso = new Date().toISOString();
 
         groupsList.forEach((grp, gIdx) => {
           const gSortOrder = grp.sort_order !== undefined ? grp.sort_order : (gIdx + 1);
           batch.push(
-            db.prepare(`UPDATE task_groups SET sort_order = ? WHERE id = ? AND project_id = ?`).bind(gSortOrder, grp.group_id, projectId)
+            db.prepare(`UPDATE task_groups SET sort_order = ?, updated_by_name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND project_id = ?`).bind(gSortOrder, editor, grp.group_id, projectId)
           );
 
           if (grp.task_ids && Array.isArray(grp.task_ids)) {
             grp.task_ids.forEach((tId, tIdx) => {
               batch.push(
                 db
-                  .prepare(`UPDATE tasks SET task_group_id = ?, task_sort_order = ? WHERE id = ? AND project_id = ?`)
-                  .bind(grp.group_id, tIdx + 1, tId, projectId)
+                  .prepare(`UPDATE tasks SET task_group_id = ?, task_sort_order = ?, updated_by_name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND project_id = ?`)
+                  .bind(grp.group_id, tIdx + 1, editor, tId, projectId)
               );
             });
           }
         });
 
+        // Log structure change if details specified
+        const movedTaskId = body.moved_task_id;
+        const sourceGroupId = body.source_group_id;
+        const targetGroupId = body.target_group_id;
+        const targetIndex = body.target_index !== undefined ? Number(body.target_index) : undefined;
+        let changeType = body.change_type || 'STRUCTURE_REORDERED';
+
+        if (movedTaskId && sourceGroupId && targetGroupId) {
+          changeType = sourceGroupId !== targetGroupId ? 'TASK_MOVED_BETWEEN_GROUPS' : 'TASK_REORDERED';
+        } else if (!movedTaskId && body.group_reordered === true) {
+          changeType = 'GROUP_REORDERED';
+        }
+
+        const logId = `tsl_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+        batch.push(
+          db.prepare(
+            `INSERT INTO task_structure_change_logs (
+              id, project_id, task_id, change_type, source_group_id, target_group_id, new_sort_order, changed_by_id, changed_by_name, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          ).bind(logId, projectId, movedTaskId || null, changeType, sourceGroupId || null, targetGroupId || null, targetIndex ?? null, editCheck.worker?.id || null, editor, nowIso)
+        );
+
         if (batch.length > 0) {
           await db.batch(batch);
         }
 
-        return jsonResponse({ success: true, project_id: projectId });
+        return jsonResponse({ success: true, project_id: projectId, change_type: changeType, log_id: logId });
       }
 
       // 5. GET /api/projects/:id
