@@ -162,7 +162,7 @@ test.describe('TaskModal Runtime Crash Fix & ScheduleBar E2E Verification', () =
     await expect(taskModal).toBeVisible({ timeout: 10000 });
 
       // Enter task name
-      const taskNameInput = page.locator('input[placeholder*="작업명"]').first();
+      const taskNameInput = page.locator('[data-testid="task-name-input"]').first().or(page.locator('input[placeholder*="작업명"]').first());
       if (await taskNameInput.isVisible()) {
         await taskNameInput.fill('E2E Runtime Test Task');
       }

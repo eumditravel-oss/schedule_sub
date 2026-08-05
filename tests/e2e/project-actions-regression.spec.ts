@@ -204,7 +204,7 @@ test.describe('P0 Project Actions & Complete CRUD Regression Suite', () => {
     await page.waitForTimeout(500);
 
     // Verify Project Detail page task dates shifted
-    await page.goto(`/projects/${createdProjectId}`);
+    await page.goto(`${QA_BASE_URL}/projects/${createdProjectId}`);
     await dismissBlockingModals(page);
 
     const taskRow = page.locator(`[data-testid^="task-row-"]`).first().or(page.locator('tr:has-text("하위 작업")')).first();
