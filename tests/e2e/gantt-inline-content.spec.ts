@@ -237,7 +237,7 @@ test.describe('Strict Gantt Inline Content & Build SHA E2E Suite', () => {
     expect(typeof apiCommitSha).toBe('string');
 
     await page.setViewportSize({ width: 1366, height: 768 });
-    await page.goto('/projects');
+    await page.goto(`${QA_BASE_URL}/projects`);
     await dismissBlockingModals(page);
 
     const versionIndicator = page.locator('[data-testid="build-version-indicator"]');
