@@ -102,6 +102,11 @@ test.describe('Evidence-based Playwright E2E Release Verification Suite', () => 
     networkFailures = [];
     requestFailures = [];
 
+    await page.addInitScript(() => {
+      localStorage.setItem('schedule_current_worker_id', 'wrk_02');
+      localStorage.setItem('schedule_current_worker_name', '박용진 수석');
+    });
+
     page.on('console', (msg) => {
       if (msg.type() === 'error') {
         const text = msg.text();

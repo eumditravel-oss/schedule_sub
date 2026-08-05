@@ -14,6 +14,13 @@ test.beforeAll(() => {
 test.describe('Holiday Exclusion & Date Info Panel E2E Visual Verification', () => {
   test.use({ baseURL: 'https://concost-dev-scheduler-qa.eumditravel.workers.dev' });
 
+  test.beforeEach(async ({ page }) => {
+    await page.addInitScript(() => {
+      localStorage.setItem('schedule_current_worker_id', 'wrk_02');
+      localStorage.setItem('schedule_current_worker_name', '박용진 수석');
+    });
+  });
+
   test('Capture Task Workday Summary & Warning Removed', async ({ page }) => {
     await page.goto('/');
     await page.waitForLoadState('networkidle');
