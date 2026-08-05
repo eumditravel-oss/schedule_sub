@@ -186,7 +186,10 @@ test.describe('P0 Project Actions & Complete CRUD Regression Suite', () => {
 
     // Shift start date by +5 days (2026-08-01 -> 2026-08-06)
     const startDateInput = page.locator('[data-testid="project-start-date"]');
+    await startDateInput.focus();
     await startDateInput.fill('2026-08-06');
+    await startDateInput.dispatchEvent('change');
+    await page.waitForTimeout(200);
 
     const saveBtn = page.locator('[data-testid="project-save-btn"]');
     await saveBtn.click();
