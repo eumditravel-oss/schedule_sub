@@ -209,15 +209,21 @@ export const ProjectOverviewPage: React.FC = () => {
     }
     if (!requireWorkerSelection()) return;
     try {
+      let res;
       if (selectedProject) {
-        await api.updateProject(selectedProject.id, data);
+        res = await api.updateProject(selectedProject.id, data);
       } else {
-        await api.createProject(data);
+        res = await api.createProject(data);
       }
       await fetchProjects();
       await fetchCompletedYears();
+      return res;
     } catch (err: any) {
+      if (err && err.code === 'PROJECT_SCHEDULE_CASCADE_CONFIRMATION_REQUIRED') {
+        throw err;
+      }
       alert(getLocalizedErrorMessage(err, t));
+      throw err;
     }
   };
 

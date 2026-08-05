@@ -31,6 +31,8 @@ async function dismissBlockingModals(page: any) {
   }
 }
 
+const QA_BASE_URL = 'https://concost-dev-scheduler-qa.eumditravel.workers.dev';
+
 test.describe('TaskModal Runtime Crash Fix & ScheduleBar E2E Verification', () => {
 
   test('Test A: TaskModal open/close, non-empty #root, 0 pageerrors', async ({ page }) => {
@@ -48,7 +50,7 @@ test.describe('TaskModal Runtime Crash Fix & ScheduleBar E2E Verification', () =
     });
 
     await page.setViewportSize({ width: 1366, height: 768 });
-    await page.goto('/');
+    await page.goto(QA_BASE_URL);
     const projectCell = page.locator('[data-testid^="project-row-"] td').first();
     await expect(projectCell).toBeVisible({ timeout: 15000 });
     await projectCell.click();
@@ -112,7 +114,7 @@ test.describe('TaskModal Runtime Crash Fix & ScheduleBar E2E Verification', () =
     });
 
     await page.setViewportSize({ width: 1366, height: 768 });
-    await page.goto('/');
+    await page.goto(QA_BASE_URL);
     const projectCell = page.locator('[data-testid^="project-row-"] td').first();
     await expect(projectCell).toBeVisible({ timeout: 15000 });
     await projectCell.click();
