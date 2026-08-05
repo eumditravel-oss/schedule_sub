@@ -2616,7 +2616,7 @@ function addPureCalendarDays(dateStr: string, deltaDays: number): string {
         const transResult = await translateProjectOrTaskName(env.AI, validated.task_name);
         const nowIso = new Date().toISOString();
 
-        let taskGroupId = body.task_group_id;
+        let taskGroupId = body.task_group_id || null;
         if (!taskGroupId) {
           const firstGroup = await db
             .prepare(`SELECT id FROM task_groups WHERE project_id = ? AND deleted_at IS NULL ORDER BY sort_order ASC LIMIT 1`)
@@ -2630,8 +2630,8 @@ function addPureCalendarDays(dateStr: string, deltaDays: number): string {
         let taskSortOrder = Number(body.task_sort_order || 0);
         if (!taskSortOrder) {
           const maxSort = await db
-            .prepare(`SELECT MAX(task_sort_order) as max_sort FROM tasks WHERE project_id = ? AND (task_group_id = ? OR task_group_id IS NULL)`)
-            .bind(validated.project_id, taskGroupId)
+            .prepare(`SELECT MAX(task_sort_order) as max_sort FROM tasks WHERE project_id = ? AND (task_group_id = ? OR (task_group_id IS NULL AND ? IS NULL))`)
+            .bind(validated.project_id, taskGroupId, taskGroupId)
             .first();
           taskSortOrder = (maxSort?.max_sort || 0) + 1;
         }

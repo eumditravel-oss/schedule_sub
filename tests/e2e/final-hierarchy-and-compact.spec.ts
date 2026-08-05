@@ -1,22 +1,35 @@
 // tests/e2e/final-hierarchy-and-compact.spec.ts
 import { test, expect } from '@playwright/test';
 
+async function dismissBlockingModals(page: any) {
+  for (let i = 0; i < 5; i++) {
+    const backdrop = page.locator('.fixed.inset-0.z-50').first();
+    if (await backdrop.isVisible({ timeout: 500 }).catch(() => false)) {
+      const selectWorkerBtn = page.locator('button:has-text("유종욱"), button:has-text("확인"), button:has-text("선택")').first();
+      if (await selectWorkerBtn.isVisible().catch(() => false)) {
+        await selectWorkerBtn.click().catch(() => {});
+      } else {
+        await page.keyboard.press('Escape');
+      }
+      await page.waitForTimeout(300);
+    } else {
+      break;
+    }
+  }
+}
+
 test.describe('Task Hierarchy, Multi-Assignees, Auto Progress & Compact Gantt Rows', () => {
-  const BASE_URL = process.env.PLAYWRIGHT_TEST_BASE_URL || 'http://localhost:5173';
   const projectName = `E2E 계층공정 테스트 ${Date.now()}`;
 
   test('E2E Full Flow: Hierarchy, Compact UI, Translation Protection & Delete Modal', async ({ page }) => {
     // 1. Open App & Select Worker Profile
-    await page.goto('/');
-    await page.waitForLoadState('networkidle');
-
-    // Set worker profile in localStorage if prompt opens
-    await page.evaluate(() => {
+    await page.addInitScript(() => {
       localStorage.setItem('schedule_current_worker_id', 'wrk_yjw');
       localStorage.setItem('schedule_current_worker_name', '유종욱 실장');
     });
-    await page.reload();
+    await page.goto('/');
     await page.waitForLoadState('networkidle');
+    await dismissBlockingModals(page);
 
     // 2. Create Project
     await page.click('[data-testid="add-project-btn"]');
