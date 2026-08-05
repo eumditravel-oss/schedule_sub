@@ -174,10 +174,10 @@ export const ScheduleBar: React.FC<ScheduleBarProps> = ({
           />
         )}
 
-        {/* Inline Content Layer */}
+        {/* Inline Content Layer (z-40 ensures text & progress chips stay crisp over z-20 hatch overlay) */}
         <div
           data-testid={isMobile ? 'mobile-gantt-inline-content' : 'gantt-bar-inline-content'}
-          className="absolute inset-0 z-10 flex items-center justify-between px-1.5 w-full h-full min-w-0 overflow-hidden pointer-events-none"
+          className="absolute inset-0 z-40 flex items-center justify-between px-1.5 w-full h-full min-w-0 overflow-hidden pointer-events-none"
         >
           {isMobileThresholdFull ? (
             <>

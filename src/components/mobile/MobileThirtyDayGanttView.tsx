@@ -315,6 +315,7 @@ export const MobileThirtyDayGanttView: React.FC<MobileThirtyDayGanttViewProps> =
                               holidays,
                               overrides
                             );
+                            const countryOffInfo = getCountryOffState(col.dateStr, overrides, holidays);
                             const statusVal = tItem.daily_statuses?.[col.dateStr];
 
                             return (
@@ -323,6 +324,9 @@ export const MobileThirtyDayGanttView: React.FC<MobileThirtyDayGanttViewProps> =
                                 dateStr={col.dateStr}
                                 worker={workerObj as any}
                                 dayStatus={dayStatus}
+                                countryOffState={countryOffInfo}
+                                countryHolidays={holidays}
+                                calendarOverrides={overrides}
                                 isToday={col.isToday}
                                 onClick={() => onTaskCellClick?.(tItem, col.dateStr)}
                                 className="w-[30px] min-w-[30px] max-w-[30px] h-full p-0.5 flex items-center justify-center shrink-0 cursor-pointer"

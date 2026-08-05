@@ -1016,6 +1016,7 @@ export const ProjectDetailPage: React.FC = () => {
                             >
                               {dateColumns.map((col, cIdx) => {
                                 const dayStatus = resolveWorkDayStatus(col.dateStr, targetWorkerObj as any, countryHolidays, calendarOverrides);
+                                const countryOffInfo = getCountryOffState(col.dateStr, calendarOverrides, countryHolidays);
                                 const statusVal = task.daily_statuses?.[col.dateStr];
 
                                 return (
@@ -1024,6 +1025,9 @@ export const ProjectDetailPage: React.FC = () => {
                                     dateStr={col.dateStr}
                                     worker={targetWorkerObj as any}
                                     dayStatus={dayStatus}
+                                    countryOffState={countryOffInfo}
+                                    countryHolidays={countryHolidays}
+                                    calendarOverrides={calendarOverrides}
                                     isToday={col.isToday}
                                     style={{ minWidth: `${GANTT_DAY_WIDTH_PX}px` }}
                                     onClick={() => handleCellClick(task, col.dateStr, dayStatus, targetWorkerObj as any)}

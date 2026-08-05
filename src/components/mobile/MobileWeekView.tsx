@@ -6,7 +6,7 @@ import { useResponsiveLayout } from '../../hooks/useResponsiveLayout';
 import { ChevronLeft, ChevronRight, Calendar as CalendarIcon } from 'lucide-react';
 import { addDays, subDays, format, parseISO, startOfDay } from 'date-fns';
 import { generateDateColumns } from '../../utils/dateUtils';
-import { resolveWorkDayStatus } from '../../utils/workCalendar';
+import { resolveWorkDayStatus, getCountryOffState } from '../../utils/workCalendar';
 import { WorkerDayCellBackground } from '../gantt/WorkerDayCellBackground';
 
 interface MobileWeekViewProps {
@@ -245,7 +245,7 @@ export const MobileWeekView: React.FC<MobileWeekViewProps> = ({
                         holidays,
                         overrides
                       );
-
+                      const countryOffInfo = getCountryOffState(col.dateStr, overrides, holidays);
                       const statusVal = tItem.daily_statuses?.[col.dateStr];
                       const isInSchedule = col.dateStr >= tItem.start_date && col.dateStr <= tItem.end_date;
 
@@ -255,6 +255,9 @@ export const MobileWeekView: React.FC<MobileWeekViewProps> = ({
                           dateStr={col.dateStr}
                           worker={workerObj as any}
                           dayStatus={dayStatus}
+                          countryOffState={countryOffInfo}
+                          countryHolidays={holidays}
+                          calendarOverrides={overrides}
                           isToday={col.isToday}
                           onClick={() => onTaskCellClick?.(tItem, col.dateStr)}
                           className="p-1 cursor-pointer flex items-center justify-center min-h-[36px]"
