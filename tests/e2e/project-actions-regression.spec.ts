@@ -108,7 +108,7 @@ test.describe('P0 Project Actions & Complete CRUD Regression Suite', () => {
 
   test('1. Verify Desktop Project Edit & Delete Buttons Visibility and Modal Pre-filling', async ({ page }) => {
     await page.setViewportSize({ width: 1366, height: 768 });
-    await page.goto('/projects');
+    await page.goto(`${QA_BASE_URL}/projects`);
     await dismissBlockingModals(page);
 
     const actionGroup = page.locator(`[data-testid="project-action-group-${createdProjectId}"]`);
@@ -150,7 +150,7 @@ test.describe('P0 Project Actions & Complete CRUD Regression Suite', () => {
 
   test('2. Verify Project Name Editing, Saving, and F5 Persistence', async ({ page }) => {
     await page.setViewportSize({ width: 1366, height: 768 });
-    await page.goto('/projects');
+    await page.goto(`${QA_BASE_URL}/projects`);
     await dismissBlockingModals(page);
 
     const editBtn = page.locator(`[data-testid="project-edit-btn-${createdProjectId}"]`);
@@ -177,7 +177,7 @@ test.describe('P0 Project Actions & Complete CRUD Regression Suite', () => {
 
   test('3. Verify Project Date Shift Cascade Modal and Task Date Update', async ({ page }) => {
     await page.setViewportSize({ width: 1366, height: 768 });
-    await page.goto('/projects');
+    await page.goto(`${QA_BASE_URL}/projects`);
     await dismissBlockingModals(page);
 
     const editBtn = page.locator(`[data-testid="project-edit-btn-${createdProjectId}"]`);
@@ -246,7 +246,7 @@ test.describe('P0 Project Actions & Complete CRUD Regression Suite', () => {
       }),
     });
 
-    await page.goto('/projects');
+    await page.goto(`${QA_BASE_URL}/projects`);
     await dismissBlockingModals(page);
 
     const deleteBtn = page.locator(`[data-testid="project-delete-btn-${tempPrjId}"]`);
@@ -295,7 +295,7 @@ test.describe('P0 Project Actions & Complete CRUD Regression Suite', () => {
     });
 
     await page.setViewportSize({ width: 1366, height: 768 });
-    await page.goto('/projects');
+    await page.goto(`${QA_BASE_URL}/projects`);
     await dismissBlockingModals(page);
 
     // Verify Edit & Delete buttons count === 0 for CEO
@@ -338,7 +338,7 @@ test.describe('P0 Project Actions & Complete CRUD Regression Suite', () => {
     expect(compRes.status).toBe(200);
 
     await page.setViewportSize({ width: 1366, height: 768 });
-    await page.goto('/projects');
+    await page.goto(`${QA_BASE_URL}/projects`);
     await dismissBlockingModals(page);
 
     // Switch to Completed tab
@@ -378,7 +378,7 @@ test.describe('P0 Project Actions & Complete CRUD Regression Suite', () => {
 
   test('7. Verify Mobile Card Menu Actions & Bottom Sheet Confirmation', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
-    await page.goto('/projects');
+    await page.goto(`${QA_BASE_URL}/projects`);
     await dismissBlockingModals(page);
 
     const mobileMenuBtn = page.locator(`[data-testid="mobile-project-menu-btn-${createdProjectId}"]`);
@@ -404,7 +404,7 @@ test.describe('P0 Project Actions & Complete CRUD Regression Suite', () => {
 
     for (const vp of viewports) {
       await page.setViewportSize({ width: vp.width, height: vp.height });
-      await page.goto('/projects');
+      await page.goto(`${QA_BASE_URL}/projects`);
       await dismissBlockingModals(page);
 
       const actionGroup = page.locator(`[data-testid="project-action-group-${createdProjectId}"]`);
