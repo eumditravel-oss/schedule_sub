@@ -4,6 +4,7 @@ import { useI18n } from '../../hooks/useI18n';
 import { Worker, isExecutiveViewer, LeaveDeleteResponse, canManageCountryCalendar } from '../../types';
 import { X, Calendar, Plus, Trash2, CheckCircle, AlertCircle, Lock, AlertTriangle, ArrowRight, RotateCcw, ChevronLeft, ChevronRight, RefreshCw, Users } from 'lucide-react';
 import { api } from '../../services/api';
+import { getVietnamSaturdaysInMonth } from '../../utils/workCalendar';
 
 interface CalendarManagerModalProps {
   isOpen: boolean;
@@ -350,7 +351,7 @@ export const CalendarManagerModal: React.FC<CalendarManagerModalProps> = ({
     }
 
     const currentSaturdays = getVietnamSaturdaysInMonth(vnYear, vnMonth);
-    const payloadSaturdays = currentSaturdays.map((item) => ({
+    const payloadSaturdays = currentSaturdays.map((item: any) => ({
       date: item.date,
       status: selectedVnStatus[item.date] !== undefined ? selectedVnStatus[item.date] : 'WORK',
     }));
@@ -364,7 +365,7 @@ export const CalendarManagerModal: React.FC<CalendarManagerModalProps> = ({
         saturdays: payloadSaturdays,
       });
       setVnImpactData(impact || {
-        affected_saturday_off_count: payloadSaturdays.filter((s) => s.status === 'OFF').length,
+        affected_saturday_off_count: payloadSaturdays.filter((s: any) => s.status === 'OFF').length,
         affected_worker_count: 3,
         affected_project_count: 0,
         affected_task_count: 0,
@@ -373,7 +374,7 @@ export const CalendarManagerModal: React.FC<CalendarManagerModalProps> = ({
       setShowVnImpactModal(true);
     } catch (e: any) {
       setVnImpactData({
-        affected_saturday_off_count: payloadSaturdays.filter((s) => s.status === 'OFF').length,
+        affected_saturday_off_count: payloadSaturdays.filter((s: any) => s.status === 'OFF').length,
         affected_worker_count: 3,
         affected_project_count: 0,
         affected_task_count: 0,

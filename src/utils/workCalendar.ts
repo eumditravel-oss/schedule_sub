@@ -296,3 +296,19 @@ export function calculateTaskWorkdayBreakdown(
     has_profile_error: false,
   };
 }
+
+export function getVietnamSaturdaysInMonth(year: number, month: number): { date: string; week_of_month: number }[] {
+  const saturdays: { date: string; week_of_month: number }[] = [];
+  const daysInMonth = new Date(year, month, 0).getDate();
+
+  let saturdayCount = 0;
+  for (let day = 1; day <= daysInMonth; day++) {
+    const d = new Date(year, month - 1, day);
+    if (d.getDay() === 6) {
+      saturdayCount++;
+      const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+      saturdays.push({ date: dateStr, week_of_month: saturdayCount });
+    }
+  }
+  return saturdays;
+}
