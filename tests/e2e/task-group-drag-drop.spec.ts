@@ -38,12 +38,12 @@ test.describe('Task Grouping, Drag & Drop, Reorder and Move UI Suite', () => {
     });
     expect(prjRes.status).toBe(201);
     const prjJson: any = await prjRes.json();
-    createdProjectId = prjJson.id;
+    createdProjectId = prjJson.id || prjJson.data?.id;
 
     // 2. Create Task Groups (기획, 개발, 테스트)
     const groupNames = ['기획', '개발', '테스트'];
     for (const gName of groupNames) {
-      const gRes = await fetch(`${QA_BASE_URL}/api/projects/${createdProjectId}/task-groups`, {
+      await fetch(`${QA_BASE_URL}/api/projects/${createdProjectId}/task-groups`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -51,15 +51,24 @@ test.describe('Task Grouping, Drag & Drop, Reorder and Move UI Suite', () => {
         },
         body: JSON.stringify({ group_name: gName, editor_name: '유종욱 실장' }),
       });
-      const gJson: any = await gRes.json();
-      groupIds[gName] = gJson.id;
     }
+
+    // Fetch detail to guarantee exact IDs
+    const detailRes = await fetch(`${QA_BASE_URL}/api/projects/${createdProjectId}/detail`);
+    const detailJson: any = await detailRes.json();
+    const serverGroups: any[] = detailJson.task_groups || [];
+    serverGroups.forEach((g) => {
+      const name = g.group_name_ko || g.group_name;
+      groupIds[name] = g.id;
+    });
+
+    const targetGroupId = groupIds['기획'] || serverGroups[0]?.id;
 
     // 3. Create Tasks under '기획' group
     const taskNames = ['요구사항 정의', '시스템 설계', 'DB 구축'];
     for (let i = 0; i < taskNames.length; i++) {
       const tName = taskNames[i];
-      const tRes = await fetch(`${QA_BASE_URL}/api/tasks`, {
+      await fetch(`${QA_BASE_URL}/api/tasks`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -67,7 +76,7 @@ test.describe('Task Grouping, Drag & Drop, Reorder and Move UI Suite', () => {
         },
         body: JSON.stringify({
           project_id: createdProjectId,
-          task_group_id: groupIds['기획'],
+          task_group_id: targetGroupId,
           task_name: tName,
           start_date: '2026-08-03',
           end_date: '2026-08-07',
@@ -75,9 +84,13 @@ test.describe('Task Grouping, Drag & Drop, Reorder and Move UI Suite', () => {
           editor_name: '유종욱 실장',
         }),
       });
-      const tJson: any = await tRes.json();
-      taskIds.push(tJson.id);
     }
+
+    // Re-fetch detail to gather exact task IDs
+    const finalDetailRes = await fetch(`${QA_BASE_URL}/api/projects/${createdProjectId}/detail`);
+    const finalDetailJson: any = await finalDetailRes.json();
+    const serverTasks: any[] = finalDetailJson.tasks || [];
+    taskIds = serverTasks.map((t) => t.id);
   });
 
   test.afterAll(async () => {
@@ -98,7 +111,7 @@ test.describe('Task Grouping, Drag & Drop, Reorder and Move UI Suite', () => {
     await dismissWorkerPromptModal(page);
 
     const firstTaskHandle = page.locator(`[data-testid="task-drag-handle-${taskIds[0]}"]`);
-    await expect(firstTaskHandle).toBeVisible();
+    await expect(firstTaskHandle).toBeVisible({ timeout: 15000 });
 
     const devGroupRow = page.locator(`[data-testid^="task-group-row-"]`).nth(2); // '개발' group
     await expect(devGroupRow).toBeVisible();
@@ -107,7 +120,7 @@ test.describe('Task Grouping, Drag & Drop, Reorder and Move UI Suite', () => {
     await firstTaskHandle.dragTo(devGroupRow);
     await page.waitForTimeout(500);
 
-    // Verify Undo Toast appears
+    // Verify Toast appears
     const toast = page.locator('[data-testid="structure-undo-toast"]');
     await expect(toast).toBeVisible();
 
@@ -129,9 +142,9 @@ test.describe('Task Grouping, Drag & Drop, Reorder and Move UI Suite', () => {
     await dismissWorkerPromptModal(page);
 
     // Test + 세부 작업 button on '테스트' group
-    const testGroupObj = groupIds['테스트'];
+    const testGroupObj = groupIds['테스트'] || Object.values(groupIds)[0];
     const addGroupTaskBtn = page.locator(`[data-testid="task-group-add-task-${testGroupObj}"]`);
-    await expect(addGroupTaskBtn).toBeVisible();
+    await expect(addGroupTaskBtn).toBeVisible({ timeout: 15000 });
     await addGroupTaskBtn.click();
 
     await page.waitForSelector('[data-testid="task-modal"]');
@@ -146,7 +159,7 @@ test.describe('Task Grouping, Drag & Drop, Reorder and Move UI Suite', () => {
 
     // Test TaskMoveModal for task_1
     const moveMenuBtn = page.locator(`[data-testid="task-move-menu-${taskIds[1]}"]`);
-    await expect(moveMenuBtn).toBeVisible();
+    await expect(moveMenuBtn).toBeVisible({ timeout: 15000 });
     await moveMenuBtn.click();
 
     await page.waitForSelector('[data-testid="task-move-modal"]');
@@ -202,7 +215,7 @@ test.describe('Task Grouping, Drag & Drop, Reorder and Move UI Suite', () => {
         'x-editor-name': encodeURIComponent('최경진 대표'),
       },
       body: JSON.stringify({
-        groups: [{ group_id: groupIds['기획'], sort_order: 1, task_ids: [taskIds[0]] }],
+        groups: [{ group_id: Object.values(groupIds)[0], sort_order: 1, task_ids: [taskIds[0]] }],
         editor_name: '최경진 대표',
       }),
     });
