@@ -16,6 +16,9 @@ async function dismissWorkerPromptModal(page: any) {
 
 test.describe('Task Grouping, Drag & Drop, Reorder and Move UI Suite', () => {
   let createdProjectId = '';
+  let group1Id = '';
+  let group2Id = '';
+  let createdTaskId = '';
 
   test.beforeAll(async () => {
     const runId = Date.now();
@@ -37,6 +40,60 @@ test.describe('Task Grouping, Drag & Drop, Reorder and Move UI Suite', () => {
     expect(prjRes.status).toBe(201);
     const prjJson: any = await prjRes.json();
     createdProjectId = prjJson.id;
+
+    // 2. Create Group 1: '기획'
+    const g1Res = await fetch(`${QA_BASE_URL}/api/projects/${createdProjectId}/task-groups`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-editor-name': encodeURIComponent('유종욱 실장'),
+      },
+      body: JSON.stringify({
+        group_name: '기획',
+        group_name_ko: '기획',
+        group_name_vi: 'Quy hoạch',
+        editor_name: '유종욱 실장',
+      }),
+    });
+    const g1Json: any = await g1Res.json();
+    group1Id = g1Json.id;
+
+    // 3. Create Group 2: '개발'
+    const g2Res = await fetch(`${QA_BASE_URL}/api/projects/${createdProjectId}/task-groups`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-editor-name': encodeURIComponent('유종욱 실장'),
+      },
+      body: JSON.stringify({
+        group_name: '개발',
+        group_name_ko: '개발',
+        group_name_vi: 'Phát triển',
+        editor_name: '유종욱 실장',
+      }),
+    });
+    const g2Json: any = await g2Res.json();
+    group2Id = g2Json.id;
+
+    // 4. Create Task under Group 1 with assignees array
+    const tRes = await fetch(`${QA_BASE_URL}/api/tasks`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-editor-name': encodeURIComponent('유종욱 실장'),
+      },
+      body: JSON.stringify({
+        project_id: createdProjectId,
+        task_group_id: group1Id,
+        task_name: '요구사항 정의',
+        start_date: '2026-08-03',
+        end_date: '2026-08-07',
+        assignees: [{ worker_id: 'wrk_yjw', assignment_role: 'PRIMARY' }],
+        editor_name: '유종욱 실장',
+      }),
+    });
+    const tJson: any = await tRes.json();
+    createdTaskId = tJson.id;
   });
 
   test.afterAll(async () => {
@@ -54,30 +111,6 @@ test.describe('Task Grouping, Drag & Drop, Reorder and Move UI Suite', () => {
     await page.goto(`${QA_BASE_URL}/projects/${createdProjectId}`);
     await page.waitForLoadState('networkidle');
     await dismissWorkerPromptModal(page);
-
-    // Create 2 groups and 1 task via UI
-    const addGroupBtn = page.locator('[data-testid="add-task-group-btn"]');
-    if (await addGroupBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
-      await addGroupBtn.click();
-      await page.fill('[data-testid="task-group-name-input"]', '기획');
-      await page.click('[data-testid="task-group-save-btn"]');
-      await page.waitForTimeout(400);
-
-      await addGroupBtn.click();
-      await page.fill('[data-testid="task-group-name-input"]', '개발');
-      await page.click('[data-testid="task-group-save-btn"]');
-      await page.waitForTimeout(400);
-    }
-
-    const addTaskBtn = page.locator('[data-testid="add-task-btn"]');
-    if (await addTaskBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
-      await addTaskBtn.click();
-      await page.fill('[data-testid="task-name-input"]', '요구사항 분석');
-      await page.fill('[data-testid="task-start-date-input"]', '2026-08-03');
-      await page.fill('[data-testid="task-end-date-input"]', '2026-08-07');
-      await page.click('[data-testid="task-save-btn"]');
-      await page.waitForTimeout(400);
-    }
 
     const taskHandle = page.locator('[data-testid^="task-drag-handle-"]').first();
     await expect(taskHandle).toBeVisible({ timeout: 15000 });
@@ -111,25 +144,25 @@ test.describe('Task Grouping, Drag & Drop, Reorder and Move UI Suite', () => {
     await dismissWorkerPromptModal(page);
 
     const addGroupTaskBtn = page.locator('[data-testid^="task-group-add-task-"]').first();
-    if (await addGroupTaskBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
-      await addGroupTaskBtn.click();
-      await page.waitForSelector('[data-testid="task-modal"]');
-      await page.fill('[data-testid="task-name-input"]', '통합 검증 시험');
-      await page.fill('[data-testid="task-start-date-input"]', '2026-08-10');
-      await page.fill('[data-testid="task-end-date-input"]', '2026-08-14');
-      await page.click('[data-testid="task-save-btn"]');
-      await page.waitForSelector('[data-testid="task-modal"]', { state: 'detached' });
-    }
+    await expect(addGroupTaskBtn).toBeVisible({ timeout: 15000 });
+    await addGroupTaskBtn.click();
+
+    await page.waitForSelector('[data-testid="task-modal"]');
+    await page.fill('[data-testid="task-name-input"]', '통합 검증 시험');
+    await page.fill('[data-testid="task-start-date-input"]', '2026-08-10');
+    await page.fill('[data-testid="task-end-date-input"]', '2026-08-14');
+    await page.click('[data-testid="task-save-btn"]');
+    await page.waitForSelector('[data-testid="task-modal"]', { state: 'detached' });
 
     const moveMenuBtn = page.locator('[data-testid^="task-move-menu-"]').first();
-    if (await moveMenuBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
-      await moveMenuBtn.click();
-      await page.waitForSelector('[data-testid="task-move-modal"]');
-      const moveGroupSelect = page.locator('[data-testid="task-move-group-select"]');
-      await expect(moveGroupSelect).toBeVisible();
-      await page.click('[data-testid="task-move-cancel-btn"]');
-      await page.waitForSelector('[data-testid="task-move-modal"]', { state: 'detached' });
-    }
+    await expect(moveMenuBtn).toBeVisible({ timeout: 15000 });
+    await moveMenuBtn.click();
+
+    await page.waitForSelector('[data-testid="task-move-modal"]');
+    const moveGroupSelect = page.locator('[data-testid="task-move-group-select"]');
+    await expect(moveGroupSelect).toBeVisible();
+    await page.click('[data-testid="task-move-cancel-btn"]');
+    await page.waitForSelector('[data-testid="task-move-modal"]', { state: 'detached' });
   });
 
   test('3. Verify Mobile View (390px) Task Move Menu', async ({ page }) => {
