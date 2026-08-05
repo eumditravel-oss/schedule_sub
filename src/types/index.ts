@@ -62,7 +62,25 @@ export function getWorkerColorGroup(worker?: Partial<Worker> | null): WorkerColo
 
 export type ProjectStatus = 'ACTIVE' | 'COMPLETED';
 export type TranslationStatus = 'PENDING' | 'COMPLETED' | 'FAILED' | 'MANUAL';
-export type ScheduleState = 'UPCOMING' | 'IN_PROGRESS' | 'DELAYED' | 'COMPLETED';
+export type ScheduleState = 'UPCOMING' | 'IN_PROGRESS' | 'DELAYED' | 'COMPLETED' | 'COMPLETION_REVIEW';
+export type AssignmentRole = 'PRIMARY' | 'CO_ASSIGNEE';
+export type ProgressMode = 'AUTO_TIME' | 'STATUS_BASED';
+export type AvailabilityPolicy = 'ANY_AVAILABLE' | 'ALL_REQUIRED';
+
+export interface TaskAssignee {
+  worker_id: string;
+  name: string;
+  country_code?: CountryCode;
+  assignment_role: AssignmentRole;
+  allocation_percent: number;
+  sort_order?: number;
+}
+
+export interface TaskAssigneeInput {
+  worker_id: string;
+  allocation_percent?: number;
+  assignment_role?: AssignmentRole;
+}
 
 export interface ScheduleConflictDetail {
   worker_id?: string;
@@ -98,6 +116,8 @@ export interface Project {
   progress_gap?: number;
   schedule_state?: ScheduleState;
   conflict_count?: number;
+  auto_progress_task_count?: number;
+  status_progress_task_count?: number;
 
   // Archive fields
   status: ProjectStatus;
@@ -128,6 +148,15 @@ export interface Task {
   updated_by_name?: string | null;
   created_at?: string;
   updated_at?: string;
+
+  // Multi-Assignees & Progress Mode Extension
+  primary_worker_id?: string | null;
+  assignee_ids?: string[];
+  assignees?: TaskAssignee[];
+  progress_mode?: ProgressMode;
+  actual_progress_source?: ProgressMode;
+  availability_policy?: AvailabilityPolicy;
+  completion_confirmed?: number;
 
   // Progress & Schedule State
   planned_progress?: number;

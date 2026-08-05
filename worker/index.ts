@@ -13,6 +13,8 @@ import {
   getManualHolidaysServer,
   calculateManualHolidayImpactServer,
   saveManualHolidaysMonthServer,
+  fetchTaskAssigneesMapServer,
+  backfillTaskAssigneesAndProgressModeServer,
   WorkerProfile,
 } from './services/scheduleCalendar';
 import {
@@ -363,6 +365,121 @@ async function requireActiveCalendarEditor(
   };
 }
 
+async function validateAndNormalizeTaskAssigneesServer(
+  db: any,
+  body: any
+): Promise<{
+  valid: boolean;
+  errorCode?: string;
+  errorMsg?: string;
+  primaryWorkerId?: string;
+  primaryWorkerName?: string;
+  assignees?: Array<{ worker_id: string; name: string; country_code: string; assignment_role: 'PRIMARY' | 'CO_ASSIGNEE'; allocation_percent: number; sort_order: number }>;
+  progressMode?: 'AUTO_TIME' | 'STATUS_BASED';
+  availabilityPolicy?: 'ANY_AVAILABLE' | 'ALL_REQUIRED';
+}> {
+  const workersRes = await db.prepare(`SELECT id, name, is_active, access_role, country_code FROM workers`).all();
+  const allWorkers: any[] = workersRes.results || [];
+  const workerMap = new Map<string, any>();
+  allWorkers.forEach((w) => {
+    workerMap.set(w.id, w);
+    workerMap.set(w.name, w);
+  });
+
+  let rawAssigneeIds: string[] = body.assignee_ids || [];
+  if (rawAssigneeIds.length === 0 && body.worker_name) {
+    const w = workerMap.get(body.worker_name);
+    if (w) rawAssigneeIds = [w.id];
+  }
+  if (rawAssigneeIds.length === 0 && body.primary_worker_id) {
+    const w = workerMap.get(body.primary_worker_id);
+    if (w) rawAssigneeIds = [w.id];
+  }
+
+  if (rawAssigneeIds.length === 0) {
+    return { valid: false, errorCode: 'WORKER_REQUIRED', errorMsg: '최소 한 명 이상의 작업자를 배정해야 합니다.' };
+  }
+
+  const uniqueIds = Array.from(new Set(rawAssigneeIds));
+  if (uniqueIds.length !== rawAssigneeIds.length) {
+    return { valid: false, errorCode: 'DUPLICATE_ASSIGNEE', errorMsg: '중복된 작업자가 포함되어 있습니다.' };
+  }
+
+  let primaryId = body.primary_worker_id;
+  if (!primaryId) {
+    const pObj = workerMap.get(body.worker_name) || workerMap.get(uniqueIds[0]);
+    primaryId = pObj ? pObj.id : uniqueIds[0];
+  } else {
+    const pObj = workerMap.get(primaryId);
+    if (pObj) primaryId = pObj.id;
+  }
+
+  if (!uniqueIds.includes(primaryId)) {
+    uniqueIds.unshift(primaryId);
+  }
+
+  const validatedAssignees: any[] = [];
+  const rawAllocations: any[] = body.assignee_allocations || [];
+
+  const defaultAlloc = Math.floor(100 / uniqueIds.length);
+  const remainder = 100 - (defaultAlloc * uniqueIds.length);
+
+  for (let idx = 0; idx < uniqueIds.length; idx++) {
+    const wid = uniqueIds[idx];
+    const wObj = workerMap.get(wid);
+    if (!wObj) {
+      return { valid: false, errorCode: 'WORKER_PROFILE_NOT_FOUND', errorMsg: '작업자 프로필을 찾을 수 없습니다.' };
+    }
+
+    if (Number(wObj.is_active) !== 1) {
+      return { valid: false, errorCode: 'INACTIVE_WORKER', errorMsg: `비활성 작업자(${wObj.name})는 배정할 수 없습니다.` };
+    }
+
+    if (wObj.access_role !== 'EDITOR' || wObj.name === 'CEO' || wObj.name === 'COO') {
+      return { valid: false, errorCode: 'EXECUTIVE_ASSIGNMENT_FORBIDDEN', errorMsg: `경영진 및 보기 전용 계정(${wObj.name})은 작업자로 배정할 수 없습니다.` };
+    }
+
+    const allocInput = rawAllocations.find((a: any) => a.worker_id === wid || a.worker_id === wObj.name);
+    let allocPercent = allocInput && !isNaN(Number(allocInput.allocation_percent)) ? Number(allocInput.allocation_percent) : (defaultAlloc + (idx === 0 ? remainder : 0));
+
+    if (allocPercent < 1 || allocPercent > 100) {
+      return { valid: false, errorCode: 'INVALID_ALLOCATION_PERCENT', errorMsg: '작업 비중은 1%에서 100% 사이여야 합니다.' };
+    }
+
+    const isPrimary = wid === primaryId;
+    validatedAssignees.push({
+      worker_id: wObj.id,
+      name: wObj.name,
+      country_code: wObj.country_code,
+      assignment_role: isPrimary ? 'PRIMARY' : 'CO_ASSIGNEE',
+      allocation_percent: allocPercent,
+      sort_order: idx,
+    });
+  }
+
+  const totalAlloc = validatedAssignees.reduce((sum, a) => sum + a.allocation_percent, 0);
+  if (totalAlloc !== 100) {
+    return { valid: false, errorCode: 'ALLOCATION_TOTAL_INVALID', errorMsg: '담당 비중 합계는 100%여야 합니다.' };
+  }
+
+  const primaryObj = validatedAssignees.find((a) => a.assignment_role === 'PRIMARY') || validatedAssignees[0];
+
+  return {
+    valid: true,
+    primaryWorkerId: primaryObj.worker_id,
+    primaryWorkerName: primaryObj.name,
+    assignees: validatedAssignees,
+    progressMode: body.progress_mode === 'STATUS_BASED' ? 'STATUS_BASED' : 'AUTO_TIME',
+    availabilityPolicy: body.availability_policy === 'ALL_REQUIRED' ? 'ALL_REQUIRED' : 'ANY_AVAILABLE',
+  };
+}
+
+      // 0.9 POST /api/admin/backfill-assignees
+      if ((method === 'POST' || method === 'GET') && path === '/api/admin/backfill-assignees') {
+        const report = await backfillTaskAssigneesAndProgressModeServer(db);
+        return jsonResponse(report);
+      }
+
       // 1.0 POST /api/calendar/holidays/sync -> 410 Disabled
       if (method === 'POST' && path === '/api/calendar/holidays/sync') {
         return errorResponse(
@@ -682,26 +799,34 @@ async function requireActiveCalendarEditor(
               .all();
 
             const daily_statuses: Record<string, string> = {};
-            const daily_status_details: Record<string, any> = {};
 
             (statusRes.results || []).forEach((st: any) => {
               daily_statuses[st.work_date] = st.status;
-              daily_status_details[st.work_date] = {
-                status: st.status,
-                updated_by_name: st.updated_by_name,
-                updated_at: st.updated_at,
-              };
             });
 
             dailyStatusMap[t.id] = daily_statuses;
+          })
+        );
 
-            const workerObj = calendarBatch.workers.find(
-              (w: any) => w.id === t.worker_name || w.name === t.worker_name
-            );
+        const rawTaskIds = rawTasks.map((t: any) => t.id);
+        const taskAssigneesMap = await fetchTaskAssigneesMapServer(db, rawTaskIds);
+
+        const formattedTasks = await Promise.all(
+          rawTasks.map(async (t: any) => {
+            const daily_statuses = dailyStatusMap[t.id] || {};
+            const assignees = taskAssigneesMap[t.id] || (t.worker_name ? [{ worker_id: t.worker_name, name: t.worker_name, assignment_role: 'PRIMARY', allocation_percent: 100 }] : []);
+            const tWithAssignees = {
+              ...t,
+              assignees,
+              assignee_ids: assignees.map((a: any) => a.worker_id),
+              primary_worker_id: t.primary_worker_id || (assignees.find((a: any) => a.assignment_role === 'PRIMARY')?.worker_id || assignees[0]?.worker_id),
+              progress_mode: t.progress_mode || 'AUTO_TIME',
+              availability_policy: t.availability_policy || 'ANY_AVAILABLE',
+            };
 
             const progressMetrics = calculateTaskProgressServer(
-              t,
-              workerObj,
+              tWithAssignees,
+              calendarBatch.workers,
               calendarBatch.holidays,
               calendarBatch.overrides,
               project.status,
@@ -709,7 +834,7 @@ async function requireActiveCalendarEditor(
             );
 
             const conflicts = detectWorkerTaskConflictsServer(
-              t,
+              tWithAssignees,
               allActiveProjects,
               allActiveTasks,
               calendarBatch.workers,
@@ -718,19 +843,18 @@ async function requireActiveCalendarEditor(
             );
 
             return {
-              ...t,
+              ...tWithAssignees,
               ...progressMetrics,
               has_schedule_conflict: conflicts.length > 0,
               schedule_conflicts: conflicts,
               daily_statuses,
-              daily_status_details,
             };
           })
         );
 
         const projectMetrics = calculateProjectProgressServer(
           project,
-          tasks,
+          formattedTasks,
           calendarBatch.workers,
           calendarBatch.holidays,
           calendarBatch.overrides,
@@ -2160,6 +2284,11 @@ function addPureCalendarDays(dateStr: string, deltaDays: number): string {
 
         const validated = taskSchema.parse({ ...body, editor_name: editor });
 
+        const assignValidation = await validateAndNormalizeTaskAssigneesServer(db, body);
+        if (!assignValidation.valid) {
+          return errorResponse(assignValidation.errorMsg!, 400, assignValidation.errorCode!);
+        }
+
         const project = await db.prepare(`SELECT * FROM projects WHERE id = ?`).bind(validated.project_id).first();
         if (project) {
           if (validated.start_date < project.start_date || validated.end_date > project.end_date || validated.start_date > validated.end_date) {
@@ -2170,14 +2299,9 @@ function addPureCalendarDays(dateStr: string, deltaDays: number): string {
         }
 
         const batch = await fetchCalendarBatchData(db);
-        const taskWorker = batch.workers.find((w: any) => w.id === validated.worker_name || w.name === validated.worker_name);
-        if (!taskWorker || !taskWorker.country_code || !taskWorker.workweek_profile) {
-          return errorResponse('작업자 캘린더 정보를 확인할 수 없습니다.', 400, 'WORKER_PROFILE_NOT_FOUND');
-        }
-
         const taskMetrics = calculateTaskProgressServer(
-          { start_date: validated.start_date, end_date: validated.end_date },
-          taskWorker,
+          { start_date: validated.start_date, end_date: validated.end_date, assignees: assignValidation.assignees, availability_policy: assignValidation.availabilityPolicy },
+          batch.workers,
           batch.holidays,
           batch.overrides
         );
@@ -2195,7 +2319,7 @@ function addPureCalendarDays(dateStr: string, deltaDays: number): string {
           ]);
 
           const conflicts = detectWorkerTaskConflictsServer(
-            { worker_name: validated.worker_name, start_date: validated.start_date, end_date: validated.end_date, project_id: validated.project_id },
+            { worker_name: assignValidation.primaryWorkerName!, start_date: validated.start_date, end_date: validated.end_date, project_id: validated.project_id, assignees: assignValidation.assignees },
             allActiveProjectsRes.results || [],
             allActiveTasksRes.results || [],
             batch.workers,
@@ -2223,26 +2347,31 @@ function addPureCalendarDays(dateStr: string, deltaDays: number): string {
         }
 
         const id = `tsk_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
-
         const transResult = await translateProjectOrTaskName(env.AI, validated.task_name);
+        const nowIso = new Date().toISOString();
 
-        try {
-          await db
+        const dbQueries: any[] = [];
+        dbQueries.push(
+          db
             .prepare(
               `INSERT INTO tasks (
-                id, project_id, worker_name, task_name, start_date, end_date, progress,
+                id, project_id, worker_name, primary_worker_id, task_name, start_date, end_date, progress,
+                progress_mode, availability_policy, completion_confirmed,
                 created_by_name, updated_by_name,
                 task_name_ko, task_name_vi, source_language, translation_status, translation_error
-              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?)`
             )
             .bind(
               id,
               validated.project_id,
-              validated.worker_name,
+              assignValidation.primaryWorkerName,
+              assignValidation.primaryWorkerId,
               validated.task_name,
               validated.start_date,
               validated.end_date,
               validated.progress ?? 0,
+              assignValidation.progressMode,
+              assignValidation.availabilityPolicy,
               editor,
               editor,
               transResult.name_ko,
@@ -2251,35 +2380,30 @@ function addPureCalendarDays(dateStr: string, deltaDays: number): string {
               transResult.translation_status,
               transResult.translation_error
             )
-            .run();
-        } catch {
-          await db
-            .prepare(
-              `INSERT INTO tasks (
-                id, project_id, worker_name, task_name, start_date, end_date, progress,
-                task_name_ko, task_name_vi, source_language, translation_status, translation_error
-              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-            )
-            .bind(
-              id,
-              validated.project_id,
-              validated.worker_name,
-              validated.task_name,
-              validated.start_date,
-              validated.end_date,
-              validated.progress ?? 0,
-              transResult.name_ko,
-              transResult.name_vi,
-              transResult.source_language,
-              transResult.translation_status,
-              transResult.translation_error
-            )
-            .run();
+        );
+
+        for (const a of assignValidation.assignees!) {
+          const assignId = `ta_${id}_${a.worker_id}`;
+          dbQueries.push(
+            db
+              .prepare(
+                `INSERT INTO task_assignees (id, task_id, worker_id, assignment_role, allocation_percent, sort_order, assigned_by_name, created_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+              )
+              .bind(assignId, id, a.worker_id, a.assignment_role, a.allocation_percent, a.sort_order, editor, nowIso)
+          );
         }
+
+        await db.batch(dbQueries);
 
         await updateProjectAverageProgress(db, validated.project_id);
 
-        const created = await db.prepare(`SELECT * FROM tasks WHERE id = ?`).bind(id).first();
+        const created: any = await db.prepare(`SELECT * FROM tasks WHERE id = ?`).bind(id).first();
+        const assigneesMap = await fetchTaskAssigneesMapServer(db, [id]);
+        created.assignees = assigneesMap[id] || assignValidation.assignees;
+        created.assignee_ids = created.assignees.map((a: any) => a.worker_id);
+        created.actual_progress_source = created.progress_mode;
+
         return jsonResponse(created, 201);
       }
 
@@ -2287,7 +2411,7 @@ function addPureCalendarDays(dateStr: string, deltaDays: number): string {
       const patchTaskMatch = path.match(/^\/api\/tasks\/([^/]+)$/);
       if (method === 'PATCH' && patchTaskMatch) {
         const taskId = patchTaskMatch[1];
-        const existing = await db.prepare(`SELECT * FROM tasks WHERE id = ?`).bind(taskId).first();
+        const existing: any = await db.prepare(`SELECT * FROM tasks WHERE id = ?`).bind(taskId).first();
         if (!existing) {
           return errorResponse('작업을 찾을 수 없습니다.', 404);
         }
@@ -2305,8 +2429,26 @@ function addPureCalendarDays(dateStr: string, deltaDays: number): string {
 
         const validated = updateTaskSchema.parse({ ...body, editor_name: editor });
 
+        // Merge assignees
+        const currentAssigneesMap = await fetchTaskAssigneesMapServer(db, [taskId]);
+        const currentAssignees = currentAssigneesMap[taskId] || [];
+
+        const mergeBody = {
+          ...body,
+          primary_worker_id: body.primary_worker_id || existing.primary_worker_id,
+          worker_name: body.worker_name || existing.worker_name,
+          assignee_ids: body.assignee_ids || (currentAssignees.length > 0 ? currentAssignees.map((a: any) => a.worker_id) : undefined),
+          assignee_allocations: body.assignee_allocations || (currentAssignees.length > 0 ? currentAssignees.map((a: any) => ({ worker_id: a.worker_id, allocation_percent: a.allocation_percent })) : undefined),
+          progress_mode: body.progress_mode || existing.progress_mode || 'AUTO_TIME',
+          availability_policy: body.availability_policy || existing.availability_policy || 'ANY_AVAILABLE',
+        };
+
+        const assignValidation = await validateAndNormalizeTaskAssigneesServer(db, mergeBody);
+        if (!assignValidation.valid) {
+          return errorResponse(assignValidation.errorMsg!, 400, assignValidation.errorCode!);
+        }
+
         const project = await db.prepare(`SELECT * FROM projects WHERE id = ?`).bind(existing.project_id).first();
-        const targetWorkerName = validated.worker_name ?? existing.worker_name;
         const targetStart = validated.start_date ?? existing.start_date;
         const targetEnd = validated.end_date ?? existing.end_date;
 
@@ -2319,14 +2461,9 @@ function addPureCalendarDays(dateStr: string, deltaDays: number): string {
         }
 
         const batch = await fetchCalendarBatchData(db);
-        const taskWorker = batch.workers.find((w: any) => w.id === targetWorkerName || w.name === targetWorkerName);
-        if (!taskWorker || !taskWorker.country_code || !taskWorker.workweek_profile) {
-          return errorResponse('작업자 캘린더 정보를 확인할 수 없습니다.', 400, 'WORKER_PROFILE_NOT_FOUND');
-        }
-
         const taskMetrics = calculateTaskProgressServer(
-          { start_date: targetStart, end_date: targetEnd },
-          taskWorker,
+          { start_date: targetStart, end_date: targetEnd, assignees: assignValidation.assignees, availability_policy: assignValidation.availabilityPolicy },
+          batch.workers,
           batch.holidays,
           batch.overrides
         );
@@ -2351,11 +2488,11 @@ function addPureCalendarDays(dateStr: string, deltaDays: number): string {
           trans_error = transResult.translation_error;
         }
 
-        const newWorker = validated.worker_name ?? existing.worker_name;
         const newName = validated.task_name ?? existing.task_name;
         const newStart = validated.start_date ?? existing.start_date;
         const newEnd = validated.end_date ?? existing.end_date;
         const newProgress = validated.progress ?? existing.progress;
+        const completionConfirmed = body.completion_confirmed !== undefined ? Number(body.completion_confirmed) : (existing.completion_confirmed || 0);
 
         if (body.confirm_worker_schedule_conflict !== true) {
           const [allActiveProjectsRes, allActiveTasksRes, batch] = await Promise.all([
@@ -2365,7 +2502,7 @@ function addPureCalendarDays(dateStr: string, deltaDays: number): string {
           ]);
 
           const conflicts = detectWorkerTaskConflictsServer(
-            { id: taskId, worker_name: newWorker, start_date: newStart, end_date: newEnd, project_id: existing.project_id },
+            { id: taskId, worker_name: assignValidation.primaryWorkerName!, start_date: newStart, end_date: newEnd, project_id: existing.project_id, assignees: assignValidation.assignees },
             allActiveProjectsRes.results || [],
             allActiveTasksRes.results || [],
             batch.workers,
@@ -2394,47 +2531,92 @@ function addPureCalendarDays(dateStr: string, deltaDays: number): string {
 
         const isDateChanged = (validated.start_date && validated.start_date !== existing.start_date) || (validated.end_date && validated.end_date !== existing.end_date);
         const nextRevision = isDateChanged ? (existing.schedule_revision || 0) + 1 : (existing.schedule_revision || 0);
+        const nowIso = new Date().toISOString();
 
-        try {
-          await db
+        const dbQueries: any[] = [];
+
+        // Log mode change if changed
+        if (body.progress_mode && body.progress_mode !== existing.progress_mode) {
+          const logId = `tpml_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+          dbQueries.push(
+            db
+              .prepare(
+                `INSERT INTO task_progress_mode_logs (id, task_id, old_mode, new_mode, old_actual_progress, new_actual_progress, changed_by_name, created_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+              )
+              .bind(logId, taskId, existing.progress_mode || 'AUTO_TIME', body.progress_mode, existing.actual_progress || 0, taskMetrics.actual_progress, editor, nowIso)
+          );
+        }
+
+        dbQueries.push(
+          db
             .prepare(
               `UPDATE tasks SET
-                worker_name = ?, task_name = ?, start_date = ?, end_date = ?, progress = ?,
-                schedule_revision = ?, updated_by_name = ?,
-                task_name_ko = ?, task_name_vi = ?, source_language = ?, translation_status = ?, translation_error = ?,
-                updated_at = CURRENT_TIMESTAMP
-              WHERE id = ?`
-            )
-            .bind(newWorker, newName, newStart, newEnd, newProgress, nextRevision, editor, task_name_ko, task_name_vi, source_lang, trans_status, trans_error, taskId)
-            .run();
-        } catch {
-          await db
-            .prepare(
-              `UPDATE tasks SET
-                worker_name = ?, task_name = ?, start_date = ?, end_date = ?, progress = ?,
+                worker_name = ?,
+                primary_worker_id = ?,
+                task_name = ?,
+                start_date = ?,
+                end_date = ?,
+                progress = ?,
+                progress_mode = ?,
+                availability_policy = ?,
+                completion_confirmed = ?,
                 schedule_revision = ?,
-                task_name_ko = ?, task_name_vi = ?, source_language = ?, translation_status = ?, translation_error = ?,
+                updated_by_name = ?,
+                task_name_ko = ?,
+                task_name_vi = ?,
+                source_language = ?,
+                translation_status = ?,
+                translation_error = ?,
                 updated_at = CURRENT_TIMESTAMP
               WHERE id = ?`
             )
-            .bind(newWorker, newName, newStart, newEnd, newProgress, nextRevision, task_name_ko, task_name_vi, source_lang, trans_status, trans_error, taskId)
-            .run();
+            .bind(
+              assignValidation.primaryWorkerName,
+              assignValidation.primaryWorkerId,
+              newName,
+              newStart,
+              newEnd,
+              newProgress,
+              assignValidation.progressMode,
+              assignValidation.availabilityPolicy,
+              completionConfirmed,
+              nextRevision,
+              editor,
+              task_name_ko,
+              task_name_vi,
+              source_lang,
+              trans_status,
+              trans_error,
+              taskId
+            )
+        );
+
+        // Replace task_assignees
+        dbQueries.push(db.prepare(`DELETE FROM task_assignees WHERE task_id = ?`).bind(taskId));
+
+        for (const a of assignValidation.assignees!) {
+          const assignId = `ta_${taskId}_${a.worker_id}`;
+          dbQueries.push(
+            db
+              .prepare(
+                `INSERT INTO task_assignees (id, task_id, worker_id, assignment_role, allocation_percent, sort_order, assigned_by_name, created_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+              )
+              .bind(assignId, taskId, a.worker_id, a.assignment_role, a.allocation_percent, a.sort_order, editor, nowIso)
+          );
         }
 
-        if (isDateChanged) {
-          await db
-            .prepare(
-              `UPDATE leave_schedule_shift_task_logs
-               SET restore_status = 'MANUAL_CHANGED', conflict_reason = '사용자가 작업 일정을 수동으로 수정함'
-               WHERE task_id = ? AND restore_status = 'RESTORABLE'`
-            )
-            .bind(taskId)
-            .run();
-        }
+        await db.batch(dbQueries);
 
         await updateProjectAverageProgress(db, existing.project_id);
 
-        const updated = await db.prepare(`SELECT * FROM tasks WHERE id = ?`).bind(taskId).first();
+        const updated: any = await db.prepare(`SELECT * FROM tasks WHERE id = ?`).bind(taskId).first();
+        const assigneesMap = await fetchTaskAssigneesMapServer(db, [taskId]);
+        updated.assignees = assigneesMap[taskId] || assignValidation.assignees;
+        updated.assignee_ids = updated.assignees.map((a: any) => a.worker_id);
+        updated.actual_progress_source = updated.progress_mode;
+
         return jsonResponse(updated);
       }
 

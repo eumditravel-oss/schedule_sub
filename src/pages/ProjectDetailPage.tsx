@@ -964,18 +964,53 @@ export const ProjectDetailPage: React.FC = () => {
                                     <AlertTriangle className="w-3.5 h-3.5 text-rose-600 animate-pulse" />
                                   </span>
                                 )}
-                                <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200 shrink-0">
-                                  {task.worker_name}
-                                </span>
-                                <span className="font-semibold text-slate-900 truncate text-xs" title={taskDisplayName}>
-                                  {taskDisplayName}
-                                </span>
+                                {(() => {
+                                  const assignees = task.assignees || [];
+                                  const hasMulti = assignees.length > 1;
+                                  const primaryName = task.worker_name || assignees.find((a) => a.assignment_role === 'PRIMARY')?.name || '담당자 미정';
+                                  const tooltipText = assignees.length > 0
+                                    ? assignees.map((a) => `${a.assignment_role === 'PRIMARY' ? '[주]' : '[보조]'} ${a.name} (${a.allocation_percent}%)`).join('\n')
+                                    : primaryName;
+
+                                  const modeLabel = task.progress_mode === 'STATUS_BASED' ? '실제(상태)' : '실제(자동)';
+                                  const isReviewNeeded = task.schedule_state === 'COMPLETION_REVIEW';
+
+                                  return (
+                                    <>
+                                      <div
+                                        data-testid={`task-assignees-chip-${task.id}`}
+                                        title={tooltipText}
+                                        className="flex items-center gap-1 shrink-0 cursor-help"
+                                      >
+                                        <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                                          {primaryName}
+                                        </span>
+                                        {hasMulti && (
+                                          <span className="px-1 py-0.5 rounded text-[9px] font-extrabold bg-indigo-100 text-indigo-800 border border-indigo-200">
+                                            +{assignees.length - 1}
+                                          </span>
+                                        )}
+                                      </div>
+
+                                      <span className="font-semibold text-slate-900 truncate text-xs" title={taskDisplayName}>
+                                        {taskDisplayName}
+                                      </span>
+                                    </>
+                                  );
+                                })()}
                               </div>
                               <div className="mt-0.5 text-[10px] text-slate-500 flex items-center justify-between">
                                 <span className="truncate">{task.start_date.slice(5)} ~ {task.end_date.slice(5)}</span>
-                                <span className="font-bold shrink-0 ml-1">
-                                  예정 {task.planned_progress ?? task.progress ?? 0}% / 실제 {task.actual_progress ?? task.progress ?? 0}%
-                                </span>
+                                <div className="flex items-center gap-1 shrink-0 ml-1">
+                                  {task.schedule_state === 'COMPLETION_REVIEW' && (
+                                    <span data-testid="completion-review-badge" className="px-1 py-0.5 text-[9px] font-bold bg-amber-100 text-amber-800 rounded border border-amber-300">
+                                      완료 확인 필요
+                                    </span>
+                                  )}
+                                  <span className="font-bold">
+                                    예정 {task.planned_progress ?? task.progress ?? 0}% / {task.progress_mode === 'STATUS_BASED' ? '실제(상태)' : '실제(자동)'} {task.actual_progress ?? task.progress ?? 0}%
+                                  </span>
+                                </div>
                               </div>
                             </div>
 
@@ -1024,10 +1059,13 @@ export const ProjectDetailPage: React.FC = () => {
                                     key={cIdx}
                                     dateStr={col.dateStr}
                                     worker={targetWorkerObj as any}
+                                    assignees={task.assignees}
+                                    availabilityPolicy={task.availability_policy}
                                     dayStatus={dayStatus}
                                     countryOffState={countryOffInfo}
                                     countryHolidays={countryHolidays}
                                     calendarOverrides={calendarOverrides}
+                                    workers={workers}
                                     isToday={col.isToday}
                                     style={{ minWidth: `${GANTT_DAY_WIDTH_PX}px` }}
                                     onClick={() => handleCellClick(task, col.dateStr, dayStatus, targetWorkerObj as any)}

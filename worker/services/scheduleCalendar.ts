@@ -982,3 +982,120 @@ export async function saveManualHolidaysMonthServer(
     restore_token: restoreToken,
   };
 }
+
+export async function fetchTaskAssigneesMapServer(db: any, taskIds: string[]): Promise<Record<string, any[]>> {
+  const result: Record<string, any[]> = {};
+  if (!taskIds || taskIds.length === 0) return result;
+
+  const placeholders = taskIds.map(() => '?').join(',');
+  const rows = await db
+    .prepare(
+      `SELECT ta.task_id, ta.worker_id, ta.assignment_role, ta.allocation_percent, ta.sort_order, w.name, w.country_code
+       FROM task_assignees ta
+       JOIN workers w ON ta.worker_id = w.id
+       WHERE ta.task_id IN (${placeholders}) AND ta.deleted_at IS NULL
+       ORDER BY ta.sort_order ASC, ta.assignment_role DESC`
+    )
+    .bind(...taskIds)
+    .all();
+
+  const list: any[] = rows.results || [];
+  for (const row of list) {
+    if (!result[row.task_id]) {
+      result[row.task_id] = [];
+    }
+    result[row.task_id].push({
+      worker_id: row.worker_id,
+      name: row.name,
+      country_code: row.country_code,
+      assignment_role: row.assignment_role,
+      allocation_percent: Number(row.allocation_percent) || 100,
+      sort_order: Number(row.sort_order) || 0,
+    });
+  }
+
+  return result;
+}
+
+export async function backfillTaskAssigneesAndProgressModeServer(db: any): Promise<any> {
+  const tasksRes = await db.prepare(`SELECT id, worker_name, primary_worker_id, progress_mode FROM tasks`).all();
+  const tasks: any[] = tasksRes.results || [];
+
+  const workersRes = await db.prepare(`SELECT id, name, is_active, access_role FROM workers`).all();
+  const workers: any[] = workersRes.results || [];
+
+  const dailyStatusesRes = await db.prepare(`SELECT DISTINCT task_id FROM task_daily_statuses`).all();
+  const tasksWithDailyStatus = new Set((dailyStatusesRes.results || []).map((r: any) => r.task_id));
+
+  let matchedAssignees = 0;
+  let unmatchedCount = 0;
+  const unmatchedList: any[] = [];
+  let autoTimeCount = 0;
+  let statusBasedCount = 0;
+
+  const nowIso = new Date().toISOString();
+  const batchQueries: any[] = [];
+
+  for (const t of tasks) {
+    const foundWorker = workers.find((w: any) => w.id === t.worker_name || w.name === t.worker_name);
+    
+    if (foundWorker) {
+      matchedAssignees += 1;
+      const primaryId = foundWorker.id;
+      const assignId = `ta_${t.id}_${primaryId}`;
+
+      batchQueries.push(
+        db
+          .prepare(
+            `INSERT INTO task_assignees (id, task_id, worker_id, assignment_role, allocation_percent, sort_order, created_at)
+             VALUES (?, ?, ?, 'PRIMARY', 100, 0, ?)
+             ON CONFLICT(task_id, worker_id) DO UPDATE SET
+               assignment_role = 'PRIMARY',
+               allocation_percent = 100,
+               updated_at = CURRENT_TIMESTAMP`
+          )
+          .bind(assignId, t.id, primaryId, nowIso)
+      );
+
+      batchQueries.push(
+        db
+          .prepare(`UPDATE tasks SET primary_worker_id = ? WHERE id = ?`)
+          .bind(primaryId, t.id)
+      );
+    } else {
+      unmatchedCount += 1;
+      unmatchedList.push({
+        task_id: t.id,
+        worker_name: t.worker_name,
+        reason: 'WORKER_PROFILE_NOT_FOUND',
+      });
+    }
+
+    const hasDaily = tasksWithDailyStatus.has(t.id);
+    const targetMode = hasDaily ? 'STATUS_BASED' : 'AUTO_TIME';
+    if (targetMode === 'AUTO_TIME') autoTimeCount += 1;
+    else statusBasedCount += 1;
+
+    batchQueries.push(
+      db
+        .prepare(`UPDATE tasks SET progress_mode = ? WHERE id = ?`)
+        .bind(targetMode, t.id)
+    );
+  }
+
+  if (batchQueries.length > 0) {
+    const CHUNK_SIZE = 50;
+    for (let i = 0; i < batchQueries.length; i += CHUNK_SIZE) {
+      await db.batch(batchQueries.slice(i, i + CHUNK_SIZE));
+    }
+  }
+
+  return {
+    total_tasks: tasks.length,
+    matched_assignees: matchedAssignees,
+    unmatched_count: unmatchedCount,
+    unmatched_list: unmatchedList,
+    auto_time_count: autoTimeCount,
+    status_based_count: statusBasedCount,
+  };
+}

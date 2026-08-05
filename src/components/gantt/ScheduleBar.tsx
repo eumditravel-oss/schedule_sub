@@ -2,7 +2,7 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { useI18n } from '../../hooks/useI18n';
 
-export type ScheduleBarStatus = 'UPCOMING' | 'IN_PROGRESS' | 'DELAYED' | 'COMPLETED' | 'UNKNOWN';
+export type ScheduleBarStatus = 'UPCOMING' | 'IN_PROGRESS' | 'DELAYED' | 'COMPLETED' | 'COMPLETION_REVIEW' | 'UNKNOWN';
 
 export interface ScheduleBarProps {
   title: string;

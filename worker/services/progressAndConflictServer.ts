@@ -14,20 +14,38 @@ export interface TaskProgressMetricsServer {
   planned_progress: number;
   actual_progress: number;
   progress_gap: number;
-  schedule_state: 'UPCOMING' | 'IN_PROGRESS' | 'DELAYED' | 'COMPLETED';
+  schedule_state: 'UPCOMING' | 'IN_PROGRESS' | 'DELAYED' | 'COMPLETED' | 'COMPLETION_REVIEW';
+  actual_progress_source: 'AUTO_TIME' | 'STATUS_BASED';
 }
 
 export function calculateTaskProgressServer(
   task: any,
-  worker?: any,
+  workers: any[] | any = [],
   holidays: any[] = [],
   overrides: any[] = [],
   projectStatus: 'ACTIVE' | 'COMPLETED' = 'ACTIVE',
   dailyStatuses: Record<string, string> = {},
   referenceTodayStr?: string
 ): TaskProgressMetricsServer {
-  const todayStr = referenceTodayStr || getTodayStrForWorkerServer(worker);
-  const workerObj = worker;
+  const workerList: any[] = Array.isArray(workers) ? workers : (workers ? [workers] : []);
+  
+  let taskAssignees: any[] = task.assignees || [];
+  if (taskAssignees.length === 0) {
+    const primaryId = task.primary_worker_id || task.worker_name;
+    const foundWorker = workerList.find((w: any) => w.id === primaryId || w.name === primaryId);
+    if (foundWorker) {
+      taskAssignees = [{
+        worker_id: foundWorker.id,
+        name: foundWorker.name,
+        country_code: foundWorker.country_code,
+        assignment_role: 'PRIMARY',
+        allocation_percent: 100
+      }];
+    }
+  }
+
+  const refWorker = workerList.find((w: any) => w.id === task.primary_worker_id || w.name === task.worker_name) || workerList[0];
+  const todayStr = referenceTodayStr || getTodayStrForWorkerServer(refWorker);
 
   const dates: string[] = [];
   let curDate = new Date(`${task.start_date}T00:00:00Z`);
@@ -42,10 +60,26 @@ export function calculateTaskProgressServer(
   let elapsed_planned_working_days = 0;
   let completed_working_days = 0;
 
-  for (const dateStr of dates) {
-    const dayStatus = resolveWorkDayStatusServer(dateStr, workerObj, holidays, overrides);
+  const policy = task.availability_policy || 'ANY_AVAILABLE';
 
-    if (dayStatus.is_working_day) {
+  for (const dateStr of dates) {
+    let isWorking = false;
+    if (taskAssignees.length === 0) {
+      const dayStatus = resolveWorkDayStatusServer(dateStr, refWorker, holidays, overrides);
+      isWorking = dayStatus.is_working_day;
+    } else {
+      const statuses = taskAssignees.map(a => {
+        const wObj = workerList.find((w: any) => w.id === a.worker_id || w.name === a.name);
+        return resolveWorkDayStatusServer(dateStr, wObj, holidays, overrides);
+      });
+      if (policy === 'ALL_REQUIRED') {
+        isWorking = statuses.every(s => s.is_working_day);
+      } else {
+        isWorking = statuses.some(s => s.is_working_day);
+      }
+    }
+
+    if (isWorking) {
       planned_working_days += 1;
 
       if (dateStr < todayStr) {
@@ -70,16 +104,32 @@ export function calculateTaskProgressServer(
       : 0;
   }
 
+  const progressMode: 'AUTO_TIME' | 'STATUS_BASED' = task.progress_mode || 'AUTO_TIME';
   let actual_progress = 0;
-  if (planned_working_days > 0) {
-    actual_progress = Math.min(100, Math.round((completed_working_days / planned_working_days) * 100));
+
+  if (progressMode === 'AUTO_TIME') {
+    if (todayStr < task.start_date) {
+      actual_progress = 0;
+    } else if (todayStr > task.end_date) {
+      actual_progress = 100;
+    } else {
+      actual_progress = planned_working_days > 0
+        ? Math.min(100, Math.round((elapsed_planned_working_days / planned_working_days) * 100))
+        : 0;
+    }
+  } else {
+    actual_progress = planned_working_days > 0
+      ? Math.min(100, Math.round((completed_working_days / planned_working_days) * 100))
+      : 0;
   }
 
   const progress_gap = actual_progress - planned_progress;
 
-  let schedule_state: 'UPCOMING' | 'IN_PROGRESS' | 'DELAYED' | 'COMPLETED' = 'UPCOMING';
-  if (actual_progress === 100 || projectStatus === 'COMPLETED') {
+  let schedule_state: 'UPCOMING' | 'IN_PROGRESS' | 'DELAYED' | 'COMPLETED' | 'COMPLETION_REVIEW' = 'UPCOMING';
+  if (projectStatus === 'COMPLETED' || Number(task.completion_confirmed) === 1) {
     schedule_state = 'COMPLETED';
+  } else if (progressMode === 'AUTO_TIME' && actual_progress === 100) {
+    schedule_state = 'COMPLETION_REVIEW';
   } else if (todayStr > task.end_date && actual_progress < 100 && projectStatus === 'ACTIVE') {
     schedule_state = 'DELAYED';
   } else if (todayStr < task.start_date) {
@@ -95,6 +145,7 @@ export function calculateTaskProgressServer(
     actual_progress,
     progress_gap,
     schedule_state,
+    actual_progress_source: progressMode,
   };
 }
 
@@ -124,21 +175,32 @@ export function calculateProjectProgressServer(
       actual_progress: 0,
       progress_gap: 0,
       schedule_state: state,
+      auto_progress_task_count: 0,
+      status_progress_task_count: 0,
     };
   }
 
   let total_planned_days = 0;
   let total_completed_days = 0;
   let weighted_planned_progress_sum = 0;
+  let weighted_actual_progress_sum = 0;
+  let auto_progress_task_count = 0;
+  let status_progress_task_count = 0;
 
   for (const tItem of tasks) {
-    const workerObj = workers.find((w) => w.id === tItem.worker_name || w.name === tItem.worker_name);
     const dailyMap = allDailyStatuses[tItem.id] || {};
-    const metrics = calculateTaskProgressServer(tItem, workerObj, holidays, overrides, project.status, dailyMap, referenceTodayStr);
+    const metrics = calculateTaskProgressServer(tItem, workers, holidays, overrides, project.status, dailyMap, referenceTodayStr);
 
     total_planned_days += metrics.planned_working_days;
     total_completed_days += metrics.completed_working_days;
     weighted_planned_progress_sum += metrics.planned_progress * metrics.planned_working_days;
+    weighted_actual_progress_sum += metrics.actual_progress * metrics.planned_working_days;
+
+    if (metrics.actual_progress_source === 'AUTO_TIME') {
+      auto_progress_task_count += 1;
+    } else {
+      status_progress_task_count += 1;
+    }
   }
 
   const planned_progress = total_planned_days > 0
@@ -146,7 +208,7 @@ export function calculateProjectProgressServer(
     : 0;
 
   const actual_progress = total_planned_days > 0
-    ? Math.min(100, Math.round((total_completed_days / total_planned_days) * 100))
+    ? Math.min(100, Math.round(weighted_actual_progress_sum / total_planned_days))
     : 0;
 
   const progress_gap = actual_progress - planned_progress;
@@ -170,26 +232,30 @@ export function calculateProjectProgressServer(
     actual_progress,
     progress_gap,
     schedule_state,
+    auto_progress_task_count,
+    status_progress_task_count,
   };
 }
 
 export function detectWorkerTaskConflictsServer(
-  target: { id?: string; worker_name: string; start_date: string; end_date: string; project_id?: string },
+  target: { id?: string; worker_name: string; start_date: string; end_date: string; project_id?: string; assignees?: any[] },
   allProjects: any[],
   allTasks: any[],
   workers: any[] = [],
   holidays: any[] = [],
   overrides: any[] = []
 ): any[] {
-  if (!target.worker_name || !target.start_date || !target.end_date) return [];
+  if (!target.start_date || !target.end_date) return [];
 
-  const targetWorker = workers.find(
-    (w) => w.id === target.worker_name || w.name === target.worker_name
-  );
-
-  if (!targetWorker || !targetWorker.country_code || !targetWorker.workweek_profile) {
-    return [];
+  let targetAssignees: any[] = target.assignees || [];
+  if (targetAssignees.length === 0 && target.worker_name) {
+    const wObj = workers.find((w) => w.id === target.worker_name || w.name === target.worker_name);
+    if (wObj) {
+      targetAssignees = [{ worker_id: wObj.id, name: wObj.name, allocation_percent: 100 }];
+    }
   }
+
+  if (targetAssignees.length === 0) return [];
 
   const activeProjectMap = new Map<string, any>();
   allProjects.forEach((p) => {
@@ -200,51 +266,56 @@ export function detectWorkerTaskConflictsServer(
 
   const conflicts: any[] = [];
 
-  for (const otherTask of allTasks) {
-    if (!otherTask || !otherTask.start_date || !otherTask.end_date || !otherTask.worker_name) continue;
-    if (target.id && otherTask.id === target.id) continue;
-    if (target.project_id && otherTask.project_id === target.project_id) continue;
+  for (const a of targetAssignees) {
+    const targetWorker = workers.find((w) => w.id === a.worker_id || w.name === a.name);
+    if (!targetWorker || !targetWorker.country_code || !targetWorker.workweek_profile) continue;
 
-    const isSameWorker =
-      otherTask.worker_name === target.worker_name ||
-      otherTask.worker_name === targetWorker.id ||
-      otherTask.worker_name === targetWorker.name;
+    for (const otherTask of allTasks) {
+      if (otherTask.id && target.id && otherTask.id === target.id) continue;
+      if (!activeProjectMap.has(otherTask.project_id)) continue;
 
-    if (!isSameWorker) continue;
-
-    const otherProject = activeProjectMap.get(otherTask.project_id);
-    if (!otherProject) continue;
-
-    if (otherTask.start_date <= target.end_date && otherTask.end_date >= target.start_date) {
-      const overlapStart = otherTask.start_date > target.start_date ? otherTask.start_date : target.start_date;
-      const overlapEnd = otherTask.end_date < target.end_date ? otherTask.end_date : target.end_date;
-
-      let overlappingWorkingDays = 0;
-      let curDate = new Date(`${overlapStart}T00:00:00Z`);
-      const endDateObj = new Date(`${overlapEnd}T00:00:00Z`);
-
-      while (curDate <= endDateObj) {
-        const dateStr = curDate.toISOString().slice(0, 10);
-        const dayStatus = resolveWorkDayStatusServer(dateStr, targetWorker, holidays, overrides);
-        if (dayStatus.is_working_day) {
-          overlappingWorkingDays += 1;
-        }
-        curDate.setUTCDate(curDate.getUTCDate() + 1);
+      let otherAssignees: any[] = otherTask.assignees || [];
+      if (otherAssignees.length === 0 && otherTask.worker_name) {
+        const ow = workers.find((w) => w.id === otherTask.worker_name || w.name === otherTask.worker_name);
+        if (ow) otherAssignees = [{ worker_id: ow.id, name: ow.name, allocation_percent: 100 }];
       }
 
-      if (overlappingWorkingDays > 0) {
+      const isAssigned = otherAssignees.some((oa) => oa.worker_id === targetWorker.id || oa.name === targetWorker.name);
+      if (!isAssigned) continue;
+
+      const startMax = target.start_date > otherTask.start_date ? target.start_date : otherTask.start_date;
+      const endMin = target.end_date < otherTask.end_date ? target.end_date : otherTask.end_date;
+
+      if (startMax > endMin) continue;
+
+      const overlapDates: string[] = [];
+      let cur = new Date(`${startMax}T00:00:00Z`);
+      const endObj = new Date(`${endMin}T00:00:00Z`);
+      while (cur <= endObj) {
+        overlapDates.push(cur.toISOString().slice(0, 10));
+        cur.setUTCDate(cur.getUTCDate() + 1);
+      }
+
+      let workingOverlapDays = 0;
+      for (const dStr of overlapDates) {
+        const st = resolveWorkDayStatusServer(dStr, targetWorker, holidays, overrides);
+        if (st.is_working_day) {
+          workingOverlapDays += 1;
+        }
+      }
+
+      if (workingOverlapDays > 0) {
+        const otherProj = activeProjectMap.get(otherTask.project_id);
         conflicts.push({
           worker_id: targetWorker.id,
           worker_name: targetWorker.name,
-          current_project_id: target.project_id,
-          conflict_project_id: otherProject.id,
-          conflict_project_name: otherProject.name_ko || otherProject.name,
-          current_task_id: target.id,
+          conflict_project_id: otherTask.project_id,
+          conflict_project_name: otherProj?.name || '기타 프로젝트',
           conflict_task_id: otherTask.id,
-          conflict_task_name: otherTask.task_name_ko || otherTask.task_name,
-          overlap_start_date: overlapStart,
-          overlap_end_date: overlapEnd,
-          overlapping_working_days: overlappingWorkingDays,
+          conflict_task_name: otherTask.task_name,
+          overlap_start_date: startMax,
+          overlap_end_date: endMin,
+          overlapping_working_days: workingOverlapDays,
         });
       }
     }
