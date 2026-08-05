@@ -50,8 +50,8 @@ test.describe('Strict Gantt Inline Content & Build SHA E2E Suite', () => {
       },
       body: JSON.stringify({
         name: `[QA-INLINE-E2E-${runId}] 간트 내부 정보 검증 프로젝트`,
-        start_date: '2026-08-01',
-        end_date: '2026-08-25',
+        start_date: '2026-09-01',
+        end_date: '2026-09-25',
         progress: 0,
         editor_name: '박용진 수석',
       }),
@@ -72,8 +72,8 @@ test.describe('Strict Gantt Inline Content & Build SHA E2E Suite', () => {
       body: JSON.stringify({
         project_id: createdProjectId,
         task_name: `[QA-INLINE-E2E-${runId}] 상세 작업 막대 검증`,
-        start_date: '2026-08-01',
-        end_date: '2026-08-20',
+        start_date: '2026-09-01',
+        end_date: '2026-09-20',
         worker_name: '박용진 수석',
         editor_name: '박용진 수석',
       }),

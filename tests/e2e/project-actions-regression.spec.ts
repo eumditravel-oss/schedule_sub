@@ -44,8 +44,8 @@ test.describe('P0 Project Actions & Complete CRUD Regression Suite', () => {
       },
       body: JSON.stringify({
         name: initialProjectName,
-        start_date: '2026-08-01',
-        end_date: '2026-08-25',
+        start_date: '2026-09-01',
+        end_date: '2026-09-25',
         progress: 0,
         editor_name: '박용진 수석',
       }),
@@ -66,8 +66,8 @@ test.describe('P0 Project Actions & Complete CRUD Regression Suite', () => {
       body: JSON.stringify({
         project_id: createdProjectId,
         task_name: initialTaskName,
-        start_date: '2026-08-01',
-        end_date: '2026-08-20',
+        start_date: '2026-09-01',
+        end_date: '2026-09-20',
         worker_name: '박용진 수석',
         editor_name: '박용진 수석',
       }),
@@ -135,10 +135,10 @@ test.describe('P0 Project Actions & Complete CRUD Regression Suite', () => {
     await expect(nameInput).toHaveValue(initialProjectName);
 
     const startDateInput = page.locator('[data-testid="project-start-date"]');
-    await expect(startDateInput).toHaveValue('2026-08-01');
+    await expect(startDateInput).toHaveValue('2026-09-01');
 
     const endDateInput = page.locator('[data-testid="project-end-date"]');
-    await expect(endDateInput).toHaveValue('2026-08-25');
+    await expect(endDateInput).toHaveValue('2026-09-25');
 
     // Cancel edit
     const cancelBtn = page.locator('[data-testid="project-cancel-btn"]');
@@ -184,10 +184,10 @@ test.describe('P0 Project Actions & Complete CRUD Regression Suite', () => {
     await expect(editBtn).toBeVisible({ timeout: 15000 });
     await editBtn.click();
 
-    // Shift start date by +5 days (2026-08-01 -> 2026-08-06)
+    // Shift start date by +5 days (2026-09-01 -> 2026-09-06)
     const startDateInput = page.locator('[data-testid="project-start-date"]');
     await startDateInput.focus();
-    await startDateInput.fill('2026-08-06');
+    await startDateInput.fill('2026-09-06');
     await startDateInput.dispatchEvent('change');
     await page.waitForTimeout(200);
 
