@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { useI18n } from '../../hooks/useI18n';
 import { Worker, isExecutiveViewer, LeaveDeleteResponse, canManageCountryCalendar } from '../../types';
 import { X, Calendar, Plus, Trash2, CheckCircle, AlertCircle, Lock, AlertTriangle, ArrowRight, RotateCcw, ChevronLeft, ChevronRight, RefreshCw, Users } from 'lucide-react';
-import { api } from '../../services/api';
+import { api, getCurrentWorkerId, getCurrentWorkerName } from '../../services/api';
 import { getVietnamSaturdaysInMonth } from '../../utils/workCalendar';
 
 interface CalendarManagerModalProps {
@@ -60,7 +60,11 @@ export const CalendarManagerModal: React.FC<CalendarManagerModalProps> = ({
   const [vnSaving, setVnSaving] = useState<boolean>(false);
 
   const isViewer = isExecutiveViewer(currentWorker);
-  const canManageCountry = canManageCountryCalendar(currentWorker);
+  const activeWorkerId = getCurrentWorkerId();
+  const activeWorkerName = getCurrentWorkerName();
+  const canManageCountry = canManageCountryCalendar(currentWorker) ||
+    ['wrk_01', 'wrk_02', '유종욱 실장', '박용진 수석'].includes(activeWorkerId) ||
+    ['wrk_01', 'wrk_02', '유종욱 실장', '박용진 수석'].includes(activeWorkerName);
 
   useEffect(() => {
     if (isOpen) {
@@ -339,11 +343,6 @@ export const CalendarManagerModal: React.FC<CalendarManagerModalProps> = ({
     setVnYear(newY);
     setVnMonth(newM);
   };
-  const activeWorkerId = getCurrentWorkerId();
-  const activeWorkerName = getCurrentWorkerName();
-  const canManageCountry = canManageCountryCalendar(currentWorker) ||
-    ['wrk_01', 'wrk_02', '유종욱 실장', '박용진 수석'].includes(activeWorkerId) ||
-    ['wrk_01', 'wrk_02', '유종욱 실장', '박용진 수석'].includes(activeWorkerName);
 
   const handleVnSaveInit = async () => {
     if (!canManageCountry) {
