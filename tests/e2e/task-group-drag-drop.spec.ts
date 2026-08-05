@@ -53,6 +53,11 @@ test.describe('Task Grouping, Drag & Drop, Reorder and Move UI Suite', () => {
   });
 
   test('1. Verify Desktop Task Drag & Drop Between Groups and Drag Overlay', async ({ page }) => {
+    await page.addInitScript(() => {
+      localStorage.setItem('schedule_current_worker_id', 'wrk_02');
+      localStorage.setItem('schedule_current_worker_name', '유종욱 실장');
+    });
+
     await page.setViewportSize({ width: 1440, height: 900 });
 
     await page.goto(`${QA_BASE_URL}/projects/${createdProjectId}`);
@@ -106,6 +111,11 @@ test.describe('Task Grouping, Drag & Drop, Reorder and Move UI Suite', () => {
   });
 
   test('2. Verify TaskMoveModal & Group Task Add Button (+ 세부 작업)', async ({ page }) => {
+    await page.addInitScript(() => {
+      localStorage.setItem('schedule_current_worker_id', 'wrk_02');
+      localStorage.setItem('schedule_current_worker_name', '유종욱 실장');
+    });
+
     await page.setViewportSize({ width: 1440, height: 900 });
 
     await page.goto(`${QA_BASE_URL}/projects/${createdProjectId}`);
@@ -135,6 +145,11 @@ test.describe('Task Grouping, Drag & Drop, Reorder and Move UI Suite', () => {
   });
 
   test('3. Verify Mobile View (390px) Task Move Menu', async ({ page }) => {
+    await page.addInitScript(() => {
+      localStorage.setItem('schedule_current_worker_id', 'wrk_02');
+      localStorage.setItem('schedule_current_worker_name', '유종욱 실장');
+    });
+
     await page.setViewportSize({ width: 390, height: 844 });
 
     await page.goto(`${QA_BASE_URL}/projects/${createdProjectId}`);
