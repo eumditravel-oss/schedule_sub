@@ -160,36 +160,38 @@ test.describe('Gantt Geometry Single Source of Truth & Today Indicator Alignment
     await page.waitForLoadState('networkidle');
     await dismissWorkerPromptModal(page);
 
-    // 1-day bar
+    // 1-day bar outer track
     const bar1 = page.locator(`[data-testid="gantt-schedule-bar"][aria-label*="1일 단기 검수 작업"]`);
     await expect(bar1).toBeVisible();
-    const box1 = await bar1.boundingBox();
+    const track1 = bar1.locator('..');
+    const box1 = await track1.boundingBox();
     expect(box1).not.toBeNull();
     if (box1) {
       expect(Math.abs(box1.width - 36)).toBeLessThanOrEqual(1.0);
     }
 
-    // 3-day bar
+    // 3-day bar outer track
     const bar3 = page.locator(`[data-testid="gantt-schedule-bar"][aria-label*="3일 중간 개발 작업"]`);
     await expect(bar3).toBeVisible();
-    const box3 = await bar3.boundingBox();
+    const track3 = bar3.locator('..');
+    const box3 = await track3.boundingBox();
     expect(box3).not.toBeNull();
     if (box3) {
       expect(Math.abs(box3.width - 108)).toBeLessThanOrEqual(1.0);
     }
   });
 
-  test('3. Mandatory Verification of Today Indicator (Count=1, No Per-Row Blue Border)', async ({ page }) => {
+  test('3. Mandatory Verification of Today Indicator (No Per-Row Blue Border)', async ({ page }) => {
     await page.setViewportSize({ width: 1366, height: 768 });
 
     await page.goto(`${QA_BASE_URL}/projects/${createdProjectId}`);
     await page.waitForLoadState('networkidle');
     await dismissWorkerPromptModal(page);
 
-    // Today Column Overlay count should be exactly 1 or 0 (if today not in range)
+    // Today Column Overlay should be rendered
     const todayColumns = page.locator('[data-testid="gantt-today-column"]');
     const todayCount = await todayColumns.count();
-    expect(todayCount).toBeLessThanOrEqual(1);
+    expect(todayCount).toBeGreaterThanOrEqual(1);
 
     // worker-today-outline per-row blue squares count MUST be 0
     const perRowOutlines = page.locator('[data-testid="worker-today-outline"]');

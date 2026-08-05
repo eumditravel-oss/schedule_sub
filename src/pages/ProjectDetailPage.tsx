@@ -287,6 +287,7 @@ const SortableTaskRow: React.FC<SortableTaskRowProps> = ({
           {/* Layer 10: ScheduleBar Continuous Track Overlay (z-10) */}
           {spanInfo && (
             <div
+              data-testid={`gantt-schedule-bar-track-${tItem.id}`}
               className="absolute top-0 bottom-0 z-10 flex items-center px-1 pointer-events-none"
               style={{
                 left: `${spanInfo.startIndex * GANTT_DAY_WIDTH_PX}px`,
