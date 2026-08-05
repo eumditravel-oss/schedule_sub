@@ -3,6 +3,17 @@ import { test, expect } from '@playwright/test';
 
 const QA_BASE_URL = 'https://concost-dev-scheduler-qa.eumditravel.workers.dev';
 
+async function dismissWorkerPromptModal(page: any) {
+  const modal = page.locator('[data-testid="worker-prompt-modal"]');
+  if (await modal.isVisible({ timeout: 2000 }).catch(() => false)) {
+    const yjwBtn = modal.locator('button:has-text("유종욱")').or(modal.locator('button')).first();
+    if (await yjwBtn.isVisible().catch(() => false)) {
+      await yjwBtn.click().catch(() => {});
+      await page.waitForTimeout(300);
+    }
+  }
+}
+
 test.describe('Task Hierarchy, Multi-Assignees, Auto Progress & Compact Gantt Rows', () => {
   let createdProjectId = '';
 
@@ -45,6 +56,7 @@ test.describe('Task Hierarchy, Multi-Assignees, Auto Progress & Compact Gantt Ro
 
     await page.goto(`${QA_BASE_URL}/projects/${createdProjectId}`);
     await page.waitForLoadState('networkidle');
+    await dismissWorkerPromptModal(page);
 
     // 1. Add Task Group (공정 대분류 추가)
     await page.click('[data-testid="add-task-group-btn"]');
