@@ -29,7 +29,8 @@ import { BuildVersionIndicator } from '../components/common/BuildVersionIndicato
 import { ScheduleBar } from '../components/gantt/ScheduleBar';
 import { getGanttSpanColumns } from '../utils/ganttOverlay';
 import { calculateTaskWorkdayBreakdown } from '../utils/workCalendar';
-import { Plus, ChevronRight, ChevronLeft, Calendar, Lock } from 'lucide-react';
+import { ProjectDeleteConfirmModal } from '../components/modals/ProjectDeleteConfirmModal';
+import { Plus, ChevronRight, ChevronLeft, Calendar, Lock, Pencil, Trash2 } from 'lucide-react';
 
 export type MobileViewMode = 'SUMMARY' | 'WEEK' | 'GANTT';
 
@@ -250,6 +251,9 @@ export const ProjectOverviewPage: React.FC = () => {
     }
   };
 
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [deletingProject, setDeletingProject] = useState<Project | null>(null);
+
   const handleEditProject = (project: Project) => {
     if (isExecutiveViewer(currentWorker)) {
       alert(lang === 'vi' ? 'Tài khoản quản lý chỉ có quyền xem lịch trình.' : '경영진 계정은 일정을 조회할 수만 있습니다.');
@@ -260,20 +264,20 @@ export const ProjectOverviewPage: React.FC = () => {
     setIsModalOpen(true);
   };
 
-  const handleDeleteProject = async (project: Project) => {
+  const handleOpenDeleteModal = (project: Project) => {
     if (isExecutiveViewer(currentWorker)) {
       alert(lang === 'vi' ? 'Tài khoản quản lý chỉ có quyền xem lịch trình.' : '경영진 계정은 일정을 조회할 수만 있습니다.');
       return;
     }
     if (!requireWorkerSelection()) return;
-    if (!confirm(t('deleteConfirmText'))) return;
-    try {
-      await api.deleteProject(project.id);
-      await fetchProjects();
-      await fetchCompletedYears();
-    } catch (err: any) {
-      alert(getLocalizedErrorMessage(err, t));
-    }
+    setDeletingProject(project);
+    setIsDeleteModalOpen(true);
+  };
+
+  const handleConfirmDeleteProject = async (project: Project) => {
+    await api.deleteProject(project.id);
+    await fetchProjects();
+    await fetchCompletedYears();
   };
 
   return (
@@ -534,7 +538,7 @@ export const ProjectOverviewPage: React.FC = () => {
                 onProjectClick={(p) => navigate(`/projects/${p.id}`)}
                 onEditProject={handleEditProject}
                 onCompleteProject={handleCompleteProject}
-                onDeleteProject={handleDeleteProject}
+                onDeleteProject={handleOpenDeleteModal}
                 isReadOnly={isExecutiveViewer(currentWorker)}
               />
             )}
@@ -666,7 +670,7 @@ export const ProjectOverviewPage: React.FC = () => {
                         onClick={() => navigate(`/projects/${project.id}`)}
                         className="hover:bg-blue-50/50 transition cursor-pointer group"
                       >
-                        <td className="sticky left-0 z-10 bg-white group-hover:bg-blue-50/50 px-3 py-3 border-r border-slate-200 w-[160px] md:w-[270px] min-w-[160px] md:min-w-[270px] max-w-[270px] align-middle">
+                        <td className="sticky left-0 z-10 bg-white group-hover:bg-blue-50/50 px-3 py-2 border-r border-slate-200 w-[160px] md:w-[270px] min-w-[160px] md:min-w-[270px] max-w-[270px] align-middle h-[72px] min-h-[72px]">
                           <div className="flex items-center justify-between">
                             <div className="pr-1 overflow-hidden min-w-0">
                               <div className="font-bold text-slate-900 group-hover:text-blue-600 transition truncate flex items-center gap-1 text-xs" title={displayName}>
@@ -683,7 +687,11 @@ export const ProjectOverviewPage: React.FC = () => {
                               </div>
                             </div>
 
-                            <div className="flex flex-col items-end gap-1 shrink-0">
+                            <div
+                              data-testid={`project-action-group-${project.id}`}
+                              className="w-[108px] xl:w-[128px] shrink-0 flex flex-col items-end justify-center gap-1 min-h-[52px]"
+                            >
+                              {/* Top Row: Status Badge & Conflicts */}
                               <div className="flex items-center gap-1">
                                 {project.conflict_count && project.conflict_count > 0 ? (
                                   <span className="text-[9px] font-extrabold text-rose-700 bg-rose-100 px-1 py-0.5 rounded border border-rose-200" title="일정 충돌 발생">
@@ -691,7 +699,7 @@ export const ProjectOverviewPage: React.FC = () => {
                                   </span>
                                 ) : null}
 
-                                <span className={`text-[9px] font-bold px-1 py-0.5 rounded border ${
+                                <span className={`text-[9px] font-bold px-1 py-0.5 rounded border cursor-default select-none ${
                                   project.schedule_state === 'DELAYED'
                                     ? 'bg-rose-100 text-rose-800 border-rose-200'
                                     : project.schedule_state === 'COMPLETED'
@@ -710,7 +718,38 @@ export const ProjectOverviewPage: React.FC = () => {
                                 </span>
                               </div>
 
-                              <div className="text-[10px] font-semibold text-slate-600 flex items-center gap-1">
+                              {/* Middle Row: Edit and Delete Buttons (ACTIVE projects & EDITOR only) */}
+                              {activeTab === 'ACTIVE' && !isExecutiveViewer(currentWorker) && (
+                                <div className="flex items-center gap-1 my-0.5">
+                                  <button
+                                    type="button"
+                                    data-testid={`project-edit-btn-${project.id}`}
+                                    aria-label={lang === 'vi' ? 'Chỉnh sửa dự án' : '프로젝트 수정'}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleEditProject(project);
+                                    }}
+                                    className="w-7 h-7 rounded-md border border-slate-200 bg-white hover:bg-slate-100 text-slate-600 hover:text-slate-900 flex items-center justify-center transition shadow-2xs cursor-pointer focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                  >
+                                    <Pencil className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    data-testid={`project-delete-btn-${project.id}`}
+                                    aria-label={lang === 'vi' ? 'Xóa dự án' : '프로젝트 삭제'}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleOpenDeleteModal(project);
+                                    }}
+                                    className="w-7 h-7 rounded-md border border-slate-200 bg-white hover:bg-rose-50 hover:border-rose-200 text-slate-500 hover:text-rose-600 flex items-center justify-center transition shadow-2xs cursor-pointer focus:outline-none focus:ring-1 focus:ring-rose-500"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              )}
+
+                              {/* Bottom Row: Progress Summary */}
+                              <div className="text-[10px] font-semibold text-slate-600 flex items-center gap-1 select-none">
                                 <span>{lang === 'vi' ? 'Kế hoạch' : '예정'} {project.planned_progress ?? project.progress ?? 0}%</span>
                                 <span>/</span>
                                 <span className="font-extrabold text-emerald-700">{lang === 'vi' ? 'Thực tế' : '실제'} {project.actual_progress ?? project.progress ?? 0}%</span>
@@ -839,6 +878,16 @@ export const ProjectOverviewPage: React.FC = () => {
         holidays={[...krHolidays, ...vnHolidays]}
         currentWorker={currentWorker}
         onRefreshHolidays={fetchCalendarData}
+      />
+
+      <ProjectDeleteConfirmModal
+        isOpen={isDeleteModalOpen}
+        project={deletingProject}
+        onClose={() => {
+          setIsDeleteModalOpen(false);
+          setDeletingProject(null);
+        }}
+        onConfirm={handleConfirmDeleteProject}
       />
 
       {/* Build Version Indicator */}
