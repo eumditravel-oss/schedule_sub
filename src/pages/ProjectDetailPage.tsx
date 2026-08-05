@@ -38,6 +38,7 @@ import { WorkerUtilizationBadge } from '../components/common/WorkerUtilizationBa
 import { ScheduleShiftHistoryModal } from '../components/modals/ScheduleShiftHistoryModal';
 import { BuildVersionIndicator } from '../components/common/BuildVersionIndicator';
 import { ScheduleBar } from '../components/gantt/ScheduleBar';
+import { TaskAssigneePopover } from '../components/gantt/TaskAssigneePopover';
 import { getGanttSpanColumns } from '../utils/ganttOverlay';
 import { calculateTaskWorkdayBreakdown } from '../utils/workCalendar';
 import {
@@ -81,28 +82,35 @@ import {
   RotateCw,
 } from 'lucide-react';
 
+function getShortWorkerName(fullName?: string | null): string {
+  if (!fullName) return '미배정';
+  const match = fullName.match(/^([^(]+)/);
+  return match ? match[1].trim() : fullName.trim();
+}
+
 interface SortableTaskRowProps {
   tItem: Task;
-  tIdx: number;
   groupNum: number;
-  dateColumns: any[];
+  tIdx: number;
+  dateColumns: { dateStr: string; isToday?: boolean }[];
   workers: Worker[];
   countryHolidays: CountryHoliday[];
   calendarOverrides: CalendarOverride[];
   isViewer: boolean;
   isCompleted: boolean;
   lang: string;
-  t: (key: any) => string;
-  onEditTask: (tItem: Task) => void;
-  onDeleteTask: (tItem: Task) => void;
-  onMoveTask: (tItem: Task) => void;
+  t?: (key: any) => string;
+  onEditTask: (task: Task) => void;
+  onDeleteTask: (task: Task) => void;
+  onMoveTask: (task: Task) => void;
   onCellClick: (tItem: Task, dateStr: string, dayStatus: any, workerObj: any) => void;
+  onOpenAssigneePopover?: (task: Task, rect: DOMRect) => void;
 }
 
 const SortableTaskRow: React.FC<SortableTaskRowProps> = ({
   tItem,
-  tIdx,
   groupNum,
+  tIdx,
   dateColumns,
   workers,
   countryHolidays,
@@ -110,22 +118,15 @@ const SortableTaskRow: React.FC<SortableTaskRowProps> = ({
   isViewer,
   isCompleted,
   lang,
-  t,
   onEditTask,
   onDeleteTask,
   onMoveTask,
   onCellClick,
+  onOpenAssigneePopover,
 }) => {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: tItem.id,
-    disabled: isViewer || isCompleted,
+    data: { type: 'TASK', task: tItem },
   });
 
   const style: React.CSSProperties = {
@@ -139,8 +140,15 @@ const SortableTaskRow: React.FC<SortableTaskRowProps> = ({
 
   const assignees = tItem.assignees || [];
   const primaryAssignee = assignees.find((a) => a.assignment_role === 'PRIMARY') || assignees[0];
-  const primaryWorkerName = primaryAssignee ? (primaryAssignee.name || primaryAssignee.worker_id) : (tItem.worker_name || '미배정');
-  const extraCount = Math.max(0, assignees.length - 1);
+  const primaryWorkerName = primaryAssignee ? getShortWorkerName(primaryAssignee.name || primaryAssignee.worker_id) : getShortWorkerName(tItem.worker_name);
+
+  let secondaryWorkerName: string | null = null;
+  if (assignees.length >= 2) {
+    const sec = assignees.find((a) => a !== primaryAssignee) || assignees[1];
+    if (sec) {
+      secondaryWorkerName = getShortWorkerName(sec.name || sec.worker_id);
+    }
+  }
 
   const spanInfo = getGanttSpanColumns(tItem.start_date, tItem.end_date, dateColumns);
 
@@ -151,9 +159,11 @@ const SortableTaskRow: React.FC<SortableTaskRowProps> = ({
       data-testid={`task-row-${tItem.id}`}
       className={`hover:bg-slate-50 transition border-b border-slate-200 h-11 ${isDragging ? 'bg-blue-50/50' : ''}`}
     >
-      <td className="sticky left-0 z-10 bg-white hover:bg-slate-50 border-r border-slate-200 px-2 py-1 align-middle w-[360px] lg:w-[420px]">
+      {/* Sticky Task Info Header Cell */}
+      <td className="sticky left-0 z-10 bg-white hover:bg-slate-50 border-r border-slate-200 px-2 py-1 align-middle w-[444px] xl:w-[504px] 2xl:w-[564px] min-w-[444px]">
         <div className="flex items-center justify-between text-xs min-w-0">
-          <div className="flex items-center gap-1.5 min-w-0 w-[180px] lg:w-[220px]">
+          {/* Task Name Column */}
+          <div className="flex items-center gap-1.5 min-w-0 w-[210px] xl:w-[230px] 2xl:w-[260px] shrink-0">
             {!isViewer && !isCompleted && (
               <button
                 type="button"
@@ -172,18 +182,47 @@ const SortableTaskRow: React.FC<SortableTaskRowProps> = ({
             </span>
           </div>
 
-          <div className="w-[126px] lg:w-[150px] shrink-0 px-1 truncate flex items-center gap-1">
-            <span className="px-1.5 py-0.5 rounded-md bg-slate-100 border border-slate-200 text-slate-700 font-bold text-[11px] truncate max-w-[100px]">
+          {/* Worker Assignees Column */}
+          <div
+            data-testid={`task-assignee-summary-${tItem.id}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              onOpenAssigneePopover?.(tItem, e.currentTarget.getBoundingClientRect());
+            }}
+            className="w-[170px] xl:w-[210px] 2xl:w-[240px] shrink-0 px-1 truncate flex items-center gap-1 cursor-pointer hover:bg-slate-100/70 py-0.5 rounded transition"
+            title="클릭 시 담당자 상세 보기"
+          >
+            {/* Primary Worker Badge */}
+            <span className="px-1.5 py-0.5 rounded-md bg-slate-100 border border-slate-200 text-slate-700 font-bold text-[11px] truncate max-w-[96px] xl:max-w-[110px]">
               {primaryWorkerName}
             </span>
-            {extraCount > 0 && (
-              <span className="px-1 py-0.5 rounded-full bg-blue-100 text-blue-700 font-bold text-[10px] shrink-0" title={`추가 담당자 ${extraCount}명`}>
-                +{extraCount}
+
+            {/* Secondary Worker Badge */}
+            {secondaryWorkerName && (
+              <span className="hidden xl:inline-block px-1.5 py-0.5 rounded-md bg-slate-100 border border-slate-200 text-slate-700 font-bold text-[11px] truncate max-w-[96px] xl:max-w-[110px]">
+                {secondaryWorkerName}
               </span>
+            )}
+
+            {/* +N More Button */}
+            {assignees.length > (secondaryWorkerName ? 2 : 1) && (
+              <button
+                type="button"
+                data-testid={`task-assignee-more-${tItem.id}`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onOpenAssigneePopover?.(tItem, e.currentTarget.getBoundingClientRect());
+                }}
+                className="px-1.5 py-0.5 rounded-full bg-blue-100 hover:bg-blue-200 text-blue-800 font-extrabold text-[10px] shrink-0 transition"
+                title={`추가 담당자 ${assignees.length - (secondaryWorkerName ? 2 : 1)}명 보기`}
+              >
+                +{assignees.length - (secondaryWorkerName ? 2 : 1)}
+              </button>
             )}
           </div>
 
-          <div className="w-[48px] lg:w-[50px] shrink-0 flex items-center justify-end gap-1">
+          {/* Action Buttons Column */}
+          <div className="w-[64px] shrink-0 flex items-center justify-end gap-1">
             {!isViewer && !isCompleted && (
               <>
                 <button
@@ -217,58 +256,80 @@ const SortableTaskRow: React.FC<SortableTaskRowProps> = ({
         </div>
       </td>
 
-      {dateColumns.map((col, cIdx) => {
-        const isInRange = col.dateStr >= tItem.start_date && col.dateStr <= tItem.end_date;
-        const workerObj = workers.find((w) => w.name === tItem.worker_name) || null;
-        const dayStatus = resolveWorkDayStatus(col.dateStr, (workerObj || { id: tItem.worker_name, name: tItem.worker_name }) as any, countryHolidays, calendarOverrides);
-
-        const isFirstCol = spanInfo ? spanInfo.startIndex === cIdx : false;
-        const spanCount = spanInfo ? spanInfo.spanCount : 1;
-
-        return (
-          <td
-            key={cIdx}
-            data-testid={`task-cell-${tItem.id}-${col.dateStr}`}
-            onClick={() => onCellClick(tItem, col.dateStr, dayStatus, workerObj)}
-            style={{ width: `${GANTT_DAY_WIDTH_PX}px`, minWidth: `${GANTT_DAY_WIDTH_PX}px`, maxWidth: `${GANTT_DAY_WIDTH_PX}px` }}
-            className={`relative p-0 border-r border-slate-200 text-center select-none cursor-pointer ${
-              isInRange ? 'bg-blue-50/40' : ''
-            }`}
+      {/* Single Timeline Wrapper Cell for all Gantt Days */}
+      <td colSpan={dateColumns.length} className="p-0 border-b border-slate-200">
+        <div className="relative w-full h-11">
+          {/* Layer 0: Day Cell Background & Click Target Grid (z-0) */}
+          <div
+            className="absolute inset-0 z-0 grid h-full w-full"
+            style={{ gridTemplateColumns: `repeat(${dateColumns.length}, ${GANTT_DAY_WIDTH_PX}px)` }}
           >
-            <WorkerDayCellBackground
-              dateStr={col.dateStr}
-              worker={workerObj as any}
-              assignees={tItem.assignees}
-              availabilityPolicy={tItem.availability_policy}
-              dayStatus={dayStatus}
-              countryHolidays={countryHolidays}
-              calendarOverrides={calendarOverrides}
-              workers={workers}
-              isToday={col.isToday}
-            />
-
-            {isFirstCol && (
-              <div
-                className="absolute left-0 top-0 bottom-0 z-30 flex items-center px-1"
-                style={{ width: `${spanCount * GANTT_DAY_WIDTH_PX}px` }}
-              >
-                <ScheduleBar
-                  title={taskTitle}
-                  startDate={tItem.start_date}
-                  endDate={tItem.end_date}
-                  calendarSpanDays={spanCount}
-                  plannedWorkingDays={tItem.planned_working_days || spanCount}
-                  plannedProgress={tItem.planned_progress ?? tItem.progress ?? 0}
-                  actualProgress={tItem.actual_progress ?? tItem.progress ?? 0}
-                  status={tItem.schedule_state || 'UPCOMING'}
-                  hasConflict={tItem.has_schedule_conflict}
-                  onClick={() => onEditTask(tItem)}
+            {dateColumns.map((col, cIdx) => {
+              const isInRange = col.dateStr >= tItem.start_date && col.dateStr <= tItem.end_date;
+              const workerObj = workers.find((w) => w.name === tItem.worker_name) || null;
+              const dayStatus = resolveWorkDayStatus(col.dateStr, (workerObj || { id: tItem.worker_name, name: tItem.worker_name }) as any, countryHolidays, calendarOverrides);
+              return (
+                <div
+                  key={cIdx}
+                  data-testid={`task-cell-${tItem.id}-${col.dateStr}`}
+                  onClick={() => onCellClick(tItem, col.dateStr, dayStatus, workerObj)}
+                  className={`border-r border-slate-200 cursor-pointer h-full ${isInRange ? 'bg-blue-50/30' : ''}`}
                 />
-              </div>
-            )}
-          </td>
-        );
-      })}
+              );
+            })}
+          </div>
+
+          {/* Layer 10: ScheduleBar Continuous Track Overlay (z-10) */}
+          {spanInfo && (
+            <div
+              className="absolute top-0 bottom-0 z-10 flex items-center px-1 pointer-events-none"
+              style={{
+                left: `${spanInfo.startIndex * GANTT_DAY_WIDTH_PX}px`,
+                width: `${spanInfo.spanCount * GANTT_DAY_WIDTH_PX}px`,
+              }}
+            >
+              <ScheduleBar
+                title={taskTitle}
+                startDate={tItem.start_date}
+                endDate={tItem.end_date}
+                calendarSpanDays={spanInfo.spanCount}
+                plannedWorkingDays={tItem.planned_working_days || spanInfo.spanCount}
+                plannedProgress={tItem.planned_progress ?? tItem.progress ?? 0}
+                actualProgress={tItem.actual_progress ?? tItem.progress ?? 0}
+                status={tItem.schedule_state || 'UPCOMING'}
+                hasConflict={tItem.has_schedule_conflict}
+                onClick={() => onEditTask(tItem)}
+              />
+            </div>
+          )}
+
+          {/* Layer 20: Worker/Country Off & Vacation Hatch Grid (pointer-events-none, z-20) */}
+          <div
+            className="absolute inset-0 z-20 grid h-full w-full pointer-events-none"
+            style={{ gridTemplateColumns: `repeat(${dateColumns.length}, ${GANTT_DAY_WIDTH_PX}px)` }}
+          >
+            {dateColumns.map((col, cIdx) => {
+              const workerObj = workers.find((w) => w.name === tItem.worker_name) || null;
+              const dayStatus = resolveWorkDayStatus(col.dateStr, (workerObj || { id: tItem.worker_name, name: tItem.worker_name }) as any, countryHolidays, calendarOverrides);
+              return (
+                <WorkerDayCellBackground
+                  key={cIdx}
+                  dateStr={col.dateStr}
+                  taskId={tItem.id}
+                  worker={workerObj as any}
+                  assignees={tItem.assignees}
+                  availabilityPolicy={tItem.availability_policy}
+                  dayStatus={dayStatus}
+                  countryHolidays={countryHolidays}
+                  calendarOverrides={calendarOverrides}
+                  workers={workers}
+                  isToday={col.isToday}
+                />
+              );
+            })}
+          </div>
+        </div>
+      </td>
     </tr>
   );
 };
@@ -1164,6 +1225,14 @@ export const ProjectDetailPage: React.FC = () => {
     }
   };
 
+  const [popoverTask, setPopoverTask] = useState<Task | null>(null);
+  const [popoverAnchorRect, setPopoverAnchorRect] = useState<DOMRect | null>(null);
+
+  const handleOpenAssigneePopover = (task: Task, rect: DOMRect) => {
+    setPopoverTask(task);
+    setPopoverAnchorRect(rect);
+  };
+
   useEffect(() => {
     fetchCalendarData();
     fetchProjectDetail();
@@ -1862,6 +1931,7 @@ export const ProjectDetailPage: React.FC = () => {
                                           onDeleteTask={handleDeleteTask}
                                           onMoveTask={(tObj: Task) => setMoveModalState({ isOpen: true, task: tObj })}
                                           onCellClick={handleCellClick}
+                                          onOpenAssigneePopover={handleOpenAssigneePopover}
                                         />
                                       ))
                                     ) : (
@@ -2034,6 +2104,21 @@ export const ProjectDetailPage: React.FC = () => {
             </button>
           )}
         </div>
+      )}
+
+      {/* Task Assignee Popover */}
+      {popoverTask && (
+        <TaskAssigneePopover
+          taskId={popoverTask.id}
+          taskTitle={popoverTask.task_name}
+          assignees={popoverTask.assignees || []}
+          workers={workers}
+          calendarOverrides={calendarOverrides}
+          countryHolidays={countryHolidays}
+          anchorRect={popoverAnchorRect}
+          isOpen={!!popoverTask}
+          onClose={() => setPopoverTask(null)}
+        />
       )}
 
       {/* Build Version Indicator */}

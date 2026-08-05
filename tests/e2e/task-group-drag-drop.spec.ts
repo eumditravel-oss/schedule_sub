@@ -14,7 +14,7 @@ async function dismissWorkerPromptModal(page: any) {
   }
 }
 
-test.describe('Task Grouping, Drag & Drop, Reorder and Move UI Suite', () => {
+test.describe('Task Grouping, Drag & Drop, Reorder, Hatch & Multi-Assignee UI Suite', () => {
   let createdProjectId = '';
 
   test.beforeAll(async () => {
@@ -45,14 +45,15 @@ test.describe('Task Grouping, Drag & Drop, Reorder and Move UI Suite', () => {
 
   test.afterAll(async () => {
     if (createdProjectId) {
-      await fetch(`${QA_BASE_URL}/api/projects/${createdProjectId}`, {
+      const delRes = await fetch(`${QA_BASE_URL}/api/projects/${createdProjectId}`, {
         method: 'DELETE',
         headers: { 'x-editor-name': encodeURIComponent('Manh Cuong(끄엉)') },
       });
+      expect(delRes.status).toBe(200);
     }
   });
 
-  test('1. Verify Desktop Task Drag & Drop Between Groups and Drag Overlay', async ({ page }) => {
+  test('1. Verify Desktop Task Drag & Drop Between Groups and Zero Inline Text', async ({ page }) => {
     await page.addInitScript(() => {
       localStorage.setItem('schedule_current_worker_id', 'wrk_02');
       localStorage.setItem('schedule_current_worker_name', '유종욱 실장');
@@ -86,6 +87,19 @@ test.describe('Task Grouping, Drag & Drop, Reorder and Move UI Suite', () => {
     await page.click('[data-testid="task-save-btn"]');
     await page.waitForSelector('[data-testid="task-modal"]', { state: 'detached' });
 
+    // Assert zero inline title / progress text chips inside ScheduleBars
+    const inlineTitles = page.locator('[data-testid="gantt-bar-inline-title"]');
+    await expect(inlineTitles).toHaveCount(0);
+
+    const inlineProgresses = page.locator('[data-testid="gantt-bar-inline-progress"]');
+    await expect(inlineProgresses).toHaveCount(0);
+
+    // Assert aria-label on schedule bar
+    const bar = page.locator('[data-testid="gantt-schedule-bar"]').first();
+    await expect(bar).toBeVisible();
+    const ariaLabel = await bar.getAttribute('aria-label');
+    expect(ariaLabel).toContain('요구사항 분석');
+
     const taskHandle = page.locator('[data-testid^="task-row-drag-handle-"]').first();
     await expect(taskHandle).toBeVisible({ timeout: 15000 });
 
@@ -110,7 +124,7 @@ test.describe('Task Grouping, Drag & Drop, Reorder and Move UI Suite', () => {
     await expect(taskRow).toBeVisible();
   });
 
-  test('2. Verify TaskMoveModal & Group Task Add Button (+ 세부 작업)', async ({ page }) => {
+  test('2. Verify TaskMoveModal, Group Task Add Button & Assignee Popover', async ({ page }) => {
     await page.addInitScript(() => {
       localStorage.setItem('schedule_current_worker_id', 'wrk_02');
       localStorage.setItem('schedule_current_worker_name', '유종욱 실장');
@@ -123,28 +137,38 @@ test.describe('Task Grouping, Drag & Drop, Reorder and Move UI Suite', () => {
     await dismissWorkerPromptModal(page);
 
     const addGroupTaskBtn = page.locator('[data-testid^="task-group-add-task-"]').first();
-    if (await addGroupTaskBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
-      await addGroupTaskBtn.click();
-      await page.waitForSelector('[data-testid="task-modal"]');
-      await page.fill('[data-testid="task-name-input"]', '통합 검증 시험');
-      await page.fill('[data-testid="task-start-date-input"]', '2026-08-10');
-      await page.fill('[data-testid="task-end-date-input"]', '2026-08-14');
-      await page.click('[data-testid="task-save-btn"]');
-      await page.waitForSelector('[data-testid="task-modal"]', { state: 'detached' });
-    }
+    await expect(addGroupTaskBtn).toBeVisible({ timeout: 15000 });
+    await addGroupTaskBtn.click();
+    await page.waitForSelector('[data-testid="task-modal"]');
+    await page.fill('[data-testid="task-name-input"]', '통합 검증 시험');
+    await page.fill('[data-testid="task-start-date-input"]', '2026-08-10');
+    await page.fill('[data-testid="task-end-date-input"]', '2026-08-14');
+    await page.click('[data-testid="task-save-btn"]');
+    await page.waitForSelector('[data-testid="task-modal"]', { state: 'detached' });
 
     const moveMenuBtn = page.locator('[data-testid^="task-move-menu-"]').first();
-    if (await moveMenuBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
-      await moveMenuBtn.click();
-      await page.waitForSelector('[data-testid="task-move-modal"]');
-      const moveGroupSelect = page.locator('[data-testid="task-move-group-select"]');
-      await expect(moveGroupSelect).toBeVisible();
-      await page.click('[data-testid="task-move-cancel-btn"]');
-      await page.waitForSelector('[data-testid="task-move-modal"]', { state: 'detached' });
-    }
+    await expect(moveMenuBtn).toBeVisible({ timeout: 15000 });
+    await moveMenuBtn.click();
+    await page.waitForSelector('[data-testid="task-move-modal"]');
+    const moveGroupSelect = page.locator('[data-testid="task-move-group-select"]');
+    await expect(moveGroupSelect).toBeVisible();
+    await page.click('[data-testid="task-move-cancel-btn"]');
+    await page.waitForSelector('[data-testid="task-move-modal"]', { state: 'detached' });
+
+    // Verify Assignee summary click -> Assignee Popover portal
+    const assigneeSummary = page.locator('[data-testid^="task-assignee-summary-"]').first();
+    await expect(assigneeSummary).toBeVisible();
+    await assigneeSummary.click();
+
+    const popover = page.locator('[data-testid^="task-assignee-popover-"]');
+    await expect(popover).toBeVisible();
+
+    // Close via Escape key
+    await page.keyboard.press('Escape');
+    await expect(popover).toHaveCount(0);
   });
 
-  test('3. Verify Mobile View (390px) Task Move Menu', async ({ page }) => {
+  test('3. Verify Mobile View (390px) Task Layout and Zero Mobile Text Chips', async ({ page }) => {
     await page.addInitScript(() => {
       localStorage.setItem('schedule_current_worker_id', 'wrk_02');
       localStorage.setItem('schedule_current_worker_name', '유종욱 실장');
@@ -156,10 +180,9 @@ test.describe('Task Grouping, Drag & Drop, Reorder and Move UI Suite', () => {
     await page.waitForLoadState('networkidle');
     await dismissWorkerPromptModal(page);
 
-    const summaryBtn = page.locator('[data-testid="mobile-view-summary-btn"]');
-    if (await summaryBtn.isVisible().catch(() => false)) {
-      await summaryBtn.click();
-    }
+    // Verify mobile zero text chips
+    const mobileTextChips = page.locator('[data-testid="mobile-gantt-inline-content"]');
+    await expect(mobileTextChips).toHaveCount(0);
 
     const container = page.locator('#root');
     await expect(container).toBeVisible();

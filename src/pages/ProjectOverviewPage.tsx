@@ -28,6 +28,7 @@ import { DateHeaderInfoPanel } from '../components/modals/DateHeaderInfoPanel';
 import { TodaySummaryCard } from '../components/common/TodaySummaryCard';
 import { BuildVersionIndicator } from '../components/common/BuildVersionIndicator';
 import { ScheduleBar } from '../components/gantt/ScheduleBar';
+import { ProjectCalendarHatchOverlay } from '../components/gantt/ProjectCalendarHatchOverlay';
 import { getGanttSpanColumns } from '../utils/ganttOverlay';
 import { calculateTaskWorkdayBreakdown } from '../utils/workCalendar';
 import { ProjectDeleteConfirmModal } from '../components/modals/ProjectDeleteConfirmModal';
@@ -815,7 +816,7 @@ export const ProjectOverviewPage: React.FC = () => {
                               ))}
                             </div>
 
-                            {/* 2. CSS Grid Overlay Layer for Continuous Schedule Bar */}
+                            {/* 2. Continuous Project ScheduleBar Layer (z-10) */}
                             {(() => {
                               const spanInfo = getGanttSpanColumns(project.start_date, project.end_date, dateColumns);
                               if (!spanInfo) return null;
@@ -856,6 +857,17 @@ export const ProjectOverviewPage: React.FC = () => {
                                 </div>
                               );
                             })()}
+
+                            {/* 3. Country Off Hatch Grid Overlay Layer (z-20 pointer-events-none) */}
+                            <ProjectCalendarHatchOverlay
+                              projectId={project.id}
+                              startDate={project.start_date}
+                              endDate={project.end_date}
+                              dateColumns={dateColumns}
+                              calendarOverrides={calendarOverrides}
+                              countryHolidays={[...krHolidays, ...vnHolidays]}
+                              dayWidthPx={GANTT_DAY_WIDTH_PX}
+                            />
                           </div>
                         </td>
                       </tr>

@@ -138,7 +138,7 @@ test.describe('Strict Gantt Inline Content & Build SHA E2E Suite', () => {
     await page.screenshot({ path: path.join(SCREENSHOT_DIR, 'gantt-no-tooltip.png') });
   });
 
-  test('2. Mandatory Verification of Desktop Inline Title', async ({ page }) => {
+  test('2. Mandatory Verification of Desktop Zero Inline Title', async ({ page }) => {
     await page.setViewportSize({ width: 1366, height: 768 });
     await page.goto('/projects');
     await dismissBlockingModals(page);
@@ -147,31 +147,29 @@ test.describe('Strict Gantt Inline Content & Build SHA E2E Suite', () => {
     await expect(firstBar).toBeVisible({ timeout: 15000 });
 
     const inlineTitle = firstBar.locator('[data-testid="gantt-bar-inline-title"]');
-    await expect(inlineTitle).toBeVisible();
-    await expect(inlineTitle).not.toHaveText('');
+    await expect(inlineTitle).toHaveCount(0);
 
     const track = firstBar.locator('[data-testid="gantt-schedule-track"]');
     const trackBox = await track.boundingBox();
-    expect(trackBox!.height).toBeGreaterThanOrEqual(26);
-    expect(trackBox!.height).toBeLessThanOrEqual(30);
+    expect(trackBox!.height).toBeGreaterThanOrEqual(18);
+    expect(trackBox!.height).toBeLessThanOrEqual(24);
 
     await page.screenshot({ path: path.join(SCREENSHOT_DIR, 'gantt-inline-info-overview.png') });
   });
 
-  test('3. Mandatory Verification of Project Detail Page Task Bar Inline Content', async ({ page }) => {
+  test('3. Mandatory Verification of Project Detail Page Task Bar Zero Inline Content', async ({ page }) => {
     await page.setViewportSize({ width: 1366, height: 768 });
     await page.goto(`${QA_BASE_URL}/projects/${createdProjectId}`);
     await dismissBlockingModals(page);
 
     const detailBar = page.locator('[data-testid="gantt-schedule-bar"]').first();
     if (!await detailBar.isVisible({ timeout: 15000 }).catch(() => false)) {
-      // No task bar — skip gracefully
       return;
     }
     await expect(detailBar).toBeVisible();
 
     const detailInlineTitle = detailBar.locator('[data-testid="gantt-bar-inline-title"]');
-    await expect(detailInlineTitle).toBeVisible();
+    await expect(detailInlineTitle).toHaveCount(0);
 
     await page.screenshot({ path: path.join(SCREENSHOT_DIR, 'gantt-inline-info-detail.png') });
   });

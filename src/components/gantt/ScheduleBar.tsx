@@ -98,32 +98,7 @@ export const ScheduleBar: React.FC<ScheduleBarProps> = ({
   const statusText = lang === 'vi' ? statusLabelVi : statusLabelKo;
   const ariaLabel = `${title}, ${startDate} ~ ${endDate}, ${lang === 'vi' ? 'KH' : '예정'} ${clampedPlanned}%, ${lang === 'vi' ? 'TT' : '실제'} ${clampedActual}%, ${statusText}`;
 
-  // Formatted inline texts
-  const isCompleted = status === 'COMPLETED' || clampedActual === 100;
-
-  const longProgressText = isCompleted
-    ? (lang === 'vi' ? 'Hoàn thành 100%' : '완료 100%')
-    : lang === 'vi'
-    ? `KH ${clampedPlanned}% · TT ${clampedActual}%`
-    : `예정 ${clampedPlanned}% · 실제 ${clampedActual}%`;
-
-  const mediumProgressText = isCompleted
-    ? '100%'
-    : lang === 'vi'
-    ? `KH ${clampedPlanned}% · TT ${clampedActual}%`
-    : `예정 ${clampedPlanned}% · 실제 ${clampedActual}%`;
-
-  const shortProgressText = isCompleted
-    ? '100%'
-    : lang === 'vi'
-    ? `TT ${clampedActual}%`
-    : `실제 ${clampedActual}%`;
-
-  const trackHeightClass = isMobile ? 'h-6' : 'h-7';
-
-  const isMobileThresholdTitle = isMobile ? barWidth >= 180 : barWidth >= 160;
-  const isMobileThresholdProgressOnly = isMobile ? barWidth >= 100 && barWidth < 180 : barWidth >= 90 && barWidth < 160;
-  const isMobileThresholdFull = barWidth >= 260;
+  const trackHeightClass = isMobile ? 'h-[18px]' : 'h-5';
 
   const isPassThrough = interactionMode === 'PASS_THROUGH';
   const pointerClass = isPassThrough ? 'pointer-events-none' : 'pointer-events-auto cursor-pointer';
@@ -151,10 +126,10 @@ export const ScheduleBar: React.FC<ScheduleBarProps> = ({
       className={`relative group my-auto w-full min-w-0 ${pointerClass} focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-1 rounded-md ${className}`}
       style={style}
     >
-      {/* Outer Continuous Bar Track (No Native Tooltip) */}
+      {/* Outer Continuous Bar Track (Pure Visual Bar) */}
       <div
         data-testid={isMobile ? 'mobile-gantt-schedule-track' : 'gantt-schedule-track'}
-        className={`w-full min-w-0 ${trackHeightClass} rounded-md border text-xs font-bold relative overflow-hidden transition-all duration-150 shadow-2xs flex items-center select-none ${baseColorClass} ${isPassThrough ? 'pointer-events-none' : 'hover:brightness-95'}`}
+        className={`w-full min-w-0 ${trackHeightClass} rounded-md border text-xs font-bold relative overflow-hidden transition-all duration-150 shadow-none flex items-center select-none ${baseColorClass} ${isPassThrough ? 'pointer-events-none' : 'hover:brightness-95'}`}
       >
         {/* Actual Progress Overlay Fill */}
         {clampedActual > 0 && (
@@ -174,24 +149,9 @@ export const ScheduleBar: React.FC<ScheduleBarProps> = ({
           />
         )}
 
-        {/* Inline Content Layer (z-40 ensures title stays crisp) */}
-        <div
-          data-testid={isMobile ? 'mobile-gantt-inline-content' : 'gantt-bar-inline-content'}
-          className="absolute inset-0 z-40 flex items-center px-1.5 w-full h-full min-w-0 overflow-hidden pointer-events-none"
-        >
-          {barWidth >= 50 && (
-            <span
-              data-testid="gantt-bar-inline-title"
-              className="bg-white/90 text-slate-900 border border-white/70 rounded px-1.5 h-5 text-[11px] font-semibold flex items-center overflow-hidden text-ellipsis whitespace-nowrap min-w-0 shadow-2xs max-w-full"
-            >
-              {title}
-            </span>
-          )}
-        </div>
-
         {/* Conflict Warning Indicator */}
         {hasConflict && (
-          <div className="absolute right-1 z-20 flex items-center justify-center">
+          <div className="absolute right-1 z-5 flex items-center justify-center pointer-events-none">
             <span className="w-2.5 h-2.5 rounded-full bg-amber-500 ring-2 ring-white animate-ping" />
           </div>
         )}
