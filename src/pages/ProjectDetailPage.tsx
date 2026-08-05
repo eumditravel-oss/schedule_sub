@@ -5,7 +5,7 @@ import { Project, Task, Worker, CountryHoliday, CalendarOverride, DailyStatusTyp
 import { WorkerConflictModal } from '../components/modals/WorkerConflictModal';
 import { api, getCurrentWorkerId, setCurrentWorker as setCurrentWorkerApi } from '../services/api';
 import { calculateVisibleGanttSpan } from '../utils/dateUtils';
-import { resolveWorkDayStatus } from '../utils/workCalendar';
+import { resolveWorkDayStatus, getCountryOffState } from '../utils/workCalendar';
 import { useGanttDateRange } from '../hooks/useGanttDateRange';
 import { useResponsiveLayout } from '../hooks/useResponsiveLayout';
 import { useI18n } from '../hooks/useI18n';
@@ -853,47 +853,60 @@ export const ProjectDetailPage: React.FC = () => {
 
                 <tr className="border-b border-slate-200">
                   {dateColumns.map((col, idx) => {
-                    const isSun = col.date.getDay() === 0;
-                    const isSat = col.date.getDay() === 6;
-                    const krHol = countryHolidays.find((h) => h.country_code === 'KR' && h.holiday_date === col.dateStr);
-                    const vnHol = countryHolidays.find((h) => h.country_code === 'VN' && h.holiday_date === col.dateStr);
+                    const offInfo = getCountryOffState(col.dateStr, calendarOverrides, countryHolidays);
+
+                    let bgStyle = 'bg-white text-slate-700 border-slate-200';
+                    if (offInfo.state === 'BOTH_OFF') {
+                      bgStyle = 'bg-rose-100 text-rose-900 border-rose-300 font-semibold';
+                    } else if (offInfo.state === 'KR_ONLY_OFF') {
+                      bgStyle = 'bg-orange-50 text-orange-900 border-orange-200 font-medium';
+                    } else if (offInfo.state === 'VN_ONLY_OFF') {
+                      bgStyle = 'bg-amber-50 text-amber-900 border-amber-200 font-medium';
+                    }
+
+                    const todayStyle = col.isToday ? 'ring-2 ring-blue-500 ring-inset font-bold' : '';
+
+                    let ariaText = `${col.dateStr} (${col.dayName})`;
+                    if (offInfo.krHolidayName && offInfo.vnHolidayName) {
+                      ariaText += `, 한국과 베트남 모두 공휴일 (${offInfo.krHolidayName})`;
+                    } else if (offInfo.krHolidayName) {
+                      ariaText += `, 한국 공휴일 (${offInfo.krHolidayName}), 베트남 정상 근무`;
+                    } else if (offInfo.vnHolidayName) {
+                      ariaText += `, 베트남 공휴일 (${offInfo.vnHolidayName}), 한국 정상 근무`;
+                    } else if (offInfo.state === 'BOTH_OFF') {
+                      ariaText += `, 한국과 베트남 모두 휴무`;
+                    } else if (offInfo.state === 'KR_ONLY_OFF') {
+                      ariaText += `, 한국 휴무, 베트남 근무`;
+                    } else if (offInfo.state === 'VN_ONLY_OFF') {
+                      ariaText += `, 베트남 휴무, 한국 근무`;
+                    }
+
+                    const hasHoliday = !!offInfo.krHolidayName || !!offInfo.vnHolidayName;
 
                     return (
                       <th
                         key={idx}
                         data-testid="calendar-date-header"
+                        data-date={col.dateStr}
+                        data-country-off-state={offInfo.state}
+                        aria-label={ariaText}
                         onClick={() => setHeaderInfoState({ isOpen: true, dateStr: col.dateStr, dayName: col.dayName })}
-                        style={{ width: `${GANTT_DAY_WIDTH_PX}px`, minWidth: `${GANTT_DAY_WIDTH_PX}px`, maxWidth: `${GANTT_DAY_WIDTH_PX}px` }}
-                        className={`text-center py-1 border-r border-slate-200 text-[11px] font-medium cursor-pointer transition select-none ${
-                          col.isToday
-                            ? 'ring-2 ring-blue-500 ring-inset bg-blue-100/80 text-blue-900 font-bold'
-                            : krHol || vnHol
-                            ? 'bg-rose-50/80 text-rose-800 font-bold'
-                            : isSun
-                            ? 'bg-slate-100 text-slate-500 font-medium'
-                            : isSat
-                            ? 'bg-slate-50 text-slate-700 font-semibold'
-                            : 'bg-white text-slate-600 hover:bg-slate-50'
-                        }`}
+                        style={{ width: `${GANTT_DAY_WIDTH_PX}px`, minWidth: `${GANTT_DAY_WIDTH_PX}px`, maxWidth: `${GANTT_DAY_WIDTH_PX}px`, height: '44px' }}
+                        className={`relative text-center py-1 border-r border-slate-200 text-[11px] font-medium cursor-pointer transition select-none ${bgStyle} ${todayStyle}`}
                       >
+                        {hasHoliday && (
+                          <div
+                            className={`absolute top-0 left-0 right-0 h-[2px] ${
+                              offInfo.krHolidayName && offInfo.vnHolidayName
+                                ? 'bg-rose-600'
+                                : offInfo.krHolidayName
+                                ? 'bg-orange-500'
+                                : 'bg-amber-500'
+                            }`}
+                          />
+                        )}
                         <div>{col.dayNum}</div>
-                        <div className="text-[9px] scale-90">{col.dayName}</div>
-                        {isSat && (
-                          <div className="text-[8px] font-bold text-slate-500 scale-75 whitespace-nowrap mt-0.5">
-                            KR OFF / VN WORK
-                          </div>
-                        )}
-                        {isSun && (
-                          <div className="text-[8px] font-bold text-slate-400 scale-75 whitespace-nowrap mt-0.5">
-                            OFF
-                          </div>
-                        )}
-                        {(krHol || vnHol) && (
-                          <div className="flex items-center justify-center gap-0.5 mt-0.5">
-                            {krHol && <span className="text-[8px] font-extrabold px-0.5 rounded bg-rose-100 text-rose-700 border border-rose-200">KR</span>}
-                            {vnHol && <span className="text-[8px] font-extrabold px-0.5 rounded bg-amber-100 text-amber-900 border border-amber-200">VN</span>}
-                          </div>
-                        )}
+                        <div className="text-[10px] opacity-85">{col.dayName}</div>
                       </th>
                     );
                   })}

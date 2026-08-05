@@ -43,10 +43,7 @@ export function isEditableWorker(worker?: Partial<Worker> | null): boolean {
 
 export function canManageCountryCalendar(worker?: Partial<Worker> | null): boolean {
   if (!worker) return false;
-  if (worker.name === '박용진 수석' || worker.name === '유종욱 실장' || worker.id === 'wrk_01' || worker.id === 'wrk_02') {
-    return true;
-  }
-  return isEditableWorker(worker) && worker.can_manage_country_calendar === 1;
+  return Number(worker.can_manage_country_calendar) === 1;
 }
 
 export function getWorkerUiLanguage(worker?: Partial<Worker> | null): UiLanguage {

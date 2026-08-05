@@ -465,3 +465,291 @@ export async function calculateVietnamSaturdayImpactServer(
   };
 }
 
+export async function getManualHolidaysServer(
+  db: any,
+  countryCode: 'KR' | 'VN',
+  year: number,
+  month: number
+) {
+  const monthStr = String(month).padStart(2, '0');
+  const startDate = `${year}-${monthStr}-01`;
+  const endDate = `${year}-${monthStr}-31`;
+
+  const res = await db
+    .prepare(
+      `SELECT id, country_code, holiday_date, name_local, name_ko, name_vi, source, is_verified, created_by_name, updated_by_name
+       FROM country_holidays
+       WHERE country_code = ? AND holiday_date >= ? AND holiday_date <= ?
+       ORDER BY holiday_date ASC`
+    )
+    .bind(countryCode, startDate, endDate)
+    .all();
+
+  return res.results || [];
+}
+
+export async function calculateManualHolidayImpactServer(
+  db: any,
+  countryCode: 'KR' | 'VN',
+  year: number,
+  month: number,
+  holidays: Array<{ date: string; name_ko?: string; name_vi?: string }>
+) {
+  const monthStr = String(month).padStart(2, '0');
+  const startDate = `${year}-${monthStr}-01`;
+  const endDate = `${year}-${monthStr}-31`;
+
+  // Existing holidays
+  const existingRes = await db
+    .prepare(
+      `SELECT holiday_date FROM country_holidays WHERE country_code = ? AND holiday_date >= ? AND holiday_date <= ?`
+    )
+    .bind(countryCode, startDate, endDate)
+    .all();
+  const existingSet = new Set((existingRes.results || []).map((r: any) => r.holiday_date));
+
+  // Valid new weekday holidays
+  const newSet = new Set(
+    holidays
+      .map((h) => h.date)
+      .filter((d) => {
+        const dow = getDayOfWeek(d);
+        return dow !== 0 && dow !== 6;
+      })
+  );
+
+  const addedDates: string[] = (Array.from(newSet) as string[]).filter((d: string) => !existingSet.has(d));
+  const removedDates: string[] = (Array.from(existingSet) as string[]).filter((d: string) => !newSet.has(d));
+
+  // Workers affected
+  const workersRes = await db
+    .prepare(
+      `SELECT id, name, country_code, workweek_profile, ui_language FROM workers WHERE is_active = 1 AND country_code = ?`
+    )
+    .bind(countryCode)
+    .all();
+  const targetWorkers = workersRes.results || [];
+
+  let affectedTaskCount = 0;
+  let affectedProjectCount = 0;
+  const projectSet = new Set<string>();
+
+  if (addedDates.length > 0 && targetWorkers.length > 0) {
+    const workerIds = targetWorkers.map((w: any) => w.id);
+    const workerNames = targetWorkers.map((w: any) => w.name);
+    const phHolders = [...workerIds.map(() => '?'), ...workerNames.map(() => '?')].join(',');
+
+    const tasksRes = await db
+      .prepare(
+        `SELECT id, project_id, start_date, end_date, assignee FROM tasks
+         WHERE status != 'COMPLETED' AND (assignee IN (${phHolders}) OR assignee IS NULL)`
+      )
+      .bind(...workerIds, ...workerNames)
+      .all();
+
+    const activeTasks = tasksRes.results || [];
+
+    for (const t of activeTasks) {
+      if (!t.start_date || !t.end_date) continue;
+      const overlaps = addedDates.some((d) => d >= t.start_date && d <= t.end_date);
+      if (overlaps) {
+        affectedTaskCount++;
+        if (t.project_id) projectSet.add(t.project_id);
+      }
+    }
+  }
+
+  affectedProjectCount = projectSet.size;
+
+  return {
+    country_code: countryCode,
+    year,
+    month,
+    added_holidays: addedDates,
+    removed_holidays: removedDates,
+    affected_worker_count: targetWorkers.length,
+    affected_project_count: affectedProjectCount,
+    affected_task_count: affectedTaskCount,
+  };
+}
+
+export async function saveManualHolidaysMonthServer(
+  db: any,
+  countryCode: 'KR' | 'VN',
+  year: number,
+  month: number,
+  holidays: Array<{ date: string; name_ko?: string; name_vi?: string }>,
+  editorName: string,
+  editorId: string,
+  restoreShiftedTasks: boolean = false
+) {
+  const monthStr = String(month).padStart(2, '0');
+  const startDate = `${year}-${monthStr}-01`;
+  const endDate = `${year}-${monthStr}-31`;
+
+  // 1. Get existing holidays
+  const existingRes = await db
+    .prepare(
+      `SELECT holiday_date FROM country_holidays WHERE country_code = ? AND holiday_date >= ? AND holiday_date <= ?`
+    )
+    .bind(countryCode, startDate, endDate)
+    .all();
+  const existingSet = new Set((existingRes.results || []).map((r: any) => r.holiday_date));
+
+  // 2. Filter weekday holidays only
+  const validHolidays = holidays.filter((h) => {
+    const dow = getDayOfWeek(h.date);
+    return dow !== 0 && dow !== 6;
+  });
+  const newSet = new Set(validHolidays.map((h) => h.date));
+
+  const addedDates: string[] = (Array.from(newSet) as string[]).filter((d: string) => !existingSet.has(d));
+  const removedDates: string[] = (Array.from(existingSet) as string[]).filter((d: string) => !newSet.has(d));
+
+  // 3. Clear existing holidays for the month
+  await db
+    .prepare(`DELETE FROM country_holidays WHERE country_code = ? AND holiday_date >= ? AND holiday_date <= ?`)
+    .bind(countryCode, startDate, endDate)
+    .run();
+
+  // 4. Insert new manual holidays
+  for (const h of validHolidays) {
+    const id = `hol_manual_${countryCode}_${h.date}`;
+    const nameKo = h.name_ko || (countryCode === 'KR' ? '한국 공휴일' : '베트남 공휴일');
+    const nameVi = h.name_vi || (countryCode === 'VN' ? 'Ngày lễ Việt Nam' : 'Ngày lễ Hàn Quốc');
+    const nameLocal = countryCode === 'KR' ? nameKo : nameVi;
+
+    await db
+      .prepare(
+        `INSERT INTO country_holidays
+         (id, country_code, holiday_date, name_local, name_ko, name_vi, source, source_year, is_verified, created_by_name, updated_by_name)
+         VALUES (?, ?, ?, ?, ?, ?, 'MANUAL', ?, 1, ?, ?)`
+      )
+      .bind(id, countryCode, h.date, nameLocal, nameKo, nameVi, year, editorName, editorName)
+      .run();
+  }
+
+  // 5. Calculate task schedule shifts for added holidays
+  const shiftedTaskLogs: any[] = [];
+  if (addedDates.length > 0) {
+    const workersRes = await db
+      .prepare(
+        `SELECT id, name, country_code, workweek_profile, ui_language FROM workers WHERE is_active = 1 AND country_code = ?`
+      )
+      .bind(countryCode)
+      .all();
+    const targetWorkers = workersRes.results || [];
+
+    if (targetWorkers.length > 0) {
+      const workerIds = targetWorkers.map((w: any) => w.id);
+      const workerNames = targetWorkers.map((w: any) => w.name);
+      const phHolders = [...workerIds.map(() => '?'), ...workerNames.map(() => '?')].join(',');
+
+      const tasksRes = await db
+        .prepare(
+          `SELECT id, project_id, task_name, start_date, end_date, assignee, status FROM tasks
+           WHERE status != 'COMPLETED' AND (assignee IN (${phHolders}) OR assignee IS NULL)`
+        )
+        .bind(...workerIds, ...workerNames)
+        .all();
+
+      const activeTasks = tasksRes.results || [];
+
+      for (const t of activeTasks) {
+        if (!t.start_date || !t.end_date) continue;
+        const matchingWorker = targetWorkers.find((w: any) => w.id === t.assignee || w.name === t.assignee) || targetWorkers[0];
+        let dateShiftCount = 0;
+
+        for (const ad of addedDates) {
+          if (ad >= t.start_date && ad <= t.end_date) {
+            dateShiftCount++;
+          }
+        }
+
+        if (dateShiftCount > 0) {
+          // Extend end_date by working days
+          let newEndDate = t.end_date;
+          let added = 0;
+          while (added < dateShiftCount) {
+            newEndDate = addDays(newEndDate, 1);
+            if (await isWorkerWorkingDayServer(db, matchingWorker, newEndDate)) {
+              added++;
+            }
+          }
+
+          await db
+            .prepare(`UPDATE tasks SET end_date = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`)
+            .bind(newEndDate, t.id)
+            .run();
+
+          shiftedTaskLogs.push({
+            task_id: t.id,
+            project_id: t.project_id,
+            old_end_date: t.end_date,
+            new_end_date: newEndDate,
+            shift_days: dateShiftCount,
+          });
+        }
+      }
+    }
+  }
+
+  // 6. Handle restoration if removedDates and restoreShiftedTasks = true
+  if (removedDates.length > 0 && restoreShiftedTasks) {
+    const logsRes = await db
+      .prepare(
+        `SELECT affected_tasks_json FROM country_holiday_shift_logs
+         WHERE country_code = ? AND year = ? AND month = ? AND action_type = 'ADD'
+         ORDER BY created_at DESC LIMIT 10`
+      )
+      .bind(countryCode, year, month)
+      .all();
+
+    const previousShiftLogs = logsRes.results || [];
+    for (const logItem of previousShiftLogs) {
+      try {
+        const tasksJson = JSON.parse(logItem.affected_tasks_json || '[]');
+        for (const tj of tasksJson) {
+          if (tj.task_id && tj.old_end_date) {
+            await db
+              .prepare(`UPDATE tasks SET end_date = ? WHERE id = ? AND end_date = ?`)
+              .bind(tj.old_end_date, tj.task_id, tj.new_end_date)
+              .run();
+          }
+        }
+      } catch (e) {
+        // Safe parse fallback
+      }
+    }
+  }
+
+  // 7. Save shift log
+  const logId = `hol_log_${countryCode}_${year}_${month}_${Date.now()}`;
+  await db
+    .prepare(
+      `INSERT INTO country_holiday_shift_logs
+       (id, country_code, year, month, holiday_date, action_type, affected_tasks_json, created_by_id, created_by_name, created_at)
+       VALUES (?, ?, ?, ?, ?, 'UPDATE', ?, ?, ?, CURRENT_TIMESTAMP)`
+    )
+    .bind(
+      logId,
+      countryCode,
+      year,
+      month,
+      startDate,
+      JSON.stringify(shiftedTaskLogs),
+      editorId || null,
+      editorName || 'System'
+    )
+    .run();
+
+  return {
+    success: true,
+    country_code: countryCode,
+    year,
+    month,
+    saved_holidays_count: validHolidays.length,
+    shifted_tasks_count: shiftedTaskLogs.length,
+  };
+}
+

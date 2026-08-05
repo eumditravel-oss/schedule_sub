@@ -24,7 +24,7 @@ export const CalendarManagerModal: React.FC<CalendarManagerModalProps> = ({
   const { t, lang } = useI18n();
 
   // Tab State
-  const [activeTab, setActiveTab] = useState<'PERSONAL' | 'VIETNAM_SATURDAY'>('PERSONAL');
+  const [activeTab, setActiveTab] = useState<'PERSONAL' | 'VIETNAM_SATURDAY' | 'KOREA_HOLIDAY' | 'VIETNAM_HOLIDAY'>('PERSONAL');
 
   // Personal Leave Tab State
   const [selectedWorkerId, setSelectedWorkerId] = useState<string>('');
@@ -59,12 +59,26 @@ export const CalendarManagerModal: React.FC<CalendarManagerModalProps> = ({
   const [showVnImpactModal, setShowVnImpactModal] = useState<boolean>(false);
   const [vnSaving, setVnSaving] = useState<boolean>(false);
 
+  // Korea Public Holiday Tab State
+  const [krYear, setKrYear] = useState<number>(now.getFullYear());
+  const [krMonth, setKrMonth] = useState<number>(now.getMonth() + 1);
+  const [krHolidaysMap, setKrHolidaysMap] = useState<Record<string, { name_ko: string; name_vi: string }>>({});
+  const [krLoading, setKrLoading] = useState<boolean>(false);
+  const [krSaving, setKrSaving] = useState<boolean>(false);
+  const [krImpactData, setKrImpactData] = useState<any | null>(null);
+  const [showKrImpactModal, setShowKrImpactModal] = useState<boolean>(false);
+
+  // Vietnam Public Holiday Tab State
+  const [vnHolYear, setVnHolYear] = useState<number>(now.getFullYear());
+  const [vnHolMonth, setVnHolMonth] = useState<number>(now.getMonth() + 1);
+  const [vnHolidaysMap, setVnHolidaysMap] = useState<Record<string, { name_ko: string; name_vi: string }>>({});
+  const [vnHolLoading, setVnHolLoading] = useState<boolean>(false);
+  const [vnHolSaving, setVnHolSaving] = useState<boolean>(false);
+  const [vnHolImpactData, setVnHolImpactData] = useState<any | null>(null);
+  const [showVnHolImpactModal, setShowVnHolImpactModal] = useState<boolean>(false);
+
   const isViewer = isExecutiveViewer(currentWorker);
-  const activeWorkerId = getCurrentWorkerId();
-  const activeWorkerName = getCurrentWorkerName();
-  const canManageCountry = canManageCountryCalendar(currentWorker) ||
-    ['wrk_01', 'wrk_02', '유종욱 실장', '박용진 수석'].includes(activeWorkerId) ||
-    ['wrk_01', 'wrk_02', '유종욱 실장', '박용진 수석'].includes(activeWorkerName);
+  const canManageCountry = canManageCountryCalendar(currentWorker);
 
   useEffect(() => {
     if (isOpen) {
@@ -87,10 +101,115 @@ export const CalendarManagerModal: React.FC<CalendarManagerModalProps> = ({
   }, [isOpen, currentWorker, workers]);
 
   useEffect(() => {
-    if (isOpen && activeTab === 'VIETNAM_SATURDAY') {
-      loadVnSaturdayCalendar(vnYear, vnMonth);
+    if (isOpen) {
+      if (activeTab === 'VIETNAM_SATURDAY') {
+        loadVnSaturdayCalendar(vnYear, vnMonth);
+      } else if (activeTab === 'KOREA_HOLIDAY') {
+        loadManualHolidays('KR', krYear, krMonth);
+      } else if (activeTab === 'VIETNAM_HOLIDAY') {
+        loadManualHolidays('VN', vnHolYear, vnHolMonth);
+      }
     }
-  }, [vnYear, vnMonth, activeTab, isOpen]);
+  }, [vnYear, vnMonth, krYear, krMonth, vnHolYear, vnHolMonth, activeTab, isOpen]);
+
+  const loadManualHolidays = async (country: 'KR' | 'VN', y: number, m: number) => {
+    if (country === 'KR') setKrLoading(true);
+    else setVnHolLoading(true);
+
+    try {
+      const list = await api.getManualHolidays(country, y, m);
+      const map: Record<string, { name_ko: string; name_vi: string }> = {};
+      (list || []).forEach((h: any) => {
+        map[h.holiday_date] = {
+          name_ko: h.name_ko || h.name_local || (country === 'KR' ? '한국 공휴일' : 'Ngày lễ Hàn Quốc'),
+          name_vi: h.name_vi || h.name_local || (country === 'VN' ? 'Ngày lễ Việt Nam' : '베트남 공휴일'),
+        };
+      });
+      if (country === 'KR') setKrHolidaysMap(map);
+      else setVnHolidaysMap(map);
+    } catch (e: any) {
+      // safe fallback
+    } finally {
+      if (country === 'KR') setKrLoading(false);
+      else setVnHolLoading(false);
+    }
+  };
+
+  const handleManualHolidaySaveInit = async (country: 'KR' | 'VN') => {
+    if (!canManageCountry) {
+      setMsg({
+        text: lang === 'vi' ? 'Bạn không có quyền quản lý lịch làm việc quốc gia.' : '국가 달력 관리 권한이 필요합니다.',
+        type: 'error',
+      });
+      return;
+    }
+
+    const y = country === 'KR' ? krYear : vnHolYear;
+    const m = country === 'KR' ? krMonth : vnHolMonth;
+    const map = country === 'KR' ? krHolidaysMap : vnHolidaysMap;
+
+    const payload = Object.entries(map).map(([date, val]) => ({
+      date,
+      name_ko: val.name_ko,
+      name_vi: val.name_vi,
+    }));
+
+    if (country === 'KR') setKrSaving(true);
+    else setVnHolSaving(true);
+
+    try {
+      const impact = await api.calculateManualHolidayImpact(country, y, m, payload);
+      if (country === 'KR') {
+        setKrImpactData(impact);
+        setShowKrImpactModal(true);
+      } else {
+        setVnHolImpactData(impact);
+        setShowVnHolImpactModal(true);
+      }
+    } catch (e: any) {
+      alert(e.message || 'Impact calculation failed');
+    } finally {
+      if (country === 'KR') setKrSaving(false);
+      else setVnHolSaving(false);
+    }
+  };
+
+  const handleManualHolidayConfirmSave = async (country: 'KR' | 'VN', restoreShifted: boolean) => {
+    const y = country === 'KR' ? krYear : vnHolYear;
+    const m = country === 'KR' ? krMonth : vnHolMonth;
+    const map = country === 'KR' ? krHolidaysMap : vnHolidaysMap;
+
+    const payload = Object.entries(map).map(([date, val]) => ({
+      date,
+      name_ko: val.name_ko,
+      name_vi: val.name_vi,
+    }));
+
+    if (country === 'KR') setKrSaving(true);
+    else setVnHolSaving(true);
+
+    try {
+      await api.saveManualHolidaysMonth(country, y, m, payload, restoreShifted);
+      if (country === 'KR') {
+        setShowKrImpactModal(false);
+        setKrImpactData(null);
+      } else {
+        setShowVnHolImpactModal(false);
+        setVnHolImpactData(null);
+      }
+      setMsg({
+        text: country === 'KR' ? '한국 공휴일이 저장되었습니다.' : '베트남 공휴일이 저장되었습니다.',
+        type: 'success',
+      });
+      await loadManualHolidays(country, y, m);
+      onRefreshCalendar();
+    } catch (e: any) {
+      alert(e.message || 'Save failed');
+    } finally {
+      if (country === 'KR') setKrSaving(false);
+      else setVnHolSaving(false);
+    }
+  };
 
   const loadVnSaturdayCalendar = async (y: number, m: number) => {
     setVnLoading(true);
@@ -419,6 +538,206 @@ export const CalendarManagerModal: React.FC<CalendarManagerModalProps> = ({
     }
   };
 
+  const renderPublicHolidayTab = (country: 'KR' | 'VN') => {
+    const y = country === 'KR' ? krYear : vnHolYear;
+    const m = country === 'KR' ? krMonth : vnHolMonth;
+    const map = country === 'KR' ? krHolidaysMap : vnHolidaysMap;
+    const setMap = country === 'KR' ? setKrHolidaysMap : setVnHolidaysMap;
+    const saving = country === 'KR' ? krSaving : vnHolSaving;
+
+    const daysInMonth = new Date(y, m, 0).getDate();
+    const firstDayOfWeek = new Date(y, m - 1, 1).getDay(); // 0 = Sun, 1 = Mon...
+
+    const dayCells: (number | null)[] = [];
+    const offset = firstDayOfWeek === 0 ? 6 : firstDayOfWeek - 1;
+    for (let i = 0; i < offset; i++) {
+      dayCells.push(null);
+    }
+    for (let d = 1; d <= daysInMonth; d++) {
+      dayCells.push(d);
+    }
+
+    let weekdayCount = 0;
+    let selectedHolidayCount = 0;
+
+    for (let d = 1; d <= daysInMonth; d++) {
+      const dateStr = `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      const dow = new Date(y, m - 1, d).getDay();
+      if (dow !== 0 && dow !== 6) {
+        weekdayCount++;
+        if (map[dateStr]) selectedHolidayCount++;
+      }
+    }
+
+    const expectedWorkDays = weekdayCount - selectedHolidayCount;
+
+    return (
+      <div className="space-y-4 text-xs">
+        {/* Month Selector Header */}
+        <div className="flex flex-wrap items-center justify-between gap-2 p-3 bg-slate-50 rounded-xl border border-slate-200">
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                const nm = m === 1 ? 12 : m - 1;
+                const ny = m === 1 ? y - 1 : y;
+                if (country === 'KR') { setKrMonth(nm); setKrYear(ny); }
+                else { setVnHolMonth(nm); setVnHolYear(ny); }
+              }}
+              className="p-1.5 rounded-lg bg-white border border-slate-300 hover:bg-slate-100 font-bold text-slate-700"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <input
+              type="month"
+              data-testid={country === 'KR' ? 'kr-holiday-month-input' : 'vn-holiday-month-input'}
+              value={`${y}-${String(m).padStart(2, '0')}`}
+              onChange={(e) => {
+                const [ny, nm] = e.target.value.split('-').map(Number);
+                if (ny && nm) {
+                  if (country === 'KR') { setKrYear(ny); setKrMonth(nm); }
+                  else { setVnHolYear(ny); setVnHolMonth(nm); }
+                }
+              }}
+              className="px-3 py-1.5 rounded-lg border border-slate-300 font-extrabold bg-white text-xs text-slate-800 focus:ring-2 focus:ring-blue-500"
+            />
+            <button
+              type="button"
+              onClick={() => {
+                const nm = m === 12 ? 1 : m + 1;
+                const ny = m === 12 ? y + 1 : y;
+                if (country === 'KR') { setKrMonth(nm); setKrYear(ny); }
+                else { setVnHolMonth(nm); setVnHolYear(ny); }
+              }}
+              className="p-1.5 rounded-lg bg-white border border-slate-300 hover:bg-slate-100 font-bold text-slate-700"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+
+          <button
+            type="button"
+            data-testid={country === 'KR' ? 'kr-holiday-save-btn' : 'vn-holiday-save-btn'}
+            disabled={saving || isViewer || !canManageCountry}
+            onClick={() => handleManualHolidaySaveInit(country)}
+            className="h-9 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-extrabold transition shadow-xs flex items-center gap-1.5 disabled:opacity-50"
+          >
+            <CheckCircle className="w-4 h-4" />
+            <span>{lang === 'vi' ? 'Lưu thay đổi ngày lễ' : country === 'KR' ? '한국 공휴일 저장' : '베트남 공휴일 저장'}</span>
+          </button>
+        </div>
+
+        {/* Summary Cards */}
+        <div className="grid grid-cols-3 gap-2 text-center text-xs">
+          <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200">
+            <span className="text-slate-500 block text-[10px] font-bold">{lang === 'vi' ? 'Số ngày trong tuần' : '평일 수'}</span>
+            <span className="font-extrabold text-slate-900 text-sm">{weekdayCount}{lang === 'vi' ? ' ngày' : '일'}</span>
+          </div>
+          <div className="bg-rose-50 p-2.5 rounded-xl border border-rose-200">
+            <span className="text-rose-700 block text-[10px] font-bold">{lang === 'vi' ? 'Ngày lễ chỉ định' : '지정 공휴일'}</span>
+            <span className="font-extrabold text-rose-800 text-sm">{selectedHolidayCount}{lang === 'vi' ? ' ngày' : '일'}</span>
+          </div>
+          <div className="bg-emerald-50 p-2.5 rounded-xl border border-emerald-200">
+            <span className="text-emerald-700 block text-[10px] font-bold">{lang === 'vi' ? 'Số ngày làm việc dự kiến' : '실근무 예정'}</span>
+            <span className="font-extrabold text-emerald-800 text-sm">{expectedWorkDays}{lang === 'vi' ? ' ngày' : '일'}</span>
+          </div>
+        </div>
+
+        {/* 7-Col Month Grid */}
+        <div className="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-2xs">
+          <div className="grid grid-cols-7 bg-slate-100 border-b border-slate-200 text-center font-bold text-[11px] py-1.5 text-slate-700">
+            <div>{lang === 'vi' ? 'T2' : '월'}</div>
+            <div>{lang === 'vi' ? 'T3' : '화'}</div>
+            <div>{lang === 'vi' ? 'T4' : '수'}</div>
+            <div>{lang === 'vi' ? 'T5' : '목'}</div>
+            <div>{lang === 'vi' ? 'T6' : '금'}</div>
+            <div className="text-slate-400">{lang === 'vi' ? 'T7' : '토'}</div>
+            <div className="text-rose-500">{lang === 'vi' ? 'CN' : '일'}</div>
+          </div>
+
+          <div className="grid grid-cols-7 divide-x divide-y divide-slate-100 text-xs">
+            {dayCells.map((dayNum, idx) => {
+              if (!dayNum) {
+                return <div key={`empty-${idx}`} className="h-16 bg-slate-50/40" />;
+              }
+
+              const dateStr = `${y}-${String(m).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`;
+              const dow = new Date(y, m - 1, dayNum).getDay();
+              const isWeekend = dow === 0 || dow === 6;
+              const isSelected = !!map[dateStr];
+              const testId = country === 'KR' ? `kr-holiday-date-${dateStr}` : `vn-holiday-date-${dateStr}`;
+              const nameTestId = country === 'KR' ? `kr-holiday-name-${dateStr}` : `vn-holiday-name-${dateStr}`;
+
+              if (isWeekend) {
+                return (
+                  <div
+                    key={dateStr}
+                    className="h-16 p-1.5 bg-slate-50 text-slate-400 opacity-60 flex flex-col justify-between cursor-not-allowed select-none"
+                  >
+                    <span className="font-bold text-[10px] text-slate-400">{dayNum}</span>
+                    <span className="text-[9px] text-center italic text-slate-400">{dow === 0 ? '일요일' : '토요일'}</span>
+                  </div>
+                );
+              }
+
+              return (
+                <div
+                  key={dateStr}
+                  data-testid={testId}
+                  onClick={() => {
+                    if (isViewer || !canManageCountry) return;
+                    const next = { ...map };
+                    if (isSelected) {
+                      delete next[dateStr];
+                    } else {
+                      next[dateStr] = {
+                        name_ko: country === 'KR' ? '한국 공휴일' : '베트남 공휴일',
+                        name_vi: country === 'VN' ? 'Ngày lễ Việt Nam' : 'Ngày lễ Hàn Quốc',
+                      };
+                    }
+                    setMap(next);
+                  }}
+                  className={`h-16 p-1.5 flex flex-col justify-between transition select-none ${
+                    isSelected
+                      ? country === 'KR'
+                        ? 'bg-orange-50 border-orange-200'
+                        : 'bg-amber-50 border-amber-200'
+                      : 'hover:bg-slate-50 bg-white'
+                  } ${isViewer || !canManageCountry ? 'cursor-default' : 'cursor-pointer'}`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className={`font-bold text-xs ${isSelected ? 'text-orange-900' : 'text-slate-800'}`}>{dayNum}</span>
+                    {isSelected && <CheckCircle className="w-3.5 h-3.5 text-orange-600 shrink-0" />}
+                  </div>
+
+                  {isSelected && (
+                    <input
+                      type="text"
+                      data-testid={nameTestId}
+                      value={lang === 'vi' ? map[dateStr]?.name_vi || '' : map[dateStr]?.name_ko || ''}
+                      onClick={(e) => e.stopPropagation()}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setMap({
+                          ...map,
+                          [dateStr]: {
+                            name_ko: lang === 'vi' ? map[dateStr]?.name_ko || val : val,
+                            name_vi: lang === 'vi' ? val : map[dateStr]?.name_vi || val,
+                          },
+                        });
+                      }}
+                      className="w-full text-[10px] px-1 py-0.5 rounded border border-slate-300 bg-white text-slate-900 font-medium"
+                    />
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -727,6 +1046,111 @@ export const CalendarManagerModal: React.FC<CalendarManagerModalProps> = ({
             </div>
           </div>
         </div>
+      ) : (showKrImpactModal && krImpactData) || (showVnHolImpactModal && vnHolImpactData) ? (
+        /* Public Holiday Impact Preview & Restore Option Modal */
+        <div
+          data-testid="country-holiday-impact-modal"
+          className="w-full max-w-lg bg-white rounded-2xl shadow-2xl overflow-hidden border border-blue-200 text-slate-900 animate-in fade-in zoom-in-95 duration-150"
+        >
+          <div className="flex items-center justify-between px-5 py-4 border-b border-blue-100 bg-blue-50/80">
+            <div className="flex items-center gap-2 text-blue-900 font-extrabold text-sm">
+              <Calendar className="w-5 h-5 text-blue-600 shrink-0" />
+              <span>{showKrImpactModal ? '한국 수동 공휴일 일정 영향 검토' : '베트남 수동 공휴일 일정 영향 검토'}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setShowKrImpactModal(false);
+                setShowVnHolImpactModal(false);
+              }}
+              className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          <div className="p-5 space-y-4 text-xs">
+            {(() => {
+              const data = showKrImpactModal ? krImpactData : vnHolImpactData;
+              const country = showKrImpactModal ? 'KR' : 'VN';
+              const hasRemoved = data.removed_holidays?.length > 0;
+
+              return (
+                <>
+                  <div className="p-3 bg-blue-50 rounded-xl border border-blue-200 text-blue-900 leading-relaxed font-semibold">
+                    {country === 'KR' ? '한국' : '베트남'} 공휴일 변경 사항을 적용합니다. 추가되는 공휴일에 따라 작업 시작일/종료일이 이연됩니다.
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-2 text-center text-xs">
+                    <div className="bg-emerald-50 p-2.5 rounded-lg border border-emerald-200">
+                      <span className="text-emerald-700 block text-[10px] font-bold">추가 공휴일</span>
+                      <span className="font-extrabold text-emerald-800 text-sm">{data.added_holidays?.length || 0}일</span>
+                    </div>
+                    <div className="bg-rose-50 p-2.5 rounded-lg border border-rose-200">
+                      <span className="text-rose-700 block text-[10px] font-bold">해제 공휴일</span>
+                      <span className="font-extrabold text-rose-800 text-sm">{data.removed_holidays?.length || 0}일</span>
+                    </div>
+                    <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-200">
+                      <span className="text-slate-500 block text-[10px] font-bold">영향 작업 수</span>
+                      <span className="font-extrabold text-blue-700 text-sm">{data.affected_task_count || 0}개</span>
+                    </div>
+                  </div>
+
+                  {hasRemoved && (
+                    <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-amber-900 space-y-2">
+                      <div className="font-bold text-xs flex items-center gap-1 text-amber-900">
+                        <AlertTriangle className="w-4 h-4 text-amber-600" />
+                        <span>공휴일 해제 옵션 선택</span>
+                      </div>
+                      <p className="text-[11px] leading-relaxed">
+                        해제된 공휴일로 밀렸던 작업 일정을 원래대로 앞당길까요?
+                      </p>
+                    </div>
+                  )}
+
+                  <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowKrImpactModal(false);
+                        setShowVnHolImpactModal(false);
+                      }}
+                      className="flex-1 h-9 rounded-lg border border-slate-300 font-bold text-slate-700 hover:bg-slate-100 transition"
+                    >
+                      취소
+                    </button>
+                    {hasRemoved ? (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => handleManualHolidayConfirmSave(country, false)}
+                          className="flex-1 h-9 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold transition"
+                        >
+                          일정 유지
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleManualHolidayConfirmSave(country, true)}
+                          className="flex-1 h-9 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold transition shadow-xs"
+                        >
+                          일정 앞당기기
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => handleManualHolidayConfirmSave(country, false)}
+                        className="flex-1 h-9 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold transition shadow-xs"
+                      >
+                        저장 확정
+                      </button>
+                    )}
+                  </div>
+                </>
+              );
+            })()}
+          </div>
+        </div>
       ) : showVnImpactModal && vnImpactData ? (
         /* Vietnam Saturday Impact Preview Modal */
         <div
@@ -829,13 +1253,13 @@ export const CalendarManagerModal: React.FC<CalendarManagerModalProps> = ({
             </button>
           </div>
 
-          {/* Navigation Tabs */}
-          <div className="flex border-b border-slate-200 bg-slate-50/60 px-5 pt-2 gap-2">
+          {/* Navigation Tabs (4 Tabs) */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 border-b border-slate-200 bg-slate-50/60 px-4 pt-2 gap-1">
             <button
               type="button"
               data-testid="calendar-personal-tab"
               onClick={() => setActiveTab('PERSONAL')}
-              className={`px-4 py-2 text-xs font-bold border-b-2 transition ${
+              className={`px-2.5 py-2 text-xs font-bold border-b-2 transition text-center truncate ${
                 activeTab === 'PERSONAL'
                   ? 'border-blue-600 text-blue-600 bg-white rounded-t-lg shadow-2xs'
                   : 'border-transparent text-slate-500 hover:text-slate-800'
@@ -852,13 +1276,43 @@ export const CalendarManagerModal: React.FC<CalendarManagerModalProps> = ({
                   loadVnSaturdayCalendar(vnYear, vnMonth);
                 }
               }}
-              className={`px-4 py-2 text-xs font-bold border-b-2 transition ${
+              className={`px-2.5 py-2 text-xs font-bold border-b-2 transition text-center truncate ${
                 activeTab === 'VIETNAM_SATURDAY'
                   ? 'border-blue-600 text-blue-600 bg-white rounded-t-lg shadow-2xs'
                   : 'border-transparent text-slate-500 hover:text-slate-800'
               }`}
             >
-              {lang === 'vi' ? 'Lịch làm việc thứ Bảy' : '베트남 토요일 근무표'}
+              {lang === 'vi' ? 'Lịch thứ Bảy Việt Nam' : '베트남 토요일 근무표'}
+            </button>
+            <button
+              type="button"
+              data-testid="korea-public-holiday-tab"
+              onClick={() => {
+                setActiveTab('KOREA_HOLIDAY');
+                loadManualHolidays('KR', krYear, krMonth);
+              }}
+              className={`px-2.5 py-2 text-xs font-bold border-b-2 transition text-center truncate ${
+                activeTab === 'KOREA_HOLIDAY'
+                  ? 'border-blue-600 text-blue-600 bg-white rounded-t-lg shadow-2xs'
+                  : 'border-transparent text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              {lang === 'vi' ? 'Ngày lễ Hàn Quốc' : '한국 공휴일'}
+            </button>
+            <button
+              type="button"
+              data-testid="vietnam-public-holiday-tab"
+              onClick={() => {
+                setActiveTab('VIETNAM_HOLIDAY');
+                loadManualHolidays('VN', vnHolYear, vnHolMonth);
+              }}
+              className={`px-2.5 py-2 text-xs font-bold border-b-2 transition text-center truncate ${
+                activeTab === 'VIETNAM_HOLIDAY'
+                  ? 'border-blue-600 text-blue-600 bg-white rounded-t-lg shadow-2xs'
+                  : 'border-transparent text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              {lang === 'vi' ? 'Ngày lễ Việt Nam' : '베트남 공휴일'}
             </button>
           </div>
 
@@ -1319,6 +1773,11 @@ export const CalendarManagerModal: React.FC<CalendarManagerModalProps> = ({
                   </button>
                 </div>
               </div>
+            )}
+
+            {/* TAB 3 & 4: KOREA / VIETNAM PUBLIC HOLIDAY MANAGEMENT */}
+            {(activeTab === 'KOREA_HOLIDAY' || activeTab === 'VIETNAM_HOLIDAY') && (
+              renderPublicHolidayTab(activeTab === 'KOREA_HOLIDAY' ? 'KR' : 'VN')
             )}
           </div>
         </div>

@@ -77,9 +77,9 @@ test.describe('Desktop Toolbar & Workday UX E2E Tests', () => {
     // Verify all 9 items
     const legendKeys = [
       'workday',
-      'weekly_off',
-      'kr_holiday',
-      'vn_holiday',
+      'both_off',
+      'kr_only_off',
+      'vn_only_off',
       'leave',
       'off',
       'work_override',

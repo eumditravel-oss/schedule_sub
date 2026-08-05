@@ -4,7 +4,7 @@ import { Project, Task, Worker, GanttDateColumn, WorkDayStatus, DailyStatusType 
 import { useI18n } from '../../hooks/useI18n';
 import { useResponsiveLayout } from '../../hooks/useResponsiveLayout';
 import { ChevronsLeft, ChevronsRight, AlertTriangle } from 'lucide-react';
-import { resolveWorkDayStatus } from '../../utils/workCalendar';
+import { getCountryOffState, resolveWorkDayStatus } from '../../utils/workCalendar';
 import { ScheduleBar, ScheduleBarStatus } from '../gantt/ScheduleBar';
 
 interface MobileThirtyDayGanttViewProps {
@@ -201,18 +201,28 @@ export const MobileThirtyDayGanttView: React.FC<MobileThirtyDayGanttViewProps> =
             <div className="inline-block min-w-max" style={{ minWidth: `${gridMinWidthPx}px` }}>
               {/* Date Header Row */}
               <div className="flex h-10 border-b border-slate-200 bg-slate-50/80 font-bold text-[10px] text-slate-700">
-                {dateColumns.map((col) => (
-                  <div
-                    key={col.dateStr}
-                    data-testid={`mobile-gantt-header-${col.dateStr}`}
-                    className={`w-[30px] min-w-[30px] max-w-[30px] border-r border-slate-100 p-0.5 flex flex-col items-center justify-center shrink-0 ${
-                      col.isToday ? 'bg-blue-50 text-blue-700 font-extrabold' : ''
-                    }`}
-                  >
-                    <span className="text-[8px] opacity-75">{col.dayName}</span>
-                    <span className="text-[10px]">{col.dayNum}</span>
-                  </div>
-                ))}
+                {dateColumns.map((col) => {
+                  const offInfo = getCountryOffState(col.dateStr, overrides, holidays);
+                  let bgStyle = 'bg-white text-slate-700';
+                  if (offInfo.state === 'BOTH_OFF') bgStyle = 'bg-rose-100 text-rose-900';
+                  else if (offInfo.state === 'KR_ONLY_OFF') bgStyle = 'bg-orange-50 text-orange-900';
+                  else if (offInfo.state === 'VN_ONLY_OFF') bgStyle = 'bg-amber-50 text-amber-900';
+
+                  const todayStyle = col.isToday ? 'ring-2 ring-blue-500 ring-inset font-extrabold' : '';
+
+                  return (
+                    <div
+                      key={col.dateStr}
+                      data-testid={`mobile-gantt-header-${col.dateStr}`}
+                      data-date={col.dateStr}
+                      data-country-off-state={offInfo.state}
+                      className={`w-[30px] min-w-[30px] max-w-[30px] border-r border-slate-100 p-0.5 flex flex-col items-center justify-center shrink-0 ${bgStyle} ${todayStyle}`}
+                    >
+                      <span className="text-[10px]">{col.dayNum}</span>
+                      <span className="text-[8px] opacity-75">{col.dayName}</span>
+                    </div>
+                  );
+                })}
               </div>
 
               {/* Grid Rows */}

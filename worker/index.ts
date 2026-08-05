@@ -10,6 +10,9 @@ import {
   calculateLeaveImpactServer,
   getVietnamSaturdayCalendarServer,
   calculateVietnamSaturdayImpactServer,
+  getManualHolidaysServer,
+  calculateManualHolidayImpactServer,
+  saveManualHolidaysMonthServer,
   WorkerProfile,
 } from './services/scheduleCalendar';
 import {
@@ -295,6 +298,101 @@ export default {
         return jsonResponse(workers.results || []);
       }
 
+async function requireCountryCalendarManager(db: any, request: Request, body?: any) {
+  const editorHeaderId = request.headers.get('x-editor-id') || '';
+  const editorHeaderName = request.headers.get('x-editor-name') || '';
+  const bodyName = body?.editor_name || body?.created_by_name || body?.updated_by_name || '';
+  const bodyId = body?.editor_id || body?.created_by_id || '';
+
+  let worker = null;
+  if (editorHeaderId) {
+    worker = await db.prepare(`SELECT id, name, can_manage_country_calendar FROM workers WHERE id = ?`).bind(editorHeaderId).first();
+  }
+  if (!worker && bodyId) {
+    worker = await db.prepare(`SELECT id, name, can_manage_country_calendar FROM workers WHERE id = ?`).bind(bodyId).first();
+  }
+  if (!worker && editorHeaderName) {
+    worker = await db.prepare(`SELECT id, name, can_manage_country_calendar FROM workers WHERE name = ?`).bind(editorHeaderName).first();
+  }
+  if (!worker && bodyName) {
+    worker = await db.prepare(`SELECT id, name, can_manage_country_calendar FROM workers WHERE name = ?`).bind(bodyName).first();
+  }
+
+  const editorName = worker?.name || editorHeaderName || bodyName || 'System';
+  const editorId = worker?.id || editorHeaderId || bodyId || '';
+
+  if (worker && Number(worker.can_manage_country_calendar) === 1) {
+    return { allowed: true, editorName, editorId };
+  }
+
+  return {
+    allowed: false,
+    errorMsg: '국가 달력 관리 권한이 필요합니다.',
+    errorCode: 'COUNTRY_CALENDAR_PERMISSION_REQUIRED',
+    editorName,
+    editorId,
+  };
+}
+
+      // 1.0 POST /api/calendar/holidays/sync -> 410 Disabled
+      if (method === 'POST' && path === '/api/calendar/holidays/sync') {
+        return errorResponse(
+          '자동 공휴일 동기화가 중단되었습니다. 월별 공휴일 관리에서 직접 지정하세요.',
+          410,
+          'AUTO_HOLIDAY_SYNC_DISABLED'
+        );
+      }
+
+      // 1.01 GET /api/calendar/manual-holidays
+      if (method === 'GET' && path === '/api/calendar/manual-holidays') {
+        const country = (url.searchParams.get('country') || 'KR') as 'KR' | 'VN';
+        const now = new Date();
+        const year = Number(url.searchParams.get('year') || now.getFullYear());
+        const month = Number(url.searchParams.get('month') || now.getMonth() + 1);
+
+        const holidays = await getManualHolidaysServer(db, country, year, month);
+        return jsonResponse(holidays);
+      }
+
+      // 1.02 POST /api/calendar/manual-holidays/impact
+      if (method === 'POST' && path === '/api/calendar/manual-holidays/impact') {
+        const body: any = await request.json();
+        const country = (body.country_code || 'KR') as 'KR' | 'VN';
+        const year = Number(body.year);
+        const month = Number(body.month);
+        const holidays = body.holidays || [];
+
+        const impact = await calculateManualHolidayImpactServer(db, country, year, month, holidays);
+        return jsonResponse(impact);
+      }
+
+      // 1.03 PUT /api/calendar/manual-holidays/month
+      if (method === 'PUT' && path === '/api/calendar/manual-holidays/month') {
+        const body: any = await request.json();
+        const permCheck = await requireCountryCalendarManager(db, request, body);
+        if (!permCheck.allowed) {
+          return errorResponse(permCheck.errorMsg!, 403, permCheck.errorCode!);
+        }
+
+        const country = (body.country_code || 'KR') as 'KR' | 'VN';
+        const year = Number(body.year);
+        const month = Number(body.month);
+        const holidays = body.holidays || [];
+        const restoreShiftedTasks = body.restore_shifted_tasks === true;
+
+        const result = await saveManualHolidaysMonthServer(
+          db,
+          country,
+          year,
+          month,
+          holidays,
+          permCheck.editorName,
+          permCheck.editorId,
+          restoreShiftedTasks
+        );
+        return jsonResponse(result);
+      }
+
       // 1.1 GET /api/calendar/vietnam-saturdays
       if (method === 'GET' && path === '/api/calendar/vietnam-saturdays') {
         const now = new Date();
@@ -320,11 +418,11 @@ export default {
       // 1.3 PUT /api/calendar/vietnam-saturdays
       if (method === 'PUT' && path === '/api/calendar/vietnam-saturdays') {
         const body: any = await request.json();
-        const editor = getEditorName(body, request);
-        const permCheck = await requireCountryCalendarManager(db, editor);
+        const permCheck = await requireCountryCalendarManager(db, request, body);
         if (!permCheck.allowed) {
           return errorResponse(permCheck.errorMsg!, 403, permCheck.errorCode!);
         }
+        const editor = permCheck.editorName;
 
         const year = Number(body.year);
         const month = Number(body.month);

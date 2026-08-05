@@ -1,7 +1,7 @@
 -- migrations/0011_vietnam_saturday_calendar.sql
 
--- 1. Add can_manage_country_calendar permission column to workers table
-ALTER TABLE workers ADD COLUMN can_manage_country_calendar INTEGER NOT NULL DEFAULT 0;
+-- 1. Add can_manage_country_calendar permission column to workers table (column already added)
+-- ALTER TABLE workers ADD COLUMN can_manage_country_calendar INTEGER NOT NULL DEFAULT 0;
 
 -- 2. Grant country calendar management permission to Yo Jong-wook and Park Yong-jin
 UPDATE workers

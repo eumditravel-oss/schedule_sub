@@ -312,3 +312,85 @@ export function getVietnamSaturdaysInMonth(year: number, month: number): { date:
   }
   return saturdays;
 }
+
+export type CountryOffState = 'BOTH_OFF' | 'KR_ONLY_OFF' | 'VN_ONLY_OFF' | 'BOTH_WORK';
+
+export interface CountryOffInfo {
+  state: CountryOffState;
+  krIsOff: boolean;
+  vnIsOff: boolean;
+  krHolidayName?: string | null;
+  vnHolidayName?: string | null;
+  krHolidayCreator?: string | null;
+  vnHolidayCreator?: string | null;
+}
+
+export function getCountryOffState(
+  dateStr: string,
+  overrides: any[] = [],
+  countryHolidays: CountryHoliday[] = []
+): CountryOffInfo {
+  const d = new Date(`${dateStr}T00:00:00`);
+  const dayOfWeek = d.getDay(); // 0 = Sun, 6 = Sat
+
+  // Check KR Holidays & Overrides
+  const krHoliday = countryHolidays.find((h) => h.country_code === 'KR' && h.holiday_date === dateStr);
+  const krCountryWorkOverride = overrides.find(
+    (o: any) =>
+      (o.scope_type === 'COUNTRY' && o.scope_key === 'KR' && o.override_type === 'WORK') &&
+      (o.work_date === dateStr || (o.start_date && o.start_date <= dateStr && o.end_date && o.end_date >= dateStr))
+  );
+  const krCountryOffOverride = overrides.find(
+    (o: any) =>
+      (o.scope_type === 'COUNTRY' && o.scope_key === 'KR' && o.override_type === 'OFF') &&
+      (o.work_date === dateStr || (o.start_date && o.start_date <= dateStr && o.end_date && o.end_date >= dateStr))
+  );
+
+  let krIsOff = false;
+  if (krCountryWorkOverride) {
+    krIsOff = false;
+  } else if (dayOfWeek === 0 || dayOfWeek === 6 || !!krHoliday || !!krCountryOffOverride) {
+    krIsOff = true;
+  }
+
+  // Check VN Holidays & Overrides
+  const vnHoliday = countryHolidays.find((h) => h.country_code === 'VN' && h.holiday_date === dateStr);
+  const vnCountryWorkOverride = overrides.find(
+    (o: any) =>
+      ((o.scope_type === 'COUNTRY' && o.scope_key === 'VN') || o.worker_id === 'VN_ALL') &&
+      o.override_type === 'WORK' &&
+      (o.work_date === dateStr || (o.start_date && o.start_date <= dateStr && o.end_date && o.end_date >= dateStr))
+  );
+  const vnCountryOffOverride = overrides.find(
+    (o: any) =>
+      ((o.scope_type === 'COUNTRY' && o.scope_key === 'VN') || o.worker_id === 'VN_ALL') &&
+      o.override_type === 'OFF' &&
+      (o.work_date === dateStr || (o.start_date && o.start_date <= dateStr && o.end_date && o.end_date >= dateStr))
+  );
+
+  let vnIsOff = false;
+  if (vnCountryWorkOverride) {
+    vnIsOff = false;
+  } else if (dayOfWeek === 0 || !!vnHoliday || !!vnCountryOffOverride) {
+    vnIsOff = true;
+  }
+
+  let state: CountryOffState = 'BOTH_WORK';
+  if (krIsOff && vnIsOff) {
+    state = 'BOTH_OFF';
+  } else if (krIsOff && !vnIsOff) {
+    state = 'KR_ONLY_OFF';
+  } else if (!krIsOff && vnIsOff) {
+    state = 'VN_ONLY_OFF';
+  }
+
+  return {
+    state,
+    krIsOff,
+    vnIsOff,
+    krHolidayName: krHoliday ? (krHoliday.name_ko || krHoliday.name_local || null) : null,
+    vnHolidayName: vnHoliday ? (vnHoliday.name_vi || vnHoliday.name_ko || vnHoliday.name_local || null) : null,
+    krHolidayCreator: krHoliday?.created_by_name || null,
+    vnHolidayCreator: vnHoliday?.created_by_name || null,
+  };
+}

@@ -24,7 +24,11 @@ export function getCurrentWorkerId(): string {
 
 export function getCurrentWorkerName(): string {
   try {
-    return localStorage.getItem(WORKER_NAME_KEY) || localStorage.getItem(WORKER_ID_KEY) || '';
+    const val = localStorage.getItem(WORKER_NAME_KEY) || localStorage.getItem(WORKER_ID_KEY) || '';
+    if (val && !ACTUAL_WORKERS.includes(val) && !val.startsWith('wrk_')) {
+      return '';
+    }
+    return val;
   } catch {
     return '';
   }
@@ -336,5 +340,28 @@ export const api = {
   async getProjectShiftLogs(projectId: string): Promise<{ project_shift_logs: any[]; leave_shift_logs: any[] }> {
     const res = await fetch(`/api/projects/${encodeURIComponent(projectId)}/shift-logs`);
     return handleResponse<{ project_shift_logs: any[]; leave_shift_logs: any[] }>(res);
+  },
+
+  async getManualHolidays(country: 'KR' | 'VN', year: number, month: number): Promise<CountryHoliday[]> {
+    const res = await fetch(`/api/calendar/manual-holidays?country=${country}&year=${year}&month=${month}`);
+    return handleResponse<CountryHoliday[]>(res);
+  },
+
+  async calculateManualHolidayImpact(country: 'KR' | 'VN', year: number, month: number, holidays: Array<{ date: string; name_ko?: string; name_vi?: string }>): Promise<any> {
+    const res = await fetch(`/api/calendar/manual-holidays/impact`, {
+      method: 'POST',
+      headers: getWriteHeaders(),
+      body: JSON.stringify({ country_code: country, year, month, holidays }),
+    });
+    return handleResponse<any>(res);
+  },
+
+  async saveManualHolidaysMonth(country: 'KR' | 'VN', year: number, month: number, holidays: Array<{ date: string; name_ko?: string; name_vi?: string }>, restoreShiftedTasks: boolean = false): Promise<any> {
+    const res = await fetch(`/api/calendar/manual-holidays/month`, {
+      method: 'PUT',
+      headers: getWriteHeaders(),
+      body: JSON.stringify({ country_code: country, year, month, holidays, restore_shifted_tasks: restoreShiftedTasks }),
+    });
+    return handleResponse<any>(res);
   },
 };
