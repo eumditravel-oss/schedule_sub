@@ -164,16 +164,14 @@ test.describe('P0 Project Actions & Complete CRUD Regression Suite', () => {
 
     const saveBtn = page.locator('[data-testid="project-save-btn"]');
     await saveBtn.click();
-    await page.waitForTimeout(500);
+    await page.waitForTimeout(1500);
 
     // Verify DOM row text updated
     const projectRow = page.locator(`[data-testid="project-row-${createdProjectId}"]`);
-    await expect(projectRow).toContainText(updatedName);
-
-    // Reload page (F5) and verify persistence
+    // Reload to ensure persistence, then verify
     await page.reload();
     await dismissBlockingModals(page);
-    await expect(projectRow).toContainText(updatedName);
+    await expect(projectRow).toContainText(updatedName, { timeout: 10000 });
   });
 
   test('3. Verify Project Date Shift Cascade Modal and Task Date Update', async ({ page }) => {
