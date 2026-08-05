@@ -49,6 +49,9 @@ test.describe('Task Hierarchy, Multi-Assignees, Auto Progress & Compact Gantt Ro
   });
 
   test('E2E Full Flow: Hierarchy, Compact UI, Translation Protection & Delete Modal', async ({ page }) => {
+    // Set desktop viewport size (width: 1366, height: 768) to ensure Desktop Table & Header rendered
+    await page.setViewportSize({ width: 1366, height: 768 });
+
     await page.addInitScript(() => {
       localStorage.setItem('schedule_current_worker_id', 'wrk_yjw');
       localStorage.setItem('schedule_current_worker_name', '유종욱 실장');
