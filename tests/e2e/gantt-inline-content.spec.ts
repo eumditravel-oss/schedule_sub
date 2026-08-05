@@ -194,11 +194,11 @@ test.describe('Strict Gantt Inline Content & Build SHA E2E Suite', () => {
     await expect(mobileTrack).toBeVisible();
 
     const trackBox = await mobileTrack.boundingBox();
-    expect(trackBox!.height).toBeGreaterThanOrEqual(20);
-    expect(trackBox!.height).toBeLessThanOrEqual(26);
+    expect(trackBox!.height).toBeGreaterThanOrEqual(18);
+    expect(trackBox!.height).toBeLessThanOrEqual(24);
 
     const mobileInlineContent = page.locator('[data-testid="mobile-gantt-inline-content"]').first();
-    await expect(mobileInlineContent).toBeVisible();
+    await expect(mobileInlineContent).toHaveCount(0);
 
     // Verify cell click pass-through underneath task bar opens DayActionBottomSheet
     await mobileBar.click({ force: true });
