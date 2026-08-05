@@ -36,7 +36,7 @@ test.describe('Task Grouping, Drag & Drop, Reorder and Move UI Suite', () => {
     });
     expect(prjRes.status).toBe(201);
     const prjJson: any = await prjRes.json();
-    createdProjectId = prjJson.id;
+    createdProjectId = prjJson.project?.id || prjJson.id;
     expect(createdProjectId).toBeTruthy();
   });
 
