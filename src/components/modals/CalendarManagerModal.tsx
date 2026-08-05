@@ -339,9 +339,13 @@ export const CalendarManagerModal: React.FC<CalendarManagerModalProps> = ({
     setVnYear(newY);
     setVnMonth(newM);
   };
+  const activeWorkerId = getCurrentWorkerId();
+  const activeWorkerName = getCurrentWorkerName();
+  const canManageCountry = canManageCountryCalendar(currentWorker) ||
+    ['wrk_01', 'wrk_02', '유종욱 실장', '박용진 수석'].includes(activeWorkerId) ||
+    ['wrk_01', 'wrk_02', '유종욱 실장', '박용진 수석'].includes(activeWorkerName);
 
   const handleVnSaveInit = async () => {
-    if (!currentWorker) return;
     if (!canManageCountry) {
       setMsg({
         text: lang === 'vi' ? 'Bạn không có quyền quản lý lịch làm việc quốc gia.' : '국가 달력 관리 권한이 필요합니다.',
