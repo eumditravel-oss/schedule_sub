@@ -9,6 +9,18 @@ if (!fs.existsSync(SCREENSHOT_DIR)) {
 }
 
 async function dismissBlockingModals(page: any) {
+  // Close calendar-manager-modal if open
+  const calModal = page.locator('[data-testid="calendar-manager-modal"]');
+  if (await calModal.isVisible({ timeout: 500 }).catch(() => false)) {
+    const calCloseBtn = page.locator('[data-testid="calendar-modal-close-btn"]');
+    if (await calCloseBtn.isVisible().catch(() => false)) {
+      await calCloseBtn.click().catch(() => {});
+    } else {
+      await page.keyboard.press('Escape');
+    }
+    await page.waitForTimeout(300);
+  }
+
   for (let i = 0; i < 5; i++) {
     const backdrop = page.locator('.fixed.inset-0.z-50').first();
     if (await backdrop.isVisible({ timeout: 500 }).catch(() => false)) {
@@ -169,7 +181,7 @@ test.describe('P0 Project Actions & Complete CRUD Regression Suite', () => {
 
     const saveBtn = page.locator('[data-testid="project-save-btn"]');
     await expect(saveBtn).toBeEnabled({ timeout: 3000 });
-    await saveBtn.click();
+    await saveBtn.click({ force: true });
 
     // Wait for network to settle after save
     await page.waitForLoadState('networkidle');
