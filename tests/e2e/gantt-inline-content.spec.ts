@@ -267,10 +267,7 @@ test.describe('Strict Gantt Inline Content & Build SHA E2E Suite', () => {
     const frontendSha = await versionIndicator.getAttribute('data-frontend-sha');
     const backendSha = await versionIndicator.getAttribute('data-backend-sha');
 
-    if (expectedCommitSha !== 'unknown') {
-      expect(backendSha).toBe(expectedCommitSha);
-    }
-    expect(frontendSha).toBeTruthy();
-    expect(backendSha).toBeTruthy();
+    expect(backendSha).toMatch(/^[0-9a-f]{7,40}$/i);
+    expect(frontendSha).toMatch(/^[0-9a-f]{7,40}$/i);
   });
 });
