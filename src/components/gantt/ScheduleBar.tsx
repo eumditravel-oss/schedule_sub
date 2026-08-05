@@ -114,14 +114,17 @@ export const ScheduleBar: React.FC<ScheduleBarProps> = ({
 
   const trackHeightClass = isMobile ? 'h-6' : 'h-7';
 
+  const isMobileThresholdTitle = isMobile ? barWidth >= 180 : barWidth >= 160;
+  const isMobileThresholdProgressOnly = isMobile ? barWidth >= 100 && barWidth < 180 : barWidth >= 90 && barWidth < 160;
+  const isMobileThresholdFull = barWidth >= 260;
+
   return (
     <div
       ref={barRef}
-      data-testid="gantt-schedule-bar"
+      data-testid={isMobile ? 'mobile-gantt-schedule-bar' : 'gantt-schedule-bar'}
       role="button"
       tabIndex={0}
       aria-label={ariaLabel}
-      title={title}
       onClick={(e) => {
         e.stopPropagation();
         onClick?.();
@@ -136,9 +139,9 @@ export const ScheduleBar: React.FC<ScheduleBarProps> = ({
       className={`relative group my-auto w-full min-w-0 pointer-events-auto cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-1 rounded-md ${className}`}
       style={style}
     >
-      {/* Outer Continuous Bar Track (No Hover Tooltip) */}
+      {/* Outer Continuous Bar Track (No Native Tooltip) */}
       <div
-        data-testid="gantt-schedule-track"
+        data-testid={isMobile ? 'mobile-gantt-schedule-track' : 'gantt-schedule-track'}
         className={`w-full min-w-0 ${trackHeightClass} rounded-md border text-xs font-bold relative overflow-hidden transition-all duration-150 shadow-2xs flex items-center select-none ${baseColorClass} hover:brightness-95`}
       >
         {/* Actual Progress Overlay Fill */}
@@ -156,16 +159,15 @@ export const ScheduleBar: React.FC<ScheduleBarProps> = ({
             data-testid="gantt-bar-planned-marker"
             style={{ left: `${clampedPlanned}%` }}
             className="absolute top-0 bottom-0 w-0.5 bg-slate-900/70 z-2"
-            title={`${lang === 'vi' ? 'Dự kiến' : '예정'}: ${clampedPlanned}%`}
           />
         )}
 
         {/* Inline Content Layer */}
         <div
-          data-testid="gantt-bar-inline-content"
+          data-testid={isMobile ? 'mobile-gantt-inline-content' : 'gantt-bar-inline-content'}
           className="absolute inset-0 z-10 flex items-center justify-between px-1.5 w-full h-full min-w-0 overflow-hidden pointer-events-none"
         >
-          {barWidth >= 260 ? (
+          {isMobileThresholdFull ? (
             <>
               <span
                 data-testid="gantt-bar-inline-title"
@@ -180,7 +182,7 @@ export const ScheduleBar: React.FC<ScheduleBarProps> = ({
                 {longProgressText}
               </span>
             </>
-          ) : barWidth >= 160 ? (
+          ) : isMobileThresholdTitle ? (
             <>
               <span
                 data-testid="gantt-bar-inline-title"
@@ -195,7 +197,7 @@ export const ScheduleBar: React.FC<ScheduleBarProps> = ({
                 {mediumProgressText}
               </span>
             </>
-          ) : barWidth >= 90 ? (
+          ) : isMobileThresholdProgressOnly ? (
             <span
               data-testid="gantt-bar-inline-progress"
               className="bg-slate-900/80 text-white rounded px-1.5 h-5 text-[10.5px] font-bold flex items-center whitespace-nowrap shadow-2xs mx-auto"

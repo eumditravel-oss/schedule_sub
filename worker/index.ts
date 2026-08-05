@@ -22,6 +22,9 @@ export interface Env {
   ASSETS?: any;
   AI?: any;
   KASI_HOLIDAY_API_KEY?: string;
+  BUILD_SHA?: string;
+  ENVIRONMENT_NAME?: string;
+  DEPLOYED_AT?: string;
 }
 
 function jsonResponse(data: any, status = 200) {
@@ -57,24 +60,7 @@ async function getActiveWorkerProfile(db: any, editorName: string): Promise<any 
       .first();
     if (worker) return worker;
   } catch {}
-
-  const hardcoded: Record<string, any> = {
-    'wrk_00_ceo': { id: 'wrk_00_ceo', name: 'CEO', access_role: 'VIEWER', ui_language: 'ko', country_code: 'KR', workweek_profile: 'MON_FRI' },
-    'CEO': { id: 'wrk_00_ceo', name: 'CEO', access_role: 'VIEWER', ui_language: 'ko', country_code: 'KR', workweek_profile: 'MON_FRI' },
-    'wrk_00_coo': { id: 'wrk_00_coo', name: 'COO', access_role: 'VIEWER', ui_language: 'ko', country_code: 'KR', workweek_profile: 'MON_FRI' },
-    'COO': { id: 'wrk_00_coo', name: 'COO', access_role: 'VIEWER', ui_language: 'ko', country_code: 'KR', workweek_profile: 'MON_FRI' },
-    'wrk_01': { id: 'wrk_01', name: '유종욱 실장', access_role: 'EDITOR', ui_language: 'ko', country_code: 'KR', workweek_profile: 'MON_FRI' },
-    '유종욱 실장': { id: 'wrk_01', name: '유종욱 실장', access_role: 'EDITOR', ui_language: 'ko', country_code: 'KR', workweek_profile: 'MON_FRI' },
-    'wrk_02': { id: 'wrk_02', name: '박용진 수석', access_role: 'EDITOR', ui_language: 'ko', country_code: 'KR', workweek_profile: 'MON_FRI' },
-    '박용진 수석': { id: 'wrk_02', name: '박용진 수석', access_role: 'EDITOR', ui_language: 'ko', country_code: 'KR', workweek_profile: 'MON_FRI' },
-    'wrk_03': { id: 'wrk_03', name: 'Thanh Phuong(탄 프엉)', access_role: 'EDITOR', ui_language: 'vi', country_code: 'VN', workweek_profile: 'MON_SAT' },
-    'Thanh Phuong(탄 프엉)': { id: 'wrk_03', name: 'Thanh Phuong(탄 프엉)', access_role: 'EDITOR', ui_language: 'vi', country_code: 'VN', workweek_profile: 'MON_SAT' },
-    'wrk_04': { id: 'wrk_04', name: 'Manh Cuong(끄엉)', access_role: 'EDITOR', ui_language: 'vi', country_code: 'VN', workweek_profile: 'MON_SAT' },
-    'Manh Cuong(끄엉)': { id: 'wrk_04', name: 'Manh Cuong(끄엉)', access_role: 'EDITOR', ui_language: 'vi', country_code: 'VN', workweek_profile: 'MON_SAT' },
-    'wrk_05': { id: 'wrk_05', name: 'Quoc Nhut(꾸옥 느엿)', access_role: 'EDITOR', ui_language: 'vi', country_code: 'VN', workweek_profile: 'MON_SAT' },
-    'Quoc Nhut(꾸옥 느엿)': { id: 'wrk_05', name: 'Quoc Nhut(꾸옥 느엿)', access_role: 'EDITOR', ui_language: 'vi', country_code: 'VN', workweek_profile: 'MON_SAT' },
-  };
-  return hardcoded[trimmed] || null;
+  return null;
 }
 
 async function fetchCalendarBatchData(db: any) {
@@ -256,9 +242,9 @@ export default {
       if (method === 'GET' && path === '/api/version') {
         const isQa = url.hostname.includes('-qa') || url.hostname.includes('qa-') || url.searchParams.get('env') === 'qa';
         return jsonResponse({
-          commit: 'd90c933',
-          environment: isQa ? 'qa' : 'production',
-          deployed_at: '2026-08-05T09:50:00Z',
+          commit: env.BUILD_SHA || 'unknown',
+          environment: env.ENVIRONMENT_NAME || (isQa ? 'qa' : 'production'),
+          deployed_at: env.DEPLOYED_AT || new Date().toISOString(),
         });
       }
 
@@ -1238,12 +1224,10 @@ function addPureCalendarDays(dateStr: string, deltaDays: number): string {
           .prepare(`SELECT * FROM workers WHERE id = ? OR name = ?`)
           .bind(scope_key, scope_key)
           .first();
-        const targetWorker: WorkerProfile = workerProfile || {
-          id: scope_key,
-          name: scope_key,
-          country_code: 'KR',
-          ui_language: 'ko',
-        };
+        if (!workerProfile) {
+          return errorResponse('작업자 캘린더 정보를 확인할 수 없습니다.', 400, 'WORKER_PROFILE_NOT_FOUND');
+        }
+        const targetWorker: WorkerProfile = workerProfile;
 
         const todayStr = getKoreaDateString();
 
