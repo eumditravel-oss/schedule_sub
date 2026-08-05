@@ -222,12 +222,11 @@ export const MobileThirtyDayGanttView: React.FC<MobileThirtyDayGanttViewProps> =
                     const spanInfo = getGanttSpan(prj.start_date, prj.end_date);
                     const plannedProg = prj.planned_progress ?? 0;
                     const actualProg = prj.actual_progress ?? prj.progress ?? 0;
-                    let barStatus: ScheduleBarStatus = 'IN_PROGRESS';
-                    if (prj.status === 'COMPLETED' || actualProg >= 100) {
-                      barStatus = 'COMPLETED';
-                    } else if (actualProg < plannedProg) {
-                      barStatus = 'DELAYED';
-                    }
+                    const rawStatus = prj.schedule_state || (prj.status === 'COMPLETED' ? 'COMPLETED' : null);
+                    const validStatuses = ['UPCOMING', 'IN_PROGRESS', 'DELAYED', 'COMPLETED'];
+                    const barStatus: ScheduleBarStatus = validStatuses.includes(rawStatus as string)
+                      ? (rawStatus as ScheduleBarStatus)
+                      : 'UNKNOWN';
 
                     return (
                       <div
@@ -265,11 +264,12 @@ export const MobileThirtyDayGanttView: React.FC<MobileThirtyDayGanttViewProps> =
                             >
                               <ScheduleBar
                                 isMobile={true}
+                                interactionMode="CLICKABLE"
                                 title={getProjectDisplayName(prj)}
                                 startDate={prj.start_date}
                                 endDate={prj.end_date}
-                                calendarSpanDays={spanInfo.spanCount}
-                                plannedWorkingDays={spanInfo.spanCount}
+                                calendarSpanDays={(prj as any).calendar_span_days ?? spanInfo.spanCount}
+                                plannedWorkingDays={prj.planned_working_days ?? 0}
                                 plannedProgress={plannedProg}
                                 actualProgress={actualProg}
                                 status={barStatus}
@@ -287,12 +287,11 @@ export const MobileThirtyDayGanttView: React.FC<MobileThirtyDayGanttViewProps> =
                     const spanInfo = getGanttSpan(tItem.start_date, tItem.end_date);
                     const plannedProg = tItem.planned_progress ?? 0;
                     const actualProg = tItem.actual_progress ?? 0;
-                    let barStatus: ScheduleBarStatus = ((tItem as any).status as ScheduleBarStatus) || 'IN_PROGRESS';
-                    if (actualProg >= 100) {
-                      barStatus = 'COMPLETED';
-                    } else if (actualProg < plannedProg && barStatus !== 'COMPLETED') {
-                      barStatus = 'DELAYED';
-                    }
+                    const rawStatus = (tItem as any).schedule_state || (tItem as any).status;
+                    const validStatuses = ['UPCOMING', 'IN_PROGRESS', 'DELAYED', 'COMPLETED'];
+                    const barStatus: ScheduleBarStatus = validStatuses.includes(rawStatus as string)
+                      ? (rawStatus as ScheduleBarStatus)
+                      : 'UNKNOWN';
 
                     return (
                       <div key={tItem.id} className="relative h-10 flex items-center hover:bg-slate-50/50 transition overflow-hidden">
@@ -343,7 +342,7 @@ export const MobileThirtyDayGanttView: React.FC<MobileThirtyDayGanttViewProps> =
                           })}
                         </div>
 
-                        {/* Continuous ScheduleBar Overlay */}
+                        {/* Continuous ScheduleBar Overlay (PASS_THROUGH Mode so cell clicks under bar work) */}
                         {spanInfo && (
                           <div
                             className="absolute inset-y-0 z-10 flex items-center pointer-events-none px-0.5"
@@ -357,15 +356,16 @@ export const MobileThirtyDayGanttView: React.FC<MobileThirtyDayGanttViewProps> =
                               style={{
                                 gridColumn: `${spanInfo.startIndex + 1} / span ${spanInfo.spanCount}`,
                               }}
-                              className="w-full flex items-center"
+                              className="w-full flex items-center pointer-events-none"
                             >
                               <ScheduleBar
                                 isMobile={true}
+                                interactionMode="PASS_THROUGH"
                                 title={getTaskDisplayName(tItem)}
                                 startDate={tItem.start_date}
                                 endDate={tItem.end_date}
-                                calendarSpanDays={spanInfo.spanCount}
-                                plannedWorkingDays={spanInfo.spanCount}
+                                calendarSpanDays={(tItem as any).calendar_span_days ?? spanInfo.spanCount}
+                                plannedWorkingDays={(tItem as any).planned_working_days ?? 0}
                                 plannedProgress={plannedProg}
                                 actualProgress={actualProg}
                                 status={barStatus}

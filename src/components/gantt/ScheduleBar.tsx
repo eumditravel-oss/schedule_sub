@@ -2,7 +2,7 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { useI18n } from '../../hooks/useI18n';
 
-export type ScheduleBarStatus = 'UPCOMING' | 'IN_PROGRESS' | 'DELAYED' | 'COMPLETED';
+export type ScheduleBarStatus = 'UPCOMING' | 'IN_PROGRESS' | 'DELAYED' | 'COMPLETED' | 'UNKNOWN';
 
 export interface ScheduleBarProps {
   title: string;
@@ -15,6 +15,7 @@ export interface ScheduleBarProps {
   status: ScheduleBarStatus;
   hasConflict?: boolean;
   isMobile?: boolean;
+  interactionMode?: 'CLICKABLE' | 'PASS_THROUGH';
   onClick?: () => void;
   className?: string;
   style?: React.CSSProperties;
@@ -31,6 +32,7 @@ export const ScheduleBar: React.FC<ScheduleBarProps> = ({
   status,
   hasConflict = false,
   isMobile = false,
+  interactionMode = 'CLICKABLE',
   onClick,
   className = '',
   style,
@@ -83,6 +85,11 @@ export const ScheduleBar: React.FC<ScheduleBarProps> = ({
     progressFillClass = 'bg-indigo-600';
     statusLabelKo = '진행 중';
     statusLabelVi = 'Đang làm';
+  } else if (status === 'UNKNOWN') {
+    baseColorClass = 'bg-slate-200 border-slate-400 text-slate-700';
+    progressFillClass = 'bg-slate-500';
+    statusLabelKo = '상태 미정';
+    statusLabelVi = 'Chưa xác định';
   }
 
   const clampedActual = Math.min(100, Math.max(0, actualProgress));
@@ -118,31 +125,36 @@ export const ScheduleBar: React.FC<ScheduleBarProps> = ({
   const isMobileThresholdProgressOnly = isMobile ? barWidth >= 100 && barWidth < 180 : barWidth >= 90 && barWidth < 160;
   const isMobileThresholdFull = barWidth >= 260;
 
+  const isPassThrough = interactionMode === 'PASS_THROUGH';
+  const pointerClass = isPassThrough ? 'pointer-events-none' : 'pointer-events-auto cursor-pointer';
+
   return (
     <div
       ref={barRef}
       data-testid={isMobile ? 'mobile-gantt-schedule-bar' : 'gantt-schedule-bar'}
-      role="button"
-      tabIndex={0}
-      aria-label={ariaLabel}
-      onClick={(e) => {
-        e.stopPropagation();
-        onClick?.();
-      }}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          e.stopPropagation();
-          onClick?.();
-        }
-      }}
-      className={`relative group my-auto w-full min-w-0 pointer-events-auto cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-1 rounded-md ${className}`}
+      {...(!isPassThrough ? { role: 'button', tabIndex: 0, 'aria-label': ariaLabel } : { 'aria-hidden': true })}
+      {...(!isPassThrough
+        ? {
+            onClick: (e) => {
+              e.stopPropagation();
+              onClick?.();
+            },
+            onKeyDown: (e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                e.stopPropagation();
+                onClick?.();
+              }
+            },
+          }
+        : {})}
+      className={`relative group my-auto w-full min-w-0 ${pointerClass} focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-1 rounded-md ${className}`}
       style={style}
     >
       {/* Outer Continuous Bar Track (No Native Tooltip) */}
       <div
         data-testid={isMobile ? 'mobile-gantt-schedule-track' : 'gantt-schedule-track'}
-        className={`w-full min-w-0 ${trackHeightClass} rounded-md border text-xs font-bold relative overflow-hidden transition-all duration-150 shadow-2xs flex items-center select-none ${baseColorClass} hover:brightness-95`}
+        className={`w-full min-w-0 ${trackHeightClass} rounded-md border text-xs font-bold relative overflow-hidden transition-all duration-150 shadow-2xs flex items-center select-none ${baseColorClass} ${isPassThrough ? 'pointer-events-none' : 'hover:brightness-95'}`}
       >
         {/* Actual Progress Overlay Fill */}
         {clampedActual > 0 && (

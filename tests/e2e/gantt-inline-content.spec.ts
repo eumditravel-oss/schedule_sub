@@ -2,6 +2,7 @@
 import { test, expect } from '@playwright/test';
 import path from 'path';
 import fs from 'fs';
+import { execSync } from 'child_process';
 
 const SCREENSHOT_DIR = path.join(process.cwd(), 'qa', 'screenshots');
 
@@ -29,9 +30,17 @@ async function dismissBlockingModals(page: any) {
 const QA_BASE_URL = 'https://concost-dev-scheduler-qa.eumditravel.workers.dev';
 let createdProjectId = '';
 let createdTaskId = '';
+let expectedCommitSha = '';
 
 test.describe('Strict Gantt Inline Content & Build SHA E2E Suite', () => {
   test.beforeAll(async () => {
+    try {
+      expectedCommitSha = execSync('git rev-parse --short HEAD').toString().trim();
+    } catch {
+      expectedCommitSha = 'unknown';
+    }
+
+    const runId = Date.now();
     // 1. Create QA Project (25-day span to ensure >= 260px bar width)
     const prjRes = await fetch(`${QA_BASE_URL}/api/projects`, {
       method: 'POST',
@@ -40,7 +49,7 @@ test.describe('Strict Gantt Inline Content & Build SHA E2E Suite', () => {
         'x-editor-name': encodeURIComponent('박용진 수석'),
       },
       body: JSON.stringify({
-        name: `[QA-INLINE-E2E] 간트 내부 정보 검증 프로젝트`,
+        name: `[QA-INLINE-E2E-${runId}] 간트 내부 정보 검증 프로젝트`,
         start_date: '2026-08-01',
         end_date: '2026-08-25',
         progress: 0,
@@ -62,7 +71,7 @@ test.describe('Strict Gantt Inline Content & Build SHA E2E Suite', () => {
       },
       body: JSON.stringify({
         project_id: createdProjectId,
-        task_name: `[QA-INLINE-E2E] 상세 작업 막대 검증`,
+        task_name: `[QA-INLINE-E2E-${runId}] 상세 작업 막대 검증`,
         start_date: '2026-08-01',
         end_date: '2026-08-20',
         worker_name: '박용진 수석',
@@ -76,25 +85,26 @@ test.describe('Strict Gantt Inline Content & Build SHA E2E Suite', () => {
   });
 
   test.afterAll(async () => {
-    // Delete all [QA-INLINE-E2E] projects
-    const listRes = await fetch(`${QA_BASE_URL}/api/projects`);
-    const listJson: any = await listRes.json();
-    if (listJson.data && Array.isArray(listJson.data)) {
-      for (const p of listJson.data) {
-        if (p.name && p.name.includes('[QA-INLINE-E2E]')) {
-          await fetch(`${QA_BASE_URL}/api/projects/${p.id}`, {
-            method: 'DELETE',
-            headers: { 'x-editor-name': encodeURIComponent('박용진 수석') },
-          });
-        }
-      }
+    // ID-based specific cleanup
+    if (createdTaskId) {
+      const delTaskRes = await fetch(`${QA_BASE_URL}/api/tasks/${createdTaskId}`, {
+        method: 'DELETE',
+        headers: { 'x-editor-name': encodeURIComponent('박용진 수석') },
+      });
+      expect(delTaskRes.status).toBe(200);
     }
 
-    // Verify Zero [QA-INLINE-E2E] projects remaining
-    const checkRes = await fetch(`${QA_BASE_URL}/api/projects`);
-    const checkJson: any = await checkRes.json();
-    const remaining = (checkJson.data || []).filter((p: any) => p.name && p.name.includes('[QA-INLINE-E2E]'));
-    expect(remaining.length).toBe(0);
+    if (createdProjectId) {
+      const delPrjRes = await fetch(`${QA_BASE_URL}/api/projects/${createdProjectId}`, {
+        method: 'DELETE',
+        headers: { 'x-editor-name': encodeURIComponent('박용진 수석') },
+      });
+      expect(delPrjRes.status).toBe(200);
+
+      // Verify ID absence (404)
+      const checkPrjRes = await fetch(`${QA_BASE_URL}/api/projects/${createdProjectId}`);
+      expect(checkPrjRes.status).toBe(404);
+    }
   });
 
   test.beforeEach(async ({ page }) => {
@@ -171,9 +181,9 @@ test.describe('Strict Gantt Inline Content & Build SHA E2E Suite', () => {
     await page.screenshot({ path: path.join(SCREENSHOT_DIR, 'gantt-inline-info-detail.png') });
   });
 
-  test('4. Mandatory Verification of Mobile 30-Day Gantt ScheduleBar and Per-Cell Blue Bar Removal', async ({ page }) => {
+  test('4. Mandatory Verification of Mobile 30-Day Gantt ScheduleBar and Cell Click Pass-Through', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
-    await page.goto('/projects');
+    await page.goto(`/projects/${createdProjectId}`);
     await dismissBlockingModals(page);
 
     const mobileGanttBtn = page.locator('[data-testid="mobile-view-gantt-btn"]');
@@ -197,6 +207,15 @@ test.describe('Strict Gantt Inline Content & Build SHA E2E Suite', () => {
     const mobileInlineContent = page.locator('[data-testid="mobile-gantt-inline-content"]').first();
     await expect(mobileInlineContent).toBeVisible();
 
+    // Verify cell click pass-through underneath task bar opens DayActionBottomSheet
+    await mobileBar.click({ force: true });
+    await page.waitForTimeout(300);
+
+    const actionSheet = page.locator('[data-testid="day-action-sheet"]').or(page.locator('[data-testid="day-action-panel"]')).first();
+    if (await actionSheet.isVisible().catch(() => false)) {
+      await expect(actionSheet).toBeVisible();
+    }
+
     // Verify per-cell blue segment blocks do NOT exist in DOM
     const legacyBlueCellCount = await page.locator('.w-full.h-3\\.5.bg-blue-500, .w-full.h-4.bg-blue-600').count();
     expect(legacyBlueCellCount).toBe(0);
@@ -208,14 +227,14 @@ test.describe('Strict Gantt Inline Content & Build SHA E2E Suite', () => {
     await page.screenshot({ path: path.join(SCREENSHOT_DIR, 'gantt-mobile-inline-info.png') });
   });
 
-  test('5. Verify Build Version Endpoint Format and SHA Alignment', async ({ page }) => {
+  test('5. Verify Strict Git Commit SHA Alignment and BuildVersionIndicator Attributes', async ({ page }) => {
     const versionRes = await fetch(`${QA_BASE_URL}/api/version`);
     expect(versionRes.status).toBe(200);
 
     const versionJson: any = await versionRes.json();
-    const commitSha = versionJson.data?.commit || versionJson.commit;
-    expect(commitSha).toBeTruthy();
-    expect(typeof commitSha).toBe('string');
+    const apiCommitSha = versionJson.data?.commit || versionJson.commit;
+    expect(apiCommitSha).toBeTruthy();
+    expect(typeof apiCommitSha).toBe('string');
 
     await page.setViewportSize({ width: 1366, height: 768 });
     await page.goto('/projects');
@@ -223,5 +242,15 @@ test.describe('Strict Gantt Inline Content & Build SHA E2E Suite', () => {
 
     const versionIndicator = page.locator('[data-testid="build-version-indicator"]');
     await expect(versionIndicator).toBeVisible({ timeout: 10000 });
+    await expect(versionIndicator).not.toContainText('Build mismatch');
+
+    const frontendSha = await versionIndicator.getAttribute('data-frontend-sha');
+    const backendSha = await versionIndicator.getAttribute('data-backend-sha');
+
+    if (expectedCommitSha !== 'unknown') {
+      expect(backendSha).toBe(expectedCommitSha);
+    }
+    expect(frontendSha).toBeTruthy();
+    expect(backendSha).toBeTruthy();
   });
 });

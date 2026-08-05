@@ -12,9 +12,7 @@
     "not_found_handling": "single-page-application"
   },
   "vars": {
-    "BUILD_SHA": "a73ad11",
-    "ENVIRONMENT_NAME": "production",
-    "DEPLOYED_AT": "2026-08-05T11:11:00Z"
+    "ENVIRONMENT_NAME": "production"
   },
   "ai": {
     "binding": "AI"
@@ -31,9 +29,7 @@
     "qa": {
       "name": "concost-dev-scheduler-qa",
       "vars": {
-        "BUILD_SHA": "a73ad11",
-        "ENVIRONMENT_NAME": "qa",
-        "DEPLOYED_AT": "2026-08-05T11:11:00Z"
+        "ENVIRONMENT_NAME": "qa"
       },
       "ai": {
         "binding": "AI"
