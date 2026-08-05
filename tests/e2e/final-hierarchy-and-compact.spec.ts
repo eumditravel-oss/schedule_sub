@@ -58,8 +58,12 @@ test.describe('Task Hierarchy, Multi-Assignees, Auto Progress & Compact Gantt Ro
     await page.waitForLoadState('networkidle');
     await dismissWorkerPromptModal(page);
 
+    // Wait for the desktop toolbar & add-task-group button
+    const addGroupBtn = page.locator('[data-testid="add-task-group-btn"]');
+    await expect(addGroupBtn).toBeVisible({ timeout: 15000 });
+
     // 1. Add Task Group (공정 대분류 추가)
-    await page.click('[data-testid="add-task-group-btn"]');
+    await addGroupBtn.click();
     await page.waitForSelector('[data-testid="task-group-modal"]');
     await page.fill('[data-testid="task-group-name-input"]', '기획 및 설계');
     await page.click('[data-testid="task-group-save-btn"]');
