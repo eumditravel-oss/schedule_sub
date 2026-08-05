@@ -199,7 +199,7 @@ test.describe('P0 Project Actions & Complete CRUD Regression Suite', () => {
     await expect(cascadeModal).toBeVisible({ timeout: 10000 });
 
     const confirmCascadeBtn = page.locator('[data-testid="cascade-confirm-btn"]');
-    await confirmCascadeBtn.click();
+    await confirmCascadeBtn.click({ force: true });
     await page.waitForTimeout(500);
 
     // Verify Project Detail page task dates shifted

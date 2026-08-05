@@ -4,6 +4,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 const SCREENSHOT_DIR = path.join(process.cwd(), 'qa', 'screenshots');
+const QA_BASE_URL = 'https://concost-dev-scheduler-qa.eumditravel.workers.dev';
 
 let qaProjectId = '';
 
