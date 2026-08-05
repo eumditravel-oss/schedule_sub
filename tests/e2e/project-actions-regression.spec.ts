@@ -160,15 +160,23 @@ test.describe('P0 Project Actions & Complete CRUD Regression Suite', () => {
 
     const updatedName = `[QA-PROJECT-ACTIONS-${runId}] 이름 수정 완료`;
     const nameInput = page.locator('[data-testid="project-name-input"]');
-    await nameInput.fill(updatedName);
+    await expect(nameInput).toBeVisible({ timeout: 5000 });
+    // Use triple-click + type to ensure React synthetic onChange fires
+    await nameInput.click({ clickCount: 3 });
+    await nameInput.press('Control+a');
+    await nameInput.type(updatedName, { delay: 30 });
+    await page.waitForTimeout(300);
 
     const saveBtn = page.locator('[data-testid="project-save-btn"]');
+    await expect(saveBtn).toBeEnabled({ timeout: 3000 });
     await saveBtn.click();
-    await page.waitForTimeout(1500);
 
-    // Verify DOM row text updated
+    // Wait for network to settle after save
+    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(500);
+
+    // Reload to verify persistence
     const projectRow = page.locator(`[data-testid="project-row-${createdProjectId}"]`);
-    // Reload to ensure persistence, then verify
     await page.reload();
     await dismissBlockingModals(page);
     await expect(projectRow).toContainText(updatedName, { timeout: 10000 });
