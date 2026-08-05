@@ -54,13 +54,14 @@ test.describe('Strict Gantt Inline Content & Build SHA E2E Suite', () => {
     createdProjectId = prjJson.id || prjJson.data?.id;
 
     // 2. Create QA Task inside the Project
-    const taskRes = await fetch(`${QA_BASE_URL}/api/projects/${createdProjectId}/tasks`, {
+    const taskRes = await fetch(`${QA_BASE_URL}/api/tasks`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'x-editor-name': encodeURIComponent('박용진 수석'),
       },
       body: JSON.stringify({
+        project_id: createdProjectId,
         task_name: `[QA-INLINE-E2E] 상세 작업 막대 검증`,
         start_date: '2026-08-01',
         end_date: '2026-08-20',
@@ -75,12 +76,18 @@ test.describe('Strict Gantt Inline Content & Build SHA E2E Suite', () => {
   });
 
   test.afterAll(async () => {
-    // Cleanup created QA Project and Task
-    if (createdProjectId) {
-      await fetch(`${QA_BASE_URL}/api/projects/${createdProjectId}`, {
-        method: 'DELETE',
-        headers: { 'x-editor-name': encodeURIComponent('박용진 수석') },
-      });
+    // Delete all [QA-INLINE-E2E] projects
+    const listRes = await fetch(`${QA_BASE_URL}/api/projects`);
+    const listJson: any = await listRes.json();
+    if (listJson.data && Array.isArray(listJson.data)) {
+      for (const p of listJson.data) {
+        if (p.name && p.name.includes('[QA-INLINE-E2E]')) {
+          await fetch(`${QA_BASE_URL}/api/projects/${p.id}`, {
+            method: 'DELETE',
+            headers: { 'x-editor-name': encodeURIComponent('박용진 수석') },
+          });
+        }
+      }
     }
 
     // Verify Zero [QA-INLINE-E2E] projects remaining
@@ -172,6 +179,10 @@ test.describe('Strict Gantt Inline Content & Build SHA E2E Suite', () => {
     const mobileGanttBtn = page.locator('[data-testid="mobile-view-gantt-btn"]');
     await expect(mobileGanttBtn).toBeVisible({ timeout: 10000 });
     await mobileGanttBtn.click();
+    await page.waitForTimeout(500);
+
+    const mobileView = page.locator('[data-testid="mobile-gantt-view"]');
+    await expect(mobileView).toBeVisible({ timeout: 15000 });
 
     const mobileBar = page.locator('[data-testid="mobile-gantt-schedule-bar"]').first();
     await expect(mobileBar).toBeVisible({ timeout: 15000 });
@@ -202,8 +213,9 @@ test.describe('Strict Gantt Inline Content & Build SHA E2E Suite', () => {
     expect(versionRes.status).toBe(200);
 
     const versionJson: any = await versionRes.json();
-    expect(versionJson.commit).toBeTruthy();
-    expect(typeof versionJson.commit).toBe('string');
+    const commitSha = versionJson.data?.commit || versionJson.commit;
+    expect(commitSha).toBeTruthy();
+    expect(typeof commitSha).toBe('string');
 
     await page.setViewportSize({ width: 1366, height: 768 });
     await page.goto('/projects');

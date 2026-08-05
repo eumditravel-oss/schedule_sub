@@ -30,7 +30,11 @@ export interface Env {
 function jsonResponse(data: any, status = 200) {
   return new Response(JSON.stringify({ success: true, data }), {
     status,
-    headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+    headers: {
+      'Content-Type': 'application/json',
+      'Access-Control-Allow-Origin': '*',
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
+    },
   });
 }
 
