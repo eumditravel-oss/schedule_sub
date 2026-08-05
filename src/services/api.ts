@@ -16,13 +16,7 @@ export const ACTUAL_WORKERS = [
 
 export function getCurrentWorkerId(): string {
   try {
-    const id = localStorage.getItem(WORKER_ID_KEY) || '';
-    if (id && (ACTUAL_WORKERS.includes(id) || id.startsWith('wrk_'))) return id;
-    const legacyName = localStorage.getItem(WORKER_NAME_KEY) || '';
-    if (legacyName && ACTUAL_WORKERS.includes(legacyName)) {
-      return legacyName;
-    }
-    return '';
+    return localStorage.getItem(WORKER_ID_KEY) || localStorage.getItem(WORKER_NAME_KEY) || '';
   } catch {
     return '';
   }
@@ -30,11 +24,7 @@ export function getCurrentWorkerId(): string {
 
 export function getCurrentWorkerName(): string {
   try {
-    const name = localStorage.getItem(WORKER_NAME_KEY) || '';
-    if (name && ACTUAL_WORKERS.includes(name)) return name;
-    const id = localStorage.getItem(WORKER_ID_KEY) || '';
-    if (id && ACTUAL_WORKERS.includes(id)) return id;
-    return '';
+    return localStorage.getItem(WORKER_NAME_KEY) || localStorage.getItem(WORKER_ID_KEY) || '';
   } catch {
     return '';
   }
