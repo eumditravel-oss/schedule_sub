@@ -166,12 +166,13 @@ test.describe('Task Grouping, Drag & Drop, Reorder and Move UI Suite', () => {
   });
 
   test('4. Verify CEO / COO Viewer RBAC (Drag Handles Hidden & Direct API Blocked)', async ({ page }) => {
-    await page.goto(`${QA_BASE_URL}/projects/${createdProjectId}`);
-    await page.evaluate(() => {
-      localStorage.setItem('schedule_current_worker_id', 'wrk_01');
-      localStorage.setItem('schedule_current_worker_name', '최경진 대표');
+    await page.setViewportSize({ width: 1440, height: 900 });
+
+    await page.addInitScript(() => {
+      localStorage.setItem('schedule_current_worker_name', 'CEO');
     });
-    await page.reload();
+
+    await page.goto(`${QA_BASE_URL}/projects/${createdProjectId}`);
     await page.waitForLoadState('networkidle');
 
     // Drag handles count should be 0 for Executive Viewer
@@ -183,11 +184,11 @@ test.describe('Task Grouping, Drag & Drop, Reorder and Move UI Suite', () => {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
-        'x-editor-name': encodeURIComponent('최경진 대표'),
+        'x-editor-name': encodeURIComponent('CEO'),
       },
       body: JSON.stringify({
         groups: [{ group_id: 'tgrp_dummy', sort_order: 1, task_ids: [] }],
-        editor_name: '최경진 대표',
+        editor_name: 'CEO',
       }),
     });
     expect(directRes.status).toBe(403);
