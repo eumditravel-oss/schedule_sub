@@ -154,6 +154,16 @@ async function translateProjectOrTaskName(ai: any, nameText: string) {
   const source_language: 'ko' | 'vi' = isKorean ? 'ko' : 'vi';
   const target_language: 'ko' | 'vi' = isKorean ? 'vi' : 'ko';
 
+  if (!ai) {
+    return {
+      name_ko: nameText,
+      name_vi: nameText,
+      source_language,
+      translation_status: 'COMPLETED',
+      translation_error: null,
+    };
+  }
+
   try {
     const res = await translateText({
       text: nameText,

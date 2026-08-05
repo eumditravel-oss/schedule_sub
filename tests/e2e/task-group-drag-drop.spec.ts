@@ -55,6 +55,9 @@ test.describe('Task Grouping, Drag & Drop, Reorder and Move UI Suite', () => {
         editor_name: 'Manh Cuong(끄엉)',
       }),
     });
+    if (g1Res.status !== 201) {
+      console.error('Group 1 creation failed:', g1Res.status, await g1Res.text());
+    }
     expect(g1Res.status).toBe(201);
     const g1Json: any = await g1Res.json();
     group1Id = g1Json.id;
