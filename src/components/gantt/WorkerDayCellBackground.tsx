@@ -170,14 +170,6 @@ export const WorkerDayCellBackground: React.FC<WorkerDayCellBackgroundProps> = (
         </div>
       )}
 
-      {/* Layer 30: Today Pure Inset Blue Outline Overlay */}
-      {isToday && (
-        <div
-          data-testid="worker-today-outline"
-          style={TODAY_OUTLINE_STYLE}
-          className="absolute inset-0 z-30 pointer-events-none rounded-none"
-        />
-      )}
     </div>
   );
 };

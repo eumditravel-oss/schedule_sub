@@ -39,6 +39,8 @@ import { ScheduleShiftHistoryModal } from '../components/modals/ScheduleShiftHis
 import { BuildVersionIndicator } from '../components/common/BuildVersionIndicator';
 import { ScheduleBar } from '../components/gantt/ScheduleBar';
 import { TaskAssigneePopover } from '../components/gantt/TaskAssigneePopover';
+import { TodayColumnOverlay } from '../components/gantt/TodayColumnOverlay';
+import { getTimelineWidth, getMonthSegments } from '../utils/ganttGeometry';
 import { getGanttSpanColumns } from '../utils/ganttOverlay';
 import { calculateTaskWorkdayBreakdown } from '../utils/workCalendar';
 import {
@@ -271,13 +273,16 @@ const SortableTaskRow: React.FC<SortableTaskRowProps> = ({
               return (
                 <div
                   key={cIdx}
-                  data-testid={`task-cell-${tItem.id}-${col.dateStr}`}
+                  data-testid={`gantt-task-cell-${tItem.id}-${col.dateStr}`}
                   onClick={() => onCellClick(tItem, col.dateStr, dayStatus, workerObj)}
                   className={`border-r border-slate-200 cursor-pointer h-full ${isInRange ? 'bg-blue-50/30' : ''}`}
                 />
               );
             })}
           </div>
+
+          {/* Layer 5: Single Today Column Overlay Highlight (z-5) */}
+          <TodayColumnOverlay dateColumns={dateColumns} dayWidthPx={GANTT_DAY_WIDTH_PX} />
 
           {/* Layer 10: ScheduleBar Continuous Track Overlay (z-10) */}
           {spanInfo && (
@@ -1779,19 +1784,25 @@ export const ProjectDetailPage: React.FC = () => {
                 <tr className="border-b border-slate-200">
                   <th
                     rowSpan={2}
-                    className="sticky left-0 z-30 bg-slate-100 px-3 py-2 font-bold text-slate-800 border-r border-slate-200 w-[360px] lg:w-[420px] min-w-[360px] lg:min-w-[420px]"
+                    className="sticky left-0 z-30 bg-slate-100 px-3 py-2 font-bold text-slate-800 border-r border-slate-200 w-[444px] xl:w-[504px] 2xl:w-[564px] min-w-[444px]"
                   >
                     <div className="flex items-center text-xs font-bold text-slate-900 justify-between">
-                      <span className="w-[180px] lg:w-[220px] truncate">{lang === 'vi' ? 'Công việc chi tiết' : '세부 작업명'}</span>
-                      <span className="w-[126px] lg:w-[150px] truncate px-1">{lang === 'vi' ? 'Người phụ trách' : '작업자'}</span>
-                      <span className="w-[48px] lg:w-[50px] text-right">{lang === 'vi' ? 'Thao tác' : '액션'}</span>
+                      <span className="w-[210px] xl:w-[230px] 2xl:w-[260px] truncate">{lang === 'vi' ? 'Công việc chi tiết' : '세부 작업명'}</span>
+                      <span className="w-[170px] xl:w-[210px] 2xl:w-[240px] truncate px-1">{lang === 'vi' ? 'Người phụ trách' : '작업자'}</span>
+                      <span className="w-[64px] text-right">{lang === 'vi' ? 'Thao tác' : '액션'}</span>
                     </div>
                   </th>
                   {monthGroups.map((mg, idx) => (
                     <th
                       key={idx}
                       colSpan={mg.span}
-                      className="text-center font-bold py-1.5 border-r border-slate-200 bg-slate-100 text-blue-700 text-xs"
+                      style={{
+                        width: `${mg.span * GANTT_DAY_WIDTH_PX}px`,
+                        minWidth: `${mg.span * GANTT_DAY_WIDTH_PX}px`,
+                        maxWidth: `${mg.span * GANTT_DAY_WIDTH_PX}px`,
+                        boxSizing: 'border-box',
+                      }}
+                      className="text-center font-bold py-1.5 border-r border-slate-200 bg-slate-100 text-blue-700 text-xs select-none"
                     >
                       {mg.monthStr}
                     </th>
@@ -1811,7 +1822,7 @@ export const ProjectDetailPage: React.FC = () => {
                       bgStyle = 'bg-amber-50 text-amber-900 border-amber-200 font-medium';
                     }
 
-                    const todayStyle = col.isToday ? 'ring-2 ring-blue-500 ring-inset font-bold' : '';
+                    const todayStyle = col.isToday ? 'shadow-[inset_0_2px_0_rgba(59,130,246,0.9)] text-blue-700 font-extrabold' : '';
 
                     let ariaText = `${col.dateStr} (${col.dayName})`;
                     if (offInfo.krHolidayName && offInfo.vnHolidayName) {
@@ -1833,12 +1844,12 @@ export const ProjectDetailPage: React.FC = () => {
                     return (
                       <th
                         key={idx}
-                        data-testid="calendar-date-header"
+                        data-testid={`gantt-date-header-${col.dateStr}`}
                         data-date={col.dateStr}
                         data-country-off-state={offInfo.state}
                         aria-label={ariaText}
                         onClick={() => setHeaderInfoState({ isOpen: true, dateStr: col.dateStr, dayName: col.dayName })}
-                        style={{ width: `${GANTT_DAY_WIDTH_PX}px`, minWidth: `${GANTT_DAY_WIDTH_PX}px`, maxWidth: `${GANTT_DAY_WIDTH_PX}px`, height: '44px' }}
+                        style={{ width: `${GANTT_DAY_WIDTH_PX}px`, minWidth: `${GANTT_DAY_WIDTH_PX}px`, maxWidth: `${GANTT_DAY_WIDTH_PX}px`, height: '44px', boxSizing: 'border-box' }}
                         className={`relative text-center py-1 border-r border-slate-200 text-[11px] font-medium cursor-pointer transition select-none ${bgStyle} ${todayStyle}`}
                       >
                         {hasHoliday && (

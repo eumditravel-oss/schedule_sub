@@ -1,11 +1,6 @@
 // src/constants/gantt.ts
 
-/**
- * Standard Width for a single day column in Gantt chart table (in pixels).
- * 30 days * 32px = 960px
- * 31 days * 32px = 992px
- */
-export const GANTT_DAY_WIDTH_PX = 32;
+export { GANTT_DAY_WIDTH_PX } from '../utils/ganttGeometry';
 
 /**
  * Width thresholds for text display inside Gantt bars

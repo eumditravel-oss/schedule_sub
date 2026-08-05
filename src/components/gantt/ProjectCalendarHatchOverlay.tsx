@@ -1,7 +1,7 @@
-// src/components/gantt/ProjectCalendarHatchOverlay.tsx
 import React from 'react';
 import { CalendarOverride, CountryHoliday } from '../../types';
 import { getCountryOffState } from '../../utils/workCalendar';
+import { GANTT_DAY_WIDTH_PX } from '../../utils/ganttGeometry';
 
 export interface ProjectCalendarHatchOverlayProps {
   projectId: string;
@@ -21,7 +21,7 @@ export const ProjectCalendarHatchOverlay: React.FC<ProjectCalendarHatchOverlayPr
   dateColumns,
   calendarOverrides = [],
   countryHolidays = [],
-  dayWidthPx = 36,
+  dayWidthPx = GANTT_DAY_WIDTH_PX,
   className = '',
 }) => {
   return (

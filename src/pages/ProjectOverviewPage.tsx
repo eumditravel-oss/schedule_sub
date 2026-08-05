@@ -29,6 +29,7 @@ import { TodaySummaryCard } from '../components/common/TodaySummaryCard';
 import { BuildVersionIndicator } from '../components/common/BuildVersionIndicator';
 import { ScheduleBar } from '../components/gantt/ScheduleBar';
 import { ProjectCalendarHatchOverlay } from '../components/gantt/ProjectCalendarHatchOverlay';
+import { TodayColumnOverlay } from '../components/gantt/TodayColumnOverlay';
 import { getGanttSpanColumns } from '../utils/ganttOverlay';
 import { calculateTaskWorkdayBreakdown } from '../utils/workCalendar';
 import { ProjectDeleteConfirmModal } from '../components/modals/ProjectDeleteConfirmModal';
@@ -617,7 +618,7 @@ export const ProjectOverviewPage: React.FC = () => {
                       bgStyle = 'bg-amber-50 text-amber-900 border-amber-200 font-medium';
                     }
 
-                    const todayStyle = col.isToday ? 'ring-2 ring-blue-500 ring-inset font-bold' : '';
+                    const todayStyle = col.isToday ? 'shadow-[inset_0_2px_0_rgba(59,130,246,0.9)] text-blue-700 font-extrabold' : '';
 
                     let ariaText = `${col.dateStr} (${col.dayName})`;
                     if (offInfo.krHolidayName && offInfo.vnHolidayName) {
@@ -639,12 +640,12 @@ export const ProjectOverviewPage: React.FC = () => {
                     return (
                       <th
                         key={idx}
-                        data-testid="calendar-date-header"
+                        data-testid={`gantt-date-header-${col.dateStr}`}
                         data-date={col.dateStr}
                         data-country-off-state={offInfo.state}
                         aria-label={ariaText}
                         onClick={() => setHeaderInfoState({ isOpen: true, dateStr: col.dateStr, dayName: col.dayName })}
-                        style={{ width: `${GANTT_DAY_WIDTH_PX}px`, minWidth: `${GANTT_DAY_WIDTH_PX}px`, maxWidth: `${GANTT_DAY_WIDTH_PX}px`, height: '44px' }}
+                        style={{ width: `${GANTT_DAY_WIDTH_PX}px`, minWidth: `${GANTT_DAY_WIDTH_PX}px`, maxWidth: `${GANTT_DAY_WIDTH_PX}px`, height: '44px', boxSizing: 'border-box' }}
                         className={`relative text-center py-1 border-r border-slate-200 text-[11px] font-medium cursor-pointer transition select-none ${bgStyle} ${todayStyle}`}
                       >
                         {hasHoliday && (
@@ -798,23 +799,23 @@ export const ProjectOverviewPage: React.FC = () => {
                             <div
                               className="grid w-full h-full"
                               style={{
-                                gridTemplateColumns: `repeat(${dateColumns.length}, minmax(${GANTT_DAY_WIDTH_PX}px, 1fr))`,
+                                gridTemplateColumns: `repeat(${dateColumns.length}, ${GANTT_DAY_WIDTH_PX}px)`,
                               }}
                             >
                               {dateColumns.map((col, cIdx) => (
                                 <div
                                   key={cIdx}
-                                  style={{ minWidth: `${GANTT_DAY_WIDTH_PX}px` }}
+                                  data-testid={`gantt-task-cell-overview-${project.id}-${col.dateStr}`}
+                                  style={{ width: `${GANTT_DAY_WIDTH_PX}px`, minWidth: `${GANTT_DAY_WIDTH_PX}px`, maxWidth: `${GANTT_DAY_WIDTH_PX}px`, boxSizing: 'border-box' }}
                                   className={`h-full border-r border-slate-200 ${
-                                    col.isToday
-                                      ? 'bg-blue-50/70'
-                                      : col.isWeekend
-                                      ? 'bg-slate-50/70'
-                                      : 'bg-white'
+                                    col.isWeekend ? 'bg-slate-50/70' : 'bg-white'
                                   }`}
                                 />
                               ))}
                             </div>
+
+                            {/* 1.5 Today Column Overlay Highlight (z-5) */}
+                            <TodayColumnOverlay dateColumns={dateColumns} dayWidthPx={GANTT_DAY_WIDTH_PX} />
 
                             {/* 2. Continuous Project ScheduleBar Layer (z-10) */}
                             {(() => {
@@ -833,7 +834,7 @@ export const ProjectOverviewPage: React.FC = () => {
                                 <div
                                   className="absolute inset-0 grid pointer-events-none z-10 w-full h-full"
                                   style={{
-                                    gridTemplateColumns: `repeat(${dateColumns.length}, minmax(${GANTT_DAY_WIDTH_PX}px, 1fr))`,
+                                    gridTemplateColumns: `repeat(${dateColumns.length}, ${GANTT_DAY_WIDTH_PX}px)`,
                                   }}
                                 >
                                   <div
