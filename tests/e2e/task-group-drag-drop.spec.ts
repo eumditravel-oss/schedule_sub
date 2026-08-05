@@ -74,7 +74,8 @@ test.describe('Task Grouping, Drag & Drop, Reorder and Move UI Suite', () => {
           task_name: tName,
           start_date: '2026-08-03',
           end_date: '2026-08-07',
-          worker_name: 'wrk_yjw',
+          worker_name: '유종욱 실장',
+          primary_worker_id: 'wrk_yjw',
           editor_name: '유종욱 실장',
         }),
       });
