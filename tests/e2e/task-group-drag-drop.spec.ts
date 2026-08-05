@@ -70,6 +70,7 @@ test.describe('Task Grouping, Drag & Drop, Reorder and Move UI Suite', () => {
         body: JSON.stringify({
           project_id: createdProjectId,
           task_group_id: targetGroupId,
+          name: tName,
           task_name: tName,
           start_date: '2026-08-03',
           end_date: '2026-08-07',
