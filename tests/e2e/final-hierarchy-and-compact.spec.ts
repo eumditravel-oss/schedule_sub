@@ -3,17 +3,6 @@ import { test, expect } from '@playwright/test';
 
 const QA_BASE_URL = 'https://concost-dev-scheduler-qa.eumditravel.workers.dev';
 
-async function dismissWorkerPromptModal(page: any) {
-  const modal = page.locator('[data-testid="worker-prompt-modal"]');
-  if (await modal.isVisible({ timeout: 2000 }).catch(() => false)) {
-    const yjwBtn = modal.locator('button:has-text("유종욱")').or(modal.locator('button')).first();
-    if (await yjwBtn.isVisible().catch(() => false)) {
-      await yjwBtn.click().catch(() => {});
-      await page.waitForTimeout(300);
-    }
-  }
-}
-
 test.describe('Task Hierarchy, Multi-Assignees, Auto Progress & Compact Gantt Rows', () => {
   let createdProjectId = '';
 
@@ -49,24 +38,23 @@ test.describe('Task Hierarchy, Multi-Assignees, Auto Progress & Compact Gantt Ro
   });
 
   test('E2E Full Flow: Hierarchy, Compact UI, Translation Protection & Delete Modal', async ({ page }) => {
-    // Set desktop viewport size (width: 1366, height: 768) to ensure Desktop Table & Header rendered
-    await page.setViewportSize({ width: 1366, height: 768 });
-
-    await page.addInitScript(() => {
-      localStorage.setItem('schedule_current_worker_id', 'wrk_yjw');
-      localStorage.setItem('schedule_current_worker_name', '유종욱 실장');
-    });
+    await page.setViewportSize({ width: 1440, height: 900 });
 
     await page.goto(`${QA_BASE_URL}/projects/${createdProjectId}`);
     await page.waitForLoadState('networkidle');
-    await dismissWorkerPromptModal(page);
 
-    // Wait for the desktop toolbar & add-task-group button
-    const addGroupBtn = page.locator('[data-testid="add-task-group-btn"]');
-    await expect(addGroupBtn).toBeVisible({ timeout: 15000 });
+    // If worker prompt modal opens, select worker
+    const workerModal = page.locator('[data-testid="worker-prompt-modal"]');
+    if (await workerModal.isVisible({ timeout: 2000 }).catch(() => false)) {
+      await page.click('button:has-text("유종욱")');
+      await page.waitForTimeout(500);
+    }
 
     // 1. Add Task Group (공정 대분류 추가)
+    const addGroupBtn = page.locator('[data-testid="add-task-group-btn"]');
+    await expect(addGroupBtn).toBeVisible({ timeout: 15000 });
     await addGroupBtn.click();
+
     await page.waitForSelector('[data-testid="task-group-modal"]');
     await page.fill('[data-testid="task-group-name-input"]', '기획 및 설계');
     await page.click('[data-testid="task-group-save-btn"]');
