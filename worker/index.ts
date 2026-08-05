@@ -743,6 +743,7 @@ async function validateAndNormalizeTaskAssigneesServer(
         const id = `prj_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
 
         // Create project and initial default task group atomically
+        const transResult = await translateProjectOrTaskName(env.AI, validated.name);
         const defaultGroupId = `tgrp_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
         await db.batch([
           db.prepare(
