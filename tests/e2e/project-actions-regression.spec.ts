@@ -398,11 +398,12 @@ test.describe('P0 Project Actions & Complete CRUD Regression Suite', () => {
     await page.screenshot({ path: path.join(SCREENSHOT_DIR, 'project-actions-mobile.png') });
   });
 
-  test('8. Verify Responsive Layout & Non-Overlapping BoundingBoxes across Desktop Viewports', async ({ page }) => {
+  test('8. Verify Compact Inline Layout: Edit/Delete Left of Badge, Row Height 58–64px, No Overlap', async ({ page }) => {
     const viewports = [
-      { width: 1024, height: 768, file: 'project-actions-desktop-1024.png' },
-      { width: 1366, height: 768, file: 'project-actions-desktop-1366.png' },
-      { width: 1920, height: 1080, file: 'project-actions-desktop-1920.png' },
+      { width: 1024, height: 768, file: 'project-actions-inline-1024.png' },
+      { width: 1366, height: 768, file: 'project-actions-inline-1366.png' },
+      { width: 1536, height: 864, file: 'project-actions-inline-1536.png' },
+      { width: 1920, height: 1080, file: 'project-actions-inline-1920.png' },
     ];
 
     for (const vp of viewports) {
@@ -410,33 +411,61 @@ test.describe('P0 Project Actions & Complete CRUD Regression Suite', () => {
       await page.goto(`${QA_BASE_URL}/projects`);
       await dismissBlockingModals(page);
 
+      // Ensure action group is visible
       const actionGroup = page.locator(`[data-testid="project-action-group-${createdProjectId}"]`);
       await expect(actionGroup).toBeVisible({ timeout: 10000 });
 
       const editBtn = page.locator(`[data-testid="project-edit-btn-${createdProjectId}"]`);
       const deleteBtn = page.locator(`[data-testid="project-delete-btn-${createdProjectId}"]`);
+      const statusBadge = page.locator(`[data-testid="project-status-badge-${createdProjectId}"]`);
+      const progressSummary = page.locator(`[data-testid="project-progress-summary-${createdProjectId}"]`);
+      const projectRow = page.locator(`[data-testid="project-row-${createdProjectId}"]`);
 
       await expect(editBtn).toBeVisible();
       await expect(deleteBtn).toBeVisible();
+      await expect(statusBadge).toBeVisible();
+      await expect(progressSummary).toBeVisible();
 
       const editBox = await editBtn.boundingBox();
       const deleteBox = await deleteBtn.boundingBox();
+      const statusBox = await statusBadge.boundingBox();
+      const progressBox = await progressSummary.boundingBox();
+      const rowBox = await projectRow.boundingBox();
 
-      expect(editBox).toBeTruthy();
-      expect(deleteBox).toBeTruthy();
+      expect(editBox, `[${vp.width}px] editBtn boundingBox must exist`).toBeTruthy();
+      expect(deleteBox, `[${vp.width}px] deleteBtn boundingBox must exist`).toBeTruthy();
+      expect(statusBox, `[${vp.width}px] statusBadge boundingBox must exist`).toBeTruthy();
+      expect(progressBox, `[${vp.width}px] progressSummary boundingBox must exist`).toBeTruthy();
+      expect(rowBox, `[${vp.width}px] projectRow boundingBox must exist`).toBeTruthy();
 
-      // Verify editBox and deleteBox do NOT overlap
-      const isOverlapping = !(
-        editBox!.x + editBox!.width <= deleteBox!.x ||
-        deleteBox!.x + deleteBox!.width <= editBox!.x ||
-        editBox!.y + editBox!.height <= deleteBox!.y ||
-        deleteBox!.y + deleteBox!.height <= editBox!.y
-      );
-      expect(isOverlapping).toBe(false);
+      // 1. Horizontal ordering: edit < delete < status badge
+      expect(editBox!.x, `[${vp.width}px] edit must be left of delete`).toBeLessThan(deleteBox!.x);
+      expect(deleteBox!.x + deleteBox!.width, `[${vp.width}px] delete right edge must not exceed status left edge`).toBeLessThanOrEqual(statusBox!.x + 4); // 4px tolerance
 
-      // Verify zero horizontal scrollbar overflow
+      // 2. Edit and delete vertically aligned within 3px
+      expect(Math.abs(editBox!.y - deleteBox!.y), `[${vp.width}px] edit/delete must be on same row (Δy ≤ 3)`).toBeLessThanOrEqual(3);
+
+      // 3. Status badge vertical center aligned with edit button center within 5px
+      const editCenterY = editBox!.y + editBox!.height / 2;
+      const statusCenterY = statusBox!.y + statusBox!.height / 2;
+      expect(Math.abs(editCenterY - statusCenterY), `[${vp.width}px] edit and status badge must be vertically centered (Δ ≤ 5)`).toBeLessThanOrEqual(5);
+
+      // 4. Progress summary must be below status badge bottom
+      expect(progressBox!.y, `[${vp.width}px] progress must be below status badge`).toBeGreaterThanOrEqual(statusBox!.y + statusBox!.height - 2);
+
+      // 5. Row height: 58–64px
+      expect(rowBox!.height, `[${vp.width}px] row height must be ≥ 58`).toBeGreaterThanOrEqual(58);
+      expect(rowBox!.height, `[${vp.width}px] row height must be ≤ 64`).toBeLessThanOrEqual(64);
+
+      // 6. Elements must not overlap each other
+      const editRight = editBox!.x + editBox!.width;
+      const deleteRight = deleteBox!.x + deleteBox!.width;
+      expect(editRight, `[${vp.width}px] edit must not overlap delete`).toBeLessThanOrEqual(deleteBox!.x + 2);
+      expect(deleteRight, `[${vp.width}px] delete must not overlap status badge`).toBeLessThanOrEqual(statusBox!.x + 2);
+
+      // 7. No horizontal body overflow
       const hasHorizontalOverflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
-      expect(hasHorizontalOverflow).toBe(false);
+      expect(hasHorizontalOverflow, `[${vp.width}px] no horizontal body overflow`).toBe(false);
 
       await page.screenshot({ path: path.join(SCREENSHOT_DIR, vp.file) });
     }

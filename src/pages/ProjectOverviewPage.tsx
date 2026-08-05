@@ -676,9 +676,9 @@ export const ProjectOverviewPage: React.FC = () => {
                         onClick={() => navigate(`/projects/${project.id}`)}
                         className="hover:bg-blue-50/50 transition cursor-pointer group"
                       >
-                        <td className="sticky left-0 z-10 bg-white group-hover:bg-blue-50/50 px-3 py-2 border-r border-slate-200 w-[160px] md:w-[270px] min-w-[160px] md:min-w-[270px] max-w-[270px] align-middle h-[72px] min-h-[72px]">
+                        <td className="sticky left-0 z-10 bg-white group-hover:bg-blue-50/50 px-3 py-2 border-r border-slate-200 w-[160px] md:w-[300px] min-w-[160px] md:min-w-[300px] max-w-[300px] align-middle h-[60px] min-h-[60px]">
                           <div className="flex items-center justify-between">
-                            <div className="pr-1 overflow-hidden min-w-0">
+                            <div className="pr-1 overflow-hidden min-w-0 flex-1">
                               <div className="font-bold text-slate-900 group-hover:text-blue-600 transition truncate flex items-center gap-1 text-xs" title={displayName}>
                                 <span className="truncate">{displayName}</span>
                                 {isFallback && (
@@ -686,6 +686,14 @@ export const ProjectOverviewPage: React.FC = () => {
                                     {t('originalTag')}
                                   </span>
                                 )}
+                                {project.conflict_count && project.conflict_count > 0 ? (
+                                  <span
+                                    className="shrink-0 text-[9px] font-extrabold text-rose-700 bg-rose-100 px-1 py-0.5 rounded border border-rose-200"
+                                    title={lang === 'vi' ? `Xung đột lịch ${project.conflict_count}` : `일정 충돌 ${project.conflict_count}건`}
+                                  >
+                                    {lang === 'vi' ? `Trùng ${project.conflict_count}` : `충돌 ${project.conflict_count}건`}
+                                  </span>
+                                ) : null}
                                 <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                               </div>
                               <div className="mt-0.5 text-[10px] text-slate-500 truncate">
@@ -695,70 +703,72 @@ export const ProjectOverviewPage: React.FC = () => {
 
                             <div
                               data-testid={`project-action-group-${project.id}`}
-                              className="w-[108px] xl:w-[128px] shrink-0 flex flex-col items-end justify-center gap-1 min-h-[52px]"
+                              className="w-[132px] shrink-0 flex flex-col items-end justify-center gap-0.5"
                             >
-                              {/* Top Row: Status Badge & Conflicts */}
-                              <div className="flex items-center gap-1">
-                                {project.conflict_count && project.conflict_count > 0 ? (
-                                  <span className="text-[9px] font-extrabold text-rose-700 bg-rose-100 px-1 py-0.5 rounded border border-rose-200" title="일정 충돌 발생">
-                                    {lang === 'vi' ? `Trùng ${project.conflict_count}` : `충돌 ${project.conflict_count}건`}
-                                  </span>
-                                ) : null}
-
-                                <span className={`text-[9px] font-bold px-1 py-0.5 rounded border cursor-default select-none ${
-                                  project.schedule_state === 'DELAYED'
-                                    ? 'bg-rose-100 text-rose-800 border-rose-200'
-                                    : project.schedule_state === 'COMPLETED'
-                                    ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
-                                    : project.schedule_state === 'IN_PROGRESS'
-                                    ? 'bg-blue-100 text-blue-800 border-blue-200'
-                                    : 'bg-slate-100 text-slate-700 border-slate-200'
-                                }`}>
+                              {/* Top Row: [Edit] [Delete] [Status Badge] — buttons left of badge */}
+                              <div
+                                data-testid={`project-action-top-row-${project.id}`}
+                                className="flex items-center justify-end gap-1 w-full whitespace-nowrap"
+                              >
+                                {activeTab === 'ACTIVE' && !isExecutiveViewer(currentWorker) && (
+                                  <>
+                                    <button
+                                      type="button"
+                                      data-testid={`project-edit-btn-${project.id}`}
+                                      aria-label={lang === 'vi' ? 'Chỉnh sửa dự án' : '프로젝트 수정'}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleEditProject(project);
+                                      }}
+                                      className="w-6 h-6 rounded-md border border-slate-200 bg-white hover:bg-slate-100 text-slate-600 hover:text-slate-900 flex items-center justify-center transition shadow-2xs cursor-pointer focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                    >
+                                      <Pencil className="w-3 h-3" />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      data-testid={`project-delete-btn-${project.id}`}
+                                      aria-label={lang === 'vi' ? 'Xóa dự án' : '프로젝트 삭제'}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleOpenDeleteModal(project);
+                                      }}
+                                      className="w-6 h-6 rounded-md border border-slate-200 bg-white hover:bg-rose-50 hover:border-rose-200 text-slate-500 hover:text-rose-600 flex items-center justify-center transition shadow-2xs cursor-pointer focus:outline-none focus:ring-1 focus:ring-rose-500"
+                                    >
+                                      <Trash2 className="w-3 h-3" />
+                                    </button>
+                                  </>
+                                )}
+                                <span
+                                  data-testid={`project-status-badge-${project.id}`}
+                                  className={`text-[9px] font-bold px-1.5 py-0.5 rounded border cursor-default select-none whitespace-nowrap ${
+                                    project.schedule_state === 'DELAYED'
+                                      ? 'bg-rose-100 text-rose-800 border-rose-200'
+                                      : project.schedule_state === 'COMPLETED'
+                                      ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
+                                      : project.schedule_state === 'IN_PROGRESS'
+                                      ? 'bg-blue-100 text-blue-800 border-blue-200'
+                                      : 'bg-slate-100 text-slate-700 border-slate-200'
+                                  }`}
+                                  onClick={(e) => e.stopPropagation()}
+                                >
                                   {project.schedule_state === 'DELAYED'
-                                    ? (lang === 'vi' ? 'Chậm tiến độ' : '지연')
+                                    ? (lang === 'vi' ? 'Chậm' : '지연')
                                     : project.schedule_state === 'COMPLETED'
-                                    ? (lang === 'vi' ? 'Hoàn thành' : '완료')
+                                    ? (lang === 'vi' ? 'Xong' : '완료')
                                     : project.schedule_state === 'IN_PROGRESS'
-                                    ? (lang === 'vi' ? 'Đang thực hiện' : '진행 중')
-                                    : (lang === 'vi' ? 'Sắp tới' : '예정')}
+                                    ? (lang === 'vi' ? '진행' : '진행 중')
+                                    : (lang === 'vi' ? 'Sắp' : '예정')}
                                 </span>
                               </div>
 
-                              {/* Middle Row: Edit and Delete Buttons (ACTIVE projects & EDITOR only) */}
-                              {activeTab === 'ACTIVE' && !isExecutiveViewer(currentWorker) && (
-                                <div className="flex items-center gap-1 my-0.5">
-                                  <button
-                                    type="button"
-                                    data-testid={`project-edit-btn-${project.id}`}
-                                    aria-label={lang === 'vi' ? 'Chỉnh sửa dự án' : '프로젝트 수정'}
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleEditProject(project);
-                                    }}
-                                    className="w-7 h-7 rounded-md border border-slate-200 bg-white hover:bg-slate-100 text-slate-600 hover:text-slate-900 flex items-center justify-center transition shadow-2xs cursor-pointer focus:outline-none focus:ring-1 focus:ring-blue-500"
-                                  >
-                                    <Pencil className="w-3.5 h-3.5" />
-                                  </button>
-                                  <button
-                                    type="button"
-                                    data-testid={`project-delete-btn-${project.id}`}
-                                    aria-label={lang === 'vi' ? 'Xóa dự án' : '프로젝트 삭제'}
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleOpenDeleteModal(project);
-                                    }}
-                                    className="w-7 h-7 rounded-md border border-slate-200 bg-white hover:bg-rose-50 hover:border-rose-200 text-slate-500 hover:text-rose-600 flex items-center justify-center transition shadow-2xs cursor-pointer focus:outline-none focus:ring-1 focus:ring-rose-500"
-                                  >
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                  </button>
-                                </div>
-                              )}
-
                               {/* Bottom Row: Progress Summary */}
-                              <div className="text-[10px] font-semibold text-slate-600 flex items-center gap-1 select-none">
-                                <span>{lang === 'vi' ? 'Kế hoạch' : '예정'} {project.planned_progress ?? project.progress ?? 0}%</span>
+                              <div
+                                data-testid={`project-progress-summary-${project.id}`}
+                                className="text-[9px] font-semibold text-slate-600 flex items-center gap-1 select-none whitespace-nowrap"
+                              >
+                                <span>{lang === 'vi' ? 'KH' : '예정'} {project.planned_progress ?? project.progress ?? 0}%</span>
                                 <span>/</span>
-                                <span className="font-extrabold text-emerald-700">{lang === 'vi' ? 'Thực tế' : '실제'} {project.actual_progress ?? project.progress ?? 0}%</span>
+                                <span className="font-extrabold text-emerald-700">{lang === 'vi' ? 'TT' : '실제'} {project.actual_progress ?? project.progress ?? 0}%</span>
                               </div>
                             </div>
                           </div>
@@ -766,7 +776,7 @@ export const ProjectOverviewPage: React.FC = () => {
 
                         <td colSpan={dateColumns.length} className="p-0 border-0 relative">
                           <div
-                            className="relative h-14"
+                            className="relative h-[60px]"
                             style={{ minWidth: `${dateColumns.length * GANTT_DAY_WIDTH_PX}px` }}
                           >
                             {/* 1. Date Cells Background Layer */}
