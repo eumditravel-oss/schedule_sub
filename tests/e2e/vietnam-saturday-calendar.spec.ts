@@ -82,7 +82,8 @@ test.describe('Vietnam Saturday Work Calendar E2E Suite', () => {
     const saveBtn = page.locator('[data-testid="vn-saturday-save-btn"]');
     await expect(saveBtn).toBeVisible({ timeout: 10000 });
     await expect(saveBtn).toBeEnabled({ timeout: 10000 });
-    await saveBtn.click({ force: true });
+    await saveBtn.scrollIntoViewIfNeeded();
+    await saveBtn.click();
 
     // Verify Impact Modal
     const impactModal = page.locator('[data-testid="vn-saturday-impact-modal"]');
@@ -126,6 +127,7 @@ test.describe('Vietnam Saturday Work Calendar E2E Suite', () => {
     await expect(resetBtn).toBeVisible();
     await resetBtn.click();
 
+    await saveBtn.scrollIntoViewIfNeeded();
     await saveBtn.click();
     await expect(impactModal).toBeVisible({ timeout: 5000 });
     await confirmShiftBtn.click();
