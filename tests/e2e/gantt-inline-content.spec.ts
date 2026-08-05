@@ -228,7 +228,7 @@ test.describe('Strict Gantt Inline Content & Build SHA E2E Suite', () => {
   });
 
   test('5. Verify Strict Git Commit SHA Alignment and BuildVersionIndicator Attributes', async ({ page }) => {
-    const versionRes = await fetch(`${QA_BASE_URL}/api/version`);
+    const versionRes = await fetch(`${QA_BASE_URL}/api/version?t=${Date.now()}`);
     expect(versionRes.status).toBe(200);
 
     const versionJson: any = await versionRes.json();
