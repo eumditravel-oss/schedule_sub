@@ -782,7 +782,7 @@ export async function saveManualHolidaysMonthServer(
   const eventId = `evt_hol_${countryCode}_${year}_${month}_${Date.now()}`;
   const restoreToken = `tok_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
 
-  // 3. Clear existing manual holidays for the month & Insert new
+  // 3. Clear existing manual holidays for the month & Insert new (UPSERT to avoid D1 UNIQUE constraint failure)
   batchQueries.push(
     db
       .prepare(`DELETE FROM country_holidays WHERE country_code = ? AND holiday_date >= ? AND holiday_date <= ? AND source = 'MANUAL'`)
@@ -803,7 +803,15 @@ export async function saveManualHolidaysMonthServer(
         .prepare(
           `INSERT INTO country_holidays
            (id, country_code, holiday_date, name_local, name_ko, name_vi, source, source_year, is_verified, created_by_name, updated_by_name)
-           VALUES (?, ?, ?, ?, ?, ?, 'MANUAL', ?, 1, ?, ?)`
+           VALUES (?, ?, ?, ?, ?, ?, 'MANUAL', ?, 1, ?, ?)
+           ON CONFLICT(country_code, holiday_date) DO UPDATE SET
+             name_local = excluded.name_local,
+             name_ko = excluded.name_ko,
+             name_vi = excluded.name_vi,
+             source = 'MANUAL',
+             is_verified = 1,
+             updated_by_name = excluded.updated_by_name,
+             updated_at = CURRENT_TIMESTAMP`
         )
         .bind(id, countryCode, h.date, nameLocal, finalKo, finalVi, year, editorName, editorName)
     );

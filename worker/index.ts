@@ -1274,8 +1274,16 @@ function addPureCalendarDays(dateStr: string, deltaDays: number): string {
         await db
           .prepare(
             `INSERT INTO country_holidays (
-              id, country_code, holiday_date, name_local, name_ko, name_vi, source, source_year, is_verified, is_manual, created_by_name, updated_by_name
-            ) VALUES (?, ?, ?, ?, ?, ?, 'MANUAL', ?, 1, 1, ?, ?)`
+              id, country_code, holiday_date, name_local, name_ko, name_vi, source, source_year, is_verified, created_by_name, updated_by_name
+            ) VALUES (?, ?, ?, ?, ?, ?, 'MANUAL', ?, 1, ?, ?)
+            ON CONFLICT(country_code, holiday_date) DO UPDATE SET
+              name_local = excluded.name_local,
+              name_ko = excluded.name_ko,
+              name_vi = excluded.name_vi,
+              source = 'MANUAL',
+              is_verified = 1,
+              updated_by_name = excluded.updated_by_name,
+              updated_at = CURRENT_TIMESTAMP`
           )
           .bind(id, targetCountry, holidayDate, nameLocal, nameKo, nameVi, year, editor, editor)
           .run();

@@ -288,4 +288,48 @@ describe('Calendar Country Permission Integrity Suite (No country flag restricti
     });
     expect(vnRes.status).toBe(200);
   });
+
+  test('14. Verify saving existing/duplicate holiday date does NOT cause D1 UNIQUE constraint error', async () => {
+    const res1 = await fetch(`${BASE_URL}/api/calendar/manual-holidays/month`, {
+      method: 'PUT',
+      headers: krEditorFlag1Headers,
+      body: JSON.stringify({
+        country_code: 'KR',
+        year: 2026,
+        month: 11,
+        holidays: [{ date: '2026-11-25', name_ko: '중복 테스트 1차', name_vi: 'Test 1' }],
+        editor_id: 'wrk_02',
+        editor_name: '박용진 수석',
+      }),
+    });
+    expect(res1.status).toBe(200);
+
+    const res2 = await fetch(`${BASE_URL}/api/calendar/manual-holidays/month`, {
+      method: 'PUT',
+      headers: krEditorFlag1Headers,
+      body: JSON.stringify({
+        country_code: 'KR',
+        year: 2026,
+        month: 11,
+        holidays: [{ date: '2026-11-25', name_ko: '중복 테스트 2차 갱신', name_vi: 'Test 2' }],
+        editor_id: 'wrk_02',
+        editor_name: '박용진 수석',
+      }),
+    });
+    expect(res2.status).toBe(200);
+    const json2: any = await res2.json();
+    expect(json2.data?.success || json2.success).toBe(true);
+
+    await fetch(`${BASE_URL}/api/calendar/manual-holidays/month`, {
+      method: 'PUT',
+      headers: krEditorFlag1Headers,
+      body: JSON.stringify({
+        country_code: 'KR',
+        year: 2026,
+        month: 11,
+        holidays: [],
+        editor_id: 'wrk_02',
+      }),
+    });
+  });
 });
