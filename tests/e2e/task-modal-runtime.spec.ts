@@ -80,12 +80,7 @@ test.describe('TaskModal Runtime Crash Fix & ScheduleBar E2E Verification', () =
     });
 
     await page.setViewportSize({ width: 1366, height: 768 });
-    await page.goto(`${QA_BASE_URL}/projects`);
-    await dismissBlockingModals(page);
-    const projectCell = page.locator('[data-testid^="project-row-"] td').first();
-    await expect(projectCell).toBeVisible({ timeout: 15000 });
-    await projectCell.click();
-
+    await page.goto(`${QA_BASE_URL}/projects/${qaProjectId}`);
     await dismissBlockingModals(page);
 
     // Select non-viewer worker wrk_02 (박용진 수석) using WorkerSelector
@@ -145,12 +140,7 @@ test.describe('TaskModal Runtime Crash Fix & ScheduleBar E2E Verification', () =
     });
 
     await page.setViewportSize({ width: 1366, height: 768 });
-    await page.goto(`${QA_BASE_URL}/projects`);
-    await dismissBlockingModals(page);
-    const projectCell = page.locator('[data-testid^="project-row-"] td').first();
-    await expect(projectCell).toBeVisible({ timeout: 15000 });
-    await projectCell.click();
-
+    await page.goto(`${QA_BASE_URL}/projects/${qaProjectId}`);
     await dismissBlockingModals(page);
 
     // Select non-viewer worker wrk_02 (박용진 수석) using WorkerSelector
