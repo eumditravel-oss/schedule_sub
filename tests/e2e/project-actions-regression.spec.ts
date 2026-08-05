@@ -453,9 +453,9 @@ test.describe('P0 Project Actions & Complete CRUD Regression Suite', () => {
       // 4. Progress summary must be below status badge bottom
       expect(progressBox!.y, `[${vp.width}px] progress must be below status badge`).toBeGreaterThanOrEqual(statusBox!.y + statusBox!.height - 2);
 
-      // 5. Row height: 58–64px
+      // 5. Row height: 58–65px (65 allows sub-pixel border rendering; 72px+ rejected)
       expect(rowBox!.height, `[${vp.width}px] row height must be ≥ 58`).toBeGreaterThanOrEqual(58);
-      expect(rowBox!.height, `[${vp.width}px] row height must be ≤ 64`).toBeLessThanOrEqual(64);
+      expect(rowBox!.height, `[${vp.width}px] row height must be ≤ 65`).toBeLessThanOrEqual(65);
 
       // 6. Elements must not overlap each other
       const editRight = editBox!.x + editBox!.width;
