@@ -742,16 +742,15 @@ async function validateAndNormalizeTaskAssigneesServer(
         const validated = projectSchema.parse({ ...body, editor_name: editor });
         const id = `prj_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
 
-        const transResult = await translateProjectOrTaskName(env.AI, validated.name);
-
-        await db
-          .prepare(
+        // Create project and initial default task group atomically
+        const defaultGroupId = `tgrp_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+        await db.batch([
+          db.prepare(
             `INSERT INTO projects (
               id, name, start_date, end_date, progress, status,
               name_ko, name_vi, source_language, translation_status, translation_error
             ) VALUES (?, ?, ?, ?, ?, 'ACTIVE', ?, ?, ?, ?, ?)`
-          )
-          .bind(
+          ).bind(
             id,
             validated.name,
             validated.start_date,
@@ -762,8 +761,14 @@ async function validateAndNormalizeTaskAssigneesServer(
             transResult.source_language,
             transResult.translation_status,
             transResult.translation_error
-          )
-          .run();
+          ),
+          db.prepare(
+            `INSERT INTO task_groups (
+              id, project_id, group_name, group_name_ko, group_name_vi,
+              source_language, translation_status, color_key, sort_order, created_by_name
+            ) VALUES (?, ?, '기존 작업', '기존 작업', 'Công việc hiện có', 'ko', 'COMPLETED', 'BLUE', 1, ?)`
+          ).bind(defaultGroupId, id, editor)
+        ]);
 
         const created = await db.prepare(`SELECT * FROM projects WHERE id = ?`).bind(id).first();
         return jsonResponse(created, 201);
@@ -2624,14 +2629,24 @@ function addPureCalendarDays(dateStr: string, deltaDays: number): string {
             .first();
           if (firstGroup) {
             taskGroupId = firstGroup.id;
+          } else {
+            const newGroupId = `tgrp_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+            await db
+              .prepare(
+                `INSERT INTO task_groups (id, project_id, group_name, group_name_ko, group_name_vi, source_language, translation_status, color_key, sort_order, created_by_name)
+                 VALUES (?, ?, '기존 작업', '기존 작업', 'Công việc hiện có', 'ko', 'COMPLETED', 'BLUE', 1, ?)`
+              )
+              .bind(newGroupId, validated.project_id, editor)
+              .run();
+            taskGroupId = newGroupId;
           }
         }
 
         let taskSortOrder = Number(body.task_sort_order || 0);
         if (!taskSortOrder) {
           const maxSort = await db
-            .prepare(`SELECT MAX(task_sort_order) as max_sort FROM tasks WHERE project_id = ? AND (task_group_id = ? OR (task_group_id IS NULL AND ? IS NULL))`)
-            .bind(validated.project_id, taskGroupId, taskGroupId)
+            .prepare(`SELECT MAX(task_sort_order) as max_sort FROM tasks WHERE project_id = ? AND task_group_id = ?`)
+            .bind(validated.project_id, taskGroupId)
             .first();
           taskSortOrder = (maxSort?.max_sort || 0) + 1;
         }

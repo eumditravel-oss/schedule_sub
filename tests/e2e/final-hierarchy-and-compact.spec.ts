@@ -2,18 +2,11 @@
 import { test, expect } from '@playwright/test';
 
 async function dismissBlockingModals(page: any) {
-  for (let i = 0; i < 5; i++) {
-    const backdrop = page.locator('.fixed.inset-0.z-50').first();
-    if (await backdrop.isVisible({ timeout: 500 }).catch(() => false)) {
-      const selectWorkerBtn = page.locator('button:has-text("유종욱"), button:has-text("확인"), button:has-text("선택")').first();
-      if (await selectWorkerBtn.isVisible().catch(() => false)) {
-        await selectWorkerBtn.click().catch(() => {});
-      } else {
-        await page.keyboard.press('Escape');
-      }
-      await page.waitForTimeout(300);
-    } else {
-      break;
+  const promptModal = page.locator('[data-testid="worker-prompt-modal"]');
+  if (await promptModal.isVisible({ timeout: 1000 }).catch(() => false)) {
+    const firstWorkerBtn = promptModal.locator('button').first();
+    if (await firstWorkerBtn.isVisible().catch(() => false)) {
+      await firstWorkerBtn.click().catch(() => {});
     }
   }
 }
