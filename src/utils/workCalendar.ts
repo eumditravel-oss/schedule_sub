@@ -178,10 +178,30 @@ export function calculateTaskWorkdayBreakdown(
   worker: { id: string; name: string; country_code?: CountryCode; workweek_profile?: WorkweekProfile } | null | undefined,
   startDate: string,
   endDate: string,
-  countryHolidays: CountryHoliday[],
-  overrides: CalendarOverride[]
+  countryHolidays?: CountryHoliday[],
+  overrides?: CalendarOverride[]
 ) {
-  if (!worker || !worker.country_code || !worker.workweek_profile || !startDate || !endDate) {
+  const safeHolidays = countryHolidays ?? [];
+  const safeOverrides = overrides ?? [];
+
+  const hasWorkerProfileError = !worker || !worker.country_code || !worker.workweek_profile;
+
+  if (!startDate || !endDate) {
+    return {
+      calendar_span_days: 0,
+      planned_working_days: 0,
+      excluded_non_working_days: 0,
+      excluded_weekly_off_days: 0,
+      excluded_public_holiday_days: 0,
+      excluded_leave_days: 0,
+      excluded_manual_off_days: 0,
+      included_work_override_days: 0,
+      excluded_dates_detail: [],
+      has_profile_error: hasWorkerProfileError,
+    };
+  }
+
+  if (hasWorkerProfileError) {
     return {
       calendar_span_days: 0,
       planned_working_days: 0,
@@ -232,7 +252,7 @@ export function calculateTaskWorkdayBreakdown(
 
     calendar_span_days++;
 
-    const status = resolveWorkDayStatus(dateStr, worker, countryHolidays, overrides);
+    const status = resolveWorkDayStatus(dateStr, worker, safeHolidays, safeOverrides);
 
     if (status.is_working_day) {
       planned_working_days++;

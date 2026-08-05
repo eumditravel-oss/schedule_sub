@@ -41,6 +41,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
   const [endDate, setEndDate] = useState('');
   const [progress, setProgress] = useState(0);
   const [saving, setSaving] = useState(false);
+  const [showExcludedDetail, setShowExcludedDetail] = useState(false);
 
   const targetLang = inputLang === 'ko' ? 'vi' : 'ko';
 
@@ -88,6 +89,17 @@ export const TaskModal: React.FC<TaskModalProps> = ({
     }
   }, [task, project, isOpen, currentWorker]);
 
+  const currentWorkerName = task ? task.worker_name : currentWorker ? currentWorker.name : '';
+  const taskWorker = (workers && workers.find((w) => w.name === currentWorkerName || w.id === currentWorkerName)) || currentWorker;
+
+  const breakdown = calculateTaskWorkdayBreakdown(
+    taskWorker,
+    startDate,
+    endDate,
+    holidays || [],
+    overrides || []
+  );
+
   if (!isOpen) return null;
 
   const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -99,19 +111,6 @@ export const TaskModal: React.FC<TaskModalProps> = ({
     setTargetText(val);
     setManualText(val);
   };
-
-  const currentWorkerName = task ? task.worker_name : currentWorker ? currentWorker.name : '';
-  const taskWorker = (workers && workers.find((w) => w.name === currentWorkerName || w.id === currentWorkerName)) || currentWorker;
-
-  const [showExcludedDetail, setShowExcludedDetail] = useState(false);
-
-  const breakdown = calculateTaskWorkdayBreakdown(
-    taskWorker,
-    startDate,
-    endDate,
-    holidays || [],
-    overrides || []
-  );
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

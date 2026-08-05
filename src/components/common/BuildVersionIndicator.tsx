@@ -8,7 +8,7 @@ interface BuildVersionIndicatorProps {
 
 export const BuildVersionIndicator: React.FC<BuildVersionIndicatorProps> = ({ inline = false }) => {
   const [versionInfo, setVersionInfo] = useState<{ commit: string; environment: string }>({
-    commit: 'd90c933',
+    commit: 'unknown',
     environment: typeof window !== 'undefined' && window.location.hostname.includes('-qa') ? 'qa' : 'production',
   });
 
@@ -22,7 +22,9 @@ export const BuildVersionIndicator: React.FC<BuildVersionIndicatorProps> = ({ in
           });
         }
       })
-      .catch(() => {});
+      .catch(() => {
+        setVersionInfo((prev) => ({ ...prev, commit: 'unknown' }));
+      });
   }, []);
 
   const envLabel = versionInfo.environment === 'qa' ? 'QA' : 'Production';

@@ -313,9 +313,9 @@ export const api = {
     } catch {
       const isQa = typeof window !== 'undefined' && window.location.hostname.includes('-qa');
       return {
-        commit: 'd90c933',
+        commit: 'unknown',
         environment: isQa ? 'qa' : 'production',
-        deployed_at: '2026-08-05T09:50:00Z',
+        deployed_at: new Date().toISOString(),
       };
     }
   },

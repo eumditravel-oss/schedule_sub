@@ -44,7 +44,7 @@ export const WorkerPromptModal: React.FC<WorkerPromptModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-xs animate-in fade-in duration-200">
-      <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-md overflow-hidden p-6 space-y-5 text-slate-900">
+      <div data-testid="worker-prompt-modal" className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-md overflow-hidden p-6 space-y-5 text-slate-900">
         <div className="text-center space-y-1.5 border-b border-slate-100 pb-4">
           <div className="w-12 h-12 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center mx-auto shadow-xs">
             <UserCheck className="w-6 h-6" />

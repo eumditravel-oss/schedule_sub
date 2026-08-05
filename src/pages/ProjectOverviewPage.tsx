@@ -26,6 +26,9 @@ import { CalendarLegend } from '../components/common/CalendarLegend';
 import { DateHeaderInfoPanel } from '../components/modals/DateHeaderInfoPanel';
 import { TodaySummaryCard } from '../components/common/TodaySummaryCard';
 import { BuildVersionIndicator } from '../components/common/BuildVersionIndicator';
+import { ScheduleBar } from '../components/gantt/ScheduleBar';
+import { getGanttSpanColumns } from '../utils/ganttOverlay';
+import { calculateTaskWorkdayBreakdown } from '../utils/workCalendar';
 import { Plus, ChevronRight, ChevronLeft, Calendar, Lock } from 'lucide-react';
 
 export type MobileViewMode = 'SUMMARY' | 'WEEK' | 'GANTT';
@@ -716,51 +719,69 @@ export const ProjectOverviewPage: React.FC = () => {
                           </div>
                         </td>
 
-                        {dateColumns.map((col, cIdx) => {
-                          const isInSchedule = col.dateStr >= project.start_date && col.dateStr <= project.end_date;
-                          const isExactStart = col.dateStr === project.start_date;
-                          const isExactEnd = col.dateStr === project.end_date;
-                          const isFirstVisibleCell = cIdx === 0 && col.dateStr > project.start_date && isInSchedule;
-                          const isSingleDay = isExactStart && isExactEnd;
-
-                          return (
-                            <td
-                              key={cIdx}
-                              style={{ width: `${GANTT_DAY_WIDTH_PX}px`, minWidth: `${GANTT_DAY_WIDTH_PX}px`, maxWidth: `${GANTT_DAY_WIDTH_PX}px` }}
-                              className={`p-0 relative border-r border-slate-200 align-middle ${
-                                col.isToday
-                                  ? 'bg-blue-50/60'
-                                  : col.isWeekend
-                                  ? 'bg-slate-50/60'
-                                  : 'bg-white'
-                              }`}
-                            >
-                              {isInSchedule && (
+                        <td colSpan={dateColumns.length} className="p-0 border-0 relative">
+                          <div className="w-full flex relative h-12">
+                            {/* 1. Date Cells Background Layer */}
+                            <div className="flex w-full h-full">
+                              {dateColumns.map((col, cIdx) => (
                                 <div
-                                  className={`h-7 my-auto relative flex items-center z-10 text-white font-bold text-xs ${
-                                    project.status === 'COMPLETED'
-                                      ? 'bg-emerald-600'
-                                      : 'bg-gradient-to-r from-blue-600 to-cyan-500'
-                                  } transition-all ${
-                                    isSingleDay
-                                      ? 'rounded-md mx-0.5'
-                                      : isExactStart
-                                      ? 'rounded-l-md ml-0.5 mr-0'
-                                      : isExactEnd
-                                      ? 'rounded-r-md mr-0.5 ml-0'
-                                      : 'rounded-none mx-0'
+                                  key={cIdx}
+                                  style={{ width: `${GANTT_DAY_WIDTH_PX}px`, minWidth: `${GANTT_DAY_WIDTH_PX}px`, maxWidth: `${GANTT_DAY_WIDTH_PX}px` }}
+                                  className={`h-full border-r border-slate-200 shrink-0 ${
+                                    col.isToday
+                                      ? 'bg-blue-50/70'
+                                      : col.isWeekend
+                                      ? 'bg-slate-50/70'
+                                      : 'bg-white'
                                   }`}
+                                />
+                              ))}
+                            </div>
+
+                            {/* 2. CSS Grid Overlay Layer for Continuous Schedule Bar */}
+                            {(() => {
+                              const spanInfo = getGanttSpanColumns(project.start_date, project.end_date, dateColumns);
+                              if (!spanInfo) return null;
+
+                              const prjBreakdown = calculateTaskWorkdayBreakdown(
+                                currentWorker,
+                                project.start_date,
+                                project.end_date,
+                                [...krHolidays, ...vnHolidays],
+                                calendarOverrides
+                              );
+
+                              return (
+                                <div
+                                  className="absolute inset-0 grid pointer-events-none z-10"
+                                  style={{
+                                    gridTemplateColumns: `repeat(${dateColumns.length}, minmax(${GANTT_DAY_WIDTH_PX}px, 1fr))`,
+                                  }}
                                 >
-                                  {(isExactStart || isFirstVisibleCell) && (
-                                    <span className="px-1.5 z-20 whitespace-nowrap truncate">
-                                      {displayName} ({project.progress}%)
-                                    </span>
-                                  )}
+                                  <div
+                                    style={{
+                                      gridColumn: `${spanInfo.startIndex + 1} / span ${spanInfo.spanCount}`,
+                                    }}
+                                    className="px-0.5 flex items-center h-full"
+                                  >
+                                    <ScheduleBar
+                                      title={displayName}
+                                      startDate={project.start_date}
+                                      endDate={project.end_date}
+                                      calendarSpanDays={prjBreakdown.calendar_span_days}
+                                      plannedWorkingDays={prjBreakdown.planned_working_days}
+                                      plannedProgress={project.planned_progress ?? project.progress ?? 0}
+                                      actualProgress={project.actual_progress ?? project.progress ?? 0}
+                                      status={project.schedule_state || (project.status === 'COMPLETED' ? 'COMPLETED' : 'IN_PROGRESS')}
+                                      onClick={() => navigate(`/projects/${project.id}`)}
+                                      className="w-full"
+                                    />
+                                  </div>
                                 </div>
-                              )}
-                            </td>
-                          );
-                        })}
+                              );
+                            })()}
+                          </div>
+                        </td>
                       </tr>
                     );
                   })

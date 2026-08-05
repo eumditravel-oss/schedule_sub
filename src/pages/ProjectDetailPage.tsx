@@ -33,6 +33,9 @@ import { DateHeaderInfoPanel } from '../components/modals/DateHeaderInfoPanel';
 import { WorkerUtilizationBadge } from '../components/common/WorkerUtilizationBadge';
 import { ScheduleShiftHistoryModal } from '../components/modals/ScheduleShiftHistoryModal';
 import { BuildVersionIndicator } from '../components/common/BuildVersionIndicator';
+import { ScheduleBar } from '../components/gantt/ScheduleBar';
+import { getGanttSpanColumns } from '../utils/ganttOverlay';
+import { calculateTaskWorkdayBreakdown } from '../utils/workCalendar';
 import {
   ArrowLeft,
   Plus,
@@ -985,70 +988,94 @@ export const ProjectDetailPage: React.FC = () => {
                           </div>
                         </td>
 
-                        {dateColumns.map((col, cIdx) => {
-                          const dayStatus = resolveWorkDayStatus(col.dateStr, targetWorkerObj as any, countryHolidays, calendarOverrides);
-                          const statusVal = task.daily_statuses?.[col.dateStr];
-                          const isInSchedule = col.dateStr >= task.start_date && col.dateStr <= task.end_date;
+                        <td colSpan={dateColumns.length} className="p-0 border-0 relative">
+                          <div className="w-full flex relative h-12">
+                            {/* 1. Date Cells Background & Click Handler Layer */}
+                            <div className="flex w-full h-full">
+                              {dateColumns.map((col, cIdx) => {
+                                const dayStatus = resolveWorkDayStatus(col.dateStr, targetWorkerObj as any, countryHolidays, calendarOverrides);
+                                const statusVal = task.daily_statuses?.[col.dateStr];
 
-                          const isExactStart = col.dateStr === task.start_date;
-                          const isExactEnd = col.dateStr === task.end_date;
-                          const isFirstVisibleCell = cIdx === 0 && col.dateStr > task.start_date && isInSchedule;
-                          const isSingleDay = isExactStart && isExactEnd;
+                                let cellBgClass = 'bg-white';
+                                if (dayStatus.day_type === 'PUBLIC_HOLIDAY') {
+                                  cellBgClass = dayStatus.country_code === 'VN' ? 'bg-amber-100/70' : 'bg-rose-100/70';
+                                } else if (dayStatus.day_type === 'LEAVE') {
+                                  cellBgClass = 'bg-violet-100/80';
+                                } else if (dayStatus.day_type === 'MANUAL_OFF') {
+                                  cellBgClass = 'bg-orange-100/80';
+                                } else if (dayStatus.day_type === 'WORK_OVERRIDE') {
+                                  cellBgClass = 'bg-cyan-100/70';
+                                } else if (!dayStatus.is_working_day) {
+                                  cellBgClass = 'bg-slate-100/90';
+                                } else if (col.isToday) {
+                                  cellBgClass = 'bg-blue-50/50';
+                                }
 
-                          let cellBgClass = 'bg-white';
-                          if (dayStatus.day_type === 'PUBLIC_HOLIDAY') {
-                            cellBgClass = dayStatus.country_code === 'VN' ? 'bg-amber-100/70' : 'bg-rose-100/70';
-                          } else if (dayStatus.day_type === 'LEAVE') {
-                            cellBgClass = 'bg-violet-100/80';
-                          } else if (dayStatus.day_type === 'MANUAL_OFF') {
-                            cellBgClass = 'bg-orange-100/80';
-                          } else if (dayStatus.day_type === 'WORK_OVERRIDE') {
-                            cellBgClass = 'bg-cyan-100/70';
-                          } else if (!dayStatus.is_working_day) {
-                            cellBgClass = 'bg-slate-100/90';
-                          } else if (col.isToday) {
-                            cellBgClass = 'bg-blue-50/50';
-                          }
+                                return (
+                                  <div
+                                    key={cIdx}
+                                    onClick={() => handleCellClick(task, col.dateStr, dayStatus, targetWorkerObj as any)}
+                                    style={{ width: `${GANTT_DAY_WIDTH_PX}px`, minWidth: `${GANTT_DAY_WIDTH_PX}px`, maxWidth: `${GANTT_DAY_WIDTH_PX}px` }}
+                                    className={`h-full relative border-r border-slate-200 shrink-0 cursor-pointer ${cellBgClass} ${
+                                      col.isToday ? 'ring-2 ring-blue-500 ring-inset' : ''
+                                    }`}
+                                  >
+                                    {statusVal && statusVal !== 'NONE' && (
+                                      <div className="absolute top-1 right-1 z-20">
+                                        {statusVal === 'COMPLETED' && <div className="w-2 h-2 rounded-full bg-emerald-500" title="완료" />}
+                                        {statusVal === 'IN_PROGRESS' && <div className="w-2 h-2 rounded-full bg-blue-500" title="작업 중" />}
+                                        {statusVal === 'ISSUE' && <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" title="문제 발생" />}
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
 
-                          return (
-                            <td
-                              key={cIdx}
-                              onClick={() => handleCellClick(task, col.dateStr, dayStatus, targetWorkerObj as any)}
-                              style={{ width: `${GANTT_DAY_WIDTH_PX}px`, minWidth: `${GANTT_DAY_WIDTH_PX}px`, maxWidth: `${GANTT_DAY_WIDTH_PX}px` }}
-                              className={`p-0 relative border-r border-slate-200 align-middle cursor-pointer ${cellBgClass} ${
-                                col.isToday ? 'ring-2 ring-blue-500 ring-inset' : ''
-                              }`}
-                            >
-                              {isInSchedule && (
+                            {/* 2. CSS Grid Overlay Layer for Continuous Schedule Bar */}
+                            {(() => {
+                              const spanInfo = getGanttSpanColumns(task.start_date, task.end_date, dateColumns);
+                              if (!spanInfo) return null;
+
+                              const taskBreakdown = calculateTaskWorkdayBreakdown(
+                                targetWorkerObj as any,
+                                task.start_date,
+                                task.end_date,
+                                countryHolidays,
+                                calendarOverrides
+                              );
+
+                              return (
                                 <div
-                                  className={`h-7 my-auto relative flex items-center z-10 text-white font-bold text-xs bg-blue-600 transition-all ${
-                                    isSingleDay
-                                      ? 'rounded-md mx-0.5'
-                                      : isExactStart
-                                      ? 'rounded-l-md ml-0.5 mr-0'
-                                      : isExactEnd
-                                      ? 'rounded-r-md mr-0.5 ml-0'
-                                      : 'rounded-none mx-0'
-                                  }`}
+                                  className="absolute inset-0 grid pointer-events-none z-10"
+                                  style={{
+                                    gridTemplateColumns: `repeat(${dateColumns.length}, minmax(${GANTT_DAY_WIDTH_PX}px, 1fr))`,
+                                  }}
                                 >
-                                  {(isExactStart || isFirstVisibleCell) && (
-                                    <span className="px-1.5 z-20 whitespace-nowrap truncate">
-                                      {taskDisplayName} ({task.progress}%)
-                                    </span>
-                                  )}
+                                  <div
+                                    style={{
+                                      gridColumn: `${spanInfo.startIndex + 1} / span ${spanInfo.spanCount}`,
+                                    }}
+                                    className="px-0.5 flex items-center h-full"
+                                  >
+                                    <ScheduleBar
+                                      title={taskDisplayName}
+                                      startDate={task.start_date}
+                                      endDate={task.end_date}
+                                      calendarSpanDays={taskBreakdown.calendar_span_days}
+                                      plannedWorkingDays={taskBreakdown.planned_working_days}
+                                      plannedProgress={task.planned_progress ?? task.progress ?? 0}
+                                      actualProgress={task.actual_progress ?? task.progress ?? 0}
+                                      status={task.schedule_state || (task.progress === 100 ? 'COMPLETED' : 'IN_PROGRESS')}
+                                      onClick={() => handleEditTask(task)}
+                                      className="w-full"
+                                    />
+                                  </div>
                                 </div>
-                              )}
-
-                              {statusVal && statusVal !== 'NONE' && (
-                                <div className="absolute top-1 right-1 z-20">
-                                  {statusVal === 'COMPLETED' && <div className="w-2 h-2 rounded-full bg-emerald-500" title="완료" />}
-                                  {statusVal === 'IN_PROGRESS' && <div className="w-2 h-2 rounded-full bg-blue-500" title="작업 중" />}
-                                  {statusVal === 'ISSUE' && <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" title="문제 발생" />}
-                                </div>
-                              )}
-                            </td>
-                          );
-                        })}
+                              );
+                            })()}
+                          </div>
+                        </td>
                       </tr>
                     );
                   })
