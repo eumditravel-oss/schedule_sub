@@ -247,17 +247,18 @@ test.describe('Strict Gantt Inline Content & Build SHA E2E Suite', () => {
     await expect(versionIndicator).not.toContainText('Build mismatch');
 
     // Wait for Cloudflare Workers edge propagation with active cache-busting reloads
-    const maxAttempts = 15;
+    const maxAttempts = 10;
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       const versionRes = await fetch(`${QA_BASE_URL}/api/version?t=${Date.now()}`);
       if (versionRes.ok) {
         const vJson: any = await versionRes.json();
-        if (expectedCommitSha !== 'unknown' && vJson.version === expectedCommitSha) {
+        const currentSha = vJson.data?.commit || vJson.commit;
+        if (expectedCommitSha !== 'unknown' && currentSha === expectedCommitSha) {
           break;
         }
       }
       if (attempt < maxAttempts) {
-        await page.waitForTimeout(2000);
+        await page.waitForTimeout(1000);
         await page.goto(`${QA_BASE_URL}/projects?t=${Date.now()}`);
         await dismissBlockingModals(page);
       }
