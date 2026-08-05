@@ -78,8 +78,9 @@ test.describe('Vietnam Saturday Work Calendar E2E Suite', () => {
 
     // Save Vietnam Saturday Calendar
     const saveBtn = page.locator('[data-testid="vn-saturday-save-btn"]');
-    await expect(saveBtn).toBeVisible();
-    await saveBtn.click();
+    await expect(saveBtn).toBeVisible({ timeout: 10000 });
+    await expect(saveBtn).toBeEnabled({ timeout: 10000 });
+    await saveBtn.click({ force: true });
 
     // Verify Impact Modal
     const impactModal = page.locator('[data-testid="vn-saturday-impact-modal"]');

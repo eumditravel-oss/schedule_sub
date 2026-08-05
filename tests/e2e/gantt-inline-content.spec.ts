@@ -249,12 +249,12 @@ test.describe('Strict Gantt Inline Content & Build SHA E2E Suite', () => {
     // Wait for Cloudflare Workers edge propagation with active cache-busting reloads
     const maxAttempts = 15;
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-      const backend = await versionIndicator.getAttribute('data-backend-sha');
-      if (expectedCommitSha !== 'unknown' && backend === expectedCommitSha) {
-        break;
-      }
-      if (expectedCommitSha === 'unknown' && backend && backend !== 'unknown') {
-        break;
+      const versionRes = await fetch(`${QA_BASE_URL}/api/version?t=${Date.now()}`);
+      if (versionRes.ok) {
+        const vJson: any = await versionRes.json();
+        if (expectedCommitSha !== 'unknown' && vJson.version === expectedCommitSha) {
+          break;
+        }
       }
       if (attempt < maxAttempts) {
         await page.waitForTimeout(2000);
