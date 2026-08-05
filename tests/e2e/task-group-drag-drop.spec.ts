@@ -27,14 +27,14 @@ test.describe('Task Grouping, Drag & Drop, Reorder and Move UI Suite', () => {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-editor-name': encodeURIComponent('유종욱 실장'),
+        'x-editor-name': encodeURIComponent('Manh Cuong(끄엉)'),
       },
       body: JSON.stringify({
         name: `[E2E-DND-${runId}] 공정 드래그앤드롭 프로젝트`,
         start_date: '2026-08-01',
         end_date: '2026-08-31',
         progress: 0,
-        editor_name: '유종욱 실장',
+        editor_name: 'Manh Cuong(끄엉)',
       }),
     });
     expect(prjRes.status).toBe(201);
@@ -46,15 +46,16 @@ test.describe('Task Grouping, Drag & Drop, Reorder and Move UI Suite', () => {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-editor-name': encodeURIComponent('유종욱 실장'),
+        'x-editor-name': encodeURIComponent('Manh Cuong(끄엉)'),
       },
       body: JSON.stringify({
         group_name: '기획',
         group_name_ko: '기획',
         group_name_vi: 'Quy hoạch',
-        editor_name: '유종욱 실장',
+        editor_name: 'Manh Cuong(끄엉)',
       }),
     });
+    expect(g1Res.status).toBe(201);
     const g1Json: any = await g1Res.json();
     group1Id = g1Json.id;
 
@@ -63,24 +64,25 @@ test.describe('Task Grouping, Drag & Drop, Reorder and Move UI Suite', () => {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-editor-name': encodeURIComponent('유종욱 실장'),
+        'x-editor-name': encodeURIComponent('Manh Cuong(끄엉)'),
       },
       body: JSON.stringify({
         group_name: '개발',
         group_name_ko: '개발',
         group_name_vi: 'Phát triển',
-        editor_name: '유종욱 실장',
+        editor_name: 'Manh Cuong(끄엉)',
       }),
     });
+    expect(g2Res.status).toBe(201);
     const g2Json: any = await g2Res.json();
     group2Id = g2Json.id;
 
-    // 4. Create Task under Group 1 with assignees array
+    // 4. Create Task under Group 1 with confirmed conflict flag
     const tRes = await fetch(`${QA_BASE_URL}/api/tasks`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-editor-name': encodeURIComponent('유종욱 실장'),
+        'x-editor-name': encodeURIComponent('Manh Cuong(끄엉)'),
       },
       body: JSON.stringify({
         project_id: createdProjectId,
@@ -88,10 +90,12 @@ test.describe('Task Grouping, Drag & Drop, Reorder and Move UI Suite', () => {
         task_name: '요구사항 정의',
         start_date: '2026-08-03',
         end_date: '2026-08-07',
-        assignees: [{ worker_id: 'wrk_yjw', assignment_role: 'PRIMARY' }],
-        editor_name: '유종욱 실장',
+        worker_name: 'Manh Cuong(끄엉)',
+        editor_name: 'Manh Cuong(끄엉)',
+        confirm_worker_schedule_conflict: true,
       }),
     });
+    expect(tRes.status).toBe(201);
     const tJson: any = await tRes.json();
     createdTaskId = tJson.id;
   });
@@ -100,7 +104,7 @@ test.describe('Task Grouping, Drag & Drop, Reorder and Move UI Suite', () => {
     if (createdProjectId) {
       await fetch(`${QA_BASE_URL}/api/projects/${createdProjectId}`, {
         method: 'DELETE',
-        headers: { 'x-editor-name': encodeURIComponent('유종욱 실장') },
+        headers: { 'x-editor-name': encodeURIComponent('Manh Cuong(끄엉)') },
       });
     }
   });
@@ -112,15 +116,14 @@ test.describe('Task Grouping, Drag & Drop, Reorder and Move UI Suite', () => {
     await page.waitForLoadState('networkidle');
     await dismissWorkerPromptModal(page);
 
-    const taskHandle = page.locator('[data-testid^="task-drag-handle-"]').first();
+    const taskHandle = page.locator(`[data-testid="task-drag-handle-${createdTaskId}"]`);
     await expect(taskHandle).toBeVisible({ timeout: 15000 });
 
-    const groupRows = page.locator('[data-testid^="task-group-row-"]');
-    const targetGroupRow = groupRows.nth(1);
-    await expect(targetGroupRow).toBeVisible();
+    const devGroupRow = page.locator(`[data-testid="task-group-row-${group2Id}"]`);
+    await expect(devGroupRow).toBeVisible();
 
     // Drag task to target group row
-    await taskHandle.dragTo(targetGroupRow);
+    await taskHandle.dragTo(devGroupRow);
     await page.waitForTimeout(500);
 
     // Verify Undo Toast
@@ -132,7 +135,7 @@ test.describe('Task Grouping, Drag & Drop, Reorder and Move UI Suite', () => {
     await page.waitForLoadState('networkidle');
     await dismissWorkerPromptModal(page);
 
-    const taskRow = page.locator('[data-testid^="task-row-"]').first();
+    const taskRow = page.locator(`[data-testid="task-row-${createdTaskId}"]`);
     await expect(taskRow).toBeVisible();
   });
 
@@ -143,7 +146,7 @@ test.describe('Task Grouping, Drag & Drop, Reorder and Move UI Suite', () => {
     await page.waitForLoadState('networkidle');
     await dismissWorkerPromptModal(page);
 
-    const addGroupTaskBtn = page.locator('[data-testid^="task-group-add-task-"]').first();
+    const addGroupTaskBtn = page.locator(`[data-testid="task-group-add-task-${group2Id}"]`);
     await expect(addGroupTaskBtn).toBeVisible({ timeout: 15000 });
     await addGroupTaskBtn.click();
 
@@ -154,7 +157,7 @@ test.describe('Task Grouping, Drag & Drop, Reorder and Move UI Suite', () => {
     await page.click('[data-testid="task-save-btn"]');
     await page.waitForSelector('[data-testid="task-modal"]', { state: 'detached' });
 
-    const moveMenuBtn = page.locator('[data-testid^="task-move-menu-"]').first();
+    const moveMenuBtn = page.locator(`[data-testid="task-move-menu-${createdTaskId}"]`);
     await expect(moveMenuBtn).toBeVisible({ timeout: 15000 });
     await moveMenuBtn.click();
 
