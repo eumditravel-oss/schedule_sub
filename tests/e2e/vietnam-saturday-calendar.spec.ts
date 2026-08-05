@@ -52,7 +52,7 @@ test.describe('Vietnam Saturday Work Calendar E2E Suite', () => {
     await dismissBlockingModals(page);
 
     // Open Calendar Manager Modal
-    const manageBtn = page.locator('[data-testid="manage-holidays-btn"]').first().or(page.locator('[data-testid="calendar-manage-btn"]').first());
+    const manageBtn = page.locator('[data-testid="desktop-manage-calendar-btn"]').first().or(page.locator('[data-testid="manage-holidays-btn"]').first());
     await expect(manageBtn).toBeVisible({ timeout: 10000 });
     await manageBtn.click();
 
