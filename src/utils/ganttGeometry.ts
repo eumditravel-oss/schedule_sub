@@ -1,23 +1,61 @@
 // src/utils/ganttGeometry.ts
 
 export const GANTT_DAY_WIDTH_PX = 36;
+export const DESKTOP_GANTT_DAY_WIDTH = 36;
+export const MOBILE_GANTT_DAY_WIDTH = 30;
 export const DESKTOP_DAY_WIDTH_PX = 36;
 export const MOBILE_DAY_WIDTH_PX = 30;
 
-export function getTimelineWidth(dateCount: number, dayWidthPx: number = GANTT_DAY_WIDTH_PX): number {
-  return dateCount * dayWidthPx;
+export function getTimelineWidth(dateCount: number, dayWidth: number = DESKTOP_GANTT_DAY_WIDTH): number {
+  return dateCount * dayWidth;
 }
 
-export function getDateLeft(index: number, dayWidthPx: number = GANTT_DAY_WIDTH_PX): number {
-  return index * dayWidthPx;
+export function getDateLeft(index: number, dayWidth: number = DESKTOP_GANTT_DAY_WIDTH): number {
+  return index * dayWidth;
 }
 
-export function getDateSpanWidth(spanCount: number, dayWidthPx: number = GANTT_DAY_WIDTH_PX): number {
-  return spanCount * dayWidthPx;
+export function getSpanWidth(spanCount: number, dayWidth: number = DESKTOP_GANTT_DAY_WIDTH): number {
+  return spanCount * dayWidth;
 }
 
-export function getTimelineGridTemplate(dateCount: number, dayWidthPx: number = GANTT_DAY_WIDTH_PX): string {
-  return `repeat(${dateCount}, ${dayWidthPx}px)`;
+export function getDateSpanWidth(spanCount: number, dayWidth: number = DESKTOP_GANTT_DAY_WIDTH): number {
+  return spanCount * dayWidth;
+}
+
+export function getTimelineGridTemplate(dateCount: number, dayWidth: number = DESKTOP_GANTT_DAY_WIDTH): string {
+  return `repeat(${dateCount}, ${dayWidth}px)`;
+}
+
+export interface GanttBarGeometry {
+  startIndex: number;
+  spanCount: number;
+  leftPx: number;
+  widthPx: number;
+}
+
+export function getGanttBarGeometry(
+  startDateStr: string,
+  endDateStr: string,
+  dateColumns: { dateStr: string }[],
+  dayWidth: number = DESKTOP_GANTT_DAY_WIDTH
+): GanttBarGeometry | null {
+  if (!dateColumns || dateColumns.length === 0) return null;
+  const firstColDate = dateColumns[0].dateStr;
+  const lastColDate = dateColumns[dateColumns.length - 1].dateStr;
+
+  if (endDateStr < firstColDate || startDateStr > lastColDate) return null;
+
+  const startIndex = Math.max(0, dateColumns.findIndex((c) => c.dateStr >= startDateStr));
+  let endIndex = dateColumns.findIndex((c) => c.dateStr > endDateStr);
+  if (endIndex === -1) endIndex = dateColumns.length;
+
+  const spanCount = Math.max(1, endIndex - startIndex);
+  return {
+    startIndex,
+    spanCount,
+    leftPx: startIndex * dayWidth,
+    widthPx: spanCount * dayWidth,
+  };
 }
 
 export interface MonthSegment {

@@ -14,13 +14,15 @@ export const TodayColumnOverlay: React.FC<TodayColumnOverlayProps> = ({
   className = '',
 }) => {
   const todayIndex = dateColumns.findIndex((col) => col.isToday);
-  if (todayIndex === -1) return null;
+  const todayCol = dateColumns[todayIndex];
+  if (todayIndex === -1 || !todayCol) return null;
 
   const leftPx = todayIndex * dayWidthPx;
 
   return (
     <div
       data-testid="gantt-today-column"
+      data-date={todayCol.dateStr}
       aria-hidden="true"
       style={{
         left: `${leftPx}px`,
