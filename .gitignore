@@ -9,6 +9,7 @@ build/
 # Playwright Test Reports & Contexts
 playwright-report/
 test-results/
+qa/screenshots/
 
 # Backups & Secret SQL dumps
 backups/
