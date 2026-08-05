@@ -108,20 +108,7 @@ async function requireEditableWorker(db: any, editorName: string): Promise<{ all
   return { allowed: true, worker };
 }
 
-async function requireCountryCalendarManager(db: any, editorName: string): Promise<{ allowed: boolean; worker?: any; errorMsg?: string; errorCode?: string }> {
-  const editable = await requireEditableWorker(db, editorName);
-  if (!editable.allowed) return editable;
 
-  if (!editable.worker.can_manage_country_calendar) {
-    return {
-      allowed: false,
-      errorMsg: '국가 달력 관리 권한이 필요합니다.',
-      errorCode: 'COUNTRY_CALENDAR_PERMISSION_REQUIRED',
-    };
-  }
-
-  return { allowed: true, worker: editable.worker };
-}
 
 function getKoreaDateString(): string {
   try {
@@ -307,39 +294,72 @@ export default {
         return jsonResponse(workers.results || []);
       }
 
-async function requireCountryCalendarManager(db: any, request: Request, body?: any) {
-  const editorHeaderId = request.headers.get('x-editor-id') || '';
-  const editorHeaderName = request.headers.get('x-editor-name') || '';
-  const bodyName = body?.editor_name || body?.created_by_name || body?.updated_by_name || '';
-  const bodyId = body?.editor_id || body?.created_by_id || '';
+async function requireActiveCalendarEditor(
+  db: any,
+  request: Request,
+  body?: any
+): Promise<{ allowed: boolean; editorId?: string; editorName?: string; errorMsg?: string; errorCode?: string; status?: number }> {
+  const rawHeaderId = request.headers.get('x-editor-id') || request.headers.get('x-worker-id') || '';
+  const rawHeaderName = request.headers.get('x-editor-name') || request.headers.get('x-worker-name') || '';
+
+  let editorHeaderId = rawHeaderId;
+  let editorHeaderName = rawHeaderName;
+  try {
+    if (rawHeaderName) editorHeaderName = decodeURIComponent(rawHeaderName);
+  } catch (e) {}
+
+  const bodyId = body?.editor_id || body?.created_by_id || body?.updated_by_id || body?.worker_id || '';
+  let bodyName = body?.editor_name || body?.created_by_name || body?.updated_by_name || body?.worker_name || '';
+  try {
+    if (bodyName) bodyName = decodeURIComponent(bodyName);
+  } catch (e) {}
 
   let worker = null;
+
   if (editorHeaderId) {
-    worker = await db.prepare(`SELECT id, name, can_manage_country_calendar FROM workers WHERE id = ?`).bind(editorHeaderId).first();
+    worker = await db.prepare(`SELECT id, name, is_active, access_role FROM workers WHERE id = ?`).bind(editorHeaderId).first();
   }
   if (!worker && bodyId) {
-    worker = await db.prepare(`SELECT id, name, can_manage_country_calendar FROM workers WHERE id = ?`).bind(bodyId).first();
+    worker = await db.prepare(`SELECT id, name, is_active, access_role FROM workers WHERE id = ?`).bind(bodyId).first();
   }
   if (!worker && editorHeaderName) {
-    worker = await db.prepare(`SELECT id, name, can_manage_country_calendar FROM workers WHERE name = ?`).bind(editorHeaderName).first();
+    worker = await db.prepare(`SELECT id, name, is_active, access_role FROM workers WHERE name = ?`).bind(editorHeaderName).first();
   }
   if (!worker && bodyName) {
-    worker = await db.prepare(`SELECT id, name, can_manage_country_calendar FROM workers WHERE name = ?`).bind(bodyName).first();
+    worker = await db.prepare(`SELECT id, name, is_active, access_role FROM workers WHERE name = ?`).bind(bodyName).first();
   }
 
-  const editorName = worker?.name || editorHeaderName || bodyName || 'System';
-  const editorId = worker?.id || editorHeaderId || bodyId || '';
+  if (!worker) {
+    return {
+      allowed: false,
+      status: 400,
+      errorCode: 'ACTIVE_WORKER_REQUIRED',
+      errorMsg: '현재 접속자를 확인할 수 없습니다.',
+    };
+  }
 
-  if (worker && Number(worker.can_manage_country_calendar) === 1) {
-    return { allowed: true, editorName, editorId };
+  if (Number(worker.is_active) !== 1) {
+    return {
+      allowed: false,
+      status: 403,
+      errorCode: 'INACTIVE_WORKER',
+      errorMsg: '비활성 작업자는 일정을 변경할 수 없습니다.',
+    };
+  }
+
+  if (worker.access_role !== 'EDITOR') {
+    return {
+      allowed: false,
+      status: 403,
+      errorCode: 'EXECUTIVE_READ_ONLY',
+      errorMsg: '경영진 계정은 국가 달력을 조회할 수만 있습니다.',
+    };
   }
 
   return {
-    allowed: false,
-    errorMsg: '국가 달력 관리 권한이 필요합니다.',
-    errorCode: 'COUNTRY_CALENDAR_PERMISSION_REQUIRED',
-    editorName,
-    editorId,
+    allowed: true,
+    editorId: worker.id,
+    editorName: worker.name,
   };
 }
 
@@ -378,9 +398,9 @@ async function requireCountryCalendarManager(db: any, request: Request, body?: a
       // 1.03 PUT /api/calendar/manual-holidays/month
       if (method === 'PUT' && path === '/api/calendar/manual-holidays/month') {
         const body: any = await request.json();
-        const permCheck = await requireCountryCalendarManager(db, request, body);
+        const permCheck = await requireActiveCalendarEditor(db, request, body);
         if (!permCheck.allowed) {
-          return errorResponse(permCheck.errorMsg!, 403, permCheck.errorCode!);
+          return errorResponse(permCheck.errorMsg!, permCheck.status || 403, permCheck.errorCode!);
         }
 
         const country = (body.country_code || 'KR') as 'KR' | 'VN';
@@ -431,9 +451,9 @@ async function requireCountryCalendarManager(db: any, request: Request, body?: a
       // 1.3 PUT /api/calendar/vietnam-saturdays
       if (method === 'PUT' && path === '/api/calendar/vietnam-saturdays') {
         const body: any = await request.json();
-        const permCheck = await requireCountryCalendarManager(db, request, body);
+        const permCheck = await requireActiveCalendarEditor(db, request, body);
         if (!permCheck.allowed) {
-          return errorResponse(permCheck.errorMsg!, 403, permCheck.errorCode!);
+          return errorResponse(permCheck.errorMsg!, permCheck.status || 403, permCheck.errorCode!);
         }
         const editor = permCheck.editorName;
 

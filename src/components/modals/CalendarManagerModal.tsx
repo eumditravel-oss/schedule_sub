@@ -1,7 +1,7 @@
 // src/components/modals/CalendarManagerModal.tsx
 import React, { useState, useEffect } from 'react';
 import { useI18n } from '../../hooks/useI18n';
-import { Worker, isExecutiveViewer, LeaveDeleteResponse, canManageCountryCalendar } from '../../types';
+import { Worker, isExecutiveViewer, LeaveDeleteResponse } from '../../types';
 import { X, Calendar, Plus, Trash2, CheckCircle, AlertCircle, Lock, AlertTriangle, ArrowRight, RotateCcw, ChevronLeft, ChevronRight, RefreshCw, Users } from 'lucide-react';
 import { api, getCurrentWorkerId, getCurrentWorkerName } from '../../services/api';
 import { getVietnamSaturdaysInMonth } from '../../utils/workCalendar';
@@ -78,7 +78,7 @@ export const CalendarManagerModal: React.FC<CalendarManagerModalProps> = ({
   const [showVnHolImpactModal, setShowVnHolImpactModal] = useState<boolean>(false);
 
   const isViewer = isExecutiveViewer(currentWorker);
-  const canManageCountry = canManageCountryCalendar(currentWorker);
+  const canEditCalendar = currentWorker?.is_active === 1 && currentWorker?.access_role === 'EDITOR';
 
   useEffect(() => {
     if (isOpen) {
@@ -136,9 +136,9 @@ export const CalendarManagerModal: React.FC<CalendarManagerModalProps> = ({
   };
 
   const handleManualHolidaySaveInit = async (country: 'KR' | 'VN') => {
-    if (!canManageCountry) {
+    if (!canEditCalendar) {
       setMsg({
-        text: lang === 'vi' ? 'Bạn không có quyền quản lý lịch làm việc quốc gia.' : '국가 달력 관리 권한이 필요합니다.',
+        text: lang === 'vi' ? 'Tài khoản ban quản lý chỉ có thể xem lịch quốc gia.' : '경영진 계정은 국가 달력을 조회할 수만 있습니다.',
         type: 'error',
       });
       return;
@@ -167,7 +167,7 @@ export const CalendarManagerModal: React.FC<CalendarManagerModalProps> = ({
         setShowVnHolImpactModal(true);
       }
     } catch (e: any) {
-      alert(e.message || 'Impact calculation failed');
+      setMsg({ text: e.message || '영향도 계산에 실패했습니다.', type: 'error' });
     } finally {
       if (country === 'KR') setKrSaving(false);
       else setVnHolSaving(false);
@@ -204,7 +204,7 @@ export const CalendarManagerModal: React.FC<CalendarManagerModalProps> = ({
       await loadManualHolidays(country, y, m);
       onRefreshCalendar();
     } catch (e: any) {
-      alert(e.message || 'Save failed');
+      setMsg({ text: e.message || '공휴일 저장에 실패했습니다.', type: 'error' });
     } finally {
       if (country === 'KR') setKrSaving(false);
       else setVnHolSaving(false);
@@ -464,9 +464,9 @@ export const CalendarManagerModal: React.FC<CalendarManagerModalProps> = ({
   };
 
   const handleVnSaveInit = async () => {
-    if (!canManageCountry) {
+    if (!canEditCalendar) {
       setMsg({
-        text: lang === 'vi' ? 'Bạn không có quyền quản lý lịch làm việc quốc gia.' : '국가 달력 관리 권한이 필요합니다.',
+        text: lang === 'vi' ? 'Tài khoản ban quản lý chỉ có thể xem lịch quốc gia.' : '경영진 계정은 국가 달력을 조회할 수만 있습니다.',
         type: 'error',
       });
       return;
@@ -532,7 +532,7 @@ export const CalendarManagerModal: React.FC<CalendarManagerModalProps> = ({
       await loadVnSaturdayCalendar(vnYear, vnMonth);
       onRefreshCalendar();
     } catch (e: any) {
-      alert(e.message || 'Save failed');
+      setMsg({ text: e.message || '베트남 토요일 근무표 저장에 실패했습니다.', type: 'error' });
     } finally {
       setVnSaving(false);
     }
@@ -618,7 +618,7 @@ export const CalendarManagerModal: React.FC<CalendarManagerModalProps> = ({
           <button
             type="button"
             data-testid={country === 'KR' ? 'kr-holiday-save-btn' : 'vn-holiday-save-btn'}
-            disabled={saving || isViewer || !canManageCountry}
+            disabled={saving || !canEditCalendar}
             onClick={() => handleManualHolidaySaveInit(country)}
             className="h-9 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-extrabold transition shadow-xs flex items-center gap-1.5 disabled:opacity-50"
           >
@@ -685,7 +685,7 @@ export const CalendarManagerModal: React.FC<CalendarManagerModalProps> = ({
                   key={dateStr}
                   data-testid={testId}
                   onClick={() => {
-                    if (isViewer || !canManageCountry) return;
+                    if (!canEditCalendar) return;
                     const next = { ...map };
                     if (isSelected) {
                       delete next[dateStr];
@@ -703,7 +703,7 @@ export const CalendarManagerModal: React.FC<CalendarManagerModalProps> = ({
                         ? 'bg-orange-50 border-orange-200'
                         : 'bg-amber-50 border-amber-200'
                       : 'hover:bg-slate-50 bg-white'
-                  } ${isViewer || !canManageCountry ? 'cursor-default' : 'cursor-pointer'}`}
+                  } ${!canEditCalendar ? 'cursor-default' : 'cursor-pointer'}`}
                 >
                   <div className="flex items-center justify-between">
                     <span className={`font-bold text-xs ${isSelected ? 'text-orange-900' : 'text-slate-800'}`}>{dayNum}</span>
@@ -1327,6 +1327,17 @@ export const CalendarManagerModal: React.FC<CalendarManagerModalProps> = ({
 
             {msg && (
               <div
+                data-testid={
+                  msg.type === 'error'
+                    ? activeTab === 'KOREA_HOLIDAY'
+                      ? 'kr-holiday-save-error'
+                      : activeTab === 'VIETNAM_HOLIDAY'
+                      ? 'vn-holiday-save-error'
+                      : activeTab === 'VIETNAM_SATURDAY'
+                      ? 'vn-saturday-save-error'
+                      : 'calendar-save-error'
+                    : 'calendar-save-success'
+                }
                 className={`p-3 rounded-xl text-xs font-bold flex items-center justify-between transition ${
                   msg.type === 'success'
                     ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
@@ -1705,7 +1716,7 @@ export const CalendarManagerModal: React.FC<CalendarManagerModalProps> = ({
                                     <button
                                       type="button"
                                       data-testid={`vn-saturday-work-btn-${item.date}`}
-                                      disabled={isViewer || !canManageCountry}
+                                      disabled={!canEditCalendar}
                                       onClick={() => handleVnStatusToggle(item.date, 'WORK')}
                                       className={`px-2.5 py-1 text-[11px] font-bold rounded-md transition ${
                                         currStatus === 'WORK'
@@ -1718,7 +1729,7 @@ export const CalendarManagerModal: React.FC<CalendarManagerModalProps> = ({
                                     <button
                                       type="button"
                                       data-testid={`vn-saturday-off-btn-${item.date}`}
-                                      disabled={isViewer || !canManageCountry}
+                                      disabled={!canEditCalendar}
                                       onClick={() => handleVnStatusToggle(item.date, 'OFF')}
                                       className={`px-2.5 py-1 text-[11px] font-bold rounded-md transition ${
                                         currStatus === 'OFF'
@@ -1764,7 +1775,7 @@ export const CalendarManagerModal: React.FC<CalendarManagerModalProps> = ({
                   <button
                     type="button"
                     data-testid="vn-saturday-save-btn"
-                    disabled={isViewer || !canManageCountry || vnSaving}
+                    disabled={!canEditCalendar || vnSaving}
                     onClick={handleVnSaveInit}
                     className="px-5 h-10 bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs rounded-xl transition shadow-xs disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
                   >

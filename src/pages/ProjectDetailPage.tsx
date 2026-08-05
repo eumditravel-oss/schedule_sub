@@ -555,7 +555,7 @@ export const ProjectDetailPage: React.FC = () => {
             ) : (
               <button
                 type="button"
-                data-testid="manage-holidays-btn"
+                data-testid="desktop-manage-calendar-btn"
                 onClick={() => setIsCalendarModalOpen(true)}
                 className="h-9 px-3 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-xs font-bold text-slate-700 flex items-center gap-1.5 transition shadow-xs"
               >
