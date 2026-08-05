@@ -56,6 +56,23 @@ export function getWorkerColorGroup(worker?: Partial<Worker> | null): WorkerColo
 
 export type ProjectStatus = 'ACTIVE' | 'COMPLETED';
 export type TranslationStatus = 'PENDING' | 'COMPLETED' | 'FAILED' | 'MANUAL';
+export type ScheduleState = 'UPCOMING' | 'IN_PROGRESS' | 'DELAYED' | 'COMPLETED';
+
+export interface ScheduleConflictDetail {
+  worker_id?: string;
+  worker_name: string;
+  current_project_id?: string;
+  current_project_name?: string;
+  conflict_project_id: string;
+  conflict_project_name: string;
+  current_task_id?: string;
+  current_task_name?: string;
+  conflict_task_id: string;
+  conflict_task_name: string;
+  overlap_start_date: string;
+  overlap_end_date: string;
+  overlapping_working_days: number;
+}
 
 export interface Project {
   id: string;
@@ -66,6 +83,15 @@ export interface Project {
   created_at?: string;
   updated_at?: string;
   task_count?: number;
+
+  // Progress & Schedule State
+  planned_progress?: number;
+  actual_progress?: number;
+  planned_working_days?: number;
+  completed_working_days?: number;
+  progress_gap?: number;
+  schedule_state?: ScheduleState;
+  conflict_count?: number;
 
   // Archive fields
   status: ProjectStatus;
@@ -81,6 +107,7 @@ export interface Project {
   translation_error?: string | null;
   // Cascade confirmation
   confirm_schedule_cascade?: boolean;
+  confirm_worker_schedule_conflict?: boolean;
 }
 
 export interface Task {
@@ -95,6 +122,17 @@ export interface Task {
   updated_by_name?: string | null;
   created_at?: string;
   updated_at?: string;
+
+  // Progress & Schedule State
+  planned_progress?: number;
+  actual_progress?: number;
+  planned_working_days?: number;
+  completed_working_days?: number;
+  progress_gap?: number;
+  schedule_state?: ScheduleState;
+  has_schedule_conflict?: boolean;
+  schedule_conflicts?: ScheduleConflictDetail[];
+  confirm_worker_schedule_conflict?: boolean;
 
   // Translation fields
   task_name_ko?: string | null;

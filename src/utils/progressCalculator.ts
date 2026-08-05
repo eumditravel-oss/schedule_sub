@@ -1,168 +1,188 @@
 // src/utils/progressCalculator.ts
-import { Task, Worker, CountryHoliday, CalendarOverride } from '../types';
+import { Task, Project, Worker, CountryHoliday, CalendarOverride, ScheduleState, DailyStatusType } from '../types';
 import { resolveWorkDayStatus } from './workCalendar';
 
-export interface TaskProgressResult {
-  planned_progress: number;
-  actual_progress: number;
-  planned_working_days: number;
-  completed_working_days: number;
-  passed_working_days: number;
-  schedule_state: 'UPCOMING' | 'IN_PROGRESS' | 'OVERDUE' | 'COMPLETED';
-}
-
-export interface ProjectProgressResult {
-  planned_progress: number;
-  actual_progress: number;
-  planned_working_days: number;
-  completed_working_days: number;
-  schedule_state: 'UPCOMING' | 'IN_PROGRESS' | 'OVERDUE' | 'COMPLETED';
-}
-
-/**
- * Get current date string (YYYY-MM-DD) in the worker's timezone
- */
-export function getTodayString(countryCode?: string): string {
-  const timeZone = countryCode === 'VN' ? 'Asia/Ho_Chi_Minh' : 'Asia/Seoul';
+export function getTodayStrForWorker(worker?: Worker | null): string {
+  const timeZone = worker?.country_code === 'VN' ? 'Asia/Ho_Chi_Minh' : 'Asia/Seoul';
   const now = new Date();
-  const formatter = new Intl.DateTimeFormat('en-CA', {
-    timeZone,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  });
-  return formatter.format(now);
+  const formatter = new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' });
+  return formatter.format(now); // YYYY-MM-DD format
 }
 
-/**
- * Calculates planned and actual progress for a single task.
- */
+export interface TaskProgressMetrics {
+  planned_working_days: number;
+  completed_working_days: number;
+  planned_progress: number;
+  actual_progress: number;
+  progress_gap: number;
+  schedule_state: ScheduleState;
+}
+
 export function calculateTaskProgress(
-  task: {
-    start_date: string;
-    end_date: string;
-    worker_name?: string;
-    daily_statuses?: Record<string, string>;
-  },
-  workerObj: { id: string; name: string; country_code?: string; workweek_profile?: string },
-  countryHolidays: CountryHoliday[],
-  calendarOverrides: CalendarOverride[],
-  todayStr?: string
-): TaskProgressResult {
-  const today = todayStr || getTodayString(workerObj.country_code);
+  task: Task,
+  worker?: Worker | null,
+  holidays: CountryHoliday[] = [],
+  overrides: CalendarOverride[] = [],
+  projectStatus: 'ACTIVE' | 'COMPLETED' = 'ACTIVE',
+  referenceTodayStr?: string
+): TaskProgressMetrics {
+  const todayStr = referenceTodayStr || getTodayStrForWorker(worker);
+  const workerObj = worker || {
+    id: task.worker_name,
+    name: task.worker_name,
+    country_code: 'KR' as const,
+    workweek_profile: 'MON_FRI' as const,
+  };
 
-  let plannedWorkingDays = 0;
-  let passedWorkingDays = 0;
-  let completedWorkingDays = 0;
+  const dates: string[] = [];
+  let curDate = new Date(`${task.start_date}T00:00:00Z`);
+  const endDateObj = new Date(`${task.end_date}T00:00:00Z`);
 
-  const start = new Date(`${task.start_date}T00:00:00`);
-  const end = new Date(`${task.end_date}T00:00:00`);
+  while (curDate <= endDateObj) {
+    dates.push(curDate.toISOString().slice(0, 10));
+    curDate.setUTCDate(curDate.getUTCDate() + 1);
+  }
 
-  for (let cur = new Date(start); cur <= end; cur.setDate(cur.getDate() + 1)) {
-    const dStr = cur.toISOString().slice(0, 10);
-    const dayStatus = resolveWorkDayStatus(dStr, workerObj as any, countryHolidays, calendarOverrides);
+  let planned_working_days = 0;
+  let elapsed_planned_working_days = 0;
+  let completed_working_days = 0;
+
+  for (const dateStr of dates) {
+    const dayStatus = resolveWorkDayStatus(dateStr, workerObj as any, holidays, overrides);
 
     if (dayStatus.is_working_day) {
-      plannedWorkingDays++;
-      if (dStr < today) {
-        passedWorkingDays++;
+      planned_working_days += 1;
+
+      if (dateStr < todayStr) {
+        elapsed_planned_working_days += 1;
       }
-      if (task.daily_statuses && task.daily_statuses[dStr] === 'COMPLETED') {
-        completedWorkingDays++;
+
+      const statusVal = task.daily_statuses?.[dateStr];
+      if (statusVal === 'COMPLETED') {
+        completed_working_days += 1;
       }
     }
   }
 
-  let plannedProgress = 0;
-  if (today < task.start_date) {
-    plannedProgress = 0;
-  } else if (today > task.end_date) {
-    plannedProgress = 100;
+  let planned_progress = 0;
+  if (todayStr < task.start_date) {
+    planned_progress = 0;
+  } else if (todayStr > task.end_date) {
+    planned_progress = 100;
   } else {
-    plannedProgress = plannedWorkingDays === 0 ? 100 : Math.min(100, Math.round((passedWorkingDays / plannedWorkingDays) * 100));
+    planned_progress = planned_working_days > 0
+      ? Math.min(100, Math.round((elapsed_planned_working_days / planned_working_days) * 100))
+      : 0;
   }
 
-  const actualProgress = plannedWorkingDays === 0 ? 100 : Math.min(100, Math.round((completedWorkingDays / plannedWorkingDays) * 100));
+  let actual_progress = 0;
+  if (planned_working_days > 0) {
+    actual_progress = Math.min(100, Math.round((completed_working_days / planned_working_days) * 100));
+  } else if (dates.length > 0) {
+    actual_progress = 0;
+  }
 
-  let scheduleState: 'UPCOMING' | 'IN_PROGRESS' | 'OVERDUE' | 'COMPLETED' = 'IN_PROGRESS';
-  if (actualProgress === 100) {
-    scheduleState = 'COMPLETED';
-  } else if (today < task.start_date) {
-    scheduleState = 'UPCOMING';
-  } else if (today > task.end_date && actualProgress < 100) {
-    scheduleState = 'OVERDUE';
+  const progress_gap = actual_progress - planned_progress;
+
+  let schedule_state: ScheduleState = 'UPCOMING';
+  if (actual_progress === 100 || projectStatus === 'COMPLETED') {
+    schedule_state = 'COMPLETED';
+  } else if (todayStr > task.end_date && actual_progress < 100 && projectStatus === 'ACTIVE') {
+    schedule_state = 'DELAYED';
+  } else if (todayStr < task.start_date) {
+    schedule_state = 'UPCOMING';
   } else {
-    scheduleState = 'IN_PROGRESS';
+    schedule_state = 'IN_PROGRESS';
   }
 
   return {
-    planned_progress: plannedProgress,
-    actual_progress: actualProgress,
-    planned_working_days: plannedWorkingDays,
-    completed_working_days: completedWorkingDays,
-    passed_working_days: passedWorkingDays,
-    schedule_state: scheduleState,
+    planned_working_days,
+    completed_working_days,
+    planned_progress,
+    actual_progress,
+    progress_gap,
+    schedule_state,
   };
 }
 
-/**
- * Calculates weighted planned and actual progress for a project.
- */
-export function calculateProjectProgress(
-  tasks: Task[],
-  workers: Worker[],
-  countryHolidays: CountryHoliday[],
-  calendarOverrides: CalendarOverride[],
-  todayStr?: string
-): ProjectProgressResult {
-  let totalPlannedWorkingDays = 0;
-  let totalWeightedPlannedProgress = 0;
-  let totalCompletedWorkingDays = 0;
+export interface ProjectProgressMetrics {
+  planned_working_days: number;
+  completed_working_days: number;
+  planned_progress: number;
+  actual_progress: number;
+  progress_gap: number;
+  schedule_state: ScheduleState;
+}
 
+export function calculateProjectProgress(
+  project: Project,
+  tasks: Task[],
+  workers: Worker[] = [],
+  holidays: CountryHoliday[] = [],
+  overrides: CalendarOverride[] = [],
+  referenceTodayStr?: string
+): ProjectProgressMetrics {
   if (!tasks || tasks.length === 0) {
+    const todayStr = referenceTodayStr || getTodayStrForWorker(null);
+    let state: ScheduleState = 'UPCOMING';
+    if (project.status === 'COMPLETED') {
+      state = 'COMPLETED';
+    } else if (todayStr > project.end_date) {
+      state = 'DELAYED';
+    } else if (todayStr >= project.start_date) {
+      state = 'IN_PROGRESS';
+    }
     return {
-      planned_progress: 0,
-      actual_progress: 0,
       planned_working_days: 0,
       completed_working_days: 0,
-      schedule_state: 'UPCOMING',
+      planned_progress: 0,
+      actual_progress: 0,
+      progress_gap: 0,
+      schedule_state: state,
     };
   }
 
-  for (const task of tasks) {
-    const workerObj = workers.find((w) => w.name === task.worker_name) || {
-      id: task.worker_name,
-      name: task.worker_name,
-      country_code: (task.worker_name.includes('탄') || task.worker_name.includes('끄엉') || task.worker_name.includes('꾸옥') || task.worker_name.includes('Thanh') || task.worker_name.includes('Manh') || task.worker_name.includes('Quoc')) ? 'VN' : 'KR',
-      workweek_profile: (task.worker_name.includes('탄') || task.worker_name.includes('끄엉') || task.worker_name.includes('꾸옥') || task.worker_name.includes('Thanh') || task.worker_name.includes('Manh') || task.worker_name.includes('Quoc')) ? 'MON_SAT' : 'MON_FRI',
-    };
+  let total_planned_days = 0;
+  let total_completed_days = 0;
+  let weighted_planned_progress_sum = 0;
 
-    const taskRes = calculateTaskProgress(task, workerObj, countryHolidays, calendarOverrides, todayStr);
-    totalPlannedWorkingDays += taskRes.planned_working_days;
-    totalWeightedPlannedProgress += taskRes.planned_progress * taskRes.planned_working_days;
-    totalCompletedWorkingDays += taskRes.completed_working_days;
+  for (const tItem of tasks) {
+    const workerObj = workers.find((w) => w.id === tItem.worker_name || w.name === tItem.worker_name);
+    const metrics = calculateTaskProgress(tItem, workerObj, holidays, overrides, project.status, referenceTodayStr);
+
+    total_planned_days += metrics.planned_working_days;
+    total_completed_days += metrics.completed_working_days;
+    weighted_planned_progress_sum += metrics.planned_progress * metrics.planned_working_days;
   }
 
-  const plannedProgress = totalPlannedWorkingDays === 0 ? 0 : Math.min(100, Math.round(totalWeightedPlannedProgress / totalPlannedWorkingDays));
-  const actualProgress = totalPlannedWorkingDays === 0 ? 0 : Math.min(100, Math.round((totalCompletedWorkingDays / totalPlannedWorkingDays) * 100));
+  const planned_progress = total_planned_days > 0
+    ? Math.min(100, Math.round(weighted_planned_progress_sum / total_planned_days))
+    : 0;
 
-  const today = todayStr || getTodayString();
-  const maxEndDate = tasks.reduce((max, t) => (t.end_date > max ? t.end_date : max), '');
+  const actual_progress = total_planned_days > 0
+    ? Math.min(100, Math.round((total_completed_days / total_planned_days) * 100))
+    : 0;
 
-  let scheduleState: 'UPCOMING' | 'IN_PROGRESS' | 'OVERDUE' | 'COMPLETED' = 'IN_PROGRESS';
-  if (actualProgress === 100) {
-    scheduleState = 'COMPLETED';
-  } else if (maxEndDate && today > maxEndDate && actualProgress < 100) {
-    scheduleState = 'OVERDUE';
+  const progress_gap = actual_progress - planned_progress;
+  const todayStr = referenceTodayStr || getTodayStrForWorker(null);
+
+  let schedule_state: ScheduleState = 'UPCOMING';
+  if (project.status === 'COMPLETED' || actual_progress === 100) {
+    schedule_state = 'COMPLETED';
+  } else if (todayStr > project.end_date && actual_progress < 100) {
+    schedule_state = 'DELAYED';
+  } else if (todayStr < project.start_date) {
+    schedule_state = 'UPCOMING';
   } else {
-    scheduleState = 'IN_PROGRESS';
+    schedule_state = 'IN_PROGRESS';
   }
 
   return {
-    planned_progress: plannedProgress,
-    actual_progress: actualProgress,
-    planned_working_days: totalPlannedWorkingDays,
-    completed_working_days: totalCompletedWorkingDays,
-    schedule_state: scheduleState,
+    planned_working_days: total_planned_days,
+    completed_working_days: total_completed_days,
+    planned_progress,
+    actual_progress,
+    progress_gap,
+    schedule_state,
   };
 }

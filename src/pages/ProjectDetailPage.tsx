@@ -1,7 +1,8 @@
 // src/pages/ProjectDetailPage.tsx
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Project, Task, Worker, CountryHoliday, CalendarOverride, DailyStatusType, WorkDayStatus, CountryCode, WorkweekProfile, isExecutiveViewer, isEditableWorker } from '../types';
+import { Project, Task, Worker, CountryHoliday, CalendarOverride, DailyStatusType, WorkDayStatus, CountryCode, WorkweekProfile, ScheduleConflictDetail, isExecutiveViewer, isEditableWorker } from '../types';
+import { WorkerConflictModal } from '../components/modals/WorkerConflictModal';
 import { api, getCurrentWorkerId, setCurrentWorker as setCurrentWorkerApi } from '../services/api';
 import { calculateVisibleGanttSpan } from '../utils/dateUtils';
 import { resolveWorkDayStatus } from '../utils/workCalendar';
@@ -39,6 +40,7 @@ import {
   RotateCcw,
   Calendar,
   Lock,
+  AlertTriangle,
 } from 'lucide-react';
 
 export const ProjectDetailPage: React.FC = () => {
@@ -79,6 +81,16 @@ export const ProjectDetailPage: React.FC = () => {
 
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+
+  const [conflictModalState, setConflictModalState] = useState<{
+    isOpen: boolean;
+    conflicts: ScheduleConflictDetail[];
+    pendingTaskData: Partial<Task> | null;
+  }>({
+    isOpen: false,
+    conflicts: [],
+    pendingTaskData: null,
+  });
 
   // Info Sheet State
   const [infoSheetState, setInfoSheetState] = useState<{
@@ -332,6 +344,35 @@ export const ProjectDetailPage: React.FC = () => {
         await api.createTask({ ...data, project_id: projectId });
       }
       await fetchProjectDetail();
+      setConflictModalState({ isOpen: false, conflicts: [], pendingTaskData: null });
+    } catch (err: any) {
+      if (err && err.code === 'WORKER_SCHEDULE_CONFLICT_CONFIRMATION_REQUIRED' && err.details?.conflicts) {
+        setConflictModalState({
+          isOpen: true,
+          conflicts: err.details.conflicts,
+          pendingTaskData: data,
+        });
+        return;
+      }
+      alert(getLocalizedErrorMessage(err, t));
+    }
+  };
+
+  const handleConfirmTaskConflictSave = async () => {
+    if (!conflictModalState.pendingTaskData) return;
+    try {
+      const payload = {
+        ...conflictModalState.pendingTaskData,
+        confirm_worker_schedule_conflict: true,
+      };
+      if (selectedTask) {
+        await api.updateTask(selectedTask.id, payload);
+      } else {
+        await api.createTask({ ...payload, project_id: projectId });
+      }
+      await fetchProjectDetail();
+      setConflictModalState({ isOpen: false, conflicts: [], pendingTaskData: null });
+      setIsTaskModalOpen(false);
     } catch (err: any) {
       alert(getLocalizedErrorMessage(err, t));
     }
@@ -788,11 +829,26 @@ export const ProjectDetailPage: React.FC = () => {
                           <div className="flex items-center justify-between">
                             <div className="pr-1 overflow-hidden min-w-0">
                               <div className="flex items-center gap-1.5 truncate">
+                                {task.has_schedule_conflict && (
+                                  <span
+                                    data-testid="task-conflict-badge"
+                                    className="p-0.5 rounded bg-rose-100 text-rose-700 shrink-0 cursor-help"
+                                    title={`일정 중복 경고: ${task.schedule_conflicts?.map((c) => `${c.conflict_project_name} (${c.overlapping_working_days}일 중복)`).join(', ')}`}
+                                  >
+                                    <AlertTriangle className="w-3.5 h-3.5 text-rose-600 animate-pulse" />
+                                  </span>
+                                )}
                                 <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200 shrink-0">
                                   {task.worker_name}
                                 </span>
                                 <span className="font-semibold text-slate-900 truncate text-xs" title={taskDisplayName}>
                                   {taskDisplayName}
+                                </span>
+                              </div>
+                              <div className="mt-0.5 text-[10px] text-slate-500 flex items-center justify-between">
+                                <span className="truncate">{task.start_date.slice(5)} ~ {task.end_date.slice(5)}</span>
+                                <span className="font-bold shrink-0 ml-1">
+                                  예정 {task.planned_progress ?? task.progress ?? 0}% / 실제 {task.actual_progress ?? task.progress ?? 0}%
                                 </span>
                               </div>
                             </div>
@@ -981,6 +1037,14 @@ export const ProjectDetailPage: React.FC = () => {
         holidays={countryHolidays}
         currentWorker={currentWorker}
         onRefreshHolidays={fetchCalendarData}
+      />
+
+      {/* Worker Schedule Conflict Modal */}
+      <WorkerConflictModal
+        isOpen={conflictModalState.isOpen}
+        onClose={() => setConflictModalState({ isOpen: false, conflicts: [], pendingTaskData: null })}
+        onConfirmSave={handleConfirmTaskConflictSave}
+        conflicts={conflictModalState.conflicts}
       />
     </div>
   );

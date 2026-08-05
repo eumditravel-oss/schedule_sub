@@ -97,10 +97,10 @@ export const MobileScheduleInfoSheet: React.FC<MobileScheduleInfoSheetProps> = (
           )}
 
           {progress !== undefined && (
-            <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 space-y-1.5">
-              <div className="flex items-center justify-between font-bold">
-                <span className="text-slate-500">{t('progress')}</span>
-                <span className="text-blue-700 text-sm font-extrabold">{progress}%</span>
+            <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 space-y-2">
+              <div className="flex items-center justify-between font-bold text-xs">
+                <span className="text-slate-500">{lang === 'vi' ? 'Tiến độ kế hoạch' : '예정 공정률'}</span>
+                <span className="text-slate-800 font-extrabold">{progress}%</span>
               </div>
               <div className="w-full h-2 bg-slate-200 rounded-full overflow-hidden">
                 <div

@@ -10,6 +10,12 @@ import {
   calculateLeaveImpactServer,
   WorkerProfile,
 } from './services/scheduleCalendar';
+import {
+  calculateTaskProgressServer,
+  calculateProjectProgressServer,
+  detectWorkerTaskConflictsServer,
+  getTodayStrForWorkerServer,
+} from './services/progressAndConflictServer';
 
 export interface Env {
   DB: any;
@@ -69,6 +75,19 @@ async function getActiveWorkerProfile(db: any, editorName: string): Promise<any 
     'Quoc Nhut(꾸옥 느엿)': { id: 'wrk_05', name: 'Quoc Nhut(꾸옥 느엿)', access_role: 'EDITOR', ui_language: 'vi', country_code: 'VN', workweek_profile: 'MON_SAT' },
   };
   return hardcoded[trimmed] || null;
+}
+
+async function fetchCalendarBatchData(db: any) {
+  const [workersRes, holidaysRes, overridesRes] = await Promise.all([
+    db.prepare(`SELECT * FROM workers WHERE is_active = 1`).all(),
+    db.prepare(`SELECT * FROM country_holidays`).all(),
+    db.prepare(`SELECT * FROM calendar_overrides`).all(),
+  ]);
+  return {
+    workers: workersRes.results || [],
+    holidays: holidaysRes.results || [],
+    overrides: overridesRes.results || [],
+  };
 }
 
 async function requireEditableWorker(db: any, editorName: string): Promise<{ allowed: boolean; worker?: any; errorMsg?: string; errorCode?: string }> {
@@ -265,19 +284,55 @@ export default {
         const bound = params.length === 1 ? stmt.bind(params[0]) : stmt.bind(...params);
         const result = await bound.all();
 
-        const projects = await Promise.all(
-          (result.results || []).map(async (prj: any) => {
-            const workersRes = await db
-              .prepare(`SELECT DISTINCT worker_name FROM tasks WHERE project_id = ?`)
-              .bind(prj.id)
-              .all();
-            const participating = (workersRes.results || []).map((w: any) => w.worker_name);
-            return {
-              ...prj,
-              participating_workers: participating,
-            };
-          })
-        );
+        const calendarBatch = await fetchCalendarBatchData(db);
+        const [allActiveProjectsRes, allActiveTasksRes, allDailyStatusesRes] = await Promise.all([
+          db.prepare(`SELECT * FROM projects WHERE status = 'ACTIVE'`).all(),
+          db.prepare(`SELECT * FROM tasks`).all(),
+          db.prepare(`SELECT task_id, work_date, status FROM daily_status`).all(),
+        ]);
+
+        const allActiveProjects = allActiveProjectsRes.results || [];
+        const allActiveTasks = allActiveTasksRes.results || [];
+
+        const dailyStatusMap: Record<string, Record<string, string>> = {};
+        (allDailyStatusesRes.results || []).forEach((st: any) => {
+          if (!dailyStatusMap[st.task_id]) dailyStatusMap[st.task_id] = {};
+          dailyStatusMap[st.task_id][st.work_date] = st.status;
+        });
+
+        const projects = (result.results || []).map((prj: any) => {
+          const projectTasks = allActiveTasks.filter((t: any) => t.project_id === prj.id);
+          const participating = Array.from(new Set(projectTasks.map((t: any) => t.worker_name)));
+
+          const progressMetrics = calculateProjectProgressServer(
+            prj,
+            projectTasks,
+            calendarBatch.workers,
+            calendarBatch.holidays,
+            calendarBatch.overrides,
+            dailyStatusMap
+          );
+
+          let conflict_count = 0;
+          projectTasks.forEach((t: any) => {
+            const confs = detectWorkerTaskConflictsServer(
+              t,
+              allActiveProjects,
+              allActiveTasks,
+              calendarBatch.workers,
+              calendarBatch.holidays,
+              calendarBatch.overrides
+            );
+            conflict_count += confs.length;
+          });
+
+          return {
+            ...prj,
+            ...progressMetrics,
+            conflict_count,
+            participating_workers: participating,
+          };
+        });
 
         return jsonResponse(projects);
       }
@@ -330,13 +385,21 @@ export default {
           return errorResponse('프로젝트를 찾을 수 없습니다.', 404);
         }
 
-        const tasksRes = await db
-          .prepare(`SELECT * FROM tasks WHERE project_id = ? ORDER BY start_date ASC, created_at ASC`)
-          .bind(projectId)
-          .all();
+        const calendarBatch = await fetchCalendarBatchData(db);
+        const [allActiveProjectsRes, allActiveTasksRes, tasksRes] = await Promise.all([
+          db.prepare(`SELECT * FROM projects WHERE status = 'ACTIVE'`).all(),
+          db.prepare(`SELECT * FROM tasks`).all(),
+          db.prepare(`SELECT * FROM tasks WHERE project_id = ? ORDER BY start_date ASC, created_at ASC`).bind(projectId).all(),
+        ]);
+
+        const allActiveProjects = allActiveProjectsRes.results || [];
+        const allActiveTasks = allActiveTasksRes.results || [];
+
+        const rawTasks = tasksRes.results || [];
+        const dailyStatusMap: Record<string, Record<string, string>> = {};
 
         const tasks = await Promise.all(
-          (tasksRes.results || []).map(async (t: any) => {
+          rawTasks.map(async (t: any) => {
             const statusRes = await db
               .prepare(`SELECT work_date, status, updated_by_name, updated_at FROM daily_status WHERE task_id = ?`)
               .bind(t.id)
@@ -354,23 +417,64 @@ export default {
               };
             });
 
+            dailyStatusMap[t.id] = daily_statuses;
+
+            const workerObj = calendarBatch.workers.find(
+              (w: any) => w.id === t.worker_name || w.name === t.worker_name
+            );
+
+            const progressMetrics = calculateTaskProgressServer(
+              t,
+              workerObj,
+              calendarBatch.holidays,
+              calendarBatch.overrides,
+              project.status,
+              daily_statuses
+            );
+
+            const conflicts = detectWorkerTaskConflictsServer(
+              t,
+              allActiveProjects,
+              allActiveTasks,
+              calendarBatch.workers,
+              calendarBatch.holidays,
+              calendarBatch.overrides
+            );
+
             return {
               ...t,
+              ...progressMetrics,
+              has_schedule_conflict: conflicts.length > 0,
+              schedule_conflicts: conflicts,
               daily_statuses,
               daily_status_details,
             };
           })
         );
 
-        const workersRes = await db
-          .prepare(`SELECT DISTINCT worker_name FROM tasks WHERE project_id = ?`)
-          .bind(projectId)
-          .all();
-        const participating = (workersRes.results || []).map((w: any) => w.worker_name);
+        const projectMetrics = calculateProjectProgressServer(
+          project,
+          tasks,
+          calendarBatch.workers,
+          calendarBatch.holidays,
+          calendarBatch.overrides,
+          dailyStatusMap
+        );
+
+        let total_conflicts = 0;
+        tasks.forEach((t: any) => {
+          if (t.schedule_conflicts && t.schedule_conflicts.length > 0) {
+            total_conflicts += t.schedule_conflicts.length;
+          }
+        });
+
+        const participating = Array.from(new Set(tasks.map((t: any) => t.worker_name)));
 
         return jsonResponse({
           project: {
             ...project,
+            ...projectMetrics,
+            conflict_count: total_conflicts,
             participating_workers: participating,
           },
           tasks,
@@ -1783,6 +1887,41 @@ function addPureCalendarDays(dateStr: string, deltaDays: number): string {
           }
         }
 
+        if (body.confirm_worker_schedule_conflict !== true) {
+          const [allActiveProjectsRes, allActiveTasksRes, batch] = await Promise.all([
+            db.prepare(`SELECT * FROM projects WHERE status = 'ACTIVE'`).all(),
+            db.prepare(`SELECT * FROM tasks`).all(),
+            fetchCalendarBatchData(db),
+          ]);
+
+          const conflicts = detectWorkerTaskConflictsServer(
+            { worker_name: validated.worker_name, start_date: validated.start_date, end_date: validated.end_date, project_id: validated.project_id },
+            allActiveProjectsRes.results || [],
+            allActiveTasksRes.results || [],
+            batch.workers,
+            batch.holidays,
+            batch.overrides
+          );
+
+          if (conflicts.length > 0) {
+            return new Response(
+              JSON.stringify({
+                success: false,
+                error: {
+                  code: 'WORKER_SCHEDULE_CONFLICT_CONFIRMATION_REQUIRED',
+                  message: '같은 작업자의 일정이 다른 프로젝트와 겹칩니다.',
+                  details: {
+                    worker_id: conflicts[0].worker_id,
+                    worker_name: conflicts[0].worker_name,
+                    conflicts,
+                  },
+                },
+              }),
+              { status: 409, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } }
+            );
+          }
+        }
+
         const id = `tsk_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
 
         const transResult = await translateProjectOrTaskName(env.AI, validated.task_name);
@@ -1897,6 +2036,41 @@ function addPureCalendarDays(dateStr: string, deltaDays: number): string {
         const newStart = validated.start_date ?? existing.start_date;
         const newEnd = validated.end_date ?? existing.end_date;
         const newProgress = validated.progress ?? existing.progress;
+
+        if (body.confirm_worker_schedule_conflict !== true) {
+          const [allActiveProjectsRes, allActiveTasksRes, batch] = await Promise.all([
+            db.prepare(`SELECT * FROM projects WHERE status = 'ACTIVE'`).all(),
+            db.prepare(`SELECT * FROM tasks`).all(),
+            fetchCalendarBatchData(db),
+          ]);
+
+          const conflicts = detectWorkerTaskConflictsServer(
+            { id: taskId, worker_name: newWorker, start_date: newStart, end_date: newEnd, project_id: existing.project_id },
+            allActiveProjectsRes.results || [],
+            allActiveTasksRes.results || [],
+            batch.workers,
+            batch.holidays,
+            batch.overrides
+          );
+
+          if (conflicts.length > 0) {
+            return new Response(
+              JSON.stringify({
+                success: false,
+                error: {
+                  code: 'WORKER_SCHEDULE_CONFLICT_CONFIRMATION_REQUIRED',
+                  message: '같은 작업자의 일정이 다른 프로젝트와 겹칩니다.',
+                  details: {
+                    worker_id: conflicts[0].worker_id,
+                    worker_name: conflicts[0].worker_name,
+                    conflicts,
+                  },
+                },
+              }),
+              { status: 409, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } }
+            );
+          }
+        }
 
         const isDateChanged = (validated.start_date && validated.start_date !== existing.start_date) || (validated.end_date && validated.end_date !== existing.end_date);
         const nextRevision = isDateChanged ? (existing.schedule_revision || 0) + 1 : (existing.schedule_revision || 0);

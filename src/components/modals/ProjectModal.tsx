@@ -142,7 +142,6 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
         name: nameInput.trim(),
         start_date: startDate,
         end_date: endDate,
-        progress: Number(progress),
         source_language: inputLang,
         translation_status: autoStatus === 'MANUAL' ? 'MANUAL' : 'COMPLETED',
       };
@@ -419,21 +418,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
               </div>
             </div>
 
-            {/* Progress */}
-            <div>
-              <div className="flex justify-between font-bold text-slate-700 mb-1">
-                <span>{t('progress')}</span>
-                <span className="text-blue-600">{progress}%</span>
-              </div>
-              <input
-                type="range"
-                min="0"
-                max="100"
-                value={progress}
-                onChange={(e) => setProgress(Number(e.target.value))}
-                className="w-full accent-blue-600"
-              />
-            </div>
+
 
             {/* Footer Actions */}
             <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">

@@ -608,9 +608,37 @@ export const ProjectOverviewPage: React.FC = () => {
                             </div>
 
                             <div className="flex flex-col items-end gap-1 shrink-0">
-                              <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
-                                {project.progress}%
-                              </span>
+                              <div className="flex items-center gap-1">
+                                {project.conflict_count && project.conflict_count > 0 ? (
+                                  <span className="text-[9px] font-extrabold text-rose-700 bg-rose-100 px-1 py-0.5 rounded border border-rose-200" title="일정 충돌 발생">
+                                    {lang === 'vi' ? `Trùng ${project.conflict_count}` : `충돌 ${project.conflict_count}건`}
+                                  </span>
+                                ) : null}
+
+                                <span className={`text-[9px] font-bold px-1 py-0.5 rounded border ${
+                                  project.schedule_state === 'DELAYED'
+                                    ? 'bg-rose-100 text-rose-800 border-rose-200'
+                                    : project.schedule_state === 'COMPLETED'
+                                    ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
+                                    : project.schedule_state === 'IN_PROGRESS'
+                                    ? 'bg-blue-100 text-blue-800 border-blue-200'
+                                    : 'bg-slate-100 text-slate-700 border-slate-200'
+                                }`}>
+                                  {project.schedule_state === 'DELAYED'
+                                    ? (lang === 'vi' ? 'Chậm tiến độ' : '지연')
+                                    : project.schedule_state === 'COMPLETED'
+                                    ? (lang === 'vi' ? 'Hoàn thành' : '완료')
+                                    : project.schedule_state === 'IN_PROGRESS'
+                                    ? (lang === 'vi' ? 'Đang thực hiện' : '진행 중')
+                                    : (lang === 'vi' ? 'Sắp tới' : '예정')}
+                                </span>
+                              </div>
+
+                              <div className="text-[10px] font-semibold text-slate-600 flex items-center gap-1">
+                                <span>{lang === 'vi' ? 'Kế hoạch' : '예정'} {project.planned_progress ?? project.progress ?? 0}%</span>
+                                <span>/</span>
+                                <span className="font-extrabold text-emerald-700">{lang === 'vi' ? 'Thực tế' : '실제'} {project.actual_progress ?? project.progress ?? 0}%</span>
+                              </div>
                             </div>
                           </div>
                         </td>
