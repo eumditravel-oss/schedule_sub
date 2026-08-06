@@ -199,10 +199,9 @@ test.describe('P0 Project Actions & Complete CRUD Regression Suite', () => {
     const saveBtn = page.locator('[data-testid="project-save-btn"]');
     await expect(saveBtn).toBeEnabled({ timeout: 3000 });
     await saveBtn.click({ force: true });
-
-    // Wait for network to settle after save
+    await page.waitForSelector('[data-testid="project-modal"]', { state: 'detached' });
     await page.waitForLoadState('networkidle');
-    await page.waitForTimeout(1000);
+    await page.waitForTimeout(500);
 
     // Reload to verify persistence
     const projectRow = page.locator(`[data-testid="project-row-${createdProjectId}"]`);
