@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-08-06T13:53:10.477Z",
+  "timestamp": "2026-08-06T14:20:02.067Z",
   "project": "CONCOST-HUB",
   "auditCount": 42,
   "audits": [
@@ -23,32 +23,32 @@
         {
           "name": "Task Name Center",
           "x": 154.2,
-          "y": 398,
-          "topElementTestId": "task-left-panel-tsk_1785986641049_7m61",
+          "y": 330,
+          "topElementTestId": "task-left-panel-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "Worker Column Center",
           "x": 331.79999999999995,
-          "y": 398,
-          "topElementTestId": "task-assignee-more-tsk_1785986641049_7m61",
+          "y": 330,
+          "topElementTestId": "task-assignee-more-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "Action Column Center",
           "x": 445,
-          "y": 398,
-          "topElementTestId": "task-delete-btn-tsk_1785986641049_7m61",
+          "y": 330,
+          "topElementTestId": "task-delete-btn-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "1px Inside Right Boundary",
           "x": 464,
-          "y": 398,
-          "topElementTestId": "task-action-column-tsk_1785986641049_7m61",
+          "y": 330,
+          "topElementTestId": "task-action-column-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         }
@@ -75,32 +75,32 @@
         {
           "name": "Task Name Center",
           "x": 154.2,
-          "y": 398,
-          "topElementTestId": "task-left-panel-tsk_1785986641049_7m61",
+          "y": 330,
+          "topElementTestId": "task-left-panel-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "Worker Column Center",
           "x": 331.79999999999995,
-          "y": 398,
-          "topElementTestId": "task-assignee-more-tsk_1785986641049_7m61",
+          "y": 330,
+          "topElementTestId": "task-assignee-more-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "Action Column Center",
           "x": 445,
-          "y": 398,
-          "topElementTestId": "task-delete-btn-tsk_1785986641049_7m61",
+          "y": 330,
+          "topElementTestId": "task-delete-btn-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "1px Inside Right Boundary",
           "x": 464,
-          "y": 398,
-          "topElementTestId": "task-action-column-tsk_1785986641049_7m61",
+          "y": 330,
+          "topElementTestId": "task-action-column-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         }
@@ -127,32 +127,32 @@
         {
           "name": "Task Name Center",
           "x": 154.2,
-          "y": 398,
-          "topElementTestId": "task-left-panel-tsk_1785986641049_7m61",
+          "y": 330,
+          "topElementTestId": "task-left-panel-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "Worker Column Center",
           "x": 331.79999999999995,
-          "y": 398,
-          "topElementTestId": "task-assignee-more-tsk_1785986641049_7m61",
+          "y": 330,
+          "topElementTestId": "task-assignee-more-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "Action Column Center",
           "x": 445,
-          "y": 398,
-          "topElementTestId": "task-delete-btn-tsk_1785986641049_7m61",
+          "y": 330,
+          "topElementTestId": "task-delete-btn-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "1px Inside Right Boundary",
           "x": 464,
-          "y": 398,
-          "topElementTestId": "task-action-column-tsk_1785986641049_7m61",
+          "y": 330,
+          "topElementTestId": "task-action-column-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         }
@@ -179,32 +179,32 @@
         {
           "name": "Task Name Center",
           "x": 154.2,
-          "y": 398,
-          "topElementTestId": "task-left-panel-tsk_1785986641049_7m61",
+          "y": 330,
+          "topElementTestId": "task-left-panel-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "Worker Column Center",
           "x": 331.79999999999995,
-          "y": 398,
-          "topElementTestId": "task-assignee-more-tsk_1785986641049_7m61",
+          "y": 330,
+          "topElementTestId": "task-assignee-more-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "Action Column Center",
           "x": 445,
-          "y": 398,
-          "topElementTestId": "task-delete-btn-tsk_1785986641049_7m61",
+          "y": 330,
+          "topElementTestId": "task-delete-btn-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "1px Inside Right Boundary",
           "x": 464,
-          "y": 398,
-          "topElementTestId": "task-action-column-tsk_1785986641049_7m61",
+          "y": 330,
+          "topElementTestId": "task-action-column-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         }
@@ -231,32 +231,32 @@
         {
           "name": "Task Name Center",
           "x": 154.2,
-          "y": 398,
-          "topElementTestId": "task-left-panel-tsk_1785986641049_7m61",
+          "y": 330,
+          "topElementTestId": "task-left-panel-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "Worker Column Center",
           "x": 331.79999999999995,
-          "y": 398,
-          "topElementTestId": "task-assignee-more-tsk_1785986641049_7m61",
+          "y": 330,
+          "topElementTestId": "task-assignee-more-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "Action Column Center",
           "x": 445,
-          "y": 398,
-          "topElementTestId": "task-delete-btn-tsk_1785986641049_7m61",
+          "y": 330,
+          "topElementTestId": "task-delete-btn-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "1px Inside Right Boundary",
           "x": 464,
-          "y": 398,
-          "topElementTestId": "task-action-column-tsk_1785986641049_7m61",
+          "y": 330,
+          "topElementTestId": "task-action-column-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         }
@@ -283,32 +283,32 @@
         {
           "name": "Task Name Center",
           "x": 154.2,
-          "y": 398,
-          "topElementTestId": "task-left-panel-tsk_1785986641049_7m61",
+          "y": 330,
+          "topElementTestId": "task-left-panel-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "Worker Column Center",
           "x": 331.79999999999995,
-          "y": 398,
-          "topElementTestId": "task-assignee-more-tsk_1785986641049_7m61",
+          "y": 330,
+          "topElementTestId": "task-assignee-more-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "Action Column Center",
           "x": 445,
-          "y": 398,
-          "topElementTestId": "task-delete-btn-tsk_1785986641049_7m61",
+          "y": 330,
+          "topElementTestId": "task-delete-btn-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "1px Inside Right Boundary",
           "x": 464,
-          "y": 398,
-          "topElementTestId": "task-action-column-tsk_1785986641049_7m61",
+          "y": 330,
+          "topElementTestId": "task-action-column-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         }
@@ -335,32 +335,32 @@
         {
           "name": "Task Name Center",
           "x": 154.2,
-          "y": 398,
-          "topElementTestId": "task-left-panel-tsk_1785986641049_7m61",
+          "y": 330,
+          "topElementTestId": "task-left-panel-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "Worker Column Center",
           "x": 331.79999999999995,
-          "y": 398,
-          "topElementTestId": "task-assignee-more-tsk_1785986641049_7m61",
+          "y": 330,
+          "topElementTestId": "task-assignee-more-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "Action Column Center",
           "x": 445,
-          "y": 398,
-          "topElementTestId": "task-delete-btn-tsk_1785986641049_7m61",
+          "y": 330,
+          "topElementTestId": "task-delete-btn-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "1px Inside Right Boundary",
           "x": 464,
-          "y": 398,
-          "topElementTestId": "task-action-column-tsk_1785986641049_7m61",
+          "y": 330,
+          "topElementTestId": "task-action-column-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         }
@@ -387,32 +387,32 @@
         {
           "name": "Task Name Center",
           "x": 154.2,
-          "y": 378,
-          "topElementTestId": "task-left-panel-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-left-panel-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "Worker Column Center",
           "x": 331.79999999999995,
-          "y": 378,
-          "topElementTestId": "task-assignee-more-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-assignee-more-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "Action Column Center",
           "x": 445,
-          "y": 378,
-          "topElementTestId": "task-delete-btn-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-delete-btn-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "1px Inside Right Boundary",
           "x": 464,
-          "y": 378,
-          "topElementTestId": "task-action-column-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-action-column-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         }
@@ -439,32 +439,32 @@
         {
           "name": "Task Name Center",
           "x": 154.2,
-          "y": 378,
-          "topElementTestId": "task-left-panel-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-left-panel-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "Worker Column Center",
           "x": 331.79999999999995,
-          "y": 378,
-          "topElementTestId": "task-assignee-more-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-assignee-more-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "Action Column Center",
           "x": 445,
-          "y": 378,
-          "topElementTestId": "task-delete-btn-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-delete-btn-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "1px Inside Right Boundary",
           "x": 464,
-          "y": 378,
-          "topElementTestId": "task-action-column-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-action-column-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         }
@@ -491,32 +491,32 @@
         {
           "name": "Task Name Center",
           "x": 154.2,
-          "y": 378,
-          "topElementTestId": "task-left-panel-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-left-panel-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "Worker Column Center",
           "x": 331.79999999999995,
-          "y": 378,
-          "topElementTestId": "task-assignee-more-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-assignee-more-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "Action Column Center",
           "x": 445,
-          "y": 378,
-          "topElementTestId": "task-delete-btn-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-delete-btn-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "1px Inside Right Boundary",
           "x": 464,
-          "y": 378,
-          "topElementTestId": "task-action-column-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-action-column-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         }
@@ -543,32 +543,32 @@
         {
           "name": "Task Name Center",
           "x": 154.2,
-          "y": 378,
-          "topElementTestId": "task-left-panel-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-left-panel-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "Worker Column Center",
           "x": 331.79999999999995,
-          "y": 378,
-          "topElementTestId": "task-assignee-more-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-assignee-more-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "Action Column Center",
           "x": 445,
-          "y": 378,
-          "topElementTestId": "task-delete-btn-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-delete-btn-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "1px Inside Right Boundary",
           "x": 464,
-          "y": 378,
-          "topElementTestId": "task-action-column-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-action-column-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         }
@@ -595,32 +595,32 @@
         {
           "name": "Task Name Center",
           "x": 154.2,
-          "y": 378,
-          "topElementTestId": "task-left-panel-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-left-panel-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "Worker Column Center",
           "x": 331.79999999999995,
-          "y": 378,
-          "topElementTestId": "task-assignee-more-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-assignee-more-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "Action Column Center",
           "x": 445,
-          "y": 378,
-          "topElementTestId": "task-delete-btn-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-delete-btn-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "1px Inside Right Boundary",
           "x": 464,
-          "y": 378,
-          "topElementTestId": "task-action-column-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-action-column-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         }
@@ -647,32 +647,32 @@
         {
           "name": "Task Name Center",
           "x": 154.2,
-          "y": 378,
-          "topElementTestId": "task-left-panel-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-left-panel-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "Worker Column Center",
           "x": 331.79999999999995,
-          "y": 378,
-          "topElementTestId": "task-assignee-more-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-assignee-more-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "Action Column Center",
           "x": 445,
-          "y": 378,
-          "topElementTestId": "task-delete-btn-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-delete-btn-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "1px Inside Right Boundary",
           "x": 464,
-          "y": 378,
-          "topElementTestId": "task-action-column-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-action-column-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         }
@@ -699,32 +699,32 @@
         {
           "name": "Task Name Center",
           "x": 154.2,
-          "y": 378,
-          "topElementTestId": "task-left-panel-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-left-panel-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "Worker Column Center",
           "x": 331.79999999999995,
-          "y": 378,
-          "topElementTestId": "task-assignee-more-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-assignee-more-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "Action Column Center",
           "x": 445,
-          "y": 378,
-          "topElementTestId": "task-delete-btn-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-delete-btn-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "1px Inside Right Boundary",
           "x": 464,
-          "y": 378,
-          "topElementTestId": "task-action-column-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-action-column-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         }
@@ -751,32 +751,32 @@
         {
           "name": "Task Name Center",
           "x": 172.2,
-          "y": 378,
-          "topElementTestId": "task-left-panel-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-left-panel-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "Worker Column Center",
           "x": 373.79999999999995,
-          "y": 378,
-          "topElementTestId": "task-assignee-summary-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-assignee-summary-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "Action Column Center",
           "x": 505,
-          "y": 378,
-          "topElementTestId": "task-delete-btn-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-delete-btn-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "1px Inside Right Boundary",
           "x": 524,
-          "y": 378,
-          "topElementTestId": "task-action-column-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-action-column-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         }
@@ -803,32 +803,32 @@
         {
           "name": "Task Name Center",
           "x": 172.2,
-          "y": 378,
-          "topElementTestId": "task-left-panel-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-left-panel-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "Worker Column Center",
           "x": 373.79999999999995,
-          "y": 378,
-          "topElementTestId": "task-assignee-summary-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-assignee-summary-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "Action Column Center",
           "x": 505,
-          "y": 378,
-          "topElementTestId": "task-delete-btn-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-delete-btn-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "1px Inside Right Boundary",
           "x": 524,
-          "y": 378,
-          "topElementTestId": "task-action-column-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-action-column-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         }
@@ -855,32 +855,32 @@
         {
           "name": "Task Name Center",
           "x": 172.2,
-          "y": 378,
-          "topElementTestId": "task-left-panel-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-left-panel-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "Worker Column Center",
           "x": 373.79999999999995,
-          "y": 378,
-          "topElementTestId": "task-assignee-summary-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-assignee-summary-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "Action Column Center",
           "x": 505,
-          "y": 378,
-          "topElementTestId": "task-delete-btn-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-delete-btn-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "1px Inside Right Boundary",
           "x": 524,
-          "y": 378,
-          "topElementTestId": "task-action-column-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-action-column-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         }
@@ -907,32 +907,32 @@
         {
           "name": "Task Name Center",
           "x": 172.2,
-          "y": 378,
-          "topElementTestId": "task-left-panel-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-left-panel-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "Worker Column Center",
           "x": 373.79999999999995,
-          "y": 378,
-          "topElementTestId": "task-assignee-summary-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-assignee-summary-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "Action Column Center",
           "x": 505,
-          "y": 378,
-          "topElementTestId": "task-delete-btn-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-delete-btn-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "1px Inside Right Boundary",
           "x": 524,
-          "y": 378,
-          "topElementTestId": "task-action-column-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-action-column-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         }
@@ -959,32 +959,32 @@
         {
           "name": "Task Name Center",
           "x": 172.2,
-          "y": 378,
-          "topElementTestId": "task-left-panel-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-left-panel-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "Worker Column Center",
           "x": 373.79999999999995,
-          "y": 378,
-          "topElementTestId": "task-assignee-summary-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-assignee-summary-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "Action Column Center",
           "x": 505,
-          "y": 378,
-          "topElementTestId": "task-delete-btn-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-delete-btn-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "1px Inside Right Boundary",
           "x": 524,
-          "y": 378,
-          "topElementTestId": "task-action-column-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-action-column-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         }
@@ -1011,32 +1011,32 @@
         {
           "name": "Task Name Center",
           "x": 172.2,
-          "y": 378,
-          "topElementTestId": "task-left-panel-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-left-panel-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "Worker Column Center",
           "x": 373.79999999999995,
-          "y": 378,
-          "topElementTestId": "task-assignee-summary-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-assignee-summary-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "Action Column Center",
           "x": 505,
-          "y": 378,
-          "topElementTestId": "task-delete-btn-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-delete-btn-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "1px Inside Right Boundary",
           "x": 524,
-          "y": 378,
-          "topElementTestId": "task-action-column-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-action-column-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         }
@@ -1063,32 +1063,32 @@
         {
           "name": "Task Name Center",
           "x": 172.2,
-          "y": 378,
-          "topElementTestId": "task-left-panel-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-left-panel-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "Worker Column Center",
           "x": 373.79999999999995,
-          "y": 378,
-          "topElementTestId": "task-assignee-summary-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-assignee-summary-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "Action Column Center",
           "x": 505,
-          "y": 378,
-          "topElementTestId": "task-delete-btn-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-delete-btn-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "1px Inside Right Boundary",
           "x": 524,
-          "y": 378,
-          "topElementTestId": "task-action-column-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-action-column-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         }
@@ -1115,32 +1115,32 @@
         {
           "name": "Task Name Center",
           "x": 172.2,
-          "y": 378,
-          "topElementTestId": "task-left-panel-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-left-panel-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "Worker Column Center",
           "x": 373.79999999999995,
-          "y": 378,
-          "topElementTestId": "task-assignee-summary-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-assignee-summary-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "Action Column Center",
           "x": 505,
-          "y": 378,
-          "topElementTestId": "task-delete-btn-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-delete-btn-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "1px Inside Right Boundary",
           "x": 524,
-          "y": 378,
-          "topElementTestId": "task-action-column-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-action-column-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         }
@@ -1167,32 +1167,32 @@
         {
           "name": "Task Name Center",
           "x": 172.2,
-          "y": 378,
-          "topElementTestId": "task-left-panel-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-left-panel-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "Worker Column Center",
           "x": 373.79999999999995,
-          "y": 378,
-          "topElementTestId": "task-assignee-summary-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-assignee-summary-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "Action Column Center",
           "x": 505,
-          "y": 378,
-          "topElementTestId": "task-delete-btn-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-delete-btn-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "1px Inside Right Boundary",
           "x": 524,
-          "y": 378,
-          "topElementTestId": "task-action-column-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-action-column-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         }
@@ -1219,32 +1219,32 @@
         {
           "name": "Task Name Center",
           "x": 172.2,
-          "y": 378,
-          "topElementTestId": "task-left-panel-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-left-panel-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "Worker Column Center",
           "x": 373.79999999999995,
-          "y": 378,
-          "topElementTestId": "task-assignee-summary-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-assignee-summary-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "Action Column Center",
           "x": 505,
-          "y": 378,
-          "topElementTestId": "task-delete-btn-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-delete-btn-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "1px Inside Right Boundary",
           "x": 524,
-          "y": 378,
-          "topElementTestId": "task-action-column-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-action-column-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         }
@@ -1271,32 +1271,32 @@
         {
           "name": "Task Name Center",
           "x": 172.2,
-          "y": 378,
-          "topElementTestId": "task-left-panel-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-left-panel-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "Worker Column Center",
           "x": 373.79999999999995,
-          "y": 378,
-          "topElementTestId": "task-assignee-summary-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-assignee-summary-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "Action Column Center",
           "x": 505,
-          "y": 378,
-          "topElementTestId": "task-delete-btn-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-delete-btn-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "1px Inside Right Boundary",
           "x": 524,
-          "y": 378,
-          "topElementTestId": "task-action-column-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-action-column-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         }
@@ -1323,32 +1323,32 @@
         {
           "name": "Task Name Center",
           "x": 172.2,
-          "y": 378,
-          "topElementTestId": "task-left-panel-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-left-panel-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "Worker Column Center",
           "x": 373.79999999999995,
-          "y": 378,
-          "topElementTestId": "task-assignee-summary-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-assignee-summary-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "Action Column Center",
           "x": 505,
-          "y": 378,
-          "topElementTestId": "task-delete-btn-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-delete-btn-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "1px Inside Right Boundary",
           "x": 524,
-          "y": 378,
-          "topElementTestId": "task-action-column-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-action-column-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         }
@@ -1375,32 +1375,32 @@
         {
           "name": "Task Name Center",
           "x": 172.2,
-          "y": 378,
-          "topElementTestId": "task-left-panel-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-left-panel-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "Worker Column Center",
           "x": 373.79999999999995,
-          "y": 378,
-          "topElementTestId": "task-assignee-summary-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-assignee-summary-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "Action Column Center",
           "x": 505,
-          "y": 378,
-          "topElementTestId": "task-delete-btn-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-delete-btn-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "1px Inside Right Boundary",
           "x": 524,
-          "y": 378,
-          "topElementTestId": "task-action-column-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-action-column-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         }
@@ -1427,32 +1427,32 @@
         {
           "name": "Task Name Center",
           "x": 172.2,
-          "y": 378,
-          "topElementTestId": "task-left-panel-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-left-panel-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "Worker Column Center",
           "x": 373.79999999999995,
-          "y": 378,
-          "topElementTestId": "task-assignee-summary-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-assignee-summary-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "Action Column Center",
           "x": 505,
-          "y": 378,
-          "topElementTestId": "task-delete-btn-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-delete-btn-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "1px Inside Right Boundary",
           "x": 524,
-          "y": 378,
-          "topElementTestId": "task-action-column-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-action-column-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         }
@@ -1479,32 +1479,32 @@
         {
           "name": "Task Name Center",
           "x": 190.2,
-          "y": 378,
-          "topElementTestId": "task-left-panel-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-left-panel-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "Worker Column Center",
           "x": 415.79999999999995,
-          "y": 378,
-          "topElementTestId": "task-assignee-summary-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-assignee-summary-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "Action Column Center",
           "x": 565,
-          "y": 378,
-          "topElementTestId": "task-delete-btn-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-delete-btn-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "1px Inside Right Boundary",
           "x": 584,
-          "y": 378,
-          "topElementTestId": "task-action-column-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-action-column-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         }
@@ -1531,32 +1531,32 @@
         {
           "name": "Task Name Center",
           "x": 190.2,
-          "y": 378,
-          "topElementTestId": "task-left-panel-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-left-panel-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "Worker Column Center",
           "x": 415.79999999999995,
-          "y": 378,
-          "topElementTestId": "task-assignee-summary-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-assignee-summary-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "Action Column Center",
           "x": 565,
-          "y": 378,
-          "topElementTestId": "task-delete-btn-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-delete-btn-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "1px Inside Right Boundary",
           "x": 584,
-          "y": 378,
-          "topElementTestId": "task-action-column-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-action-column-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         }
@@ -1583,32 +1583,32 @@
         {
           "name": "Task Name Center",
           "x": 190.2,
-          "y": 378,
-          "topElementTestId": "task-left-panel-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-left-panel-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "Worker Column Center",
           "x": 415.79999999999995,
-          "y": 378,
-          "topElementTestId": "task-assignee-summary-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-assignee-summary-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "Action Column Center",
           "x": 565,
-          "y": 378,
-          "topElementTestId": "task-delete-btn-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-delete-btn-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "1px Inside Right Boundary",
           "x": 584,
-          "y": 378,
-          "topElementTestId": "task-action-column-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-action-column-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         }
@@ -1635,32 +1635,32 @@
         {
           "name": "Task Name Center",
           "x": 190.2,
-          "y": 378,
-          "topElementTestId": "task-left-panel-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-left-panel-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "Worker Column Center",
           "x": 415.79999999999995,
-          "y": 378,
-          "topElementTestId": "task-assignee-summary-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-assignee-summary-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "Action Column Center",
           "x": 565,
-          "y": 378,
-          "topElementTestId": "task-delete-btn-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-delete-btn-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "1px Inside Right Boundary",
           "x": 584,
-          "y": 378,
-          "topElementTestId": "task-action-column-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-action-column-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         }
@@ -1687,32 +1687,32 @@
         {
           "name": "Task Name Center",
           "x": 190.2,
-          "y": 378,
-          "topElementTestId": "task-left-panel-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-left-panel-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "Worker Column Center",
           "x": 415.79999999999995,
-          "y": 378,
-          "topElementTestId": "task-assignee-summary-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-assignee-summary-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "Action Column Center",
           "x": 565,
-          "y": 378,
-          "topElementTestId": "task-delete-btn-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-delete-btn-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "1px Inside Right Boundary",
           "x": 584,
-          "y": 378,
-          "topElementTestId": "task-action-column-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-action-column-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         }
@@ -1739,32 +1739,32 @@
         {
           "name": "Task Name Center",
           "x": 190.2,
-          "y": 378,
-          "topElementTestId": "task-left-panel-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-left-panel-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "Worker Column Center",
           "x": 415.79999999999995,
-          "y": 378,
-          "topElementTestId": "task-assignee-summary-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-assignee-summary-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "Action Column Center",
           "x": 565,
-          "y": 378,
-          "topElementTestId": "task-delete-btn-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-delete-btn-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "1px Inside Right Boundary",
           "x": 584,
-          "y": 378,
-          "topElementTestId": "task-action-column-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-action-column-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         }
@@ -1791,32 +1791,32 @@
         {
           "name": "Task Name Center",
           "x": 190.2,
-          "y": 378,
-          "topElementTestId": "task-left-panel-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-left-panel-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "Worker Column Center",
           "x": 415.79999999999995,
-          "y": 378,
-          "topElementTestId": "task-assignee-summary-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-assignee-summary-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "Action Column Center",
           "x": 565,
-          "y": 378,
-          "topElementTestId": "task-delete-btn-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-delete-btn-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "1px Inside Right Boundary",
           "x": 584,
-          "y": 378,
-          "topElementTestId": "task-action-column-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-action-column-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         }
@@ -1843,32 +1843,32 @@
         {
           "name": "Task Name Center",
           "x": 190.2,
-          "y": 378,
-          "topElementTestId": "task-left-panel-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-left-panel-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "Worker Column Center",
           "x": 415.79999999999995,
-          "y": 378,
-          "topElementTestId": "task-assignee-summary-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-assignee-summary-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "Action Column Center",
           "x": 565,
-          "y": 378,
-          "topElementTestId": "task-delete-btn-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-delete-btn-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "1px Inside Right Boundary",
           "x": 584,
-          "y": 378,
-          "topElementTestId": "task-action-column-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-action-column-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         }
@@ -1895,32 +1895,32 @@
         {
           "name": "Task Name Center",
           "x": 190.2,
-          "y": 378,
-          "topElementTestId": "task-left-panel-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-left-panel-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "Worker Column Center",
           "x": 415.79999999999995,
-          "y": 378,
-          "topElementTestId": "task-assignee-summary-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-assignee-summary-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "Action Column Center",
           "x": 565,
-          "y": 378,
-          "topElementTestId": "task-delete-btn-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-delete-btn-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "1px Inside Right Boundary",
           "x": 584,
-          "y": 378,
-          "topElementTestId": "task-action-column-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-action-column-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         }
@@ -1947,32 +1947,32 @@
         {
           "name": "Task Name Center",
           "x": 190.2,
-          "y": 378,
-          "topElementTestId": "task-left-panel-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-left-panel-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "Worker Column Center",
           "x": 415.79999999999995,
-          "y": 378,
-          "topElementTestId": "task-assignee-summary-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-assignee-summary-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "Action Column Center",
           "x": 565,
-          "y": 378,
-          "topElementTestId": "task-delete-btn-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-delete-btn-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "1px Inside Right Boundary",
           "x": 584,
-          "y": 378,
-          "topElementTestId": "task-action-column-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-action-column-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         }
@@ -1999,32 +1999,32 @@
         {
           "name": "Task Name Center",
           "x": 190.2,
-          "y": 378,
-          "topElementTestId": "task-left-panel-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-left-panel-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "Worker Column Center",
           "x": 415.79999999999995,
-          "y": 378,
-          "topElementTestId": "task-assignee-summary-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-assignee-summary-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "Action Column Center",
           "x": 565,
-          "y": 378,
-          "topElementTestId": "task-delete-btn-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-delete-btn-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "1px Inside Right Boundary",
           "x": 584,
-          "y": 378,
-          "topElementTestId": "task-action-column-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-action-column-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         }
@@ -2051,32 +2051,32 @@
         {
           "name": "Task Name Center",
           "x": 190.2,
-          "y": 378,
-          "topElementTestId": "task-left-panel-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-left-panel-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "Worker Column Center",
           "x": 415.79999999999995,
-          "y": 378,
-          "topElementTestId": "task-assignee-summary-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-assignee-summary-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "Action Column Center",
           "x": 565,
-          "y": 378,
-          "topElementTestId": "task-delete-btn-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-delete-btn-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "1px Inside Right Boundary",
           "x": 584,
-          "y": 378,
-          "topElementTestId": "task-action-column-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-action-column-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         }
@@ -2103,32 +2103,32 @@
         {
           "name": "Task Name Center",
           "x": 190.2,
-          "y": 378,
-          "topElementTestId": "task-left-panel-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-left-panel-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "Worker Column Center",
           "x": 415.79999999999995,
-          "y": 378,
-          "topElementTestId": "task-assignee-summary-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-assignee-summary-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "Action Column Center",
           "x": 565,
-          "y": 378,
-          "topElementTestId": "task-delete-btn-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-delete-btn-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "1px Inside Right Boundary",
           "x": 584,
-          "y": 378,
-          "topElementTestId": "task-action-column-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-action-column-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         }
@@ -2155,32 +2155,32 @@
         {
           "name": "Task Name Center",
           "x": 190.2,
-          "y": 378,
-          "topElementTestId": "task-left-panel-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-left-panel-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "Worker Column Center",
           "x": 415.79999999999995,
-          "y": 378,
-          "topElementTestId": "task-assignee-summary-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-assignee-summary-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "Action Column Center",
           "x": 565,
-          "y": 378,
-          "topElementTestId": "task-delete-btn-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-delete-btn-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         },
         {
           "name": "1px Inside Right Boundary",
           "x": 584,
-          "y": 378,
-          "topElementTestId": "task-action-column-tsk_1785986641049_7m61",
+          "y": 310,
+          "topElementTestId": "task-action-column-tsk_1785986746256_dnk6",
           "topElementInsideSticky": true,
           "timelineVisibleAboveSticky": false
         }

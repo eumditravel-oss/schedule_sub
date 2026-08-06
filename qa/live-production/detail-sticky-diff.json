@@ -1,0 +1,115 @@
+{
+  "timestamp": "2026-08-06T14:19:03.685Z",
+  "browserChannel": "msedge",
+  "url": "https://concost-dev-scheduler.eumditravel.workers.dev/projects/prj_1785986741604_ppqz",
+  "buildIndicatorSha": "Build 52cfe9d\n·\nPRODUCTION",
+  "backendSha": "52cfe9d",
+  "frontendSha": "52cfe9d",
+  "apiCommit": "52cfe9d",
+  "stickyPanelWidth": 504,
+  "diff0_50": {
+    "diffPixels": 0,
+    "totalPixels": 16566,
+    "diffRatio": 0
+  },
+  "diff0_100": {
+    "diffPixels": 0,
+    "totalPixels": 16566,
+    "diffRatio": 0
+  },
+  "samples": [
+    {
+      "sampleName": "Task Name Center",
+      "x": 172.2,
+      "y": 310,
+      "pixelAt0": {
+        "r": 154,
+        "g": 225,
+        "b": 255,
+        "a": 255
+      },
+      "pixelAt50": {
+        "r": 154,
+        "g": 225,
+        "b": 255,
+        "a": 255
+      },
+      "pixelAt100": {
+        "r": 154,
+        "g": 225,
+        "b": 255,
+        "a": 255
+      }
+    },
+    {
+      "sampleName": "Worker Column Center",
+      "x": 373.79999999999995,
+      "y": 310,
+      "pixelAt0": {
+        "r": 118,
+        "g": 185,
+        "b": 238,
+        "a": 255
+      },
+      "pixelAt50": {
+        "r": 118,
+        "g": 185,
+        "b": 238,
+        "a": 255
+      },
+      "pixelAt100": {
+        "r": 118,
+        "g": 185,
+        "b": 238,
+        "a": 255
+      }
+    },
+    {
+      "sampleName": "Action Column Center",
+      "x": 505,
+      "y": 310,
+      "pixelAt0": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 255
+      },
+      "pixelAt50": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 255
+      },
+      "pixelAt100": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 255
+      }
+    },
+    {
+      "sampleName": "1px Inside Right Boundary",
+      "x": 524,
+      "y": 310,
+      "pixelAt0": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 255
+      },
+      "pixelAt50": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 255
+      },
+      "pixelAt100": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 255
+      }
+    }
+  ],
+  "pass": true
+}
