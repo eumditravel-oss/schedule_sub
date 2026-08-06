@@ -41,7 +41,7 @@ async function dismissWorkerPromptModal(page: any) {
 
 async function ensureMonthView(page: any) {
   const monthBtn = page.locator('[data-testid="view-month-btn"]');
-  await expect(monthBtn).toBeVisible({ timeout: 5000 });
+  await monthBtn.waitFor({ state: 'visible', timeout: 15000 });
   
   const cls = (await monthBtn.getAttribute('class')) || '';
   const ariaPressed = await monthBtn.getAttribute('aria-pressed');

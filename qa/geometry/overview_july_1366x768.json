@@ -7,12 +7,12 @@
   "viewMode": "MONTH",
   "month": "2026-07",
   "headerCount": 31,
-  "expectedRowCount": 23,
-  "rowCount": 23,
-  "expectedCellCount": 713,
-  "evaluatedCellCount": 713,
+  "expectedRowCount": 2,
+  "rowCount": 2,
+  "expectedCellCount": 62,
+  "evaluatedCellCount": 62,
   "expectedVisibleBarCount": 0,
-  "evaluatedBarCount": 3,
+  "evaluatedBarCount": 1,
   "maxLeftError": 0,
   "maxRightError": 0,
   "maxWidthError": 0,
@@ -28,70 +28,8 @@
   },
   "taskDetails": [
     {
-      "taskId": "prj_1785986638625_9qkc",
-      "taskName": "CONCOST-HUB 개발충돌 88건",
-      "startDate": "2026-07-06",
-      "endDate": "2026-07-31",
-      "timeline": {
-        "headerWidth": 1116,
-        "bodyWidth": 1116,
-        "barLayerWidth": 1116
-      },
-      "start": {
-        "bodyCellLeft": 501,
-        "barTrackLeft": 501,
-        "error": 0
-      },
-      "end": {
-        "bodyCellRight": 1437,
-        "barTrackRight": 1437,
-        "error": 0
-      },
-      "width": {
-        "expectedFromCells": 936,
-        "barTrackWidth": 936,
-        "error": 0
-      },
-      "visualBar": {
-        "leftInset": 0,
-        "rightInset": 0,
-        "overflowsTrack": false
-      }
-    },
-    {
-      "taskId": "prj_1785983349318_axyg",
-      "taskName": "CONCOST-HUB 개발충돌 88건",
-      "startDate": "2026-07-06",
-      "endDate": "2026-07-31",
-      "timeline": {
-        "headerWidth": 1116,
-        "bodyWidth": 1116,
-        "barLayerWidth": 1116
-      },
-      "start": {
-        "bodyCellLeft": 501,
-        "barTrackLeft": 501,
-        "error": 0
-      },
-      "end": {
-        "bodyCellRight": 1437,
-        "barTrackRight": 1437,
-        "error": 0
-      },
-      "width": {
-        "expectedFromCells": 936,
-        "barTrackWidth": 936,
-        "error": 0
-      },
-      "visualBar": {
-        "leftInset": 0,
-        "rightInset": 0,
-        "overflowsTrack": false
-      }
-    },
-    {
-      "taskId": "prj_1785983272638_j6aq",
-      "taskName": "CONCOST-HUB 개발충돌 6건",
+      "taskId": "prj_1785986741604_ppqz",
+      "taskName": "CONCOST-HUB 개발충돌 32건",
       "startDate": "2026-07-06",
       "endDate": "2026-07-31",
       "timeline": {
