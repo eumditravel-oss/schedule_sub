@@ -134,6 +134,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
 
       setTaskNameInput('');
       setTargetText('');
+      setScheduleStatus('SCHEDULED');
       setStartDate(defaultStart);
       setEndDate(defaultEnd);
       setProgressMode('AUTO_TIME');
