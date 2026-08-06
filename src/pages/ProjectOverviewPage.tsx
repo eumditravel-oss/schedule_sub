@@ -14,6 +14,7 @@ import {
   GANTT_DAY_WIDTH_PX,
   PRIMARY_BUTTON_H36_CLASS,
 } from '../constants/gantt';
+import { GANTT_Z } from '../constants/ganttLayers';
 import { ProjectModal } from '../components/modals/ProjectModal';
 import { WorkerSelector } from '../components/common/WorkerSelector';
 import { WorkerPromptModal } from '../components/modals/WorkerPromptModal';
@@ -598,7 +599,8 @@ export const ProjectOverviewPage: React.FC = () => {
             <div
               ref={scrollContainerRef}
               data-testid="desktop-gantt-scroll"
-              className="flex-1 bg-white border border-slate-200 rounded-xl shadow-sm overflow-x-auto overflow-y-auto custom-scrollbar relative max-w-full"
+              style={{ position: 'relative', isolation: 'isolate' }}
+              className="flex-1 bg-white border border-slate-200 rounded-xl shadow-sm overflow-x-auto overflow-y-auto custom-scrollbar relative max-w-full isolate"
             >
               {/* Inner Gantt Canvas */}
               <div
@@ -611,19 +613,44 @@ export const ProjectOverviewPage: React.FC = () => {
                 className="flex flex-col text-left"
               >
                 {/* 1. Header Container */}
-                <div role="row" className="sticky top-0 z-20 flex bg-slate-100 text-xs uppercase tracking-wider text-slate-700 border-b border-slate-200">
-                  {/* Left Header */}
+                <div role="row" style={{ zIndex: GANTT_Z.STICKY_TOP_HEADER }} className="sticky top-0 flex bg-slate-100 text-xs uppercase tracking-wider text-slate-700 border-b border-slate-200">
+                  {/* Left Header Corner */}
                   <div
                     role="columnheader"
-                    style={{ width: `${OVERVIEW_LEFT_WIDTH}px`, minWidth: `${OVERVIEW_LEFT_WIDTH}px`, maxWidth: `${OVERVIEW_LEFT_WIDTH}px` }}
-                    className="sticky left-0 z-30 bg-slate-100 px-3 py-2.5 font-bold text-slate-800 border-r border-slate-200 shrink-0 flex items-center justify-between"
+                    data-testid="overview-sticky-corner"
+                    style={{
+                      width: `${OVERVIEW_LEFT_WIDTH}px`,
+                      minWidth: `${OVERVIEW_LEFT_WIDTH}px`,
+                      maxWidth: `${OVERVIEW_LEFT_WIDTH}px`,
+                      position: 'sticky',
+                      left: 0,
+                      zIndex: GANTT_Z.STICKY_CORNER,
+                      backgroundColor: '#f1f5f9',
+                      backgroundClip: 'padding-box',
+                      isolation: 'isolate',
+                    }}
+                    className="sticky left-0 bg-slate-100 px-3 py-2.5 font-bold text-slate-800 border-r border-slate-200 shrink-0 flex items-center justify-between relative"
                   >
                     <span>{t('projectInfo')}</span>
                     <span className="hidden md:inline text-[10px] text-slate-500 font-normal">{t('progress')}</span>
+                    <div
+                      data-testid="gantt-sticky-occlusion-rail"
+                      style={{
+                        position: 'absolute',
+                        top: 0,
+                        right: '-1px',
+                        bottom: 0,
+                        width: '2px',
+                        backgroundColor: '#f1f5f9',
+                        pointerEvents: 'none',
+                        zIndex: 1,
+                        boxShadow: '4px 0 8px rgba(15, 23, 42, 0.08)',
+                      }}
+                    />
                   </div>
 
                   {/* Right Timeline Header Stack (Month Header + Date Header) */}
-                  <div style={{ width: `${timelineWidth}px`, minWidth: `${timelineWidth}px` }} className="flex flex-col shrink-0">
+                  <div style={{ width: `${timelineWidth}px`, minWidth: `${timelineWidth}px`, zIndex: GANTT_Z.TIMELINE_HEADER }} className="flex flex-col shrink-0 relative">
                     {/* Month Header Row */}
                     <div className="grid w-full bg-slate-100 border-b border-slate-200 text-center font-bold text-blue-700 text-xs py-1.5" style={{ gridTemplateColumns: dateGridTemplate }}>
                       {monthGroups.map((mg, idx) => (
@@ -708,13 +735,25 @@ export const ProjectOverviewPage: React.FC = () => {
                           role="row"
                           data-testid={`project-row-${project.id}`}
                           onClick={() => navigate(`/projects/${project.id}`)}
+                          style={{ position: 'relative', isolation: 'isolate' }}
                           className="flex hover:bg-blue-50/50 transition cursor-pointer group h-[60px]"
                         >
                           {/* Left Sticky Info Cell */}
                           <div
                             role="cell"
-                            style={{ width: `${OVERVIEW_LEFT_WIDTH}px`, minWidth: `${OVERVIEW_LEFT_WIDTH}px`, maxWidth: `${OVERVIEW_LEFT_WIDTH}px` }}
-                            className="sticky left-0 z-10 bg-white group-hover:bg-blue-50/50 px-3 py-2 border-r border-slate-200 shrink-0 flex items-center h-full"
+                            data-testid={`project-left-panel-${project.id}`}
+                            style={{
+                              width: `${OVERVIEW_LEFT_WIDTH}px`,
+                              minWidth: `${OVERVIEW_LEFT_WIDTH}px`,
+                              maxWidth: `${OVERVIEW_LEFT_WIDTH}px`,
+                              position: 'sticky',
+                              left: 0,
+                              zIndex: GANTT_Z.STICKY_LEFT_BODY,
+                              backgroundColor: '#ffffff',
+                              backgroundClip: 'padding-box',
+                              isolation: 'isolate',
+                            }}
+                            className="sticky left-0 bg-white group-hover:!bg-[#f8fafc] px-3 py-2 border-r border-slate-200 shrink-0 flex items-center h-full relative"
                           >
                             <div className="flex items-center justify-between w-full">
                               <div className="pr-1 overflow-hidden min-w-0 flex-1">
@@ -809,10 +848,24 @@ export const ProjectOverviewPage: React.FC = () => {
                                 </div>
                               </div>
                             </div>
+                            <div
+                              data-testid="gantt-sticky-occlusion-rail"
+                              style={{
+                                position: 'absolute',
+                                top: 0,
+                                right: '-1px',
+                                bottom: 0,
+                                width: '2px',
+                                backgroundColor: 'inherit',
+                                pointerEvents: 'none',
+                                zIndex: 1,
+                                boxShadow: '4px 0 8px rgba(15, 23, 42, 0.08)',
+                              }}
+                            />
                           </div>
 
                           {/* Right Timeline Cell */}
-                          <div role="cell" style={{ width: `${timelineWidth}px`, minWidth: `${timelineWidth}px` }} className="relative h-full shrink-0">
+                          <div role="cell" data-testid={`project-timeline-${project.id}`} style={{ width: `${timelineWidth}px`, minWidth: `${timelineWidth}px` }} className="relative h-full shrink-0">
                             {/* Layer 0: Day Grid */}
                             <div className="grid w-full h-full" style={{ gridTemplateColumns: dateGridTemplate }}>
                               {dateColumns.map((col, cIdx) => (

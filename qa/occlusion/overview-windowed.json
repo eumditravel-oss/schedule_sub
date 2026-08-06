@@ -1,0 +1,1856 @@
+{
+  "timestamp": "2026-08-06T13:53:20.559Z",
+  "page": "Project Overview",
+  "auditCount": 42,
+  "audits": [
+    {
+      "viewport": {
+        "width": 1024,
+        "height": 768,
+        "name": "1024x768"
+      },
+      "scrollLeft": 0,
+      "maxScroll": 434,
+      "stickyLeft": {
+        "left": 21,
+        "right": 321,
+        "width": 300,
+        "zIndex": 100,
+        "backgroundColor": "rgb(255, 255, 255)",
+        "opacity": "1"
+      },
+      "samples": [
+        {
+          "name": "Project Name Center",
+          "x": 111,
+          "y": 436,
+          "topElementTestId": "project-left-panel-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Progress/Actions Center",
+          "x": 231,
+          "y": 436,
+          "topElementTestId": "project-action-top-row-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "1px Inside Right Boundary",
+          "x": 320,
+          "y": 436,
+          "topElementTestId": "project-left-panel-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        }
+      ],
+      "pass": true
+    },
+    {
+      "viewport": {
+        "width": 1024,
+        "height": 768,
+        "name": "1024x768"
+      },
+      "scrollLeft": 43,
+      "maxScroll": 434,
+      "stickyLeft": {
+        "left": 21,
+        "right": 321,
+        "width": 300,
+        "zIndex": 100,
+        "backgroundColor": "rgb(255, 255, 255)",
+        "opacity": "1"
+      },
+      "samples": [
+        {
+          "name": "Project Name Center",
+          "x": 111,
+          "y": 436,
+          "topElementTestId": "project-left-panel-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Progress/Actions Center",
+          "x": 231,
+          "y": 436,
+          "topElementTestId": "project-action-top-row-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "1px Inside Right Boundary",
+          "x": 320,
+          "y": 436,
+          "topElementTestId": "project-left-panel-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        }
+      ],
+      "pass": true
+    },
+    {
+      "viewport": {
+        "width": 1024,
+        "height": 768,
+        "name": "1024x768"
+      },
+      "scrollLeft": 109,
+      "maxScroll": 434,
+      "stickyLeft": {
+        "left": 21,
+        "right": 321,
+        "width": 300,
+        "zIndex": 100,
+        "backgroundColor": "rgb(255, 255, 255)",
+        "opacity": "1"
+      },
+      "samples": [
+        {
+          "name": "Project Name Center",
+          "x": 111,
+          "y": 436,
+          "topElementTestId": "project-left-panel-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Progress/Actions Center",
+          "x": 231,
+          "y": 436,
+          "topElementTestId": "project-action-top-row-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "1px Inside Right Boundary",
+          "x": 320,
+          "y": 436,
+          "topElementTestId": "project-left-panel-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        }
+      ],
+      "pass": true
+    },
+    {
+      "viewport": {
+        "width": 1024,
+        "height": 768,
+        "name": "1024x768"
+      },
+      "scrollLeft": 217,
+      "maxScroll": 434,
+      "stickyLeft": {
+        "left": 21,
+        "right": 321,
+        "width": 300,
+        "zIndex": 100,
+        "backgroundColor": "rgb(255, 255, 255)",
+        "opacity": "1"
+      },
+      "samples": [
+        {
+          "name": "Project Name Center",
+          "x": 111,
+          "y": 436,
+          "topElementTestId": "project-left-panel-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Progress/Actions Center",
+          "x": 231,
+          "y": 436,
+          "topElementTestId": "project-action-top-row-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "1px Inside Right Boundary",
+          "x": 320,
+          "y": 436,
+          "topElementTestId": "project-left-panel-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        }
+      ],
+      "pass": true
+    },
+    {
+      "viewport": {
+        "width": 1024,
+        "height": 768,
+        "name": "1024x768"
+      },
+      "scrollLeft": 326,
+      "maxScroll": 434,
+      "stickyLeft": {
+        "left": 21,
+        "right": 321,
+        "width": 300,
+        "zIndex": 100,
+        "backgroundColor": "rgb(255, 255, 255)",
+        "opacity": "1"
+      },
+      "samples": [
+        {
+          "name": "Project Name Center",
+          "x": 111,
+          "y": 436,
+          "topElementTestId": "project-left-panel-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Progress/Actions Center",
+          "x": 231,
+          "y": 436,
+          "topElementTestId": "project-action-top-row-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "1px Inside Right Boundary",
+          "x": 320,
+          "y": 436,
+          "topElementTestId": "project-left-panel-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        }
+      ],
+      "pass": true
+    },
+    {
+      "viewport": {
+        "width": 1024,
+        "height": 768,
+        "name": "1024x768"
+      },
+      "scrollLeft": 391,
+      "maxScroll": 434,
+      "stickyLeft": {
+        "left": 21,
+        "right": 321,
+        "width": 300,
+        "zIndex": 100,
+        "backgroundColor": "rgb(255, 255, 255)",
+        "opacity": "1"
+      },
+      "samples": [
+        {
+          "name": "Project Name Center",
+          "x": 111,
+          "y": 436,
+          "topElementTestId": "project-left-panel-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Progress/Actions Center",
+          "x": 231,
+          "y": 436,
+          "topElementTestId": "project-action-top-row-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "1px Inside Right Boundary",
+          "x": 320,
+          "y": 436,
+          "topElementTestId": "project-left-panel-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        }
+      ],
+      "pass": true
+    },
+    {
+      "viewport": {
+        "width": 1024,
+        "height": 768,
+        "name": "1024x768"
+      },
+      "scrollLeft": 434,
+      "maxScroll": 434,
+      "stickyLeft": {
+        "left": 21,
+        "right": 321,
+        "width": 300,
+        "zIndex": 100,
+        "backgroundColor": "rgb(255, 255, 255)",
+        "opacity": "1"
+      },
+      "samples": [
+        {
+          "name": "Project Name Center",
+          "x": 111,
+          "y": 436,
+          "topElementTestId": "project-left-panel-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Progress/Actions Center",
+          "x": 231,
+          "y": 436,
+          "topElementTestId": "project-action-top-row-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "1px Inside Right Boundary",
+          "x": 320,
+          "y": 436,
+          "topElementTestId": "project-left-panel-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        }
+      ],
+      "pass": true
+    },
+    {
+      "viewport": {
+        "width": 1100,
+        "height": 720,
+        "name": "1100x720"
+      },
+      "scrollLeft": 0,
+      "maxScroll": 358,
+      "stickyLeft": {
+        "left": 21,
+        "right": 321,
+        "width": 300,
+        "zIndex": 100,
+        "backgroundColor": "rgb(255, 255, 255)",
+        "opacity": "1"
+      },
+      "samples": [
+        {
+          "name": "Project Name Center",
+          "x": 111,
+          "y": 436,
+          "topElementTestId": "project-left-panel-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Progress/Actions Center",
+          "x": 231,
+          "y": 436,
+          "topElementTestId": "project-action-top-row-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "1px Inside Right Boundary",
+          "x": 320,
+          "y": 436,
+          "topElementTestId": "project-left-panel-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        }
+      ],
+      "pass": true
+    },
+    {
+      "viewport": {
+        "width": 1100,
+        "height": 720,
+        "name": "1100x720"
+      },
+      "scrollLeft": 36,
+      "maxScroll": 358,
+      "stickyLeft": {
+        "left": 21,
+        "right": 321,
+        "width": 300,
+        "zIndex": 100,
+        "backgroundColor": "rgb(255, 255, 255)",
+        "opacity": "1"
+      },
+      "samples": [
+        {
+          "name": "Project Name Center",
+          "x": 111,
+          "y": 436,
+          "topElementTestId": "project-left-panel-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Progress/Actions Center",
+          "x": 231,
+          "y": 436,
+          "topElementTestId": "project-action-top-row-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "1px Inside Right Boundary",
+          "x": 320,
+          "y": 436,
+          "topElementTestId": "project-left-panel-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        }
+      ],
+      "pass": true
+    },
+    {
+      "viewport": {
+        "width": 1100,
+        "height": 720,
+        "name": "1100x720"
+      },
+      "scrollLeft": 90,
+      "maxScroll": 358,
+      "stickyLeft": {
+        "left": 21,
+        "right": 321,
+        "width": 300,
+        "zIndex": 100,
+        "backgroundColor": "rgb(255, 255, 255)",
+        "opacity": "1"
+      },
+      "samples": [
+        {
+          "name": "Project Name Center",
+          "x": 111,
+          "y": 436,
+          "topElementTestId": "project-left-panel-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Progress/Actions Center",
+          "x": 231,
+          "y": 436,
+          "topElementTestId": "project-action-top-row-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "1px Inside Right Boundary",
+          "x": 320,
+          "y": 436,
+          "topElementTestId": "project-left-panel-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        }
+      ],
+      "pass": true
+    },
+    {
+      "viewport": {
+        "width": 1100,
+        "height": 720,
+        "name": "1100x720"
+      },
+      "scrollLeft": 179,
+      "maxScroll": 358,
+      "stickyLeft": {
+        "left": 21,
+        "right": 321,
+        "width": 300,
+        "zIndex": 100,
+        "backgroundColor": "rgb(255, 255, 255)",
+        "opacity": "1"
+      },
+      "samples": [
+        {
+          "name": "Project Name Center",
+          "x": 111,
+          "y": 436,
+          "topElementTestId": "project-left-panel-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Progress/Actions Center",
+          "x": 231,
+          "y": 436,
+          "topElementTestId": "project-action-top-row-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "1px Inside Right Boundary",
+          "x": 320,
+          "y": 436,
+          "topElementTestId": "project-left-panel-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        }
+      ],
+      "pass": true
+    },
+    {
+      "viewport": {
+        "width": 1100,
+        "height": 720,
+        "name": "1100x720"
+      },
+      "scrollLeft": 269,
+      "maxScroll": 358,
+      "stickyLeft": {
+        "left": 21,
+        "right": 321,
+        "width": 300,
+        "zIndex": 100,
+        "backgroundColor": "rgb(255, 255, 255)",
+        "opacity": "1"
+      },
+      "samples": [
+        {
+          "name": "Project Name Center",
+          "x": 111,
+          "y": 436,
+          "topElementTestId": "project-left-panel-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Progress/Actions Center",
+          "x": 231,
+          "y": 436,
+          "topElementTestId": "project-action-top-row-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "1px Inside Right Boundary",
+          "x": 320,
+          "y": 436,
+          "topElementTestId": "project-left-panel-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        }
+      ],
+      "pass": true
+    },
+    {
+      "viewport": {
+        "width": 1100,
+        "height": 720,
+        "name": "1100x720"
+      },
+      "scrollLeft": 322,
+      "maxScroll": 358,
+      "stickyLeft": {
+        "left": 21,
+        "right": 321,
+        "width": 300,
+        "zIndex": 100,
+        "backgroundColor": "rgb(255, 255, 255)",
+        "opacity": "1"
+      },
+      "samples": [
+        {
+          "name": "Project Name Center",
+          "x": 111,
+          "y": 436,
+          "topElementTestId": "project-left-panel-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Progress/Actions Center",
+          "x": 231,
+          "y": 436,
+          "topElementTestId": "project-action-top-row-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "1px Inside Right Boundary",
+          "x": 320,
+          "y": 436,
+          "topElementTestId": "project-left-panel-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        }
+      ],
+      "pass": true
+    },
+    {
+      "viewport": {
+        "width": 1100,
+        "height": 720,
+        "name": "1100x720"
+      },
+      "scrollLeft": 358,
+      "maxScroll": 358,
+      "stickyLeft": {
+        "left": 21,
+        "right": 321,
+        "width": 300,
+        "zIndex": 100,
+        "backgroundColor": "rgb(255, 255, 255)",
+        "opacity": "1"
+      },
+      "samples": [
+        {
+          "name": "Project Name Center",
+          "x": 111,
+          "y": 436,
+          "topElementTestId": "project-left-panel-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Progress/Actions Center",
+          "x": 231,
+          "y": 436,
+          "topElementTestId": "project-action-top-row-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "1px Inside Right Boundary",
+          "x": 320,
+          "y": 436,
+          "topElementTestId": "project-left-panel-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        }
+      ],
+      "pass": true
+    },
+    {
+      "viewport": {
+        "width": 1280,
+        "height": 720,
+        "name": "1280x720"
+      },
+      "scrollLeft": 0,
+      "maxScroll": 178,
+      "stickyLeft": {
+        "left": 21,
+        "right": 321,
+        "width": 300,
+        "zIndex": 100,
+        "backgroundColor": "rgb(255, 255, 255)",
+        "opacity": "1"
+      },
+      "samples": [
+        {
+          "name": "Project Name Center",
+          "x": 111,
+          "y": 436,
+          "topElementTestId": "project-left-panel-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Progress/Actions Center",
+          "x": 231,
+          "y": 436,
+          "topElementTestId": "project-action-top-row-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "1px Inside Right Boundary",
+          "x": 320,
+          "y": 436,
+          "topElementTestId": "project-left-panel-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        }
+      ],
+      "pass": true
+    },
+    {
+      "viewport": {
+        "width": 1280,
+        "height": 720,
+        "name": "1280x720"
+      },
+      "scrollLeft": 18,
+      "maxScroll": 178,
+      "stickyLeft": {
+        "left": 21,
+        "right": 321,
+        "width": 300,
+        "zIndex": 100,
+        "backgroundColor": "rgb(255, 255, 255)",
+        "opacity": "1"
+      },
+      "samples": [
+        {
+          "name": "Project Name Center",
+          "x": 111,
+          "y": 436,
+          "topElementTestId": "project-left-panel-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Progress/Actions Center",
+          "x": 231,
+          "y": 436,
+          "topElementTestId": "project-action-top-row-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "1px Inside Right Boundary",
+          "x": 320,
+          "y": 436,
+          "topElementTestId": "project-left-panel-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        }
+      ],
+      "pass": true
+    },
+    {
+      "viewport": {
+        "width": 1280,
+        "height": 720,
+        "name": "1280x720"
+      },
+      "scrollLeft": 45,
+      "maxScroll": 178,
+      "stickyLeft": {
+        "left": 21,
+        "right": 321,
+        "width": 300,
+        "zIndex": 100,
+        "backgroundColor": "rgb(255, 255, 255)",
+        "opacity": "1"
+      },
+      "samples": [
+        {
+          "name": "Project Name Center",
+          "x": 111,
+          "y": 436,
+          "topElementTestId": "project-left-panel-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Progress/Actions Center",
+          "x": 231,
+          "y": 436,
+          "topElementTestId": "project-action-top-row-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "1px Inside Right Boundary",
+          "x": 320,
+          "y": 436,
+          "topElementTestId": "project-left-panel-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        }
+      ],
+      "pass": true
+    },
+    {
+      "viewport": {
+        "width": 1280,
+        "height": 720,
+        "name": "1280x720"
+      },
+      "scrollLeft": 89,
+      "maxScroll": 178,
+      "stickyLeft": {
+        "left": 21,
+        "right": 321,
+        "width": 300,
+        "zIndex": 100,
+        "backgroundColor": "rgb(255, 255, 255)",
+        "opacity": "1"
+      },
+      "samples": [
+        {
+          "name": "Project Name Center",
+          "x": 111,
+          "y": 436,
+          "topElementTestId": "project-left-panel-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Progress/Actions Center",
+          "x": 231,
+          "y": 436,
+          "topElementTestId": "project-action-top-row-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "1px Inside Right Boundary",
+          "x": 320,
+          "y": 436,
+          "topElementTestId": "project-left-panel-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        }
+      ],
+      "pass": true
+    },
+    {
+      "viewport": {
+        "width": 1280,
+        "height": 720,
+        "name": "1280x720"
+      },
+      "scrollLeft": 134,
+      "maxScroll": 178,
+      "stickyLeft": {
+        "left": 21,
+        "right": 321,
+        "width": 300,
+        "zIndex": 100,
+        "backgroundColor": "rgb(255, 255, 255)",
+        "opacity": "1"
+      },
+      "samples": [
+        {
+          "name": "Project Name Center",
+          "x": 111,
+          "y": 436,
+          "topElementTestId": "project-left-panel-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Progress/Actions Center",
+          "x": 231,
+          "y": 436,
+          "topElementTestId": "project-action-top-row-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "1px Inside Right Boundary",
+          "x": 320,
+          "y": 436,
+          "topElementTestId": "project-left-panel-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        }
+      ],
+      "pass": true
+    },
+    {
+      "viewport": {
+        "width": 1280,
+        "height": 720,
+        "name": "1280x720"
+      },
+      "scrollLeft": 160,
+      "maxScroll": 178,
+      "stickyLeft": {
+        "left": 21,
+        "right": 321,
+        "width": 300,
+        "zIndex": 100,
+        "backgroundColor": "rgb(255, 255, 255)",
+        "opacity": "1"
+      },
+      "samples": [
+        {
+          "name": "Project Name Center",
+          "x": 111,
+          "y": 436,
+          "topElementTestId": "project-left-panel-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Progress/Actions Center",
+          "x": 231,
+          "y": 436,
+          "topElementTestId": "project-action-top-row-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "1px Inside Right Boundary",
+          "x": 320,
+          "y": 436,
+          "topElementTestId": "project-left-panel-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        }
+      ],
+      "pass": true
+    },
+    {
+      "viewport": {
+        "width": 1280,
+        "height": 720,
+        "name": "1280x720"
+      },
+      "scrollLeft": 178,
+      "maxScroll": 178,
+      "stickyLeft": {
+        "left": 21,
+        "right": 321,
+        "width": 300,
+        "zIndex": 100,
+        "backgroundColor": "rgb(255, 255, 255)",
+        "opacity": "1"
+      },
+      "samples": [
+        {
+          "name": "Project Name Center",
+          "x": 111,
+          "y": 436,
+          "topElementTestId": "project-left-panel-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Progress/Actions Center",
+          "x": 231,
+          "y": 436,
+          "topElementTestId": "project-action-top-row-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "1px Inside Right Boundary",
+          "x": 320,
+          "y": 436,
+          "topElementTestId": "project-left-panel-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        }
+      ],
+      "pass": true
+    },
+    {
+      "viewport": {
+        "width": 1366,
+        "height": 768,
+        "name": "1366x768"
+      },
+      "scrollLeft": 0,
+      "maxScroll": 92,
+      "stickyLeft": {
+        "left": 21,
+        "right": 321,
+        "width": 300,
+        "zIndex": 100,
+        "backgroundColor": "rgb(255, 255, 255)",
+        "opacity": "1"
+      },
+      "samples": [
+        {
+          "name": "Project Name Center",
+          "x": 111,
+          "y": 436,
+          "topElementTestId": "project-left-panel-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Progress/Actions Center",
+          "x": 231,
+          "y": 436,
+          "topElementTestId": "project-action-top-row-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "1px Inside Right Boundary",
+          "x": 320,
+          "y": 436,
+          "topElementTestId": "project-left-panel-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        }
+      ],
+      "pass": true
+    },
+    {
+      "viewport": {
+        "width": 1366,
+        "height": 768,
+        "name": "1366x768"
+      },
+      "scrollLeft": 9,
+      "maxScroll": 92,
+      "stickyLeft": {
+        "left": 21,
+        "right": 321,
+        "width": 300,
+        "zIndex": 100,
+        "backgroundColor": "rgb(255, 255, 255)",
+        "opacity": "1"
+      },
+      "samples": [
+        {
+          "name": "Project Name Center",
+          "x": 111,
+          "y": 436,
+          "topElementTestId": "project-left-panel-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Progress/Actions Center",
+          "x": 231,
+          "y": 436,
+          "topElementTestId": "project-action-top-row-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "1px Inside Right Boundary",
+          "x": 320,
+          "y": 436,
+          "topElementTestId": "project-left-panel-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        }
+      ],
+      "pass": true
+    },
+    {
+      "viewport": {
+        "width": 1366,
+        "height": 768,
+        "name": "1366x768"
+      },
+      "scrollLeft": 23,
+      "maxScroll": 92,
+      "stickyLeft": {
+        "left": 21,
+        "right": 321,
+        "width": 300,
+        "zIndex": 100,
+        "backgroundColor": "rgb(255, 255, 255)",
+        "opacity": "1"
+      },
+      "samples": [
+        {
+          "name": "Project Name Center",
+          "x": 111,
+          "y": 436,
+          "topElementTestId": "project-left-panel-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Progress/Actions Center",
+          "x": 231,
+          "y": 436,
+          "topElementTestId": "project-action-top-row-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "1px Inside Right Boundary",
+          "x": 320,
+          "y": 436,
+          "topElementTestId": "project-left-panel-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        }
+      ],
+      "pass": true
+    },
+    {
+      "viewport": {
+        "width": 1366,
+        "height": 768,
+        "name": "1366x768"
+      },
+      "scrollLeft": 46,
+      "maxScroll": 92,
+      "stickyLeft": {
+        "left": 21,
+        "right": 321,
+        "width": 300,
+        "zIndex": 100,
+        "backgroundColor": "rgb(255, 255, 255)",
+        "opacity": "1"
+      },
+      "samples": [
+        {
+          "name": "Project Name Center",
+          "x": 111,
+          "y": 436,
+          "topElementTestId": "project-left-panel-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Progress/Actions Center",
+          "x": 231,
+          "y": 436,
+          "topElementTestId": "project-action-top-row-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "1px Inside Right Boundary",
+          "x": 320,
+          "y": 436,
+          "topElementTestId": "project-left-panel-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        }
+      ],
+      "pass": true
+    },
+    {
+      "viewport": {
+        "width": 1366,
+        "height": 768,
+        "name": "1366x768"
+      },
+      "scrollLeft": 69,
+      "maxScroll": 92,
+      "stickyLeft": {
+        "left": 21,
+        "right": 321,
+        "width": 300,
+        "zIndex": 100,
+        "backgroundColor": "rgb(255, 255, 255)",
+        "opacity": "1"
+      },
+      "samples": [
+        {
+          "name": "Project Name Center",
+          "x": 111,
+          "y": 436,
+          "topElementTestId": "project-left-panel-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Progress/Actions Center",
+          "x": 231,
+          "y": 436,
+          "topElementTestId": "project-action-top-row-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "1px Inside Right Boundary",
+          "x": 320,
+          "y": 436,
+          "topElementTestId": "project-left-panel-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        }
+      ],
+      "pass": true
+    },
+    {
+      "viewport": {
+        "width": 1366,
+        "height": 768,
+        "name": "1366x768"
+      },
+      "scrollLeft": 83,
+      "maxScroll": 92,
+      "stickyLeft": {
+        "left": 21,
+        "right": 321,
+        "width": 300,
+        "zIndex": 100,
+        "backgroundColor": "rgb(255, 255, 255)",
+        "opacity": "1"
+      },
+      "samples": [
+        {
+          "name": "Project Name Center",
+          "x": 111,
+          "y": 436,
+          "topElementTestId": "project-left-panel-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Progress/Actions Center",
+          "x": 231,
+          "y": 436,
+          "topElementTestId": "project-action-top-row-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "1px Inside Right Boundary",
+          "x": 320,
+          "y": 436,
+          "topElementTestId": "project-left-panel-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        }
+      ],
+      "pass": true
+    },
+    {
+      "viewport": {
+        "width": 1366,
+        "height": 768,
+        "name": "1366x768"
+      },
+      "scrollLeft": 92,
+      "maxScroll": 92,
+      "stickyLeft": {
+        "left": 21,
+        "right": 321,
+        "width": 300,
+        "zIndex": 100,
+        "backgroundColor": "rgb(255, 255, 255)",
+        "opacity": "1"
+      },
+      "samples": [
+        {
+          "name": "Project Name Center",
+          "x": 111,
+          "y": 436,
+          "topElementTestId": "project-left-panel-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Progress/Actions Center",
+          "x": 231,
+          "y": 436,
+          "topElementTestId": "project-action-top-row-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "1px Inside Right Boundary",
+          "x": 320,
+          "y": 436,
+          "topElementTestId": "project-left-panel-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        }
+      ],
+      "pass": true
+    },
+    {
+      "viewport": {
+        "width": 1536,
+        "height": 864,
+        "name": "1536x864"
+      },
+      "scrollLeft": 0,
+      "maxScroll": 0,
+      "stickyLeft": {
+        "left": 21,
+        "right": 321,
+        "width": 300,
+        "zIndex": 100,
+        "backgroundColor": "rgb(255, 255, 255)",
+        "opacity": "1"
+      },
+      "samples": [
+        {
+          "name": "Project Name Center",
+          "x": 111,
+          "y": 436,
+          "topElementTestId": "project-left-panel-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Progress/Actions Center",
+          "x": 231,
+          "y": 436,
+          "topElementTestId": "project-action-top-row-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "1px Inside Right Boundary",
+          "x": 320,
+          "y": 436,
+          "topElementTestId": "project-left-panel-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        }
+      ],
+      "pass": true
+    },
+    {
+      "viewport": {
+        "width": 1536,
+        "height": 864,
+        "name": "1536x864"
+      },
+      "scrollLeft": 0,
+      "maxScroll": 0,
+      "stickyLeft": {
+        "left": 21,
+        "right": 321,
+        "width": 300,
+        "zIndex": 100,
+        "backgroundColor": "rgb(255, 255, 255)",
+        "opacity": "1"
+      },
+      "samples": [
+        {
+          "name": "Project Name Center",
+          "x": 111,
+          "y": 436,
+          "topElementTestId": "project-left-panel-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Progress/Actions Center",
+          "x": 231,
+          "y": 436,
+          "topElementTestId": "project-action-top-row-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "1px Inside Right Boundary",
+          "x": 320,
+          "y": 436,
+          "topElementTestId": "project-left-panel-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        }
+      ],
+      "pass": true
+    },
+    {
+      "viewport": {
+        "width": 1536,
+        "height": 864,
+        "name": "1536x864"
+      },
+      "scrollLeft": 0,
+      "maxScroll": 0,
+      "stickyLeft": {
+        "left": 21,
+        "right": 321,
+        "width": 300,
+        "zIndex": 100,
+        "backgroundColor": "rgb(255, 255, 255)",
+        "opacity": "1"
+      },
+      "samples": [
+        {
+          "name": "Project Name Center",
+          "x": 111,
+          "y": 436,
+          "topElementTestId": "project-left-panel-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Progress/Actions Center",
+          "x": 231,
+          "y": 436,
+          "topElementTestId": "project-action-top-row-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "1px Inside Right Boundary",
+          "x": 320,
+          "y": 436,
+          "topElementTestId": "project-left-panel-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        }
+      ],
+      "pass": true
+    },
+    {
+      "viewport": {
+        "width": 1536,
+        "height": 864,
+        "name": "1536x864"
+      },
+      "scrollLeft": 0,
+      "maxScroll": 0,
+      "stickyLeft": {
+        "left": 21,
+        "right": 321,
+        "width": 300,
+        "zIndex": 100,
+        "backgroundColor": "rgb(255, 255, 255)",
+        "opacity": "1"
+      },
+      "samples": [
+        {
+          "name": "Project Name Center",
+          "x": 111,
+          "y": 436,
+          "topElementTestId": "project-left-panel-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Progress/Actions Center",
+          "x": 231,
+          "y": 436,
+          "topElementTestId": "project-action-top-row-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "1px Inside Right Boundary",
+          "x": 320,
+          "y": 436,
+          "topElementTestId": "project-left-panel-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        }
+      ],
+      "pass": true
+    },
+    {
+      "viewport": {
+        "width": 1536,
+        "height": 864,
+        "name": "1536x864"
+      },
+      "scrollLeft": 0,
+      "maxScroll": 0,
+      "stickyLeft": {
+        "left": 21,
+        "right": 321,
+        "width": 300,
+        "zIndex": 100,
+        "backgroundColor": "rgb(255, 255, 255)",
+        "opacity": "1"
+      },
+      "samples": [
+        {
+          "name": "Project Name Center",
+          "x": 111,
+          "y": 436,
+          "topElementTestId": "project-left-panel-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Progress/Actions Center",
+          "x": 231,
+          "y": 436,
+          "topElementTestId": "project-action-top-row-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "1px Inside Right Boundary",
+          "x": 320,
+          "y": 436,
+          "topElementTestId": "project-left-panel-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        }
+      ],
+      "pass": true
+    },
+    {
+      "viewport": {
+        "width": 1536,
+        "height": 864,
+        "name": "1536x864"
+      },
+      "scrollLeft": 0,
+      "maxScroll": 0,
+      "stickyLeft": {
+        "left": 21,
+        "right": 321,
+        "width": 300,
+        "zIndex": 100,
+        "backgroundColor": "rgb(255, 255, 255)",
+        "opacity": "1"
+      },
+      "samples": [
+        {
+          "name": "Project Name Center",
+          "x": 111,
+          "y": 436,
+          "topElementTestId": "project-left-panel-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Progress/Actions Center",
+          "x": 231,
+          "y": 436,
+          "topElementTestId": "project-action-top-row-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "1px Inside Right Boundary",
+          "x": 320,
+          "y": 436,
+          "topElementTestId": "project-left-panel-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        }
+      ],
+      "pass": true
+    },
+    {
+      "viewport": {
+        "width": 1536,
+        "height": 864,
+        "name": "1536x864"
+      },
+      "scrollLeft": 0,
+      "maxScroll": 0,
+      "stickyLeft": {
+        "left": 21,
+        "right": 321,
+        "width": 300,
+        "zIndex": 100,
+        "backgroundColor": "rgb(255, 255, 255)",
+        "opacity": "1"
+      },
+      "samples": [
+        {
+          "name": "Project Name Center",
+          "x": 111,
+          "y": 436,
+          "topElementTestId": "project-left-panel-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Progress/Actions Center",
+          "x": 231,
+          "y": 436,
+          "topElementTestId": "project-action-top-row-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "1px Inside Right Boundary",
+          "x": 320,
+          "y": 436,
+          "topElementTestId": "project-left-panel-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        }
+      ],
+      "pass": true
+    },
+    {
+      "viewport": {
+        "width": 1920,
+        "height": 1080,
+        "name": "1920x1080"
+      },
+      "scrollLeft": 0,
+      "maxScroll": 0,
+      "stickyLeft": {
+        "left": 21,
+        "right": 321,
+        "width": 300,
+        "zIndex": 100,
+        "backgroundColor": "rgb(255, 255, 255)",
+        "opacity": "1"
+      },
+      "samples": [
+        {
+          "name": "Project Name Center",
+          "x": 111,
+          "y": 436,
+          "topElementTestId": "project-left-panel-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Progress/Actions Center",
+          "x": 231,
+          "y": 436,
+          "topElementTestId": "project-action-top-row-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "1px Inside Right Boundary",
+          "x": 320,
+          "y": 436,
+          "topElementTestId": "project-left-panel-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        }
+      ],
+      "pass": true
+    },
+    {
+      "viewport": {
+        "width": 1920,
+        "height": 1080,
+        "name": "1920x1080"
+      },
+      "scrollLeft": 0,
+      "maxScroll": 0,
+      "stickyLeft": {
+        "left": 21,
+        "right": 321,
+        "width": 300,
+        "zIndex": 100,
+        "backgroundColor": "rgb(255, 255, 255)",
+        "opacity": "1"
+      },
+      "samples": [
+        {
+          "name": "Project Name Center",
+          "x": 111,
+          "y": 436,
+          "topElementTestId": "project-left-panel-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Progress/Actions Center",
+          "x": 231,
+          "y": 436,
+          "topElementTestId": "project-action-top-row-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "1px Inside Right Boundary",
+          "x": 320,
+          "y": 436,
+          "topElementTestId": "project-left-panel-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        }
+      ],
+      "pass": true
+    },
+    {
+      "viewport": {
+        "width": 1920,
+        "height": 1080,
+        "name": "1920x1080"
+      },
+      "scrollLeft": 0,
+      "maxScroll": 0,
+      "stickyLeft": {
+        "left": 21,
+        "right": 321,
+        "width": 300,
+        "zIndex": 100,
+        "backgroundColor": "rgb(255, 255, 255)",
+        "opacity": "1"
+      },
+      "samples": [
+        {
+          "name": "Project Name Center",
+          "x": 111,
+          "y": 436,
+          "topElementTestId": "project-left-panel-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Progress/Actions Center",
+          "x": 231,
+          "y": 436,
+          "topElementTestId": "project-action-top-row-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "1px Inside Right Boundary",
+          "x": 320,
+          "y": 436,
+          "topElementTestId": "project-left-panel-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        }
+      ],
+      "pass": true
+    },
+    {
+      "viewport": {
+        "width": 1920,
+        "height": 1080,
+        "name": "1920x1080"
+      },
+      "scrollLeft": 0,
+      "maxScroll": 0,
+      "stickyLeft": {
+        "left": 21,
+        "right": 321,
+        "width": 300,
+        "zIndex": 100,
+        "backgroundColor": "rgb(255, 255, 255)",
+        "opacity": "1"
+      },
+      "samples": [
+        {
+          "name": "Project Name Center",
+          "x": 111,
+          "y": 436,
+          "topElementTestId": "project-left-panel-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Progress/Actions Center",
+          "x": 231,
+          "y": 436,
+          "topElementTestId": "project-action-top-row-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "1px Inside Right Boundary",
+          "x": 320,
+          "y": 436,
+          "topElementTestId": "project-left-panel-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        }
+      ],
+      "pass": true
+    },
+    {
+      "viewport": {
+        "width": 1920,
+        "height": 1080,
+        "name": "1920x1080"
+      },
+      "scrollLeft": 0,
+      "maxScroll": 0,
+      "stickyLeft": {
+        "left": 21,
+        "right": 321,
+        "width": 300,
+        "zIndex": 100,
+        "backgroundColor": "rgb(255, 255, 255)",
+        "opacity": "1"
+      },
+      "samples": [
+        {
+          "name": "Project Name Center",
+          "x": 111,
+          "y": 436,
+          "topElementTestId": "project-left-panel-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Progress/Actions Center",
+          "x": 231,
+          "y": 436,
+          "topElementTestId": "project-action-top-row-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "1px Inside Right Boundary",
+          "x": 320,
+          "y": 436,
+          "topElementTestId": "project-left-panel-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        }
+      ],
+      "pass": true
+    },
+    {
+      "viewport": {
+        "width": 1920,
+        "height": 1080,
+        "name": "1920x1080"
+      },
+      "scrollLeft": 0,
+      "maxScroll": 0,
+      "stickyLeft": {
+        "left": 21,
+        "right": 321,
+        "width": 300,
+        "zIndex": 100,
+        "backgroundColor": "rgb(255, 255, 255)",
+        "opacity": "1"
+      },
+      "samples": [
+        {
+          "name": "Project Name Center",
+          "x": 111,
+          "y": 436,
+          "topElementTestId": "project-left-panel-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Progress/Actions Center",
+          "x": 231,
+          "y": 436,
+          "topElementTestId": "project-action-top-row-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "1px Inside Right Boundary",
+          "x": 320,
+          "y": 436,
+          "topElementTestId": "project-left-panel-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        }
+      ],
+      "pass": true
+    },
+    {
+      "viewport": {
+        "width": 1920,
+        "height": 1080,
+        "name": "1920x1080"
+      },
+      "scrollLeft": 0,
+      "maxScroll": 0,
+      "stickyLeft": {
+        "left": 21,
+        "right": 321,
+        "width": 300,
+        "zIndex": 100,
+        "backgroundColor": "rgb(255, 255, 255)",
+        "opacity": "1"
+      },
+      "samples": [
+        {
+          "name": "Project Name Center",
+          "x": 111,
+          "y": 436,
+          "topElementTestId": "project-left-panel-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Progress/Actions Center",
+          "x": 231,
+          "y": 436,
+          "topElementTestId": "project-action-top-row-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "1px Inside Right Boundary",
+          "x": 320,
+          "y": 436,
+          "topElementTestId": "project-left-panel-prj_1785929407464_e6bc",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        }
+      ],
+      "pass": true
+    }
+  ],
+  "pass": true
+}

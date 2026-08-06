@@ -21,6 +21,7 @@ import {
   TASK_GROUP_ROW_HEIGHT_PX,
   EMPTY_GROUP_ROW_HEIGHT_PX,
 } from '../constants/gantt';
+import { GANTT_Z } from '../constants/ganttLayers';
 import { TaskModal } from '../components/modals/TaskModal';
 import { StatusPopover } from '../components/modals/StatusPopover';
 import { WorkerSelector } from '../components/common/WorkerSelector';
@@ -172,7 +173,7 @@ const SortableTaskRow: React.FC<SortableTaskRowProps> = ({
   return (
     <div
       ref={setNodeRef}
-      style={style}
+      style={{ ...style, position: 'relative', isolation: 'isolate' }}
       role="row"
       data-testid={`task-row-${tItem.id}`}
       className={`hover:bg-slate-50 transition border-b border-slate-200 flex shrink-0 ${isDragging ? 'bg-blue-50/50' : ''}`}
@@ -187,9 +188,29 @@ const SortableTaskRow: React.FC<SortableTaskRowProps> = ({
           maxWidth: `${leftPanelWidth}px`,
           display: 'grid',
           gridTemplateColumns,
+          position: 'sticky',
+          left: 0,
+          zIndex: GANTT_Z.STICKY_LEFT_BODY,
+          backgroundColor: '#ffffff',
+          backgroundClip: 'padding-box',
+          isolation: 'isolate',
         }}
-        className="sticky left-0 z-10 bg-white hover:bg-slate-50 border-r border-slate-200 shrink-0 h-full items-center"
+        className="sticky left-0 bg-white hover:!bg-[#f8fafc] border-r border-slate-200 shrink-0 h-full items-center relative"
       >
+        <div
+          data-testid="gantt-sticky-occlusion-rail"
+          style={{
+            position: 'absolute',
+            top: 0,
+            right: '-1px',
+            bottom: 0,
+            width: '2px',
+            backgroundColor: 'inherit',
+            pointerEvents: 'none',
+            zIndex: 1,
+            boxShadow: '4px 0 8px rgba(15, 23, 42, 0.08)',
+          }}
+        />
         {/* 1. Task Name Column Cell */}
         <div className="flex items-center gap-[4px] min-w-0 pl-[6px] pr-[4px] py-0.5 overflow-hidden h-full">
           {!isViewer && !isCompleted && (
@@ -463,23 +484,48 @@ const DroppableTaskGroupRow: React.FC<DroppableTaskGroupRowProps> = ({
         setDropNodeRef(node);
         setSortableNodeRef(node);
       }}
-      style={style}
+      style={{ ...style, position: 'relative', isolation: 'isolate' }}
       role="row"
       data-testid={`task-group-row-${group.id}`}
       data-testid-dropzone={`task-group-drop-zone-${group.id}`}
       className={`transition border-b border-slate-200 flex shrink-0 ${
         isOver
-          ? 'bg-blue-100/90 border-2 border-dashed border-blue-500'
-          : 'bg-slate-100/90 hover:bg-slate-200/80'
+          ? 'bg-blue-100 border-2 border-dashed border-blue-500'
+          : 'bg-slate-100 hover:bg-slate-200'
       }`}
     >
       <div
         role="cell"
-        style={{ width: `${leftPanelWidth}px`, minWidth: `${leftPanelWidth}px`, maxWidth: `${leftPanelWidth}px` }}
-        className={`sticky left-0 z-10 px-2 py-0.5 border-r border-slate-200 border-l-4 ${GROUP_BORDER_COLORS[colorKey]} shrink-0 flex items-center h-full ${
-          isOver ? 'bg-blue-100' : 'bg-slate-100/90'
+        data-testid={`task-group-left-panel-${group.id}`}
+        style={{
+          width: `${leftPanelWidth}px`,
+          minWidth: `${leftPanelWidth}px`,
+          maxWidth: `${leftPanelWidth}px`,
+          position: 'sticky',
+          left: 0,
+          zIndex: GANTT_Z.STICKY_LEFT_GROUP,
+          backgroundColor: isOver ? '#dbeafe' : '#f1f5f9',
+          backgroundClip: 'padding-box',
+          isolation: 'isolate',
+        }}
+        className={`sticky left-0 border-r border-slate-200 border-l-4 ${GROUP_BORDER_COLORS[colorKey]} shrink-0 flex items-center h-full relative ${
+          isOver ? 'bg-blue-100' : 'bg-slate-100'
         }`}
       >
+        <div
+          data-testid="gantt-sticky-occlusion-rail"
+          style={{
+            position: 'absolute',
+            top: 0,
+            right: '-1px',
+            bottom: 0,
+            width: '2px',
+            backgroundColor: isOver ? '#dbeafe' : '#f1f5f9',
+            pointerEvents: 'none',
+            zIndex: 1,
+            boxShadow: '4px 0 8px rgba(15, 23, 42, 0.08)',
+          }}
+        />
         <div className="flex items-center justify-between text-xs font-bold text-slate-800 w-full">
           <div className="flex items-center gap-1 min-w-0 pr-2">
             {!isViewer && !isCompleted && (
@@ -582,10 +628,34 @@ const EmptyGroupDropZoneCard: React.FC<{
     >
       <div
         role="cell"
-        style={{ width: `${leftPanelWidth}px`, minWidth: `${leftPanelWidth}px`, maxWidth: `${leftPanelWidth}px` }}
-        className="sticky left-0 z-10 bg-slate-50 px-4 py-1.5 border-r border-slate-200 text-xs font-semibold text-center italic shrink-0 flex items-center justify-center h-full"
+        style={{
+          width: `${leftPanelWidth}px`,
+          minWidth: `${leftPanelWidth}px`,
+          maxWidth: `${leftPanelWidth}px`,
+          position: 'sticky',
+          left: 0,
+          zIndex: GANTT_Z.STICKY_LEFT_BODY,
+          backgroundColor: isOver ? '#dbeafe' : '#f8fafc',
+          backgroundClip: 'padding-box',
+          isolation: 'isolate',
+        }}
+        className="sticky left-0 bg-slate-50 px-4 py-1.5 border-r border-slate-200 text-xs font-semibold text-center italic shrink-0 flex items-center justify-center h-full relative"
       >
         {lang === 'vi' ? 'Kéo công việc chi tiết vào đây' : '세부 작업을 여기에 끌어오세요'}
+        <div
+          data-testid="gantt-sticky-occlusion-rail"
+          style={{
+            position: 'absolute',
+            top: 0,
+            right: '-1px',
+            bottom: 0,
+            width: '2px',
+            backgroundColor: isOver ? '#dbeafe' : '#f8fafc',
+            pointerEvents: 'none',
+            zIndex: 1,
+            boxShadow: '4px 0 8px rgba(15, 23, 42, 0.08)',
+          }}
+        />
       </div>
       <div role="cell" style={{ width: `${timelineWidth}px`, minWidth: `${timelineWidth}px` }} className="h-full shrink-0" />
     </div>
@@ -1870,7 +1940,8 @@ export const ProjectDetailPage: React.FC = () => {
           <div
             ref={scrollContainerRef}
             data-testid="desktop-gantt-scroll"
-            className="flex-1 bg-white border border-slate-200 rounded-xl shadow-sm overflow-x-auto overflow-y-auto custom-scrollbar relative max-w-full"
+            style={{ position: 'relative', isolation: 'isolate' }}
+            className="flex-1 bg-white border border-slate-200 rounded-xl shadow-sm overflow-x-auto overflow-y-auto custom-scrollbar relative max-w-full isolate"
           >
             <div
               data-testid="desktop-gantt-canvas"
@@ -1882,18 +1953,25 @@ export const ProjectDetailPage: React.FC = () => {
               className="flex flex-col text-left"
             >
               {/* 1. Header Container */}
-              <div role="row" className="sticky top-0 z-20 flex bg-slate-100 text-xs uppercase tracking-wider text-slate-700 border-b border-slate-200">
-                {/* Left Header */}
+              <div role="row" style={{ zIndex: GANTT_Z.STICKY_TOP_HEADER }} className="sticky top-0 flex bg-slate-100 text-xs uppercase tracking-wider text-slate-700 border-b border-slate-200">
+                {/* Left Header Corner */}
                 <div
                   role="columnheader"
+                  data-testid="detail-sticky-corner"
                   style={{
                     width: `${DETAIL_LEFT_WIDTH}px`,
                     minWidth: `${DETAIL_LEFT_WIDTH}px`,
                     maxWidth: `${DETAIL_LEFT_WIDTH}px`,
                     display: 'grid',
                     gridTemplateColumns: DETAIL_LEFT_WIDTH >= 564 ? '260px 240px 64px' : DETAIL_LEFT_WIDTH >= 504 ? '230px 210px 64px' : '210px 170px 64px',
+                    position: 'sticky',
+                    left: 0,
+                    zIndex: GANTT_Z.STICKY_CORNER,
+                    backgroundColor: '#f1f5f9',
+                    backgroundClip: 'padding-box',
+                    isolation: 'isolate',
                   }}
-                  className="sticky left-0 z-30 bg-slate-100 font-bold text-slate-800 border-r border-slate-200 shrink-0 items-center h-full"
+                  className="sticky left-0 bg-slate-100 font-bold text-slate-800 border-r border-slate-200 shrink-0 items-center h-full relative"
                 >
                   <span className="pl-[6px] pr-[4px] py-2 truncate">{lang === 'vi' ? 'Công việc chi tiết' : '세부 작업명'}</span>
                   <span className="pl-[4px] pr-[4px] py-2 truncate">{lang === 'vi' ? 'Người phụ trách' : '작업자'}</span>

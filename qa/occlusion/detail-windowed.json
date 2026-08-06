@@ -1,0 +1,2192 @@
+{
+  "timestamp": "2026-08-06T13:53:10.477Z",
+  "project": "CONCOST-HUB",
+  "auditCount": 42,
+  "audits": [
+    {
+      "viewport": {
+        "width": 1024,
+        "height": 768,
+        "name": "1024x768"
+      },
+      "scrollLeft": 0,
+      "maxScroll": 578,
+      "stickyLeft": {
+        "left": 21,
+        "right": 465,
+        "width": 444,
+        "zIndex": 100,
+        "backgroundColor": "rgb(255, 255, 255)",
+        "opacity": "1"
+      },
+      "samples": [
+        {
+          "name": "Task Name Center",
+          "x": 154.2,
+          "y": 398,
+          "topElementTestId": "task-left-panel-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Worker Column Center",
+          "x": 331.79999999999995,
+          "y": 398,
+          "topElementTestId": "task-assignee-more-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Action Column Center",
+          "x": 445,
+          "y": 398,
+          "topElementTestId": "task-delete-btn-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "1px Inside Right Boundary",
+          "x": 464,
+          "y": 398,
+          "topElementTestId": "task-action-column-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        }
+      ],
+      "pass": true
+    },
+    {
+      "viewport": {
+        "width": 1024,
+        "height": 768,
+        "name": "1024x768"
+      },
+      "scrollLeft": 58,
+      "maxScroll": 578,
+      "stickyLeft": {
+        "left": 21,
+        "right": 465,
+        "width": 444,
+        "zIndex": 100,
+        "backgroundColor": "rgb(255, 255, 255)",
+        "opacity": "1"
+      },
+      "samples": [
+        {
+          "name": "Task Name Center",
+          "x": 154.2,
+          "y": 398,
+          "topElementTestId": "task-left-panel-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Worker Column Center",
+          "x": 331.79999999999995,
+          "y": 398,
+          "topElementTestId": "task-assignee-more-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Action Column Center",
+          "x": 445,
+          "y": 398,
+          "topElementTestId": "task-delete-btn-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "1px Inside Right Boundary",
+          "x": 464,
+          "y": 398,
+          "topElementTestId": "task-action-column-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        }
+      ],
+      "pass": true
+    },
+    {
+      "viewport": {
+        "width": 1024,
+        "height": 768,
+        "name": "1024x768"
+      },
+      "scrollLeft": 145,
+      "maxScroll": 578,
+      "stickyLeft": {
+        "left": 21,
+        "right": 465,
+        "width": 444,
+        "zIndex": 100,
+        "backgroundColor": "rgb(255, 255, 255)",
+        "opacity": "1"
+      },
+      "samples": [
+        {
+          "name": "Task Name Center",
+          "x": 154.2,
+          "y": 398,
+          "topElementTestId": "task-left-panel-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Worker Column Center",
+          "x": 331.79999999999995,
+          "y": 398,
+          "topElementTestId": "task-assignee-more-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Action Column Center",
+          "x": 445,
+          "y": 398,
+          "topElementTestId": "task-delete-btn-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "1px Inside Right Boundary",
+          "x": 464,
+          "y": 398,
+          "topElementTestId": "task-action-column-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        }
+      ],
+      "pass": true
+    },
+    {
+      "viewport": {
+        "width": 1024,
+        "height": 768,
+        "name": "1024x768"
+      },
+      "scrollLeft": 289,
+      "maxScroll": 578,
+      "stickyLeft": {
+        "left": 21,
+        "right": 465,
+        "width": 444,
+        "zIndex": 100,
+        "backgroundColor": "rgb(255, 255, 255)",
+        "opacity": "1"
+      },
+      "samples": [
+        {
+          "name": "Task Name Center",
+          "x": 154.2,
+          "y": 398,
+          "topElementTestId": "task-left-panel-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Worker Column Center",
+          "x": 331.79999999999995,
+          "y": 398,
+          "topElementTestId": "task-assignee-more-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Action Column Center",
+          "x": 445,
+          "y": 398,
+          "topElementTestId": "task-delete-btn-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "1px Inside Right Boundary",
+          "x": 464,
+          "y": 398,
+          "topElementTestId": "task-action-column-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        }
+      ],
+      "pass": true
+    },
+    {
+      "viewport": {
+        "width": 1024,
+        "height": 768,
+        "name": "1024x768"
+      },
+      "scrollLeft": 434,
+      "maxScroll": 578,
+      "stickyLeft": {
+        "left": 21,
+        "right": 465,
+        "width": 444,
+        "zIndex": 100,
+        "backgroundColor": "rgb(255, 255, 255)",
+        "opacity": "1"
+      },
+      "samples": [
+        {
+          "name": "Task Name Center",
+          "x": 154.2,
+          "y": 398,
+          "topElementTestId": "task-left-panel-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Worker Column Center",
+          "x": 331.79999999999995,
+          "y": 398,
+          "topElementTestId": "task-assignee-more-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Action Column Center",
+          "x": 445,
+          "y": 398,
+          "topElementTestId": "task-delete-btn-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "1px Inside Right Boundary",
+          "x": 464,
+          "y": 398,
+          "topElementTestId": "task-action-column-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        }
+      ],
+      "pass": true
+    },
+    {
+      "viewport": {
+        "width": 1024,
+        "height": 768,
+        "name": "1024x768"
+      },
+      "scrollLeft": 520,
+      "maxScroll": 578,
+      "stickyLeft": {
+        "left": 21,
+        "right": 465,
+        "width": 444,
+        "zIndex": 100,
+        "backgroundColor": "rgb(255, 255, 255)",
+        "opacity": "1"
+      },
+      "samples": [
+        {
+          "name": "Task Name Center",
+          "x": 154.2,
+          "y": 398,
+          "topElementTestId": "task-left-panel-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Worker Column Center",
+          "x": 331.79999999999995,
+          "y": 398,
+          "topElementTestId": "task-assignee-more-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Action Column Center",
+          "x": 445,
+          "y": 398,
+          "topElementTestId": "task-delete-btn-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "1px Inside Right Boundary",
+          "x": 464,
+          "y": 398,
+          "topElementTestId": "task-action-column-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        }
+      ],
+      "pass": true
+    },
+    {
+      "viewport": {
+        "width": 1024,
+        "height": 768,
+        "name": "1024x768"
+      },
+      "scrollLeft": 578,
+      "maxScroll": 578,
+      "stickyLeft": {
+        "left": 21,
+        "right": 465,
+        "width": 444,
+        "zIndex": 100,
+        "backgroundColor": "rgb(255, 255, 255)",
+        "opacity": "1"
+      },
+      "samples": [
+        {
+          "name": "Task Name Center",
+          "x": 154.2,
+          "y": 398,
+          "topElementTestId": "task-left-panel-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Worker Column Center",
+          "x": 331.79999999999995,
+          "y": 398,
+          "topElementTestId": "task-assignee-more-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Action Column Center",
+          "x": 445,
+          "y": 398,
+          "topElementTestId": "task-delete-btn-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "1px Inside Right Boundary",
+          "x": 464,
+          "y": 398,
+          "topElementTestId": "task-action-column-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        }
+      ],
+      "pass": true
+    },
+    {
+      "viewport": {
+        "width": 1100,
+        "height": 720,
+        "name": "1100x720"
+      },
+      "scrollLeft": 0,
+      "maxScroll": 502,
+      "stickyLeft": {
+        "left": 21,
+        "right": 465,
+        "width": 444,
+        "zIndex": 100,
+        "backgroundColor": "rgb(255, 255, 255)",
+        "opacity": "1"
+      },
+      "samples": [
+        {
+          "name": "Task Name Center",
+          "x": 154.2,
+          "y": 378,
+          "topElementTestId": "task-left-panel-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Worker Column Center",
+          "x": 331.79999999999995,
+          "y": 378,
+          "topElementTestId": "task-assignee-more-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Action Column Center",
+          "x": 445,
+          "y": 378,
+          "topElementTestId": "task-delete-btn-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "1px Inside Right Boundary",
+          "x": 464,
+          "y": 378,
+          "topElementTestId": "task-action-column-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        }
+      ],
+      "pass": true
+    },
+    {
+      "viewport": {
+        "width": 1100,
+        "height": 720,
+        "name": "1100x720"
+      },
+      "scrollLeft": 50,
+      "maxScroll": 502,
+      "stickyLeft": {
+        "left": 21,
+        "right": 465,
+        "width": 444,
+        "zIndex": 100,
+        "backgroundColor": "rgb(255, 255, 255)",
+        "opacity": "1"
+      },
+      "samples": [
+        {
+          "name": "Task Name Center",
+          "x": 154.2,
+          "y": 378,
+          "topElementTestId": "task-left-panel-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Worker Column Center",
+          "x": 331.79999999999995,
+          "y": 378,
+          "topElementTestId": "task-assignee-more-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Action Column Center",
+          "x": 445,
+          "y": 378,
+          "topElementTestId": "task-delete-btn-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "1px Inside Right Boundary",
+          "x": 464,
+          "y": 378,
+          "topElementTestId": "task-action-column-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        }
+      ],
+      "pass": true
+    },
+    {
+      "viewport": {
+        "width": 1100,
+        "height": 720,
+        "name": "1100x720"
+      },
+      "scrollLeft": 126,
+      "maxScroll": 502,
+      "stickyLeft": {
+        "left": 21,
+        "right": 465,
+        "width": 444,
+        "zIndex": 100,
+        "backgroundColor": "rgb(255, 255, 255)",
+        "opacity": "1"
+      },
+      "samples": [
+        {
+          "name": "Task Name Center",
+          "x": 154.2,
+          "y": 378,
+          "topElementTestId": "task-left-panel-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Worker Column Center",
+          "x": 331.79999999999995,
+          "y": 378,
+          "topElementTestId": "task-assignee-more-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Action Column Center",
+          "x": 445,
+          "y": 378,
+          "topElementTestId": "task-delete-btn-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "1px Inside Right Boundary",
+          "x": 464,
+          "y": 378,
+          "topElementTestId": "task-action-column-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        }
+      ],
+      "pass": true
+    },
+    {
+      "viewport": {
+        "width": 1100,
+        "height": 720,
+        "name": "1100x720"
+      },
+      "scrollLeft": 251,
+      "maxScroll": 502,
+      "stickyLeft": {
+        "left": 21,
+        "right": 465,
+        "width": 444,
+        "zIndex": 100,
+        "backgroundColor": "rgb(255, 255, 255)",
+        "opacity": "1"
+      },
+      "samples": [
+        {
+          "name": "Task Name Center",
+          "x": 154.2,
+          "y": 378,
+          "topElementTestId": "task-left-panel-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Worker Column Center",
+          "x": 331.79999999999995,
+          "y": 378,
+          "topElementTestId": "task-assignee-more-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Action Column Center",
+          "x": 445,
+          "y": 378,
+          "topElementTestId": "task-delete-btn-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "1px Inside Right Boundary",
+          "x": 464,
+          "y": 378,
+          "topElementTestId": "task-action-column-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        }
+      ],
+      "pass": true
+    },
+    {
+      "viewport": {
+        "width": 1100,
+        "height": 720,
+        "name": "1100x720"
+      },
+      "scrollLeft": 377,
+      "maxScroll": 502,
+      "stickyLeft": {
+        "left": 21,
+        "right": 465,
+        "width": 444,
+        "zIndex": 100,
+        "backgroundColor": "rgb(255, 255, 255)",
+        "opacity": "1"
+      },
+      "samples": [
+        {
+          "name": "Task Name Center",
+          "x": 154.2,
+          "y": 378,
+          "topElementTestId": "task-left-panel-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Worker Column Center",
+          "x": 331.79999999999995,
+          "y": 378,
+          "topElementTestId": "task-assignee-more-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Action Column Center",
+          "x": 445,
+          "y": 378,
+          "topElementTestId": "task-delete-btn-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "1px Inside Right Boundary",
+          "x": 464,
+          "y": 378,
+          "topElementTestId": "task-action-column-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        }
+      ],
+      "pass": true
+    },
+    {
+      "viewport": {
+        "width": 1100,
+        "height": 720,
+        "name": "1100x720"
+      },
+      "scrollLeft": 452,
+      "maxScroll": 502,
+      "stickyLeft": {
+        "left": 21,
+        "right": 465,
+        "width": 444,
+        "zIndex": 100,
+        "backgroundColor": "rgb(255, 255, 255)",
+        "opacity": "1"
+      },
+      "samples": [
+        {
+          "name": "Task Name Center",
+          "x": 154.2,
+          "y": 378,
+          "topElementTestId": "task-left-panel-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Worker Column Center",
+          "x": 331.79999999999995,
+          "y": 378,
+          "topElementTestId": "task-assignee-more-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Action Column Center",
+          "x": 445,
+          "y": 378,
+          "topElementTestId": "task-delete-btn-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "1px Inside Right Boundary",
+          "x": 464,
+          "y": 378,
+          "topElementTestId": "task-action-column-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        }
+      ],
+      "pass": true
+    },
+    {
+      "viewport": {
+        "width": 1100,
+        "height": 720,
+        "name": "1100x720"
+      },
+      "scrollLeft": 502,
+      "maxScroll": 502,
+      "stickyLeft": {
+        "left": 21,
+        "right": 465,
+        "width": 444,
+        "zIndex": 100,
+        "backgroundColor": "rgb(255, 255, 255)",
+        "opacity": "1"
+      },
+      "samples": [
+        {
+          "name": "Task Name Center",
+          "x": 154.2,
+          "y": 378,
+          "topElementTestId": "task-left-panel-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Worker Column Center",
+          "x": 331.79999999999995,
+          "y": 378,
+          "topElementTestId": "task-assignee-more-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Action Column Center",
+          "x": 445,
+          "y": 378,
+          "topElementTestId": "task-delete-btn-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "1px Inside Right Boundary",
+          "x": 464,
+          "y": 378,
+          "topElementTestId": "task-action-column-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        }
+      ],
+      "pass": true
+    },
+    {
+      "viewport": {
+        "width": 1280,
+        "height": 720,
+        "name": "1280x720"
+      },
+      "scrollLeft": 0,
+      "maxScroll": 382,
+      "stickyLeft": {
+        "left": 21,
+        "right": 525,
+        "width": 504,
+        "zIndex": 100,
+        "backgroundColor": "rgb(255, 255, 255)",
+        "opacity": "1"
+      },
+      "samples": [
+        {
+          "name": "Task Name Center",
+          "x": 172.2,
+          "y": 378,
+          "topElementTestId": "task-left-panel-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Worker Column Center",
+          "x": 373.79999999999995,
+          "y": 378,
+          "topElementTestId": "task-assignee-summary-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Action Column Center",
+          "x": 505,
+          "y": 378,
+          "topElementTestId": "task-delete-btn-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "1px Inside Right Boundary",
+          "x": 524,
+          "y": 378,
+          "topElementTestId": "task-action-column-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        }
+      ],
+      "pass": true
+    },
+    {
+      "viewport": {
+        "width": 1280,
+        "height": 720,
+        "name": "1280x720"
+      },
+      "scrollLeft": 38,
+      "maxScroll": 382,
+      "stickyLeft": {
+        "left": 21,
+        "right": 525,
+        "width": 504,
+        "zIndex": 100,
+        "backgroundColor": "rgb(255, 255, 255)",
+        "opacity": "1"
+      },
+      "samples": [
+        {
+          "name": "Task Name Center",
+          "x": 172.2,
+          "y": 378,
+          "topElementTestId": "task-left-panel-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Worker Column Center",
+          "x": 373.79999999999995,
+          "y": 378,
+          "topElementTestId": "task-assignee-summary-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Action Column Center",
+          "x": 505,
+          "y": 378,
+          "topElementTestId": "task-delete-btn-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "1px Inside Right Boundary",
+          "x": 524,
+          "y": 378,
+          "topElementTestId": "task-action-column-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        }
+      ],
+      "pass": true
+    },
+    {
+      "viewport": {
+        "width": 1280,
+        "height": 720,
+        "name": "1280x720"
+      },
+      "scrollLeft": 96,
+      "maxScroll": 382,
+      "stickyLeft": {
+        "left": 21,
+        "right": 525,
+        "width": 504,
+        "zIndex": 100,
+        "backgroundColor": "rgb(255, 255, 255)",
+        "opacity": "1"
+      },
+      "samples": [
+        {
+          "name": "Task Name Center",
+          "x": 172.2,
+          "y": 378,
+          "topElementTestId": "task-left-panel-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Worker Column Center",
+          "x": 373.79999999999995,
+          "y": 378,
+          "topElementTestId": "task-assignee-summary-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Action Column Center",
+          "x": 505,
+          "y": 378,
+          "topElementTestId": "task-delete-btn-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "1px Inside Right Boundary",
+          "x": 524,
+          "y": 378,
+          "topElementTestId": "task-action-column-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        }
+      ],
+      "pass": true
+    },
+    {
+      "viewport": {
+        "width": 1280,
+        "height": 720,
+        "name": "1280x720"
+      },
+      "scrollLeft": 191,
+      "maxScroll": 382,
+      "stickyLeft": {
+        "left": 21,
+        "right": 525,
+        "width": 504,
+        "zIndex": 100,
+        "backgroundColor": "rgb(255, 255, 255)",
+        "opacity": "1"
+      },
+      "samples": [
+        {
+          "name": "Task Name Center",
+          "x": 172.2,
+          "y": 378,
+          "topElementTestId": "task-left-panel-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Worker Column Center",
+          "x": 373.79999999999995,
+          "y": 378,
+          "topElementTestId": "task-assignee-summary-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Action Column Center",
+          "x": 505,
+          "y": 378,
+          "topElementTestId": "task-delete-btn-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "1px Inside Right Boundary",
+          "x": 524,
+          "y": 378,
+          "topElementTestId": "task-action-column-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        }
+      ],
+      "pass": true
+    },
+    {
+      "viewport": {
+        "width": 1280,
+        "height": 720,
+        "name": "1280x720"
+      },
+      "scrollLeft": 287,
+      "maxScroll": 382,
+      "stickyLeft": {
+        "left": 21,
+        "right": 525,
+        "width": 504,
+        "zIndex": 100,
+        "backgroundColor": "rgb(255, 255, 255)",
+        "opacity": "1"
+      },
+      "samples": [
+        {
+          "name": "Task Name Center",
+          "x": 172.2,
+          "y": 378,
+          "topElementTestId": "task-left-panel-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Worker Column Center",
+          "x": 373.79999999999995,
+          "y": 378,
+          "topElementTestId": "task-assignee-summary-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Action Column Center",
+          "x": 505,
+          "y": 378,
+          "topElementTestId": "task-delete-btn-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "1px Inside Right Boundary",
+          "x": 524,
+          "y": 378,
+          "topElementTestId": "task-action-column-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        }
+      ],
+      "pass": true
+    },
+    {
+      "viewport": {
+        "width": 1280,
+        "height": 720,
+        "name": "1280x720"
+      },
+      "scrollLeft": 344,
+      "maxScroll": 382,
+      "stickyLeft": {
+        "left": 21,
+        "right": 525,
+        "width": 504,
+        "zIndex": 100,
+        "backgroundColor": "rgb(255, 255, 255)",
+        "opacity": "1"
+      },
+      "samples": [
+        {
+          "name": "Task Name Center",
+          "x": 172.2,
+          "y": 378,
+          "topElementTestId": "task-left-panel-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Worker Column Center",
+          "x": 373.79999999999995,
+          "y": 378,
+          "topElementTestId": "task-assignee-summary-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Action Column Center",
+          "x": 505,
+          "y": 378,
+          "topElementTestId": "task-delete-btn-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "1px Inside Right Boundary",
+          "x": 524,
+          "y": 378,
+          "topElementTestId": "task-action-column-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        }
+      ],
+      "pass": true
+    },
+    {
+      "viewport": {
+        "width": 1280,
+        "height": 720,
+        "name": "1280x720"
+      },
+      "scrollLeft": 382,
+      "maxScroll": 382,
+      "stickyLeft": {
+        "left": 21,
+        "right": 525,
+        "width": 504,
+        "zIndex": 100,
+        "backgroundColor": "rgb(255, 255, 255)",
+        "opacity": "1"
+      },
+      "samples": [
+        {
+          "name": "Task Name Center",
+          "x": 172.2,
+          "y": 378,
+          "topElementTestId": "task-left-panel-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Worker Column Center",
+          "x": 373.79999999999995,
+          "y": 378,
+          "topElementTestId": "task-assignee-summary-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Action Column Center",
+          "x": 505,
+          "y": 378,
+          "topElementTestId": "task-delete-btn-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "1px Inside Right Boundary",
+          "x": 524,
+          "y": 378,
+          "topElementTestId": "task-action-column-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        }
+      ],
+      "pass": true
+    },
+    {
+      "viewport": {
+        "width": 1366,
+        "height": 768,
+        "name": "1366x768"
+      },
+      "scrollLeft": 0,
+      "maxScroll": 296,
+      "stickyLeft": {
+        "left": 21,
+        "right": 525,
+        "width": 504,
+        "zIndex": 100,
+        "backgroundColor": "rgb(255, 255, 255)",
+        "opacity": "1"
+      },
+      "samples": [
+        {
+          "name": "Task Name Center",
+          "x": 172.2,
+          "y": 378,
+          "topElementTestId": "task-left-panel-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Worker Column Center",
+          "x": 373.79999999999995,
+          "y": 378,
+          "topElementTestId": "task-assignee-summary-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Action Column Center",
+          "x": 505,
+          "y": 378,
+          "topElementTestId": "task-delete-btn-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "1px Inside Right Boundary",
+          "x": 524,
+          "y": 378,
+          "topElementTestId": "task-action-column-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        }
+      ],
+      "pass": true
+    },
+    {
+      "viewport": {
+        "width": 1366,
+        "height": 768,
+        "name": "1366x768"
+      },
+      "scrollLeft": 30,
+      "maxScroll": 296,
+      "stickyLeft": {
+        "left": 21,
+        "right": 525,
+        "width": 504,
+        "zIndex": 100,
+        "backgroundColor": "rgb(255, 255, 255)",
+        "opacity": "1"
+      },
+      "samples": [
+        {
+          "name": "Task Name Center",
+          "x": 172.2,
+          "y": 378,
+          "topElementTestId": "task-left-panel-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Worker Column Center",
+          "x": 373.79999999999995,
+          "y": 378,
+          "topElementTestId": "task-assignee-summary-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Action Column Center",
+          "x": 505,
+          "y": 378,
+          "topElementTestId": "task-delete-btn-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "1px Inside Right Boundary",
+          "x": 524,
+          "y": 378,
+          "topElementTestId": "task-action-column-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        }
+      ],
+      "pass": true
+    },
+    {
+      "viewport": {
+        "width": 1366,
+        "height": 768,
+        "name": "1366x768"
+      },
+      "scrollLeft": 74,
+      "maxScroll": 296,
+      "stickyLeft": {
+        "left": 21,
+        "right": 525,
+        "width": 504,
+        "zIndex": 100,
+        "backgroundColor": "rgb(255, 255, 255)",
+        "opacity": "1"
+      },
+      "samples": [
+        {
+          "name": "Task Name Center",
+          "x": 172.2,
+          "y": 378,
+          "topElementTestId": "task-left-panel-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Worker Column Center",
+          "x": 373.79999999999995,
+          "y": 378,
+          "topElementTestId": "task-assignee-summary-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Action Column Center",
+          "x": 505,
+          "y": 378,
+          "topElementTestId": "task-delete-btn-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "1px Inside Right Boundary",
+          "x": 524,
+          "y": 378,
+          "topElementTestId": "task-action-column-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        }
+      ],
+      "pass": true
+    },
+    {
+      "viewport": {
+        "width": 1366,
+        "height": 768,
+        "name": "1366x768"
+      },
+      "scrollLeft": 148,
+      "maxScroll": 296,
+      "stickyLeft": {
+        "left": 21,
+        "right": 525,
+        "width": 504,
+        "zIndex": 100,
+        "backgroundColor": "rgb(255, 255, 255)",
+        "opacity": "1"
+      },
+      "samples": [
+        {
+          "name": "Task Name Center",
+          "x": 172.2,
+          "y": 378,
+          "topElementTestId": "task-left-panel-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Worker Column Center",
+          "x": 373.79999999999995,
+          "y": 378,
+          "topElementTestId": "task-assignee-summary-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Action Column Center",
+          "x": 505,
+          "y": 378,
+          "topElementTestId": "task-delete-btn-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "1px Inside Right Boundary",
+          "x": 524,
+          "y": 378,
+          "topElementTestId": "task-action-column-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        }
+      ],
+      "pass": true
+    },
+    {
+      "viewport": {
+        "width": 1366,
+        "height": 768,
+        "name": "1366x768"
+      },
+      "scrollLeft": 222,
+      "maxScroll": 296,
+      "stickyLeft": {
+        "left": 21,
+        "right": 525,
+        "width": 504,
+        "zIndex": 100,
+        "backgroundColor": "rgb(255, 255, 255)",
+        "opacity": "1"
+      },
+      "samples": [
+        {
+          "name": "Task Name Center",
+          "x": 172.2,
+          "y": 378,
+          "topElementTestId": "task-left-panel-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Worker Column Center",
+          "x": 373.79999999999995,
+          "y": 378,
+          "topElementTestId": "task-assignee-summary-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Action Column Center",
+          "x": 505,
+          "y": 378,
+          "topElementTestId": "task-delete-btn-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "1px Inside Right Boundary",
+          "x": 524,
+          "y": 378,
+          "topElementTestId": "task-action-column-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        }
+      ],
+      "pass": true
+    },
+    {
+      "viewport": {
+        "width": 1366,
+        "height": 768,
+        "name": "1366x768"
+      },
+      "scrollLeft": 266,
+      "maxScroll": 296,
+      "stickyLeft": {
+        "left": 21,
+        "right": 525,
+        "width": 504,
+        "zIndex": 100,
+        "backgroundColor": "rgb(255, 255, 255)",
+        "opacity": "1"
+      },
+      "samples": [
+        {
+          "name": "Task Name Center",
+          "x": 172.2,
+          "y": 378,
+          "topElementTestId": "task-left-panel-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Worker Column Center",
+          "x": 373.79999999999995,
+          "y": 378,
+          "topElementTestId": "task-assignee-summary-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Action Column Center",
+          "x": 505,
+          "y": 378,
+          "topElementTestId": "task-delete-btn-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "1px Inside Right Boundary",
+          "x": 524,
+          "y": 378,
+          "topElementTestId": "task-action-column-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        }
+      ],
+      "pass": true
+    },
+    {
+      "viewport": {
+        "width": 1366,
+        "height": 768,
+        "name": "1366x768"
+      },
+      "scrollLeft": 296,
+      "maxScroll": 296,
+      "stickyLeft": {
+        "left": 21,
+        "right": 525,
+        "width": 504,
+        "zIndex": 100,
+        "backgroundColor": "rgb(255, 255, 255)",
+        "opacity": "1"
+      },
+      "samples": [
+        {
+          "name": "Task Name Center",
+          "x": 172.2,
+          "y": 378,
+          "topElementTestId": "task-left-panel-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Worker Column Center",
+          "x": 373.79999999999995,
+          "y": 378,
+          "topElementTestId": "task-assignee-summary-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Action Column Center",
+          "x": 505,
+          "y": 378,
+          "topElementTestId": "task-delete-btn-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "1px Inside Right Boundary",
+          "x": 524,
+          "y": 378,
+          "topElementTestId": "task-action-column-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        }
+      ],
+      "pass": true
+    },
+    {
+      "viewport": {
+        "width": 1536,
+        "height": 864,
+        "name": "1536x864"
+      },
+      "scrollLeft": 0,
+      "maxScroll": 186,
+      "stickyLeft": {
+        "left": 21,
+        "right": 585,
+        "width": 564,
+        "zIndex": 100,
+        "backgroundColor": "rgb(255, 255, 255)",
+        "opacity": "1"
+      },
+      "samples": [
+        {
+          "name": "Task Name Center",
+          "x": 190.2,
+          "y": 378,
+          "topElementTestId": "task-left-panel-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Worker Column Center",
+          "x": 415.79999999999995,
+          "y": 378,
+          "topElementTestId": "task-assignee-summary-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Action Column Center",
+          "x": 565,
+          "y": 378,
+          "topElementTestId": "task-delete-btn-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "1px Inside Right Boundary",
+          "x": 584,
+          "y": 378,
+          "topElementTestId": "task-action-column-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        }
+      ],
+      "pass": true
+    },
+    {
+      "viewport": {
+        "width": 1536,
+        "height": 864,
+        "name": "1536x864"
+      },
+      "scrollLeft": 19,
+      "maxScroll": 186,
+      "stickyLeft": {
+        "left": 21,
+        "right": 585,
+        "width": 564,
+        "zIndex": 100,
+        "backgroundColor": "rgb(255, 255, 255)",
+        "opacity": "1"
+      },
+      "samples": [
+        {
+          "name": "Task Name Center",
+          "x": 190.2,
+          "y": 378,
+          "topElementTestId": "task-left-panel-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Worker Column Center",
+          "x": 415.79999999999995,
+          "y": 378,
+          "topElementTestId": "task-assignee-summary-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Action Column Center",
+          "x": 565,
+          "y": 378,
+          "topElementTestId": "task-delete-btn-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "1px Inside Right Boundary",
+          "x": 584,
+          "y": 378,
+          "topElementTestId": "task-action-column-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        }
+      ],
+      "pass": true
+    },
+    {
+      "viewport": {
+        "width": 1536,
+        "height": 864,
+        "name": "1536x864"
+      },
+      "scrollLeft": 47,
+      "maxScroll": 186,
+      "stickyLeft": {
+        "left": 21,
+        "right": 585,
+        "width": 564,
+        "zIndex": 100,
+        "backgroundColor": "rgb(255, 255, 255)",
+        "opacity": "1"
+      },
+      "samples": [
+        {
+          "name": "Task Name Center",
+          "x": 190.2,
+          "y": 378,
+          "topElementTestId": "task-left-panel-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Worker Column Center",
+          "x": 415.79999999999995,
+          "y": 378,
+          "topElementTestId": "task-assignee-summary-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Action Column Center",
+          "x": 565,
+          "y": 378,
+          "topElementTestId": "task-delete-btn-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "1px Inside Right Boundary",
+          "x": 584,
+          "y": 378,
+          "topElementTestId": "task-action-column-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        }
+      ],
+      "pass": true
+    },
+    {
+      "viewport": {
+        "width": 1536,
+        "height": 864,
+        "name": "1536x864"
+      },
+      "scrollLeft": 93,
+      "maxScroll": 186,
+      "stickyLeft": {
+        "left": 21,
+        "right": 585,
+        "width": 564,
+        "zIndex": 100,
+        "backgroundColor": "rgb(255, 255, 255)",
+        "opacity": "1"
+      },
+      "samples": [
+        {
+          "name": "Task Name Center",
+          "x": 190.2,
+          "y": 378,
+          "topElementTestId": "task-left-panel-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Worker Column Center",
+          "x": 415.79999999999995,
+          "y": 378,
+          "topElementTestId": "task-assignee-summary-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Action Column Center",
+          "x": 565,
+          "y": 378,
+          "topElementTestId": "task-delete-btn-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "1px Inside Right Boundary",
+          "x": 584,
+          "y": 378,
+          "topElementTestId": "task-action-column-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        }
+      ],
+      "pass": true
+    },
+    {
+      "viewport": {
+        "width": 1536,
+        "height": 864,
+        "name": "1536x864"
+      },
+      "scrollLeft": 140,
+      "maxScroll": 186,
+      "stickyLeft": {
+        "left": 21,
+        "right": 585,
+        "width": 564,
+        "zIndex": 100,
+        "backgroundColor": "rgb(255, 255, 255)",
+        "opacity": "1"
+      },
+      "samples": [
+        {
+          "name": "Task Name Center",
+          "x": 190.2,
+          "y": 378,
+          "topElementTestId": "task-left-panel-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Worker Column Center",
+          "x": 415.79999999999995,
+          "y": 378,
+          "topElementTestId": "task-assignee-summary-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Action Column Center",
+          "x": 565,
+          "y": 378,
+          "topElementTestId": "task-delete-btn-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "1px Inside Right Boundary",
+          "x": 584,
+          "y": 378,
+          "topElementTestId": "task-action-column-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        }
+      ],
+      "pass": true
+    },
+    {
+      "viewport": {
+        "width": 1536,
+        "height": 864,
+        "name": "1536x864"
+      },
+      "scrollLeft": 167,
+      "maxScroll": 186,
+      "stickyLeft": {
+        "left": 21,
+        "right": 585,
+        "width": 564,
+        "zIndex": 100,
+        "backgroundColor": "rgb(255, 255, 255)",
+        "opacity": "1"
+      },
+      "samples": [
+        {
+          "name": "Task Name Center",
+          "x": 190.2,
+          "y": 378,
+          "topElementTestId": "task-left-panel-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Worker Column Center",
+          "x": 415.79999999999995,
+          "y": 378,
+          "topElementTestId": "task-assignee-summary-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Action Column Center",
+          "x": 565,
+          "y": 378,
+          "topElementTestId": "task-delete-btn-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "1px Inside Right Boundary",
+          "x": 584,
+          "y": 378,
+          "topElementTestId": "task-action-column-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        }
+      ],
+      "pass": true
+    },
+    {
+      "viewport": {
+        "width": 1536,
+        "height": 864,
+        "name": "1536x864"
+      },
+      "scrollLeft": 186,
+      "maxScroll": 186,
+      "stickyLeft": {
+        "left": 21,
+        "right": 585,
+        "width": 564,
+        "zIndex": 100,
+        "backgroundColor": "rgb(255, 255, 255)",
+        "opacity": "1"
+      },
+      "samples": [
+        {
+          "name": "Task Name Center",
+          "x": 190.2,
+          "y": 378,
+          "topElementTestId": "task-left-panel-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Worker Column Center",
+          "x": 415.79999999999995,
+          "y": 378,
+          "topElementTestId": "task-assignee-summary-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Action Column Center",
+          "x": 565,
+          "y": 378,
+          "topElementTestId": "task-delete-btn-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "1px Inside Right Boundary",
+          "x": 584,
+          "y": 378,
+          "topElementTestId": "task-action-column-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        }
+      ],
+      "pass": true
+    },
+    {
+      "viewport": {
+        "width": 1920,
+        "height": 1080,
+        "name": "1920x1080"
+      },
+      "scrollLeft": 0,
+      "maxScroll": 0,
+      "stickyLeft": {
+        "left": 21,
+        "right": 585,
+        "width": 564,
+        "zIndex": 100,
+        "backgroundColor": "rgb(255, 255, 255)",
+        "opacity": "1"
+      },
+      "samples": [
+        {
+          "name": "Task Name Center",
+          "x": 190.2,
+          "y": 378,
+          "topElementTestId": "task-left-panel-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Worker Column Center",
+          "x": 415.79999999999995,
+          "y": 378,
+          "topElementTestId": "task-assignee-summary-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Action Column Center",
+          "x": 565,
+          "y": 378,
+          "topElementTestId": "task-delete-btn-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "1px Inside Right Boundary",
+          "x": 584,
+          "y": 378,
+          "topElementTestId": "task-action-column-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        }
+      ],
+      "pass": true
+    },
+    {
+      "viewport": {
+        "width": 1920,
+        "height": 1080,
+        "name": "1920x1080"
+      },
+      "scrollLeft": 0,
+      "maxScroll": 0,
+      "stickyLeft": {
+        "left": 21,
+        "right": 585,
+        "width": 564,
+        "zIndex": 100,
+        "backgroundColor": "rgb(255, 255, 255)",
+        "opacity": "1"
+      },
+      "samples": [
+        {
+          "name": "Task Name Center",
+          "x": 190.2,
+          "y": 378,
+          "topElementTestId": "task-left-panel-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Worker Column Center",
+          "x": 415.79999999999995,
+          "y": 378,
+          "topElementTestId": "task-assignee-summary-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Action Column Center",
+          "x": 565,
+          "y": 378,
+          "topElementTestId": "task-delete-btn-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "1px Inside Right Boundary",
+          "x": 584,
+          "y": 378,
+          "topElementTestId": "task-action-column-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        }
+      ],
+      "pass": true
+    },
+    {
+      "viewport": {
+        "width": 1920,
+        "height": 1080,
+        "name": "1920x1080"
+      },
+      "scrollLeft": 0,
+      "maxScroll": 0,
+      "stickyLeft": {
+        "left": 21,
+        "right": 585,
+        "width": 564,
+        "zIndex": 100,
+        "backgroundColor": "rgb(255, 255, 255)",
+        "opacity": "1"
+      },
+      "samples": [
+        {
+          "name": "Task Name Center",
+          "x": 190.2,
+          "y": 378,
+          "topElementTestId": "task-left-panel-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Worker Column Center",
+          "x": 415.79999999999995,
+          "y": 378,
+          "topElementTestId": "task-assignee-summary-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Action Column Center",
+          "x": 565,
+          "y": 378,
+          "topElementTestId": "task-delete-btn-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "1px Inside Right Boundary",
+          "x": 584,
+          "y": 378,
+          "topElementTestId": "task-action-column-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        }
+      ],
+      "pass": true
+    },
+    {
+      "viewport": {
+        "width": 1920,
+        "height": 1080,
+        "name": "1920x1080"
+      },
+      "scrollLeft": 0,
+      "maxScroll": 0,
+      "stickyLeft": {
+        "left": 21,
+        "right": 585,
+        "width": 564,
+        "zIndex": 100,
+        "backgroundColor": "rgb(255, 255, 255)",
+        "opacity": "1"
+      },
+      "samples": [
+        {
+          "name": "Task Name Center",
+          "x": 190.2,
+          "y": 378,
+          "topElementTestId": "task-left-panel-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Worker Column Center",
+          "x": 415.79999999999995,
+          "y": 378,
+          "topElementTestId": "task-assignee-summary-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Action Column Center",
+          "x": 565,
+          "y": 378,
+          "topElementTestId": "task-delete-btn-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "1px Inside Right Boundary",
+          "x": 584,
+          "y": 378,
+          "topElementTestId": "task-action-column-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        }
+      ],
+      "pass": true
+    },
+    {
+      "viewport": {
+        "width": 1920,
+        "height": 1080,
+        "name": "1920x1080"
+      },
+      "scrollLeft": 0,
+      "maxScroll": 0,
+      "stickyLeft": {
+        "left": 21,
+        "right": 585,
+        "width": 564,
+        "zIndex": 100,
+        "backgroundColor": "rgb(255, 255, 255)",
+        "opacity": "1"
+      },
+      "samples": [
+        {
+          "name": "Task Name Center",
+          "x": 190.2,
+          "y": 378,
+          "topElementTestId": "task-left-panel-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Worker Column Center",
+          "x": 415.79999999999995,
+          "y": 378,
+          "topElementTestId": "task-assignee-summary-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Action Column Center",
+          "x": 565,
+          "y": 378,
+          "topElementTestId": "task-delete-btn-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "1px Inside Right Boundary",
+          "x": 584,
+          "y": 378,
+          "topElementTestId": "task-action-column-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        }
+      ],
+      "pass": true
+    },
+    {
+      "viewport": {
+        "width": 1920,
+        "height": 1080,
+        "name": "1920x1080"
+      },
+      "scrollLeft": 0,
+      "maxScroll": 0,
+      "stickyLeft": {
+        "left": 21,
+        "right": 585,
+        "width": 564,
+        "zIndex": 100,
+        "backgroundColor": "rgb(255, 255, 255)",
+        "opacity": "1"
+      },
+      "samples": [
+        {
+          "name": "Task Name Center",
+          "x": 190.2,
+          "y": 378,
+          "topElementTestId": "task-left-panel-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Worker Column Center",
+          "x": 415.79999999999995,
+          "y": 378,
+          "topElementTestId": "task-assignee-summary-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Action Column Center",
+          "x": 565,
+          "y": 378,
+          "topElementTestId": "task-delete-btn-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "1px Inside Right Boundary",
+          "x": 584,
+          "y": 378,
+          "topElementTestId": "task-action-column-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        }
+      ],
+      "pass": true
+    },
+    {
+      "viewport": {
+        "width": 1920,
+        "height": 1080,
+        "name": "1920x1080"
+      },
+      "scrollLeft": 0,
+      "maxScroll": 0,
+      "stickyLeft": {
+        "left": 21,
+        "right": 585,
+        "width": 564,
+        "zIndex": 100,
+        "backgroundColor": "rgb(255, 255, 255)",
+        "opacity": "1"
+      },
+      "samples": [
+        {
+          "name": "Task Name Center",
+          "x": 190.2,
+          "y": 378,
+          "topElementTestId": "task-left-panel-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Worker Column Center",
+          "x": 415.79999999999995,
+          "y": 378,
+          "topElementTestId": "task-assignee-summary-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "Action Column Center",
+          "x": 565,
+          "y": 378,
+          "topElementTestId": "task-delete-btn-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        },
+        {
+          "name": "1px Inside Right Boundary",
+          "x": 584,
+          "y": 378,
+          "topElementTestId": "task-action-column-tsk_1785986641049_7m61",
+          "topElementInsideSticky": true,
+          "timelineVisibleAboveSticky": false
+        }
+      ],
+      "pass": true
+    }
+  ],
+  "pass": true
+}
