@@ -16,6 +16,7 @@ interface WorkerDayCellBackgroundProps {
   calendarOverrides?: CalendarOverride[];
   workers?: Worker[];
   isToday?: boolean;
+  isOverlayOnly?: boolean;
   className?: string;
   style?: React.CSSProperties;
   onClick?: (e: React.MouseEvent) => void;
@@ -34,6 +35,7 @@ export const WorkerDayCellBackground: React.FC<WorkerDayCellBackgroundProps> = (
   calendarOverrides = [],
   workers = [],
   isToday,
+  isOverlayOnly = false,
   className = '',
   style,
   onClick,
@@ -118,6 +120,8 @@ export const WorkerDayCellBackground: React.FC<WorkerDayCellBackgroundProps> = (
   // Width percentage for partial off hatch
   const offWidthPercent = partialState === 'PARTIAL_OFF' ? Math.round((offCount / totalAssignees) * 100) : 100;
 
+  const bgClass = isOverlayOnly ? 'bg-transparent border-transparent pointer-events-none' : `${overallToken.baseClass} border-slate-200`;
+
   return (
     <div
       data-worker-day-type={dayStatus?.day_type || 'WORKDAY'}
@@ -129,7 +133,7 @@ export const WorkerDayCellBackground: React.FC<WorkerDayCellBackgroundProps> = (
       aria-label={ariaLabel}
       onClick={onClick}
       style={style}
-      className={`relative border-r border-slate-200 transition select-none h-full w-full ${overallToken.baseClass} ${className}`}
+      className={`relative transition select-none h-full w-full ${bgClass} ${className}`}
     >
       {/* Layer 0: Base Cell Content / Background */}
       <div className="absolute inset-0 z-0 h-full w-full" />

@@ -268,7 +268,13 @@ const SortableTaskRow: React.FC<SortableTaskRowProps> = ({
 
       {/* Single Timeline Wrapper Cell for all Gantt Days */}
       <td colSpan={dateColumns.length} className="p-0 border-b border-slate-200">
-        <div className="relative w-full h-11">
+        <div
+          className="relative h-11"
+          style={{
+            width: `${dateColumns.length * GANTT_DAY_WIDTH_PX}px`,
+            minWidth: `${dateColumns.length * GANTT_DAY_WIDTH_PX}px`,
+          }}
+        >
           {/* Layer 0: Day Cell Background & Click Target Grid (z-0) */}
           <div
             className="absolute inset-0 z-0 grid h-full w-full"
@@ -341,6 +347,7 @@ const SortableTaskRow: React.FC<SortableTaskRowProps> = ({
                   calendarOverrides={calendarOverrides}
                   workers={workers}
                   isToday={col.isToday}
+                  isOverlayOnly={true}
                 />
               );
             })}

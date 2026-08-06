@@ -793,7 +793,10 @@ export const ProjectOverviewPage: React.FC = () => {
                         <td colSpan={dateColumns.length} className="p-0 border-0 relative">
                           <div
                             className="relative h-[60px]"
-                            style={{ minWidth: `${dateColumns.length * GANTT_DAY_WIDTH_PX}px` }}
+                            style={{ 
+                              width: `${dateColumns.length * GANTT_DAY_WIDTH_PX}px`,
+                              minWidth: `${dateColumns.length * GANTT_DAY_WIDTH_PX}px` 
+                            }}
                           >
                             {/* 1. Date Cells Background Layer */}
                             <div
