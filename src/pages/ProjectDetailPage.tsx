@@ -182,6 +182,14 @@ const SortableTaskRow: React.FC<SortableTaskRowProps> = ({
             <span className="font-extrabold text-slate-800 truncate" title={taskTitle}>
               {taskTitle}
             </span>
+            {(tItem.schedule_status === 'UNSCHEDULED' || (!tItem.start_date && !tItem.end_date)) && (
+              <span
+                data-testid="unscheduled-task-badge"
+                className="px-1.5 py-0.5 rounded bg-amber-100 border border-amber-300 text-amber-800 font-extrabold text-[10px] shrink-0"
+              >
+                {lang === 'vi' ? 'Chưa xác định' : '일정 미정'}
+              </span>
+            )}
           </div>
 
           {/* Worker Assignees Column */}
@@ -266,19 +274,22 @@ const SortableTaskRow: React.FC<SortableTaskRowProps> = ({
             className="absolute inset-0 z-0 grid h-full w-full"
             style={{ gridTemplateColumns: `repeat(${dateColumns.length}, ${GANTT_DAY_WIDTH_PX}px)` }}
           >
-            {dateColumns.map((col, cIdx) => {
-              const isInRange = col.dateStr >= tItem.start_date && col.dateStr <= tItem.end_date;
-              const workerObj = workers.find((w) => w.name === tItem.worker_name) || null;
-              const dayStatus = resolveWorkDayStatus(col.dateStr, (workerObj || { id: tItem.worker_name, name: tItem.worker_name }) as any, countryHolidays, calendarOverrides);
-              return (
-                <div
-                  key={cIdx}
-                  data-testid={`gantt-task-cell-${tItem.id}-${col.dateStr}`}
-                  onClick={() => onCellClick(tItem, col.dateStr, dayStatus, workerObj)}
-                  className={`border-r border-slate-200 cursor-pointer h-full ${isInRange ? 'bg-blue-50/30' : ''}`}
-                />
-              );
-            })}
+            {(() => {
+              const isUnscheduled = tItem.schedule_status === 'UNSCHEDULED' || !tItem.start_date || !tItem.end_date;
+              return dateColumns.map((col, cIdx) => {
+                const isInRange = !isUnscheduled && col.dateStr >= tItem.start_date! && col.dateStr <= tItem.end_date!;
+                const workerObj = workers.find((w) => w.name === tItem.worker_name) || null;
+                const dayStatus = resolveWorkDayStatus(col.dateStr, (workerObj || { id: tItem.worker_name, name: tItem.worker_name }) as any, countryHolidays, calendarOverrides);
+                return (
+                  <div
+                    key={cIdx}
+                    data-testid={`gantt-task-cell-${tItem.id}-${col.dateStr}`}
+                    onClick={() => onCellClick(tItem, col.dateStr, dayStatus, workerObj)}
+                    className={`border-r border-slate-200 cursor-pointer h-full ${isInRange ? 'bg-blue-50/30' : ''}`}
+                  />
+                );
+              });
+            })()}
           </div>
 
           {/* Layer 5: Single Today Column Overlay Highlight (z-5) */}

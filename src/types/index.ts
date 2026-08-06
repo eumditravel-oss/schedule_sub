@@ -154,6 +154,8 @@ export interface TaskGroup {
   updated_at?: string;
 }
 
+export type ScheduleStatus = 'SCHEDULED' | 'UNSCHEDULED';
+
 export interface Task {
   id: string;
   project_id: string;
@@ -161,8 +163,9 @@ export interface Task {
   task_sort_order?: number;
   worker_name: string;
   task_name: string;
-  start_date: string;
-  end_date: string;
+  start_date?: string | null;
+  end_date?: string | null;
+  schedule_status?: ScheduleStatus;
   progress: number;
   created_by_name?: string | null;
   updated_by_name?: string | null;

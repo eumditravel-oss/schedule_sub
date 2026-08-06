@@ -46,6 +46,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
   const [targetText, setTargetText] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [scheduleStatus, setScheduleStatus] = useState<'SCHEDULED' | 'UNSCHEDULED'>('SCHEDULED');
   const [saving, setSaving] = useState(false);
   const [manualLock, setManualLock] = useState(false);
 
@@ -98,6 +99,8 @@ export const TaskModal: React.FC<TaskModalProps> = ({
 
       setTaskNameInput(initialSourceText || '');
       setTargetText(initialTransText || '');
+      const isUnsch = task.schedule_status === 'UNSCHEDULED' || (!task.start_date && !task.end_date);
+      setScheduleStatus(isUnsch ? 'UNSCHEDULED' : 'SCHEDULED');
       setStartDate(task.start_date || '');
       setEndDate(task.end_date || '');
       setProgressMode(task.progress_mode || 'AUTO_TIME');
@@ -252,14 +255,21 @@ export const TaskModal: React.FC<TaskModalProps> = ({
       return;
     }
 
-    if (breakdown.has_profile_error) {
-      alert(lang === 'vi' ? 'Không thể xác minh thông tin lịch làm việc của nhân viên.' : '작업자 캘린더 정보를 확인할 수 없습니다.');
-      return;
-    }
+    if (scheduleStatus === 'SCHEDULED') {
+      if (!startDate || !endDate) {
+        alert(lang === 'vi' ? 'Vui lòng chọn ngày bắt đầu và kết thúc.' : '시작일과 종료일을 입력해 주세요.');
+        return;
+      }
 
-    if (breakdown.planned_working_days === 0) {
-      alert(lang === 'vi' ? 'Không có ngày làm việc thực tế trong khoảng thời gian đã chọn.' : '선택한 기간에 실제 근무 가능한 날짜가 없습니다.');
-      return;
+      if (breakdown.has_profile_error) {
+        alert(lang === 'vi' ? 'Không thể xác minh thông tin lịch làm việc của nhân viên.' : '작업자 캘린더 정보를 확인할 수 없습니다.');
+        return;
+      }
+
+      if (breakdown.planned_working_days === 0) {
+        alert(lang === 'vi' ? 'Không có ngày làm việc thực tế trong khoảng thời gian đã chọn.' : '선택한 기간에 실제 근무 가능한 날짜가 없습니다.');
+        return;
+      }
     }
 
     try {
@@ -280,8 +290,9 @@ export const TaskModal: React.FC<TaskModalProps> = ({
         progress_mode: progressMode,
         availability_policy: availabilityPolicy,
         task_name: taskNameInput.trim(),
-        start_date: startDate,
-        end_date: endDate,
+        schedule_status: scheduleStatus,
+        start_date: scheduleStatus === 'UNSCHEDULED' ? null : startDate,
+        end_date: scheduleStatus === 'UNSCHEDULED' ? null : endDate,
         source_language: inputLang,
         translation_status: manualLock ? 'MANUAL' : (autoStatus === 'MANUAL' ? 'MANUAL' : 'COMPLETED'),
       };
@@ -598,39 +609,94 @@ export const TaskModal: React.FC<TaskModalProps> = ({
             </div>
           </div>
 
-          {/* Schedule Date Range */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block font-bold text-slate-700 mb-1">{t('startDate')} *</label>
-              <input
-                type="date"
-                data-testid="task-start-date-input"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                required
-                className="w-full h-10 px-3 rounded-lg border border-slate-300 focus:outline-none focus:border-blue-500 font-medium text-slate-900 bg-white"
-              />
-            </div>
-            <div>
-              <label className="block font-bold text-slate-700 mb-1">{t('endDate')} *</label>
-              <input
-                type="date"
-                data-testid="task-end-date-input"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                required
-                className="w-full h-10 px-3 rounded-lg border border-slate-300 focus:outline-none focus:border-blue-500 font-medium text-slate-900 bg-white"
-              />
+          {/* Schedule Status Selection */}
+          <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+            <label className="block font-bold text-slate-800">
+              {lang === 'vi' ? 'Trạng thái lịch công việc' : '일정 확정 상태'}
+            </label>
+            <div className="flex items-center gap-4">
+              <label className="flex items-center gap-2 cursor-pointer font-bold text-slate-800">
+                <input
+                  type="radio"
+                  name="schedule_status"
+                  data-testid="task-schedule-status-scheduled"
+                  value="SCHEDULED"
+                  checked={scheduleStatus === 'SCHEDULED'}
+                  onChange={() => setScheduleStatus('SCHEDULED')}
+                  className="text-blue-600 focus:ring-blue-500"
+                />
+                <span>{lang === 'vi' ? 'Đã xác định lịch' : '일정 확정 (SCHEDULED)'}</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer font-bold text-slate-800">
+                <input
+                  type="radio"
+                  name="schedule_status"
+                  data-testid="task-schedule-status-unscheduled"
+                  value="UNSCHEDULED"
+                  checked={scheduleStatus === 'UNSCHEDULED'}
+                  onChange={() => {
+                    if (task && task.schedule_status !== 'UNSCHEDULED') {
+                      if (!confirm(lang === 'vi' ? 'Chuyển sang chưa xác định lịch sẽ xóa ngày hiện tại. Bạn có chắc chắn?' : '일정 미정으로 변경하면 기존 설정된 시작일/종료일이 해제됩니다. 계속하시겠습니까?')) {
+                        return;
+                      }
+                    }
+                    setScheduleStatus('UNSCHEDULED');
+                    setStartDate('');
+                    setEndDate('');
+                  }}
+                  className="text-amber-600 focus:ring-amber-500"
+                />
+                <span className="text-amber-700">{lang === 'vi' ? 'Chưa xác định lịch (Backlog)' : '일정 미정 (UNSCHEDULED)'}</span>
+              </label>
             </div>
           </div>
 
-          {/* Planned Workday Summary */}
-          <div className="p-3 bg-blue-50/70 border border-blue-100 rounded-xl text-blue-900">
-            <div className="flex items-center justify-between font-bold">
-              <span>{lang === 'vi' ? 'Số ngày làm việc thực tế:' : '실제 근무 가능 일수:'}</span>
-              <span className="text-blue-700 text-sm">{breakdown.planned_working_days} {lang === 'vi' ? 'ngày' : '일'}</span>
+          {/* Schedule Date Range */}
+          {scheduleStatus === 'SCHEDULED' ? (
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">{t('startDate')} *</label>
+                <input
+                  type="date"
+                  data-testid="task-start-date-input"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  required
+                  className="w-full h-10 px-3 rounded-lg border border-slate-300 focus:outline-none focus:border-blue-500 font-medium text-slate-900 bg-white"
+                />
+              </div>
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">{t('endDate')} *</label>
+                <input
+                  type="date"
+                  data-testid="task-end-date-input"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  required
+                  className="w-full h-10 px-3 rounded-lg border border-slate-300 focus:outline-none focus:border-blue-500 font-medium text-slate-900 bg-white"
+                />
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 font-bold text-xs flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0 text-amber-600" />
+              <span>
+                {lang === 'vi'
+                  ? 'Công việc này được lưu dưới dạng chưa xác định lịch (Backlog). Lịch sẽ không hiển thị trên thanh Gantt.'
+                  : '이 작업은 일정 미정(Backlog) 상태로 저장됩니다. 간트 차트에 막대가 표시되지 않습니다.'}
+              </span>
+            </div>
+          )}
+
+          {/* Planned Workday Summary */}
+          {scheduleStatus === 'SCHEDULED' && (
+            <div className="p-3 bg-blue-50/70 border border-blue-100 rounded-xl text-blue-900">
+              <div className="flex items-center justify-between font-bold">
+                <span>{lang === 'vi' ? 'Số ngày làm việc thực tế:' : '실제 근무 가능 일수:'}</span>
+                <span className="text-blue-700 text-sm">{breakdown.planned_working_days} {lang === 'vi' ? 'ngày' : '일'}</span>
+              </div>
+            </div>
+          )}
 
           {/* Submit / Cancel Actions */}
           <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">

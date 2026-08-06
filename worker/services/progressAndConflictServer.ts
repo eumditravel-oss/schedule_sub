@@ -27,6 +27,18 @@ export function calculateTaskProgressServer(
   dailyStatuses: Record<string, string> = {},
   referenceTodayStr?: string
 ): TaskProgressMetricsServer {
+  if (task.schedule_status === 'UNSCHEDULED' || !task.start_date || !task.end_date) {
+    return {
+      planned_working_days: 0,
+      completed_working_days: 0,
+      planned_progress: 0,
+      actual_progress: 0,
+      progress_gap: 0,
+      schedule_state: 'UPCOMING',
+      actual_progress_source: task.progress_mode || 'AUTO_TIME',
+    };
+  }
+
   const workerList: any[] = Array.isArray(workers) ? workers : (workers ? [workers] : []);
   
   let taskAssignees: any[] = task.assignees || [];
@@ -186,8 +198,13 @@ export function calculateProjectProgressServer(
   let weighted_actual_progress_sum = 0;
   let auto_progress_task_count = 0;
   let status_progress_task_count = 0;
+  let unscheduled_task_count = 0;
 
   for (const tItem of tasks) {
+    if (tItem.schedule_status === 'UNSCHEDULED' || !tItem.start_date || !tItem.end_date) {
+      unscheduled_task_count += 1;
+      continue;
+    }
     const dailyMap = allDailyStatuses[tItem.id] || {};
     const metrics = calculateTaskProgressServer(tItem, workers, holidays, overrides, project.status, dailyMap, referenceTodayStr);
 

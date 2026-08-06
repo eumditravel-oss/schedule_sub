@@ -11,7 +11,10 @@ playwright-report/
 test-results/
 qa/screenshots/
 
-# Backups & Secret SQL dumps
+# Excel imports & Scratch files
+imports/
+scratch/
+*.xlsx
 backups/
 
 # Environment files & secret vars

@@ -2625,29 +2625,35 @@ function addPureCalendarDays(dateStr: string, deltaDays: number): string {
           return errorResponse(assignValidation.errorMsg!, 400, assignValidation.errorCode!);
         }
 
+        const isUnscheduled = validated.schedule_status === 'UNSCHEDULED';
+        const finalStartDate = isUnscheduled ? null : (validated.start_date || null);
+        const finalEndDate = isUnscheduled ? null : (validated.end_date || null);
+
         const project = await db.prepare(`SELECT * FROM projects WHERE id = ?`).bind(validated.project_id).first();
-        if (project) {
-          if (validated.start_date < project.start_date || validated.end_date > project.end_date || validated.start_date > validated.end_date) {
+        if (project && !isUnscheduled && finalStartDate && finalEndDate) {
+          if (finalStartDate < project.start_date || finalEndDate > project.end_date || finalStartDate > finalEndDate) {
             const isVi = editCheck.worker?.ui_language === 'vi';
             const msg = isVi ? 'Lịch công việc phải nằm trong thời gian của dự án.' : '작업 일정은 프로젝트 기간 안에서만 설정할 수 있습니다.';
             return errorResponse(msg, 409, 'TASK_OUTSIDE_PROJECT_RANGE');
           }
         }
 
-        const batch = await fetchCalendarBatchData(db);
-        const taskMetrics = calculateTaskProgressServer(
-          { start_date: validated.start_date, end_date: validated.end_date, assignees: assignValidation.assignees, availability_policy: assignValidation.availabilityPolicy },
-          batch.workers,
-          batch.holidays,
-          batch.overrides
-        );
-        if (taskMetrics.planned_working_days === 0) {
-          const isVi = editCheck.worker?.ui_language === 'vi';
-          const msg = isVi ? 'Không có ngày làm việc thực tế trong khoảng thời gian đã chọn.' : '선택한 기간에 실제 근무 가능한 날짜가 없습니다.';
-          return errorResponse(msg, 400, 'WORKING_DAY_RANGE_EMPTY');
+        if (!isUnscheduled && finalStartDate && finalEndDate) {
+          const batch = await fetchCalendarBatchData(db);
+          const taskMetrics = calculateTaskProgressServer(
+            { start_date: finalStartDate, end_date: finalEndDate, assignees: assignValidation.assignees, availability_policy: assignValidation.availabilityPolicy },
+            batch.workers,
+            batch.holidays,
+            batch.overrides
+          );
+          if (taskMetrics.planned_working_days === 0) {
+            const isVi = editCheck.worker?.ui_language === 'vi';
+            const msg = isVi ? 'Không có ngày làm việc thực tế trong khoảng thời gian đã chọn.' : '선택한 기간에 실제 근무 가능한 날짜가 없습니다.';
+            return errorResponse(msg, 400, 'WORKING_DAY_RANGE_EMPTY');
+          }
         }
 
-        if (body.confirm_worker_schedule_conflict !== true) {
+        if (!isUnscheduled && finalStartDate && finalEndDate && body.confirm_worker_schedule_conflict !== true) {
           const [allActiveProjectsRes, allActiveTasksRes, batch] = await Promise.all([
             db.prepare(`SELECT * FROM projects WHERE status = 'ACTIVE'`).all(),
             db.prepare(`SELECT * FROM tasks`).all(),
@@ -2655,7 +2661,7 @@ function addPureCalendarDays(dateStr: string, deltaDays: number): string {
           ]);
 
           const conflicts = detectWorkerTaskConflictsServer(
-            { worker_name: assignValidation.primaryWorkerName!, start_date: validated.start_date, end_date: validated.end_date, project_id: validated.project_id, assignees: assignValidation.assignees },
+            { worker_name: assignValidation.primaryWorkerName!, start_date: finalStartDate, end_date: finalEndDate, project_id: validated.project_id, assignees: assignValidation.assignees },
             allActiveProjectsRes.results || [],
             allActiveTasksRes.results || [],
             batch.workers,
@@ -2722,10 +2728,10 @@ function addPureCalendarDays(dateStr: string, deltaDays: number): string {
             .prepare(
               `INSERT INTO tasks (
                 id, project_id, task_group_id, task_sort_order, worker_name, primary_worker_id, task_name, start_date, end_date, progress,
-                progress_mode, availability_policy, completion_confirmed,
+                progress_mode, availability_policy, completion_confirmed, schedule_status,
                 created_by_name, updated_by_name,
                 task_name_ko, task_name_vi, source_language, translation_status, translation_error
-              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?)`
+              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?)`
             )
             .bind(
               id,
@@ -2735,11 +2741,12 @@ function addPureCalendarDays(dateStr: string, deltaDays: number): string {
               assignValidation.primaryWorkerName,
               assignValidation.primaryWorkerId,
               validated.task_name,
-              validated.start_date,
-              validated.end_date,
+              finalStartDate,
+              finalEndDate,
               validated.progress ?? 0,
               assignValidation.progressMode,
               assignValidation.availabilityPolicy,
+              isUnscheduled ? 'UNSCHEDULED' : 'SCHEDULED',
               editor,
               editor,
               transResult.name_ko,
