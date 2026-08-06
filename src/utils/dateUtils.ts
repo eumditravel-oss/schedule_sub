@@ -19,21 +19,25 @@ import { Language } from '../i18n';
 
 export type GanttViewMode = 'THIRTY_DAYS' | 'MONTH';
 
-/**
- * Returns current date in Korea Standard Time (Asia/Seoul) as YYYY-MM-DD
- */
-export function getKoreaDateString(): string {
+export function getLocalDateString(date: Date = new Date(), timeZone: string = 'Asia/Seoul'): string {
   try {
     const formatter = new Intl.DateTimeFormat('en-CA', {
-      timeZone: 'Asia/Seoul',
+      timeZone,
       year: 'numeric',
       month: '2-digit',
       day: '2-digit',
     });
-    return formatter.format(new Date());
+    return formatter.format(date);
   } catch {
-    return new Date().toISOString().slice(0, 10);
+    return format(date, 'yyyy-MM-dd');
   }
+}
+
+/**
+ * Returns current date in Korea Standard Time (Asia/Seoul) as YYYY-MM-DD
+ */
+export function getKoreaDateString(): string {
+  return getLocalDateString(new Date(), 'Asia/Seoul');
 }
 
 export function formatDateStr(date: Date): string {

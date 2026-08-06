@@ -3,6 +3,7 @@ import React, { useEffect, useRef } from 'react';
 import ReactDOM from 'react-dom';
 import { TaskAssignee, Worker, CalendarOverride, CountryHoliday } from '../../types';
 import { resolveWorkDayStatus } from '../../utils/workCalendar';
+import { getKoreaDateString } from '../../utils/dateUtils';
 
 export interface TaskAssigneePopoverProps {
   taskId: string;
@@ -22,7 +23,7 @@ export const TaskAssigneePopover: React.FC<TaskAssigneePopoverProps> = ({
   taskTitle,
   assignees,
   workers,
-  dateStr = new Date().toISOString().split('T')[0],
+  dateStr = getKoreaDateString(),
   calendarOverrides = [],
   countryHolidays = [],
   anchorRect,
@@ -41,6 +42,10 @@ export const TaskAssigneePopover: React.FC<TaskAssigneePopoverProps> = ({
     };
 
     const handlePointerDown = (e: MouseEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target?.closest('[data-testid^="task-assignee-"]')) {
+        return;
+      }
       if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
         onClose();
       }
@@ -61,7 +66,7 @@ export const TaskAssigneePopover: React.FC<TaskAssigneePopoverProps> = ({
       window.removeEventListener('scroll', handleScrollOrResize, { capture: true });
       window.removeEventListener('resize', handleScrollOrResize);
     };
-  }, [isOpen, onClose]);
+  }, [isOpen, taskId, onClose]);
 
   if (!isOpen || !anchorRect) return null;
 
