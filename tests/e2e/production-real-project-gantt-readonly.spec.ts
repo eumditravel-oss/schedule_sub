@@ -424,6 +424,7 @@ test.describe('P0 Desktop Single CSS Grid Canvas Strict Geometry Verification', 
         expectedHeaderCount: 31,
         expectedRowCount: prjCount,
         expectedCellCount: prjCount * 31,
+        expectedBarCount: 1,
         monthStr: '2026-05',
       });
 
@@ -433,6 +434,7 @@ test.describe('P0 Desktop Single CSS Grid Canvas Strict Geometry Verification', 
         expectedHeaderCount: 31,
         expectedRowCount: prjCount,
         expectedCellCount: prjCount * 31,
+        expectedBarCount: 1,
         monthStr: '2026-07',
       });
     }
@@ -451,8 +453,8 @@ test.describe('P0 Desktop Single CSS Grid Canvas Strict Geometry Verification', 
 
       // Check unscheduled task badge (ES 5.2)
       const unschBadge = page.locator('[data-testid="unscheduled-task-badge"]');
-      const isUnschVisible = await unschBadge.isVisible({ timeout: 2000 }).catch(() => false);
-      console.log('ES unscheduled badge visible:', isUnschVisible);
+      await expect(unschBadge).toBeVisible();
+      await expect(unschBadge).toHaveCount(1);
 
       // Check Geometry for May 2026 (31 days, 15 rows = 465 cells, 8 visible bars)
       await verifyCanvasGeometryAlignment(page, 'es_detail_may', vp, {
