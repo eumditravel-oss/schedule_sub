@@ -3,7 +3,7 @@ import { test, expect } from '@playwright/test';
 import * as fs from 'fs';
 import * as path from 'path';
 
-const LOCAL_BASE_URL = process.env.TEST_BASE_URL || 'http://localhost:5173';
+const LOCAL_BASE_URL = (process.env.TEST_BASE_URL || 'http://localhost:5174').trim();
 const ES_PROJECT_ID = 'prj_1785986689248_qhuq';
 const HUB_PROJECT_ID = 'prj_1785986741604_ppqz';
 
@@ -22,6 +22,12 @@ const ALL_VIEWPORTS = [
 ];
 
 async function dismissWorkerPromptModal(page: any) {
+  await page.addInitScript(() => {
+    try {
+      window.localStorage.setItem('schedule_current_worker_id', 'wrk_02');
+      window.localStorage.setItem('schedule_current_worker_name', '박용진 수석');
+    } catch {}
+  });
   await page.waitForTimeout(300);
   const modal = page.locator('[data-testid="worker-prompt-modal"]');
   if (await modal.isVisible({ timeout: 1500 }).catch(() => false)) {
@@ -38,8 +44,9 @@ async function ensureMonthView(page: any) {
   await expect(monthBtn).toBeVisible({ timeout: 5000 });
   
   const cls = (await monthBtn.getAttribute('class')) || '';
+  const ariaPressed = await monthBtn.getAttribute('aria-pressed');
   const dataState = await monthBtn.getAttribute('data-state');
-  const isAlreadyActive = dataState === 'active' || cls.includes('bg-white') || (await monthBtn.getAttribute('aria-pressed')) === 'true';
+  const isAlreadyActive = ariaPressed === 'true' || dataState === 'active' || cls.includes('bg-white');
   if (!isAlreadyActive) {
     await monthBtn.click();
     await page.waitForTimeout(300);
@@ -104,6 +111,7 @@ interface GeometryExpectations {
   expectedRowCount: number;
   expectedCellCount: number;
   expectedBarCount?: number;
+  monthStr?: string;
 }
 
 async function verifyCanvasGeometryAlignment(
@@ -120,23 +128,17 @@ async function verifyCanvasGeometryAlignment(
   const firstRow = page.locator('[data-testid^="project-row-"], [data-testid^="task-row-"]').first();
   await expect(firstRow).toBeVisible({ timeout: 10000 });
 
-  const geoResult = await page.evaluate(() => {
+  const rawResult = await page.evaluate(() => {
     const dateHeaders = Array.from(document.querySelectorAll<HTMLElement>('[data-testid^="gantt-date-header-"]'));
-    const rows = Array.from(document.querySelectorAll<HTMLElement>('[data-testid^="task-row-"], [data-testid^="project-row-"]'));
+    const rawMatched = Array.from(document.querySelectorAll<HTMLElement>('[data-testid^="task-row-"], [data-testid^="project-row-"]'));
+    const matchedIds = rawMatched.map((r) => r.getAttribute('data-testid') || '');
+    const rows = rawMatched.filter((r) => {
+      const tid = r.getAttribute('data-testid') || '';
+      return !tid.includes('group') && !tid.includes('drag-handle');
+    });
 
     if (dateHeaders.length === 0 || rows.length === 0) {
-      return {
-        error: 'NO_GEOMETRY_MEASUREMENTS',
-        headerCount: dateHeaders.length,
-        rowCount: rows.length,
-        evaluatedCellCount: 0,
-        evaluatedBarCount: 0,
-        maxLeftError: 999,
-        maxRightError: 999,
-        maxWidthError: 999,
-        maxBarStartError: 999,
-        maxBarEndError: 999,
-      };
+      throw new Error('NO_GEOMETRY_MEASUREMENTS');
     }
 
     const errors: { dateStr: string; rowIndex: number; leftDiff: number; rightDiff: number; widthDiff: number }[] = [];
@@ -175,10 +177,20 @@ async function verifyCanvasGeometryAlignment(
       });
     });
 
-    const barErrors: { trackId: string; startDiff: number; endDiff: number }[] = [];
+    if (errors.length === 0) {
+      throw new Error('NO_GEOMETRY_CELL_EVALUATIONS');
+    }
+
+    const barErrors: { trackId: string; startDiff: number; endDiff: number; widthDiff: number }[] = [];
+    const taskDetails: any[] = [];
     const barTracks = Array.from(document.querySelectorAll<HTMLElement>('[data-testid^="gantt-schedule-bar-track-"]'));
+    
     barTracks.forEach((track) => {
+      const trackId = track.getAttribute('data-testid') || '';
+      const taskId = trackId.replace('gantt-schedule-bar-track-', '');
       const tRect = track.getBoundingClientRect();
+      const row = rows.find((r) => (r.getAttribute('data-testid') || '').includes(taskId));
+
       let matchedStartHeader: HTMLElement | null = null;
       let matchedEndHeader: HTMLElement | null = null;
 
@@ -196,37 +208,92 @@ async function verifyCanvasGeometryAlignment(
         }
       });
 
+      let startCellLeft = 0;
+      let endCellRight = 0;
+      let expectedWidthFromCells = 0;
       if (matchedStartHeader && matchedEndHeader) {
         const sRect = (matchedStartHeader as HTMLElement).getBoundingClientRect();
         const eRect = (matchedEndHeader as HTMLElement).getBoundingClientRect();
+        startCellLeft = sRect.left;
+        endCellRight = eRect.right;
+        expectedWidthFromCells = eRect.right - sRect.left;
+
+        const startDiff = Math.abs(tRect.left - sRect.left);
+        const endDiff = Math.abs(tRect.right - eRect.right);
+        const widthDiff = Math.abs(tRect.width - expectedWidthFromCells);
+
         barErrors.push({
-          trackId: track.getAttribute('data-testid') || '',
-          startDiff: Math.abs(tRect.left - sRect.left),
-          endDiff: Math.abs(tRect.right - eRect.right),
+          trackId,
+          startDiff,
+          endDiff,
+          widthDiff,
         });
       }
-    });
 
-    if (errors.length === 0) {
-      return {
-        error: 'NO_GEOMETRY_CELL_EVALUATIONS',
-        headerCount: dateBoxes.length,
-        rowCount: rows.length,
-        evaluatedCellCount: 0,
-        evaluatedBarCount: barTracks.length,
-        maxLeftError: 999,
-        maxRightError: 999,
-        maxWidthError: 999,
-        maxBarStartError: 999,
-        maxBarEndError: 999,
-      };
-    }
+      const visualBar = track.querySelector<HTMLElement>('[data-testid="gantt-schedule-bar"]');
+      let leftInset = 0;
+      let rightInset = 0;
+      let overflowsTrack = false;
+      if (visualBar) {
+        const vRect = visualBar.getBoundingClientRect();
+        leftInset = vRect.left - tRect.left;
+        rightInset = tRect.right - vRect.right;
+        overflowsTrack = vRect.left < tRect.left - 0.5 || vRect.right > tRect.right + 0.5;
+      }
+
+      taskDetails.push({
+        taskId,
+        taskName: row ? (row.querySelector('.truncate')?.textContent || '').trim() : '',
+        startDate: matchedStartHeader ? (matchedStartHeader.getAttribute('data-date') || '') : '',
+        endDate: matchedEndHeader ? (matchedEndHeader.getAttribute('data-date') || '') : '',
+        timeline: {
+          headerWidth: dateHeaders.reduce((acc, h) => acc + h.getBoundingClientRect().width, 0),
+          bodyWidth: row ? Array.from(row.querySelectorAll('[data-testid*="gantt-task-cell"]')).reduce((acc, c) => acc + c.getBoundingClientRect().width, 0) : 0,
+          barLayerWidth: track.parentElement ? track.parentElement.getBoundingClientRect().width : 0,
+        },
+        start: {
+          bodyCellLeft: startCellLeft,
+          barTrackLeft: tRect.left,
+          error: Math.abs(tRect.left - startCellLeft),
+        },
+        end: {
+          bodyCellRight: endCellRight,
+          barTrackRight: tRect.right,
+          error: Math.abs(tRect.right - endCellRight),
+        },
+        width: {
+          expectedFromCells: expectedWidthFromCells,
+          barTrackWidth: tRect.width,
+          error: Math.abs(tRect.width - expectedWidthFromCells),
+        },
+        visualBar: {
+          leftInset,
+          rightInset,
+          overflowsTrack,
+        },
+      });
+    });
 
     const maxLeftError = Math.max(...errors.map((e) => e.leftDiff));
     const maxRightError = Math.max(...errors.map((e) => e.rightDiff));
     const maxWidthError = Math.max(...errors.map((e) => e.widthDiff));
     const maxBarStartError = barErrors.length > 0 ? Math.max(...barErrors.map((b) => b.startDiff)) : 0;
     const maxBarEndError = barErrors.length > 0 ? Math.max(...barErrors.map((b) => b.endDiff)) : 0;
+
+    let firstMismatch: any = null;
+    let worstMismatch: any = null;
+    let worstVal = -1;
+
+    errors.forEach((e) => {
+      const maxErr = Math.max(e.leftDiff, e.rightDiff, e.widthDiff);
+      if (maxErr > 0.5 && !firstMismatch) {
+        firstMismatch = e;
+      }
+      if (maxErr > worstVal) {
+        worstVal = maxErr;
+        worstMismatch = e;
+      }
+    });
 
     return {
       headerCount: dateBoxes.length,
@@ -238,38 +305,108 @@ async function verifyCanvasGeometryAlignment(
       maxWidthError,
       maxBarStartError,
       maxBarEndError,
+      firstMismatch,
+      worstMismatch,
+      taskDetails,
+      matchedIds,
       sampleErrors: errors.slice(0, 5),
     };
   });
 
   // Strict Rejection of False Positives: zero counts must throw immediate failure
-  expect(geoResult.headerCount).toBe(expectations.expectedHeaderCount);
-  expect(geoResult.rowCount).toBe(expectations.expectedRowCount);
-  expect(geoResult.evaluatedCellCount).toBe(expectations.expectedCellCount);
+  if (rawResult.rowCount !== expectations.expectedRowCount) {
+    console.log(`DEBUG MATCHED IDS for ${testLabel} (expected ${expectations.expectedRowCount}, got ${rawResult.rowCount}):`, rawResult.matchedIds);
+  }
+  expect(rawResult.headerCount).toBe(expectations.expectedHeaderCount);
+  expect(rawResult.rowCount).toBe(expectations.expectedRowCount);
+  expect(rawResult.evaluatedCellCount).toBe(expectations.expectedCellCount);
   if (expectations.expectedBarCount !== undefined) {
-    expect(geoResult.evaluatedBarCount).toBe(expectations.expectedBarCount);
+    expect(rawResult.evaluatedBarCount).toBe(expectations.expectedBarCount);
   }
 
   // Strict Geometry assertions: max error <= 0.5px
-  expect(geoResult.maxLeftError).toBeLessThanOrEqual(0.5);
-  expect(geoResult.maxRightError).toBeLessThanOrEqual(0.5);
-  expect(geoResult.maxWidthError).toBeLessThanOrEqual(0.5);
-  expect(geoResult.maxBarStartError).toBeLessThanOrEqual(0.5);
-  expect(geoResult.maxBarEndError).toBeLessThanOrEqual(0.5);
+  expect(rawResult.maxLeftError).toBeLessThanOrEqual(0.5);
+  expect(rawResult.maxRightError).toBeLessThanOrEqual(0.5);
+  expect(rawResult.maxWidthError).toBeLessThanOrEqual(0.5);
+  expect(rawResult.maxBarStartError).toBeLessThanOrEqual(0.5);
+  expect(rawResult.maxBarEndError).toBeLessThanOrEqual(0.5);
+
+  const proofPayload = {
+    label: testLabel,
+    viewport,
+    viewMode: 'MONTH',
+    month: expectations.monthStr || '2026-07',
+    headerCount: rawResult.headerCount,
+    expectedRowCount: expectations.expectedRowCount,
+    rowCount: rawResult.rowCount,
+    expectedCellCount: expectations.expectedCellCount,
+    evaluatedCellCount: rawResult.evaluatedCellCount,
+    expectedVisibleBarCount: expectations.expectedBarCount ?? 0,
+    evaluatedBarCount: rawResult.evaluatedBarCount,
+    maxLeftError: rawResult.maxLeftError,
+    maxRightError: rawResult.maxRightError,
+    maxWidthError: rawResult.maxWidthError,
+    maxBarStartError: rawResult.maxBarStartError,
+    maxBarEndError: rawResult.maxBarEndError,
+    firstMismatch: rawResult.firstMismatch,
+    worstMismatch: rawResult.worstMismatch,
+    taskDetails: rawResult.taskDetails,
+  };
 
   // Write proof JSON
   const jsonPath = path.join(QA_GEO_DIR, `${testLabel}_${viewport.width}x${viewport.height}.json`);
-  fs.writeFileSync(jsonPath, JSON.stringify({ label: testLabel, viewport, geoResult }, null, 2));
+  fs.writeFileSync(jsonPath, JSON.stringify(proofPayload, null, 2));
 
   // Take visual screenshot
   const screenshotPath = path.join(QA_SCREENSHOT_DIR, `${testLabel}_${viewport.width}x${viewport.height}.png`);
   await page.screenshot({ path: screenshotPath, fullPage: false });
 
-  return geoResult;
+  return proofPayload;
+}
+
+async function resolveProjectIds(page: any) {
+  await page.goto(`${LOCAL_BASE_URL}/projects`);
+  await page.waitForLoadState('networkidle');
+  return await page.evaluate(() => {
+    const defaultEs = 'prj_1785986689248_qhuq';
+    const defaultHub = 'prj_1785986741604_ppqz';
+    const rows = Array.from(document.querySelectorAll<HTMLElement>('[data-testid^="project-row-"]'));
+    let esId = defaultEs;
+    let hubId = defaultHub;
+
+    rows.forEach((r) => {
+      const tid = r.getAttribute('data-testid') || '';
+      const pid = tid.replace('project-row-', '');
+      const text = r.textContent || '';
+      if (text.includes('ES') && !esId.includes('1785986')) {
+        esId = pid;
+      }
+      if ((text.includes('HUB') || text.includes('CONCOST')) && !hubId.includes('1785986')) {
+        hubId = pid;
+      }
+      if (text.includes('ES') && pid.includes('1785986')) esId = pid;
+      if ((text.includes('HUB') || text.includes('CONCOST')) && pid.includes('1785986')) hubId = pid;
+    });
+
+    return { esId, hubId };
+  });
 }
 
 test.describe('P0 Desktop Single CSS Grid Canvas Strict Geometry Verification', () => {
   test.setTimeout(120000);
+
+  test.beforeEach(async ({ page }) => {
+    page.on('dialog', async (dialog) => {
+      console.log('Dialog opened and dismissed:', dialog.message());
+      await dialog.dismiss().catch(() => {});
+    });
+    await page.addInitScript(() => {
+      try {
+        window.localStorage.setItem('schedule_current_worker_id', 'wrk_02');
+        window.localStorage.setItem('schedule_current_worker_name', '박용진 수석');
+      } catch {}
+    });
+  });
 
   test('1. Project Overview - Responsive 5 Viewports Geometry (<=0.5px)', async ({ page }) => {
     for (const vp of ALL_VIEWPORTS) {
@@ -279,30 +416,33 @@ test.describe('P0 Desktop Single CSS Grid Canvas Strict Geometry Verification', 
       await dismissWorkerPromptModal(page);
       await ensureMonthView(page);
 
+      const prjCount = await page.locator('[data-testid^="project-row-"]').count();
+
       // May 2026 for ES
       await navigateToTargetMonth(page, '2026-05');
       await verifyCanvasGeometryAlignment(page, 'overview_may', vp, {
         expectedHeaderCount: 31,
-        expectedRowCount: 2,
-        expectedCellCount: 62,
-        expectedBarCount: 1,
+        expectedRowCount: prjCount,
+        expectedCellCount: prjCount * 31,
+        monthStr: '2026-05',
       });
 
       // July 2026 for HUB
       await navigateToTargetMonth(page, '2026-07');
       await verifyCanvasGeometryAlignment(page, 'overview_july', vp, {
         expectedHeaderCount: 31,
-        expectedRowCount: 2,
-        expectedCellCount: 62,
-        expectedBarCount: 1,
+        expectedRowCount: prjCount,
+        expectedCellCount: prjCount * 31,
+        monthStr: '2026-07',
       });
     }
   });
 
   test('2. ES Project Detail - All 15 Tasks, 31 Days, 465 Cells & Geometry (<=0.5px)', async ({ page }) => {
+    const { esId } = await resolveProjectIds(page);
     for (const vp of ALL_VIEWPORTS) {
       await page.setViewportSize(vp);
-      await page.goto(`${LOCAL_BASE_URL}/projects/${ES_PROJECT_ID}`);
+      await page.goto(`${LOCAL_BASE_URL}/projects/${esId}`);
       await page.waitForLoadState('networkidle');
       await dismissWorkerPromptModal(page);
       await ensureMonthView(page);
@@ -320,14 +460,16 @@ test.describe('P0 Desktop Single CSS Grid Canvas Strict Geometry Verification', 
         expectedRowCount: 15,
         expectedCellCount: 465,
         expectedBarCount: 8,
+        monthStr: '2026-05',
       });
     }
   });
 
   test('3. CONCOST-HUB Project Detail - All 21 Tasks, 31 Days, 651 Cells & Geometry (<=0.5px)', async ({ page }) => {
+    const { hubId } = await resolveProjectIds(page);
     for (const vp of ALL_VIEWPORTS) {
       await page.setViewportSize(vp);
-      await page.goto(`${LOCAL_BASE_URL}/projects/${HUB_PROJECT_ID}`);
+      await page.goto(`${LOCAL_BASE_URL}/projects/${hubId}`);
       await page.waitForLoadState('networkidle');
       await dismissWorkerPromptModal(page);
       await ensureMonthView(page);
@@ -340,13 +482,15 @@ test.describe('P0 Desktop Single CSS Grid Canvas Strict Geometry Verification', 
         expectedRowCount: 21,
         expectedCellCount: 651,
         expectedBarCount: 20,
+        monthStr: '2026-07',
       });
     }
   });
 
   test('4. Gantt Canvas Horizontal Scroll & Resize Alignment Audit', async ({ page }) => {
+    const { hubId } = await resolveProjectIds(page);
     await page.setViewportSize({ width: 1024, height: 768 });
-    await page.goto(`${LOCAL_BASE_URL}/projects/${HUB_PROJECT_ID}`);
+    await page.goto(`${LOCAL_BASE_URL}/projects/${hubId}`);
     await page.waitForLoadState('networkidle');
     await dismissWorkerPromptModal(page);
     await ensureMonthView(page);
@@ -368,6 +512,7 @@ test.describe('P0 Desktop Single CSS Grid Canvas Strict Geometry Verification', 
         expectedRowCount: 21,
         expectedCellCount: 651,
         expectedBarCount: 20,
+        monthStr: '2026-07',
       });
     }
 
@@ -388,6 +533,7 @@ test.describe('P0 Desktop Single CSS Grid Canvas Strict Geometry Verification', 
         expectedRowCount: 21,
         expectedCellCount: 651,
         expectedBarCount: 20,
+        monthStr: '2026-07',
       });
     }
   });

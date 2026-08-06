@@ -1,0 +1,279 @@
+{
+  "label": "es_detail_may",
+  "viewport": {
+    "width": 1536,
+    "height": 864
+  },
+  "viewMode": "MONTH",
+  "month": "2026-05",
+  "headerCount": 31,
+  "expectedRowCount": 15,
+  "rowCount": 15,
+  "expectedCellCount": 465,
+  "evaluatedCellCount": 465,
+  "expectedVisibleBarCount": 8,
+  "evaluatedBarCount": 8,
+  "maxLeftError": 0,
+  "maxRightError": 0,
+  "maxWidthError": 0,
+  "maxBarStartError": 0,
+  "maxBarEndError": 0,
+  "firstMismatch": null,
+  "worstMismatch": {
+    "dateStr": "2026-05-01",
+    "rowIndex": 0,
+    "leftDiff": 0,
+    "rightDiff": 0,
+    "widthDiff": 0
+  },
+  "taskDetails": [
+    {
+      "taskId": "tsk_1785986593597_6yhg",
+      "taskName": "Phân tích quy trình hệ thống & nghiệp vụ.\n시스템 프로세스 및 업무 분석",
+      "startDate": "2026-05-07",
+      "endDate": "2026-05-09",
+      "timeline": {
+        "headerWidth": 1116,
+        "bodyWidth": 1116,
+        "barLayerWidth": 1116
+      },
+      "start": {
+        "bodyCellLeft": 801,
+        "barTrackLeft": 801,
+        "error": 0
+      },
+      "end": {
+        "bodyCellRight": 909,
+        "barTrackRight": 909,
+        "error": 0
+      },
+      "width": {
+        "expectedFromCells": 108,
+        "barTrackWidth": 108,
+        "error": 0
+      },
+      "visualBar": {
+        "leftInset": 0,
+        "rightInset": 0,
+        "overflowsTrack": false
+      }
+    },
+    {
+      "taskId": "tsk_1785986597036_4gka",
+      "taskName": "1.1. Tạo bộ khung ban đầu cho toàn bộ phần mềm.\n전체 소프트웨어 초기 프레임워크 조성",
+      "startDate": "2026-05-11",
+      "endDate": "2026-05-12",
+      "timeline": {
+        "headerWidth": 1116,
+        "bodyWidth": 1116,
+        "barLayerWidth": 1116
+      },
+      "start": {
+        "bodyCellLeft": 945,
+        "barTrackLeft": 945,
+        "error": 0
+      },
+      "end": {
+        "bodyCellRight": 1017,
+        "barTrackRight": 1017,
+        "error": 0
+      },
+      "width": {
+        "expectedFromCells": 72,
+        "barTrackWidth": 72,
+        "error": 0
+      },
+      "visualBar": {
+        "leftInset": 0,
+        "rightInset": 0,
+        "overflowsTrack": false
+      }
+    },
+    {
+      "taskId": "tsk_1785986599527_a7bj",
+      "taskName": "1.2. Xây dựng 'kho lưu trữ cục bộ' (tự động lưu tạm, tránh mất dữ liệu).\n'로컬 저장소' 조성 (자동 임시 저장, 데이터 손실 방지)",
+      "startDate": "2026-05-13",
+      "endDate": "2026-05-15",
+      "timeline": {
+        "headerWidth": 1116,
+        "bodyWidth": 1116,
+        "barLayerWidth": 1116
+      },
+      "start": {
+        "bodyCellLeft": 1017,
+        "barTrackLeft": 1017,
+        "error": 0
+      },
+      "end": {
+        "bodyCellRight": 1125,
+        "barTrackRight": 1125,
+        "error": 0
+      },
+      "width": {
+        "expectedFromCells": 108,
+        "barTrackWidth": 108,
+        "error": 0
+      },
+      "visualBar": {
+        "leftInset": 0,
+        "rightInset": 0,
+        "overflowsTrack": false
+      }
+    },
+    {
+      "taskId": "tsk_1785986604784_vbel",
+      "taskName": "2.1. Hoàn thiện màn hình nhập thông tin hợp đồng (dễ nhìn, từng bước).\n계약 정보 입력 화면 완료 (가독성, 단계별)",
+      "startDate": "2026-05-18",
+      "endDate": "2026-05-20",
+      "timeline": {
+        "headerWidth": 1116,
+        "bodyWidth": 1116,
+        "barLayerWidth": 1116
+      },
+      "start": {
+        "bodyCellLeft": 1197,
+        "barTrackLeft": 1197,
+        "error": 0
+      },
+      "end": {
+        "bodyCellRight": 1305,
+        "barTrackRight": 1305,
+        "error": 0
+      },
+      "width": {
+        "expectedFromCells": 108,
+        "barTrackWidth": 108,
+        "error": 0
+      },
+      "visualBar": {
+        "leftInset": 0,
+        "rightInset": 0,
+        "overflowsTrack": false
+      }
+    },
+    {
+      "taskId": "tsk_1785986607079_8cs2",
+      "taskName": "2.2. Tính năng Tải xuống (Export) / Tải lên (Import) dữ liệu đã nhập.\n입력한 데이터를 다운로드(Export) / 업로드(Import) 기능",
+      "startDate": "2026-05-21",
+      "endDate": "2026-05-22",
+      "timeline": {
+        "headerWidth": 1116,
+        "bodyWidth": 1116,
+        "barLayerWidth": 1116
+      },
+      "start": {
+        "bodyCellLeft": 1305,
+        "barTrackLeft": 1305,
+        "error": 0
+      },
+      "end": {
+        "bodyCellRight": 1377,
+        "barTrackRight": 1377,
+        "error": 0
+      },
+      "width": {
+        "expectedFromCells": 72,
+        "barTrackWidth": 72,
+        "error": 0
+      },
+      "visualBar": {
+        "leftInset": 0,
+        "rightInset": 0,
+        "overflowsTrack": false
+      }
+    },
+    {
+      "taskId": "tsk_1785986609221_4gp7",
+      "taskName": "2.3. Cài đặt Màn hình Admin (cho phép ẩn/hiện các vùng thông tin màu vàng).\n관리자 화면 설정 (노란색 정보 영역 표시/비표시 기능)",
+      "startDate": "2026-05-23",
+      "endDate": "2026-05-26",
+      "timeline": {
+        "headerWidth": 1116,
+        "bodyWidth": 1116,
+        "barLayerWidth": 1116
+      },
+      "start": {
+        "bodyCellLeft": 1377,
+        "barTrackLeft": 1377,
+        "error": 0
+      },
+      "end": {
+        "bodyCellRight": 1521,
+        "barTrackRight": 1521,
+        "error": 0
+      },
+      "width": {
+        "expectedFromCells": 144,
+        "barTrackWidth": 144,
+        "error": 0
+      },
+      "visualBar": {
+        "leftInset": 0,
+        "rightInset": 0,
+        "overflowsTrack": false
+      }
+    },
+    {
+      "taskId": "tsk_1785986612273_o4ln",
+      "taskName": "Kiểm tra kỹ thuật (Test) GĐ 2.\n2단계 기술 테스트(Test)",
+      "startDate": "2026-05-27",
+      "endDate": "2026-05-27",
+      "timeline": {
+        "headerWidth": 1116,
+        "bodyWidth": 1116,
+        "barLayerWidth": 1116
+      },
+      "start": {
+        "bodyCellLeft": 1521,
+        "barTrackLeft": 1521,
+        "error": 0
+      },
+      "end": {
+        "bodyCellRight": 1557,
+        "barTrackRight": 1557,
+        "error": 0
+      },
+      "width": {
+        "expectedFromCells": 36,
+        "barTrackWidth": 36,
+        "error": 0
+      },
+      "visualBar": {
+        "leftInset": 0,
+        "rightInset": 0,
+        "overflowsTrack": false
+      }
+    },
+    {
+      "taskId": "tsk_1785986615900_ma0r",
+      "taskName": "3.1. Lập trình công thức tính toán trượt giá chuẩn xác theo Luật hợp đồng.\n계약법에 따른 정확한 물가 변동 계산 산식 조성",
+      "startDate": "2026-05-28",
+      "endDate": "2026-05-31",
+      "timeline": {
+        "headerWidth": 1116,
+        "bodyWidth": 1116,
+        "barLayerWidth": 1116
+      },
+      "start": {
+        "bodyCellLeft": 1557,
+        "barTrackLeft": 1557,
+        "error": 0
+      },
+      "end": {
+        "bodyCellRight": 1701,
+        "barTrackRight": 1701,
+        "error": 0
+      },
+      "width": {
+        "expectedFromCells": 144,
+        "barTrackWidth": 144,
+        "error": 0
+      },
+      "visualBar": {
+        "leftInset": 0,
+        "rightInset": 0,
+        "overflowsTrack": false
+      }
+    }
+  ]
+}

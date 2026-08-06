@@ -1,0 +1,155 @@
+{
+  "label": "overview_may",
+  "viewport": {
+    "width": 1366,
+    "height": 768
+  },
+  "viewMode": "MONTH",
+  "month": "2026-05",
+  "headerCount": 31,
+  "expectedRowCount": 23,
+  "rowCount": 23,
+  "expectedCellCount": 713,
+  "evaluatedCellCount": 713,
+  "expectedVisibleBarCount": 0,
+  "evaluatedBarCount": 4,
+  "maxLeftError": 0,
+  "maxRightError": 0,
+  "maxWidthError": 0,
+  "maxBarStartError": 0,
+  "maxBarEndError": 0,
+  "firstMismatch": null,
+  "worstMismatch": {
+    "dateStr": "2026-05-01",
+    "rowIndex": 0,
+    "leftDiff": 0,
+    "rightDiff": 0,
+    "widthDiff": 0
+  },
+  "taskDetails": [
+    {
+      "taskId": "prj_1785986589890_zi9o",
+      "taskName": "ES 프로그램 개발충돌 28건",
+      "startDate": "2026-05-07",
+      "endDate": "2026-05-31",
+      "timeline": {
+        "headerWidth": 1116,
+        "bodyWidth": 1116,
+        "barLayerWidth": 1116
+      },
+      "start": {
+        "bodyCellLeft": 537,
+        "barTrackLeft": 537,
+        "error": 0
+      },
+      "end": {
+        "bodyCellRight": 1437,
+        "barTrackRight": 1437,
+        "error": 0
+      },
+      "width": {
+        "expectedFromCells": 900,
+        "barTrackWidth": 900,
+        "error": 0
+      },
+      "visualBar": {
+        "leftInset": 0,
+        "rightInset": 0,
+        "overflowsTrack": false
+      }
+    },
+    {
+      "taskId": "prj_1785983297174_lss8",
+      "taskName": "ES 프로그램 개발충돌 28건",
+      "startDate": "2026-05-07",
+      "endDate": "2026-05-31",
+      "timeline": {
+        "headerWidth": 1116,
+        "bodyWidth": 1116,
+        "barLayerWidth": 1116
+      },
+      "start": {
+        "bodyCellLeft": 537,
+        "barTrackLeft": 537,
+        "error": 0
+      },
+      "end": {
+        "bodyCellRight": 1437,
+        "barTrackRight": 1437,
+        "error": 0
+      },
+      "width": {
+        "expectedFromCells": 900,
+        "barTrackWidth": 900,
+        "error": 0
+      },
+      "visualBar": {
+        "leftInset": 0,
+        "rightInset": 0,
+        "overflowsTrack": false
+      }
+    },
+    {
+      "taskId": "prj_1785983217299_uhi1",
+      "taskName": "ES 프로그램 개발충돌 28건",
+      "startDate": "2026-05-07",
+      "endDate": "2026-05-31",
+      "timeline": {
+        "headerWidth": 1116,
+        "bodyWidth": 1116,
+        "barLayerWidth": 1116
+      },
+      "start": {
+        "bodyCellLeft": 537,
+        "barTrackLeft": 537,
+        "error": 0
+      },
+      "end": {
+        "bodyCellRight": 1437,
+        "barTrackRight": 1437,
+        "error": 0
+      },
+      "width": {
+        "expectedFromCells": 900,
+        "barTrackWidth": 900,
+        "error": 0
+      },
+      "visualBar": {
+        "leftInset": 0,
+        "rightInset": 0,
+        "overflowsTrack": false
+      }
+    },
+    {
+      "taskId": "prj_1785983203270_6iaz",
+      "taskName": "ES 프로그램 개발",
+      "startDate": "2026-05-07",
+      "endDate": "2026-05-31",
+      "timeline": {
+        "headerWidth": 1116,
+        "bodyWidth": 1116,
+        "barLayerWidth": 1116
+      },
+      "start": {
+        "bodyCellLeft": 537,
+        "barTrackLeft": 537,
+        "error": 0
+      },
+      "end": {
+        "bodyCellRight": 1437,
+        "barTrackRight": 1437,
+        "error": 0
+      },
+      "width": {
+        "expectedFromCells": 900,
+        "barTrackWidth": 900,
+        "error": 0
+      },
+      "visualBar": {
+        "leftInset": 0,
+        "rightInset": 0,
+        "overflowsTrack": false
+      }
+    }
+  ]
+}

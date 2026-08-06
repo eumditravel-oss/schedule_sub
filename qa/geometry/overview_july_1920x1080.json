@@ -1,0 +1,124 @@
+{
+  "label": "overview_july",
+  "viewport": {
+    "width": 1920,
+    "height": 1080
+  },
+  "viewMode": "MONTH",
+  "month": "2026-07",
+  "headerCount": 31,
+  "expectedRowCount": 23,
+  "rowCount": 23,
+  "expectedCellCount": 713,
+  "evaluatedCellCount": 713,
+  "expectedVisibleBarCount": 0,
+  "evaluatedBarCount": 3,
+  "maxLeftError": 0,
+  "maxRightError": 0,
+  "maxWidthError": 0,
+  "maxBarStartError": 0,
+  "maxBarEndError": 0.015625,
+  "firstMismatch": null,
+  "worstMismatch": {
+    "dateStr": "2026-07-01",
+    "rowIndex": 0,
+    "leftDiff": 0,
+    "rightDiff": 0,
+    "widthDiff": 0
+  },
+  "taskDetails": [
+    {
+      "taskId": "prj_1785986638625_9qkc",
+      "taskName": "CONCOST-HUB 개발충돌 88건",
+      "startDate": "2026-07-06",
+      "endDate": "2026-07-31",
+      "timeline": {
+        "headerWidth": 1577.984375,
+        "bodyWidth": 1577.984375,
+        "barLayerWidth": 1578
+      },
+      "start": {
+        "bodyCellLeft": 575.515625,
+        "barTrackLeft": 575.515625,
+        "error": 0
+      },
+      "end": {
+        "bodyCellRight": 1898.984375,
+        "barTrackRight": 1899,
+        "error": 0.015625
+      },
+      "width": {
+        "expectedFromCells": 1323.46875,
+        "barTrackWidth": 1323.484375,
+        "error": 0.015625
+      },
+      "visualBar": {
+        "leftInset": 0,
+        "rightInset": 0,
+        "overflowsTrack": false
+      }
+    },
+    {
+      "taskId": "prj_1785983349318_axyg",
+      "taskName": "CONCOST-HUB 개발충돌 88건",
+      "startDate": "2026-07-06",
+      "endDate": "2026-07-31",
+      "timeline": {
+        "headerWidth": 1577.984375,
+        "bodyWidth": 1577.984375,
+        "barLayerWidth": 1578
+      },
+      "start": {
+        "bodyCellLeft": 575.515625,
+        "barTrackLeft": 575.515625,
+        "error": 0
+      },
+      "end": {
+        "bodyCellRight": 1898.984375,
+        "barTrackRight": 1899,
+        "error": 0.015625
+      },
+      "width": {
+        "expectedFromCells": 1323.46875,
+        "barTrackWidth": 1323.484375,
+        "error": 0.015625
+      },
+      "visualBar": {
+        "leftInset": 0,
+        "rightInset": 0,
+        "overflowsTrack": false
+      }
+    },
+    {
+      "taskId": "prj_1785983272638_j6aq",
+      "taskName": "CONCOST-HUB 개발충돌 6건",
+      "startDate": "2026-07-06",
+      "endDate": "2026-07-31",
+      "timeline": {
+        "headerWidth": 1577.984375,
+        "bodyWidth": 1577.984375,
+        "barLayerWidth": 1578
+      },
+      "start": {
+        "bodyCellLeft": 575.515625,
+        "barTrackLeft": 575.515625,
+        "error": 0
+      },
+      "end": {
+        "bodyCellRight": 1898.984375,
+        "barTrackRight": 1899,
+        "error": 0.015625
+      },
+      "width": {
+        "expectedFromCells": 1323.46875,
+        "barTrackWidth": 1323.484375,
+        "error": 0.015625
+      },
+      "visualBar": {
+        "leftInset": 0,
+        "rightInset": 0,
+        "overflowsTrack": false
+      }
+    }
+  ]
+}

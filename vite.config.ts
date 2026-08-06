@@ -12,6 +12,7 @@ try {
 
 // Vite config with path alias, Vitest test exclude, build SHA, and dev server setup
 export default defineConfig({
+  appType: 'spa',
   plugins: [react()],
   define: {
     'import.meta.env.VITE_BUILD_SHA': JSON.stringify(commitSha),
@@ -24,6 +25,23 @@ export default defineConfig({
   server: {
     port: 3000,
     open: true,
+    proxy: {
+      '/api': {
+        target: 'https://concost-dev-scheduler-qa.eumditravel.workers.dev',
+        changeOrigin: true,
+        secure: false,
+      },
+    },
+  },
+  preview: {
+    port: 5174,
+    proxy: {
+      '/api': {
+        target: 'https://concost-dev-scheduler-qa.eumditravel.workers.dev',
+        changeOrigin: true,
+        secure: false,
+      },
+    },
   },
   test: {
     exclude: ['**/node_modules/**', '**/dist/**', '**/tests/e2e/**'],

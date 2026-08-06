@@ -475,6 +475,8 @@ export const ProjectOverviewPage: React.FC = () => {
                 <button
                   type="button"
                   data-testid="view-30days-btn"
+                  data-state={viewMode === 'THIRTY_DAYS' ? 'active' : 'inactive'}
+                  aria-pressed={viewMode === 'THIRTY_DAYS'}
                   onClick={() => changeViewMode('THIRTY_DAYS')}
                   className={`px-3 py-1.5 rounded-md transition font-bold ${
                     viewMode === 'THIRTY_DAYS'
@@ -487,6 +489,8 @@ export const ProjectOverviewPage: React.FC = () => {
                 <button
                   type="button"
                   data-testid="view-month-btn"
+                  data-state={viewMode === 'MONTH' ? 'active' : 'inactive'}
+                  aria-pressed={viewMode === 'MONTH'}
                   onClick={() => changeViewMode('MONTH')}
                   className={`px-3 py-1.5 rounded-md transition font-bold ${
                     viewMode === 'MONTH'
@@ -843,8 +847,9 @@ export const ProjectOverviewPage: React.FC = () => {
                                   style={{ gridTemplateColumns: dateGridTemplate }}
                                 >
                                   <div
+                                    data-testid={`gantt-schedule-bar-track-${project.id}`}
                                     style={{ gridColumn: `${spanInfo.startIndex + 1} / span ${spanInfo.spanCount}` }}
-                                    className="px-0.5 flex items-center h-full w-full min-w-0 pointer-events-auto"
+                                    className="flex items-center h-full w-full min-w-0 pointer-events-auto"
                                   >
                                     <ScheduleBar
                                       title={displayName}
