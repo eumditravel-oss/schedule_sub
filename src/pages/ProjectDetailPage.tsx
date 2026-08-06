@@ -177,7 +177,7 @@ const SortableTaskRow: React.FC<SortableTaskRowProps> = ({
       >
         <div className="flex items-center justify-between text-xs min-w-0 w-full">
           {/* Task Name Column */}
-          <div className="flex items-center gap-1.5 min-w-0 w-[180px] xl:w-[200px] shrink-0">
+          <div className="flex items-center gap-1.5 min-w-0 w-[210px] xl:w-[230px] 2xl:w-[260px] shrink-0">
             {!isViewer && !isCompleted && (
               <button
                 type="button"
@@ -211,17 +211,17 @@ const SortableTaskRow: React.FC<SortableTaskRowProps> = ({
               e.stopPropagation();
               onOpenAssigneePopover?.(tItem, e.currentTarget.getBoundingClientRect());
             }}
-            className="w-[120px] xl:w-[135px] shrink-0 px-1 truncate flex items-center gap-1 cursor-pointer hover:bg-slate-100/70 py-0.5 rounded transition"
+            className="w-[170px] xl:w-[210px] 2xl:w-[240px] shrink-0 px-1 truncate flex items-center gap-1 cursor-pointer hover:bg-slate-100/70 py-0.5 rounded transition"
             title="클릭 시 담당자 상세 보기"
           >
             {/* Primary Worker Badge */}
-            <span className="px-1.5 py-0.5 rounded-md bg-slate-100 border border-slate-200 text-slate-700 font-bold text-[11px] truncate max-w-[80px]">
+            <span className="px-1.5 py-0.5 rounded-md bg-slate-100 border border-slate-200 text-slate-700 font-bold text-[11px] truncate max-w-[96px] xl:max-w-[110px]">
               {primaryWorkerName}
             </span>
 
             {/* Secondary Worker Badge */}
             {secondaryWorkerName && (
-              <span className="hidden xl:inline-block px-1.5 py-0.5 rounded-md bg-slate-100 border border-slate-200 text-slate-700 font-bold text-[11px] truncate max-w-[80px]">
+              <span className="hidden xl:inline-block px-1.5 py-0.5 rounded-md bg-slate-100 border border-slate-200 text-slate-700 font-bold text-[11px] truncate max-w-[96px] xl:max-w-[110px]">
                 {secondaryWorkerName}
               </span>
             )}
@@ -244,7 +244,7 @@ const SortableTaskRow: React.FC<SortableTaskRowProps> = ({
           </div>
 
           {/* Action Buttons Column */}
-          <div className="w-[32px] shrink-0 flex items-center justify-end gap-0.5">
+          <div className="w-[64px] shrink-0 flex items-center justify-end gap-1">
             {!isViewer && !isCompleted && (
               <>
                 <button
@@ -889,7 +889,13 @@ export const ProjectDetailPage: React.FC = () => {
   } = useGanttDateRange();
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const DETAIL_LEFT_WIDTH = 340;
+  const { width: windowWidth } = useResponsiveLayout();
+  let DETAIL_LEFT_WIDTH = 444;
+  if (windowWidth >= 1536) {
+    DETAIL_LEFT_WIDTH = 564;
+  } else if (windowWidth >= 1280) {
+    DETAIL_LEFT_WIDTH = 504;
+  }
 
   const {
     timelineWidth,
@@ -1854,9 +1860,9 @@ export const ProjectDetailPage: React.FC = () => {
                   style={{ width: `${DETAIL_LEFT_WIDTH}px`, minWidth: `${DETAIL_LEFT_WIDTH}px`, maxWidth: `${DETAIL_LEFT_WIDTH}px` }}
                   className="sticky left-0 z-30 bg-slate-100 px-3 py-2 font-bold text-slate-800 border-r border-slate-200 shrink-0 flex items-center justify-between"
                 >
-                  <span className="w-[180px] xl:w-[200px] truncate">{lang === 'vi' ? 'Công việc chi tiết' : '세부 작업명'}</span>
-                  <span className="w-[120px] xl:w-[135px] truncate px-1">{lang === 'vi' ? 'Người phụ trách' : '작업자'}</span>
-                  <span className="w-[32px] text-right">{lang === 'vi' ? 'Thao tác' : '액션'}</span>
+                  <span className="w-[210px] xl:w-[230px] 2xl:w-[260px] truncate">{lang === 'vi' ? 'Công việc chi tiết' : '세부 작업명'}</span>
+                  <span className="w-[170px] xl:w-[210px] 2xl:w-[240px] truncate px-1">{lang === 'vi' ? 'Người phụ trách' : '작업자'}</span>
+                  <span className="w-[64px] text-right">{lang === 'vi' ? 'Thao tác' : '액션'}</span>
                 </div>
 
                 {/* Right Timeline Header Stack (Month Header + Date Header) */}
