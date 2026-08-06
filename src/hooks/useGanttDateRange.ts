@@ -74,6 +74,7 @@ export function useGanttDateRange(initialAnchorDate: Date = new Date()) {
   return {
     viewMode,
     anchorDate,
+    setAnchorDate,
     startDate,
     endDate,
     dateColumns,

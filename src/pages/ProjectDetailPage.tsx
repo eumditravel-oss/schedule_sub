@@ -856,6 +856,7 @@ export const ProjectDetailPage: React.FC = () => {
   // Date Range Hook
   const {
     viewMode,
+    setAnchorDate,
     startDate,
     endDate,
     dateColumns,
@@ -902,6 +903,9 @@ export const ProjectDetailPage: React.FC = () => {
       setLoading(true);
       const data = await api.getProjectDetail(projectId);
       setProject(data.project);
+      if (data.project?.start_date) {
+        setAnchorDate(new Date(`${data.project.start_date}T00:00:00Z`));
+      }
       setTasks(data.tasks || []);
       setTaskGroups(data.task_groups || []);
     } catch (err: any) {
