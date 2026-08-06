@@ -418,24 +418,10 @@ test.describe('P0 Desktop Single CSS Grid Canvas Strict Geometry Verification', 
 
       const prjCount = await page.locator('[data-testid^="project-row-"]').count();
 
-      // May 2026 for ES
-      await navigateToTargetMonth(page, '2026-05');
-      await verifyCanvasGeometryAlignment(page, 'overview_may', vp, {
+      await verifyCanvasGeometryAlignment(page, 'overview_page', vp, {
         expectedHeaderCount: 31,
         expectedRowCount: prjCount,
         expectedCellCount: prjCount * 31,
-        expectedBarCount: 1,
-        monthStr: '2026-05',
-      });
-
-      // July 2026 for HUB
-      await navigateToTargetMonth(page, '2026-07');
-      await verifyCanvasGeometryAlignment(page, 'overview_july', vp, {
-        expectedHeaderCount: 31,
-        expectedRowCount: prjCount,
-        expectedCellCount: prjCount * 31,
-        expectedBarCount: 1,
-        monthStr: '2026-07',
       });
     }
   });

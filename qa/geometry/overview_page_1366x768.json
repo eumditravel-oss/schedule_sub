@@ -1,0 +1,620 @@
+{
+  "label": "overview_page",
+  "viewport": {
+    "width": 1366,
+    "height": 768
+  },
+  "viewMode": "MONTH",
+  "month": "2026-07",
+  "headerCount": 31,
+  "expectedRowCount": 23,
+  "rowCount": 23,
+  "expectedCellCount": 713,
+  "evaluatedCellCount": 713,
+  "expectedVisibleBarCount": 0,
+  "evaluatedBarCount": 19,
+  "maxLeftError": 0,
+  "maxRightError": 0,
+  "maxWidthError": 0,
+  "maxBarStartError": 0,
+  "maxBarEndError": 0,
+  "firstMismatch": null,
+  "worstMismatch": {
+    "dateStr": "2026-08-01",
+    "rowIndex": 0,
+    "leftDiff": 0,
+    "rightDiff": 0,
+    "widthDiff": 0
+  },
+  "taskDetails": [
+    {
+      "taskId": "prj_1785929407464_e6bc",
+      "taskName": "[E2E-DND-1785929407287] 공정 드래그앤드롭 프로젝트",
+      "startDate": "2026-08-01",
+      "endDate": "2026-08-31",
+      "timeline": {
+        "headerWidth": 1116,
+        "bodyWidth": 1116,
+        "barLayerWidth": 1116
+      },
+      "start": {
+        "bodyCellLeft": 321,
+        "barTrackLeft": 321,
+        "error": 0
+      },
+      "end": {
+        "bodyCellRight": 1437,
+        "barTrackRight": 1437,
+        "error": 0
+      },
+      "width": {
+        "expectedFromCells": 1116,
+        "barTrackWidth": 1116,
+        "error": 0
+      },
+      "visualBar": {
+        "leftInset": 0,
+        "rightInset": 0,
+        "overflowsTrack": false
+      }
+    },
+    {
+      "taskId": "prj_1785929301316_qzhf",
+      "taskName": "[E2E-DND-1785929301173] 공정 드래그앤드롭 프로젝트",
+      "startDate": "2026-08-01",
+      "endDate": "2026-08-31",
+      "timeline": {
+        "headerWidth": 1116,
+        "bodyWidth": 1116,
+        "barLayerWidth": 1116
+      },
+      "start": {
+        "bodyCellLeft": 321,
+        "barTrackLeft": 321,
+        "error": 0
+      },
+      "end": {
+        "bodyCellRight": 1437,
+        "barTrackRight": 1437,
+        "error": 0
+      },
+      "width": {
+        "expectedFromCells": 1116,
+        "barTrackWidth": 1116,
+        "error": 0
+      },
+      "visualBar": {
+        "leftInset": 0,
+        "rightInset": 0,
+        "overflowsTrack": false
+      }
+    },
+    {
+      "taskId": "prj_1785929205598_sb36",
+      "taskName": "[E2E-DND-1785929205443] 공정 드래그앤드롭 프로젝트",
+      "startDate": "2026-08-01",
+      "endDate": "2026-08-31",
+      "timeline": {
+        "headerWidth": 1116,
+        "bodyWidth": 1116,
+        "barLayerWidth": 1116
+      },
+      "start": {
+        "bodyCellLeft": 321,
+        "barTrackLeft": 321,
+        "error": 0
+      },
+      "end": {
+        "bodyCellRight": 1437,
+        "barTrackRight": 1437,
+        "error": 0
+      },
+      "width": {
+        "expectedFromCells": 1116,
+        "barTrackWidth": 1116,
+        "error": 0
+      },
+      "visualBar": {
+        "leftInset": 0,
+        "rightInset": 0,
+        "overflowsTrack": false
+      }
+    },
+    {
+      "taskId": "prj_1785929088644_48lz",
+      "taskName": "[E2E-DND-1785929088499] 공정 드래그앤드롭 프로젝트",
+      "startDate": "2026-08-01",
+      "endDate": "2026-08-31",
+      "timeline": {
+        "headerWidth": 1116,
+        "bodyWidth": 1116,
+        "barLayerWidth": 1116
+      },
+      "start": {
+        "bodyCellLeft": 321,
+        "barTrackLeft": 321,
+        "error": 0
+      },
+      "end": {
+        "bodyCellRight": 1437,
+        "barTrackRight": 1437,
+        "error": 0
+      },
+      "width": {
+        "expectedFromCells": 1116,
+        "barTrackWidth": 1116,
+        "error": 0
+      },
+      "visualBar": {
+        "leftInset": 0,
+        "rightInset": 0,
+        "overflowsTrack": false
+      }
+    },
+    {
+      "taskId": "prj_1785928964532_4fwj",
+      "taskName": "[E2E-DND-1785928964376] 공정 드래그앤드롭 프로젝트",
+      "startDate": "2026-08-01",
+      "endDate": "2026-08-31",
+      "timeline": {
+        "headerWidth": 1116,
+        "bodyWidth": 1116,
+        "barLayerWidth": 1116
+      },
+      "start": {
+        "bodyCellLeft": 321,
+        "barTrackLeft": 321,
+        "error": 0
+      },
+      "end": {
+        "bodyCellRight": 1437,
+        "barTrackRight": 1437,
+        "error": 0
+      },
+      "width": {
+        "expectedFromCells": 1116,
+        "barTrackWidth": 1116,
+        "error": 0
+      },
+      "visualBar": {
+        "leftInset": 0,
+        "rightInset": 0,
+        "overflowsTrack": false
+      }
+    },
+    {
+      "taskId": "prj_1785928851992_i1wz",
+      "taskName": "[E2E-DND-1785928851718] 공정 드래그앤드롭 프로젝트",
+      "startDate": "2026-08-01",
+      "endDate": "2026-08-31",
+      "timeline": {
+        "headerWidth": 1116,
+        "bodyWidth": 1116,
+        "barLayerWidth": 1116
+      },
+      "start": {
+        "bodyCellLeft": 321,
+        "barTrackLeft": 321,
+        "error": 0
+      },
+      "end": {
+        "bodyCellRight": 1437,
+        "barTrackRight": 1437,
+        "error": 0
+      },
+      "width": {
+        "expectedFromCells": 1116,
+        "barTrackWidth": 1116,
+        "error": 0
+      },
+      "visualBar": {
+        "leftInset": 0,
+        "rightInset": 0,
+        "overflowsTrack": false
+      }
+    },
+    {
+      "taskId": "prj_1785928830638_iftr",
+      "taskName": "[E2E-DND-1785928830389] 공정 드래그앤드롭 프로젝트",
+      "startDate": "2026-08-01",
+      "endDate": "2026-08-31",
+      "timeline": {
+        "headerWidth": 1116,
+        "bodyWidth": 1116,
+        "barLayerWidth": 1116
+      },
+      "start": {
+        "bodyCellLeft": 321,
+        "barTrackLeft": 321,
+        "error": 0
+      },
+      "end": {
+        "bodyCellRight": 1437,
+        "barTrackRight": 1437,
+        "error": 0
+      },
+      "width": {
+        "expectedFromCells": 1116,
+        "barTrackWidth": 1116,
+        "error": 0
+      },
+      "visualBar": {
+        "leftInset": 0,
+        "rightInset": 0,
+        "overflowsTrack": false
+      }
+    },
+    {
+      "taskId": "prj_1785928806186_ur6o",
+      "taskName": "[E2E-DND-1785928806023] 공정 드래그앤드롭 프로젝트",
+      "startDate": "2026-08-01",
+      "endDate": "2026-08-31",
+      "timeline": {
+        "headerWidth": 1116,
+        "bodyWidth": 1116,
+        "barLayerWidth": 1116
+      },
+      "start": {
+        "bodyCellLeft": 321,
+        "barTrackLeft": 321,
+        "error": 0
+      },
+      "end": {
+        "bodyCellRight": 1437,
+        "barTrackRight": 1437,
+        "error": 0
+      },
+      "width": {
+        "expectedFromCells": 1116,
+        "barTrackWidth": 1116,
+        "error": 0
+      },
+      "visualBar": {
+        "leftInset": 0,
+        "rightInset": 0,
+        "overflowsTrack": false
+      }
+    },
+    {
+      "taskId": "prj_1785928715976_pbwv",
+      "taskName": "[E2E-DND-1785928715736] 공정 드래그앤드롭 프로젝트",
+      "startDate": "2026-08-01",
+      "endDate": "2026-08-31",
+      "timeline": {
+        "headerWidth": 1116,
+        "bodyWidth": 1116,
+        "barLayerWidth": 1116
+      },
+      "start": {
+        "bodyCellLeft": 321,
+        "barTrackLeft": 321,
+        "error": 0
+      },
+      "end": {
+        "bodyCellRight": 1437,
+        "barTrackRight": 1437,
+        "error": 0
+      },
+      "width": {
+        "expectedFromCells": 1116,
+        "barTrackWidth": 1116,
+        "error": 0
+      },
+      "visualBar": {
+        "leftInset": 0,
+        "rightInset": 0,
+        "overflowsTrack": false
+      }
+    },
+    {
+      "taskId": "prj_1785928696573_f40k",
+      "taskName": "[E2E-DND-1785928696434] 공정 드래그앤드롭 프로젝트",
+      "startDate": "2026-08-01",
+      "endDate": "2026-08-31",
+      "timeline": {
+        "headerWidth": 1116,
+        "bodyWidth": 1116,
+        "barLayerWidth": 1116
+      },
+      "start": {
+        "bodyCellLeft": 321,
+        "barTrackLeft": 321,
+        "error": 0
+      },
+      "end": {
+        "bodyCellRight": 1437,
+        "barTrackRight": 1437,
+        "error": 0
+      },
+      "width": {
+        "expectedFromCells": 1116,
+        "barTrackWidth": 1116,
+        "error": 0
+      },
+      "visualBar": {
+        "leftInset": 0,
+        "rightInset": 0,
+        "overflowsTrack": false
+      }
+    },
+    {
+      "taskId": "prj_1785928588064_pjyc",
+      "taskName": "[E2E-DND-1785928587795] 공정 드래그앤드롭 프로젝트",
+      "startDate": "2026-08-01",
+      "endDate": "2026-08-31",
+      "timeline": {
+        "headerWidth": 1116,
+        "bodyWidth": 1116,
+        "barLayerWidth": 1116
+      },
+      "start": {
+        "bodyCellLeft": 321,
+        "barTrackLeft": 321,
+        "error": 0
+      },
+      "end": {
+        "bodyCellRight": 1437,
+        "barTrackRight": 1437,
+        "error": 0
+      },
+      "width": {
+        "expectedFromCells": 1116,
+        "barTrackWidth": 1116,
+        "error": 0
+      },
+      "visualBar": {
+        "leftInset": 0,
+        "rightInset": 0,
+        "overflowsTrack": false
+      }
+    },
+    {
+      "taskId": "prj_1785928566394_1ze1",
+      "taskName": "[E2E-DND-1785928566130] 공정 드래그앤드롭 프로젝트",
+      "startDate": "2026-08-01",
+      "endDate": "2026-08-31",
+      "timeline": {
+        "headerWidth": 1116,
+        "bodyWidth": 1116,
+        "barLayerWidth": 1116
+      },
+      "start": {
+        "bodyCellLeft": 321,
+        "barTrackLeft": 321,
+        "error": 0
+      },
+      "end": {
+        "bodyCellRight": 1437,
+        "barTrackRight": 1437,
+        "error": 0
+      },
+      "width": {
+        "expectedFromCells": 1116,
+        "barTrackWidth": 1116,
+        "error": 0
+      },
+      "visualBar": {
+        "leftInset": 0,
+        "rightInset": 0,
+        "overflowsTrack": false
+      }
+    },
+    {
+      "taskId": "prj_1785928546038_nt86",
+      "taskName": "[E2E-DND-1785928545894] 공정 드래그앤드롭 프로젝트",
+      "startDate": "2026-08-01",
+      "endDate": "2026-08-31",
+      "timeline": {
+        "headerWidth": 1116,
+        "bodyWidth": 1116,
+        "barLayerWidth": 1116
+      },
+      "start": {
+        "bodyCellLeft": 321,
+        "barTrackLeft": 321,
+        "error": 0
+      },
+      "end": {
+        "bodyCellRight": 1437,
+        "barTrackRight": 1437,
+        "error": 0
+      },
+      "width": {
+        "expectedFromCells": 1116,
+        "barTrackWidth": 1116,
+        "error": 0
+      },
+      "visualBar": {
+        "leftInset": 0,
+        "rightInset": 0,
+        "overflowsTrack": false
+      }
+    },
+    {
+      "taskId": "prj_1785927710695_m8k9",
+      "taskName": "[E2E-DND-1785927710465] 공정 드래그앤드롭 프로젝트",
+      "startDate": "2026-08-01",
+      "endDate": "2026-08-31",
+      "timeline": {
+        "headerWidth": 1116,
+        "bodyWidth": 1116,
+        "barLayerWidth": 1116
+      },
+      "start": {
+        "bodyCellLeft": 321,
+        "barTrackLeft": 321,
+        "error": 0
+      },
+      "end": {
+        "bodyCellRight": 1437,
+        "barTrackRight": 1437,
+        "error": 0
+      },
+      "width": {
+        "expectedFromCells": 1116,
+        "barTrackWidth": 1116,
+        "error": 0
+      },
+      "visualBar": {
+        "leftInset": 0,
+        "rightInset": 0,
+        "overflowsTrack": false
+      }
+    },
+    {
+      "taskId": "prj_1785927699557_253i",
+      "taskName": "[E2E-DND-1785927699321] 공정 드래그앤드롭 프로젝트",
+      "startDate": "2026-08-01",
+      "endDate": "2026-08-31",
+      "timeline": {
+        "headerWidth": 1116,
+        "bodyWidth": 1116,
+        "barLayerWidth": 1116
+      },
+      "start": {
+        "bodyCellLeft": 321,
+        "barTrackLeft": 321,
+        "error": 0
+      },
+      "end": {
+        "bodyCellRight": 1437,
+        "barTrackRight": 1437,
+        "error": 0
+      },
+      "width": {
+        "expectedFromCells": 1116,
+        "barTrackWidth": 1116,
+        "error": 0
+      },
+      "visualBar": {
+        "leftInset": 0,
+        "rightInset": 0,
+        "overflowsTrack": false
+      }
+    },
+    {
+      "taskId": "prj_1785927683750_xkwj",
+      "taskName": "[E2E-DND-1785927683608] 공정 드래그앤드롭 프로젝트",
+      "startDate": "2026-08-01",
+      "endDate": "2026-08-31",
+      "timeline": {
+        "headerWidth": 1116,
+        "bodyWidth": 1116,
+        "barLayerWidth": 1116
+      },
+      "start": {
+        "bodyCellLeft": 321,
+        "barTrackLeft": 321,
+        "error": 0
+      },
+      "end": {
+        "bodyCellRight": 1437,
+        "barTrackRight": 1437,
+        "error": 0
+      },
+      "width": {
+        "expectedFromCells": 1116,
+        "barTrackWidth": 1116,
+        "error": 0
+      },
+      "visualBar": {
+        "leftInset": 0,
+        "rightInset": 0,
+        "overflowsTrack": false
+      }
+    },
+    {
+      "taskId": "prj_1785986638625_9qkc",
+      "taskName": "CONCOST-HUB 개발충돌 88건",
+      "startDate": "2026-08-01",
+      "endDate": "2026-08-04",
+      "timeline": {
+        "headerWidth": 1116,
+        "bodyWidth": 1116,
+        "barLayerWidth": 1116
+      },
+      "start": {
+        "bodyCellLeft": 321,
+        "barTrackLeft": 321,
+        "error": 0
+      },
+      "end": {
+        "bodyCellRight": 465,
+        "barTrackRight": 465,
+        "error": 0
+      },
+      "width": {
+        "expectedFromCells": 144,
+        "barTrackWidth": 144,
+        "error": 0
+      },
+      "visualBar": {
+        "leftInset": 0,
+        "rightInset": 0,
+        "overflowsTrack": false
+      }
+    },
+    {
+      "taskId": "prj_1785983349318_axyg",
+      "taskName": "CONCOST-HUB 개발충돌 88건",
+      "startDate": "2026-08-01",
+      "endDate": "2026-08-04",
+      "timeline": {
+        "headerWidth": 1116,
+        "bodyWidth": 1116,
+        "barLayerWidth": 1116
+      },
+      "start": {
+        "bodyCellLeft": 321,
+        "barTrackLeft": 321,
+        "error": 0
+      },
+      "end": {
+        "bodyCellRight": 465,
+        "barTrackRight": 465,
+        "error": 0
+      },
+      "width": {
+        "expectedFromCells": 144,
+        "barTrackWidth": 144,
+        "error": 0
+      },
+      "visualBar": {
+        "leftInset": 0,
+        "rightInset": 0,
+        "overflowsTrack": false
+      }
+    },
+    {
+      "taskId": "prj_1785983272638_j6aq",
+      "taskName": "CONCOST-HUB 개발충돌 6건",
+      "startDate": "2026-08-01",
+      "endDate": "2026-08-04",
+      "timeline": {
+        "headerWidth": 1116,
+        "bodyWidth": 1116,
+        "barLayerWidth": 1116
+      },
+      "start": {
+        "bodyCellLeft": 321,
+        "barTrackLeft": 321,
+        "error": 0
+      },
+      "end": {
+        "bodyCellRight": 465,
+        "barTrackRight": 465,
+        "error": 0
+      },
+      "width": {
+        "expectedFromCells": 144,
+        "barTrackWidth": 144,
+        "error": 0
+      },
+      "visualBar": {
+        "leftInset": 0,
+        "rightInset": 0,
+        "overflowsTrack": false
+      }
+    }
+  ]
+}

@@ -46,12 +46,20 @@ export const TaskAssigneePopover: React.FC<TaskAssigneePopoverProps> = ({
       }
     };
 
+    const handleScrollOrResize = () => {
+      onClose();
+    };
+
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('mousedown', handlePointerDown);
+    window.addEventListener('scroll', handleScrollOrResize, { capture: true, passive: true });
+    window.addEventListener('resize', handleScrollOrResize);
 
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('mousedown', handlePointerDown);
+      window.removeEventListener('scroll', handleScrollOrResize, { capture: true });
+      window.removeEventListener('resize', handleScrollOrResize);
     };
   }, [isOpen, onClose]);
 
@@ -59,18 +67,18 @@ export const TaskAssigneePopover: React.FC<TaskAssigneePopoverProps> = ({
 
   // Calculate Fixed Position (avoiding screen overflow)
   const popoverWidth = 300;
-  const popoverHeight = 220 + assignees.length * 48;
+  const popoverHeight = Math.min(360, 110 + assignees.length * 56);
   const viewportWidth = window.innerWidth;
   const viewportHeight = window.innerHeight;
 
-  let left = anchorRect.left;
+  let left = Math.min(Math.max(8, anchorRect.left), viewportWidth - popoverWidth - 8);
   let top = anchorRect.bottom + 6;
 
-  if (left + popoverWidth > viewportWidth - 12) {
-    left = Math.max(12, viewportWidth - popoverWidth - 12);
-  }
-  if (top + popoverHeight > viewportHeight - 12) {
-    top = Math.max(12, anchorRect.top - popoverHeight - 6);
+  if (top + popoverHeight > viewportHeight - 8) {
+    top = anchorRect.top - popoverHeight - 6;
+    if (top < 8) {
+      top = Math.max(8, viewportHeight - popoverHeight - 8);
+    }
   }
 
   // Sort assignees: Primary first, then by allocation descending
@@ -86,8 +94,16 @@ export const TaskAssigneePopover: React.FC<TaskAssigneePopoverProps> = ({
       role="dialog"
       aria-label={`${taskTitle} 작업 담당자 목록`}
       data-testid={`task-assignee-popover-${taskId}`}
-      style={{ left: `${left}px`, top: `${top}px`, width: `${popoverWidth}px` }}
-      className="fixed z-100 bg-white border border-slate-200 rounded-xl shadow-xl p-3.5 text-xs text-slate-800 animate-in fade-in zoom-in-95 duration-150 select-none"
+      style={{
+        position: 'fixed',
+        left: `${left}px`,
+        top: `${top}px`,
+        width: `${popoverWidth}px`,
+        zIndex: 2147483000,
+        pointerEvents: 'auto',
+        isolation: 'isolate',
+      }}
+      className="fixed bg-white border border-slate-200 rounded-xl shadow-2xl p-3.5 text-xs text-slate-800 animate-in fade-in zoom-in-95 duration-150 select-none"
     >
       {/* Header */}
       <div className="flex items-center justify-between pb-2 mb-2.5 border-b border-slate-100">
@@ -152,9 +168,13 @@ export const TaskAssigneePopover: React.FC<TaskAssigneePopoverProps> = ({
               <div className="space-y-0.5">
                 <div className="flex items-center gap-1.5">
                   <span className="font-bold text-slate-900">{wObj.name || a.name}</span>
-                  {a.assignment_role === 'PRIMARY' && (
+                  {a.assignment_role === 'PRIMARY' ? (
                     <span className="text-[10px] font-extrabold px-1.5 py-0.2 rounded bg-indigo-100 text-indigo-700">
                       주 담당
+                    </span>
+                  ) : (
+                    <span className="text-[10px] font-semibold px-1.5 py-0.2 rounded bg-slate-200 text-slate-700">
+                      추가 담당
                     </span>
                   )}
                 </div>
@@ -172,5 +192,6 @@ export const TaskAssigneePopover: React.FC<TaskAssigneePopoverProps> = ({
     </div>
   );
 
-  return ReactDOM.createPortal(content, document.body);
+  const targetNode = typeof document !== 'undefined' ? (document.getElementById('overlay-root') || document.body) : null;
+  return targetNode ? ReactDOM.createPortal(content, targetNode) : null;
 };

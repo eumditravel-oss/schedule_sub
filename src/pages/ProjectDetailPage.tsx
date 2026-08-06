@@ -17,6 +17,9 @@ import { getLocalizedErrorMessage } from '../i18n';
 import {
   GANTT_DAY_WIDTH_PX,
   PRIMARY_BUTTON_H36_CLASS,
+  TASK_ROW_HEIGHT_PX,
+  TASK_GROUP_ROW_HEIGHT_PX,
+  EMPTY_GROUP_ROW_HEIGHT_PX,
 } from '../constants/gantt';
 import { TaskModal } from '../components/modals/TaskModal';
 import { StatusPopover } from '../components/modals/StatusPopover';
@@ -142,6 +145,7 @@ const SortableTaskRow: React.FC<SortableTaskRowProps> = ({
     transform: CSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.35 : 1,
+    height: `${TASK_ROW_HEIGHT_PX}px`,
   };
 
   const taskNumStr = `${groupNum}.${tIdx + 1}`;
@@ -161,125 +165,144 @@ const SortableTaskRow: React.FC<SortableTaskRowProps> = ({
 
   const spanInfo = getGanttSpanColumns(tItem.start_date, tItem.end_date, dateColumns);
 
+  const taskNameColWidth = leftPanelWidth >= 564 ? 260 : leftPanelWidth >= 504 ? 230 : 210;
+  const workerColWidth = leftPanelWidth >= 564 ? 240 : leftPanelWidth >= 504 ? 210 : 170;
+  const gridTemplateColumns = `${taskNameColWidth}px ${workerColWidth}px 64px`;
+
   return (
     <div
       ref={setNodeRef}
       style={style}
       role="row"
       data-testid={`task-row-${tItem.id}`}
-      className={`hover:bg-slate-50 transition border-b border-slate-200 h-11 flex ${isDragging ? 'bg-blue-50/50' : ''}`}
+      className={`hover:bg-slate-50 transition border-b border-slate-200 flex shrink-0 ${isDragging ? 'bg-blue-50/50' : ''}`}
     >
-      {/* Sticky Task Info Header Cell */}
+      {/* Sticky Task Info Header Cell with Explicit 3-Column CSS Grid */}
       <div
         role="cell"
-        style={{ width: `${leftPanelWidth}px`, minWidth: `${leftPanelWidth}px`, maxWidth: `${leftPanelWidth}px` }}
-        className="sticky left-0 z-10 bg-white hover:bg-slate-50 border-r border-slate-200 px-2 py-1 flex items-center shrink-0 h-full"
+        data-testid={`task-left-panel-${tItem.id}`}
+        style={{
+          width: `${leftPanelWidth}px`,
+          minWidth: `${leftPanelWidth}px`,
+          maxWidth: `${leftPanelWidth}px`,
+          display: 'grid',
+          gridTemplateColumns,
+        }}
+        className="sticky left-0 z-10 bg-white hover:bg-slate-50 border-r border-slate-200 shrink-0 h-full items-center"
       >
-        <div className="flex items-center justify-between text-xs min-w-0 w-full">
-          {/* Task Name Column */}
-          <div className="flex items-center gap-1.5 min-w-0 w-[210px] xl:w-[230px] 2xl:w-[260px] shrink-0">
-            {!isViewer && !isCompleted && (
+        {/* 1. Task Name Column Cell */}
+        <div className="flex items-center gap-[4px] min-w-0 pl-[6px] pr-[4px] py-0.5 overflow-hidden h-full">
+          {!isViewer && !isCompleted && (
+            <button
+              type="button"
+              data-testid={`task-row-drag-handle-${tItem.id}`}
+              {...attributes}
+              {...listeners}
+              className="w-[18px] h-[24px] flex items-center justify-center rounded-xs text-slate-300 hover:text-slate-600 hover:bg-slate-100 cursor-grab active:cursor-grabbing shrink-0 transition"
+              title="드래그하여 공정 이동 또는 순서 변경"
+            >
+              <GripVertical className="w-3 h-3" />
+            </button>
+          )}
+          <span className="font-bold text-slate-400 shrink-0 text-[11px] mr-1">{taskNumStr}</span>
+          <span className="font-extrabold text-slate-800 text-[11px] leading-[16px] truncate" title={taskTitle}>
+            {taskTitle}
+          </span>
+          {(tItem.schedule_status === 'UNSCHEDULED' || (!tItem.start_date && !tItem.end_date)) && (
+            <span
+              data-testid="unscheduled-task-badge"
+              className="px-1.5 py-0.5 rounded bg-amber-100 border border-amber-300 text-amber-800 font-extrabold text-[10px] shrink-0 ml-1"
+            >
+              {lang === 'vi' ? 'Chưa xác định' : '일정 미정'}
+            </span>
+          )}
+        </div>
+
+        {/* 2. Worker Assignees Column Cell */}
+        <div
+          data-testid={`task-assignee-summary-${tItem.id}`}
+          onClick={(e) => {
+            e.stopPropagation();
+            onOpenAssigneePopover?.(tItem, e.currentTarget.getBoundingClientRect());
+          }}
+          className="pl-[4px] pr-[4px] py-0.5 overflow-hidden flex items-center gap-1 cursor-pointer hover:bg-slate-100/70 rounded transition h-full"
+          title="클릭 시 담당자 상세 보기"
+        >
+          {/* Primary Worker Badge */}
+          <span className="h-[20px] px-[6px] py-0 flex items-center rounded bg-slate-100 border border-slate-200 text-slate-700 font-bold text-[10px] leading-[18px] truncate max-w-[90px] xl:max-w-[100px]">
+            {primaryWorkerName}
+          </span>
+
+          {/* Secondary Worker Badge */}
+          {secondaryWorkerName && (
+            <span className="hidden xl:flex h-[20px] px-[6px] py-0 items-center rounded bg-slate-100 border border-slate-200 text-slate-700 font-bold text-[10px] leading-[18px] truncate max-w-[90px] xl:max-w-[100px]">
+              {secondaryWorkerName}
+            </span>
+          )}
+
+          {/* +N More Button */}
+          {assignees.length > (secondaryWorkerName ? 2 : 1) && (
+            <button
+              type="button"
+              data-testid={`task-assignee-more-${tItem.id}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                onOpenAssigneePopover?.(tItem, e.currentTarget.getBoundingClientRect());
+              }}
+              className="h-[20px] px-[6px] py-0 flex items-center rounded-full bg-blue-100 hover:bg-blue-200 text-blue-800 font-extrabold text-[10px] leading-[18px] shrink-0 transition"
+              title={`추가 담당자 ${assignees.length - (secondaryWorkerName ? 2 : 1)}명 보기`}
+            >
+              +{assignees.length - (secondaryWorkerName ? 2 : 1)}
+            </button>
+          )}
+        </div>
+
+        {/* 3. Action Buttons Column Cell */}
+        <div
+          data-testid={`task-action-column-${tItem.id}`}
+          className="pl-[2px] pr-[4px] flex items-center justify-end gap-[1px] overflow-hidden h-full"
+        >
+          {!isViewer && !isCompleted && (
+            <>
               <button
                 type="button"
-                data-testid={`task-row-drag-handle-${tItem.id}`}
-                {...attributes}
-                {...listeners}
-                className="w-5 h-7 flex items-center justify-center rounded-xs text-slate-300 hover:text-slate-600 hover:bg-slate-100 cursor-grab active:cursor-grabbing shrink-0 transition"
-                title="드래그하여 공정 이동 또는 순서 변경"
+                data-testid={`task-move-menu-${tItem.id}`}
+                onClick={() => onMoveTask(tItem)}
+                className="w-[20px] h-[24px] flex items-center justify-center rounded text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition shrink-0"
+                title={lang === 'vi' ? 'Chuyển sang nhóm khác' : '다른 공정으로 이동'}
               >
-                <GripVertical className="w-3.5 h-3.5" />
+                <ArrowRightLeft className="w-3 h-3" />
               </button>
-            )}
-            <span className="font-bold text-slate-400 shrink-0 text-[11px]">{taskNumStr}</span>
-            <span className="font-extrabold text-slate-800 truncate" title={taskTitle}>
-              {taskTitle}
-            </span>
-            {(tItem.schedule_status === 'UNSCHEDULED' || (!tItem.start_date && !tItem.end_date)) && (
-              <span
-                data-testid="unscheduled-task-badge"
-                className="px-1.5 py-0.5 rounded bg-amber-100 border border-amber-300 text-amber-800 font-extrabold text-[10px] shrink-0"
-              >
-                {lang === 'vi' ? 'Chưa xác định' : '일정 미정'}
-              </span>
-            )}
-          </div>
-
-          {/* Worker Assignees Column */}
-          <div
-            data-testid={`task-assignee-summary-${tItem.id}`}
-            onClick={(e) => {
-              e.stopPropagation();
-              onOpenAssigneePopover?.(tItem, e.currentTarget.getBoundingClientRect());
-            }}
-            className="w-[170px] xl:w-[210px] 2xl:w-[240px] shrink-0 px-1 truncate flex items-center gap-1 cursor-pointer hover:bg-slate-100/70 py-0.5 rounded transition"
-            title="클릭 시 담당자 상세 보기"
-          >
-            {/* Primary Worker Badge */}
-            <span className="px-1.5 py-0.5 rounded-md bg-slate-100 border border-slate-200 text-slate-700 font-bold text-[11px] truncate max-w-[96px] xl:max-w-[110px]">
-              {primaryWorkerName}
-            </span>
-
-            {/* Secondary Worker Badge */}
-            {secondaryWorkerName && (
-              <span className="hidden xl:inline-block px-1.5 py-0.5 rounded-md bg-slate-100 border border-slate-200 text-slate-700 font-bold text-[11px] truncate max-w-[96px] xl:max-w-[110px]">
-                {secondaryWorkerName}
-              </span>
-            )}
-
-            {/* +N More Button */}
-            {assignees.length > (secondaryWorkerName ? 2 : 1) && (
               <button
                 type="button"
-                data-testid={`task-assignee-more-${tItem.id}`}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onOpenAssigneePopover?.(tItem, e.currentTarget.getBoundingClientRect());
-                }}
-                className="px-1.5 py-0.5 rounded-full bg-blue-100 hover:bg-blue-200 text-blue-800 font-extrabold text-[10px] shrink-0 transition"
-                title={`추가 담당자 ${assignees.length - (secondaryWorkerName ? 2 : 1)}명 보기`}
+                data-testid={`task-edit-btn-${tItem.id}`}
+                onClick={() => onEditTask(tItem)}
+                className="w-[20px] h-[24px] flex items-center justify-center rounded text-slate-400 hover:text-blue-600 hover:bg-slate-100 transition shrink-0"
+                title={lang === 'vi' ? 'Sửa công việc' : '작업 수정'}
               >
-                +{assignees.length - (secondaryWorkerName ? 2 : 1)}
+                <Edit2 className="w-3 h-3" />
               </button>
-            )}
-          </div>
-
-          {/* Action Buttons Column */}
-          <div className="w-[64px] shrink-0 flex items-center justify-end gap-1">
-            {!isViewer && !isCompleted && (
-              <>
-                <button
-                  type="button"
-                  data-testid={`task-move-menu-${tItem.id}`}
-                  onClick={() => onMoveTask(tItem)}
-                  className="p-1 rounded-md text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition"
-                  title={lang === 'vi' ? 'Chuyển sang nhóm khác' : '다른 공정으로 이동'}
-                >
-                  <ArrowRightLeft className="w-3.5 h-3.5" />
-                </button>
-                <button
-                  type="button"
-                  data-testid={`task-edit-btn-${tItem.id}`}
-                  onClick={() => onEditTask(tItem)}
-                  className="p-1 rounded-md text-slate-400 hover:text-blue-600 hover:bg-slate-100 transition"
-                >
-                  <Edit2 className="w-3.5 h-3.5" />
-                </button>
-                <button
-                  type="button"
-                  data-testid={`task-delete-btn-${tItem.id}`}
-                  onClick={() => onDeleteTask(tItem)}
-                  className="p-1 rounded-md text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
-              </>
-            )}
-          </div>
+              <button
+                type="button"
+                data-testid={`task-delete-btn-${tItem.id}`}
+                onClick={() => onDeleteTask(tItem)}
+                className="w-[20px] h-[24px] flex items-center justify-center rounded text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition shrink-0"
+                title={lang === 'vi' ? 'Xóa công việc' : '작업 삭제'}
+              >
+                <Trash2 className="w-3 h-3" />
+              </button>
+            </>
+          )}
         </div>
       </div>
 
       {/* Right Timeline Cell for all Gantt Days */}
-      <div role="cell" style={{ width: `${timelineWidth}px`, minWidth: `${timelineWidth}px` }} className="relative h-11 shrink-0">
+      <div
+        role="cell"
+        data-testid={`task-timeline-${tItem.id}`}
+        style={{ width: `${timelineWidth}px`, minWidth: `${timelineWidth}px` }}
+        className="relative shrink-0 h-full"
+      >
         {/* Layer 0: Day Cell Background Grid */}
         <div
           className="absolute inset-0 z-0 grid h-full w-full"
@@ -420,6 +443,7 @@ const DroppableTaskGroupRow: React.FC<DroppableTaskGroupRowProps> = ({
     transform: CSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.4 : 1,
+    height: `${TASK_GROUP_ROW_HEIGHT_PX}px`,
   };
 
   const groupName = lang === 'vi' ? (group.group_name_vi || group.group_name) : (group.group_name_ko || group.group_name);
@@ -443,7 +467,7 @@ const DroppableTaskGroupRow: React.FC<DroppableTaskGroupRowProps> = ({
       role="row"
       data-testid={`task-group-row-${group.id}`}
       data-testid-dropzone={`task-group-drop-zone-${group.id}`}
-      className={`transition h-10 border-b border-slate-200 flex ${
+      className={`transition border-b border-slate-200 flex shrink-0 ${
         isOver
           ? 'bg-blue-100/90 border-2 border-dashed border-blue-500'
           : 'bg-slate-100/90 hover:bg-slate-200/80'
@@ -452,7 +476,7 @@ const DroppableTaskGroupRow: React.FC<DroppableTaskGroupRowProps> = ({
       <div
         role="cell"
         style={{ width: `${leftPanelWidth}px`, minWidth: `${leftPanelWidth}px`, maxWidth: `${leftPanelWidth}px` }}
-        className={`sticky left-0 z-10 px-2 py-1 border-r border-slate-200 border-l-4 ${GROUP_BORDER_COLORS[colorKey]} shrink-0 flex items-center h-full ${
+        className={`sticky left-0 z-10 px-2 py-0.5 border-r border-slate-200 border-l-4 ${GROUP_BORDER_COLORS[colorKey]} shrink-0 flex items-center h-full ${
           isOver ? 'bg-blue-100' : 'bg-slate-100/90'
         }`}
       >
@@ -464,7 +488,7 @@ const DroppableTaskGroupRow: React.FC<DroppableTaskGroupRowProps> = ({
                 data-testid={`task-group-drag-handle-${group.id}`}
                 {...attributes}
                 {...listeners}
-                className="w-5 h-7 flex items-center justify-center rounded-xs text-slate-400 hover:text-slate-700 hover:bg-slate-200/70 cursor-grab active:cursor-grabbing shrink-0 transition"
+                className="w-5 h-6 flex items-center justify-center rounded-xs text-slate-400 hover:text-slate-700 hover:bg-slate-200/70 cursor-grab active:cursor-grabbing shrink-0 transition"
                 title="공정 순서 변경"
               >
                 <GripVertical className="w-3.5 h-3.5" />
@@ -475,7 +499,7 @@ const DroppableTaskGroupRow: React.FC<DroppableTaskGroupRowProps> = ({
               type="button"
               data-testid={`task-group-toggle-${group.id}`}
               onClick={() => onToggleCollapse(group.id)}
-              className="p-1 rounded-md hover:bg-slate-200 text-slate-600 transition shrink-0"
+              className="p-0.5 rounded-md hover:bg-slate-200 text-slate-600 transition shrink-0"
             >
               {isCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
             </button>
@@ -530,7 +554,7 @@ const DroppableTaskGroupRow: React.FC<DroppableTaskGroupRowProps> = ({
         </div>
       </div>
 
-      <div role="cell" style={{ width: `${timelineWidth}px`, minWidth: `${timelineWidth}px` }} className={`h-full shrink-0 ${isOver ? 'bg-blue-50/50' : ''}`} />
+      <div role="cell" style={{ width: `${timelineWidth}px`, minWidth: `${timelineWidth}px`, height: `${TASK_GROUP_ROW_HEIGHT_PX}px` }} className={`shrink-0 ${isOver ? 'bg-blue-50/50' : ''}`} />
     </div>
   );
 };
@@ -551,7 +575,8 @@ const EmptyGroupDropZoneCard: React.FC<{
       ref={setNodeRef}
       role="row"
       data-testid={`task-group-empty-drop-zone-${groupId}`}
-      className={`h-9 border-b border-dashed border-slate-300 transition flex ${
+      style={{ height: `${EMPTY_GROUP_ROW_HEIGHT_PX}px` }}
+      className={`border-b border-dashed border-slate-300 transition flex shrink-0 ${
         isOver ? 'bg-blue-100 border-blue-500 font-bold text-blue-800' : 'bg-slate-50/70 text-slate-400'
       }`}
     >
@@ -1861,12 +1886,18 @@ export const ProjectDetailPage: React.FC = () => {
                 {/* Left Header */}
                 <div
                   role="columnheader"
-                  style={{ width: `${DETAIL_LEFT_WIDTH}px`, minWidth: `${DETAIL_LEFT_WIDTH}px`, maxWidth: `${DETAIL_LEFT_WIDTH}px` }}
-                  className="sticky left-0 z-30 bg-slate-100 px-3 py-2 font-bold text-slate-800 border-r border-slate-200 shrink-0 flex items-center justify-between"
+                  style={{
+                    width: `${DETAIL_LEFT_WIDTH}px`,
+                    minWidth: `${DETAIL_LEFT_WIDTH}px`,
+                    maxWidth: `${DETAIL_LEFT_WIDTH}px`,
+                    display: 'grid',
+                    gridTemplateColumns: DETAIL_LEFT_WIDTH >= 564 ? '260px 240px 64px' : DETAIL_LEFT_WIDTH >= 504 ? '230px 210px 64px' : '210px 170px 64px',
+                  }}
+                  className="sticky left-0 z-30 bg-slate-100 font-bold text-slate-800 border-r border-slate-200 shrink-0 items-center h-full"
                 >
-                  <span className="w-[210px] xl:w-[230px] 2xl:w-[260px] truncate">{lang === 'vi' ? 'Công việc chi tiết' : '세부 작업명'}</span>
-                  <span className="w-[170px] xl:w-[210px] 2xl:w-[240px] truncate px-1">{lang === 'vi' ? 'Người phụ trách' : '작업자'}</span>
-                  <span className="w-[64px] text-right">{lang === 'vi' ? 'Thao tác' : '액션'}</span>
+                  <span className="pl-[6px] pr-[4px] py-2 truncate">{lang === 'vi' ? 'Công việc chi tiết' : '세부 작업명'}</span>
+                  <span className="pl-[4px] pr-[4px] py-2 truncate">{lang === 'vi' ? 'Người phụ trách' : '작업자'}</span>
+                  <span className="pl-[2px] pr-[4px] py-2 text-right truncate">{lang === 'vi' ? 'Thao tác' : '액션'}</span>
                 </div>
 
                 {/* Right Timeline Header Stack (Month Header + Date Header) */}
