@@ -10,6 +10,14 @@ export const TASK_GROUP_ROW_HEIGHT_PX = 36;
 export const EMPTY_GROUP_ROW_HEIGHT_PX = 32;
 
 /**
+ * Header Height Constants for 2-Row CSS Grid Header (72px total)
+ */
+export const GANTT_MONTH_HEADER_HEIGHT_PX = 28;
+export const GANTT_DATE_HEADER_HEIGHT_PX = 44;
+export const GANTT_HEADER_TOTAL_HEIGHT_PX =
+  GANTT_MONTH_HEADER_HEIGHT_PX + GANTT_DATE_HEADER_HEIGHT_PX;
+
+/**
  * Width thresholds for text display inside Gantt bars
  */
 export const GANTT_BAR_TEXT_THRESHOLD_PX = 128;

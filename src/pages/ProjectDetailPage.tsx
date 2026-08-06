@@ -20,6 +20,9 @@ import {
   TASK_ROW_HEIGHT_PX,
   TASK_GROUP_ROW_HEIGHT_PX,
   EMPTY_GROUP_ROW_HEIGHT_PX,
+  GANTT_MONTH_HEADER_HEIGHT_PX,
+  GANTT_DATE_HEADER_HEIGHT_PX,
+  GANTT_HEADER_TOTAL_HEIGHT_PX,
 } from '../constants/gantt';
 import { GANTT_Z } from '../constants/ganttLayers';
 import { TaskModal } from '../components/modals/TaskModal';
@@ -1952,49 +1955,109 @@ export const ProjectDetailPage: React.FC = () => {
               role="table"
               className="flex flex-col text-left"
             >
-              {/* 1. Header Container */}
-              <div role="row" style={{ zIndex: GANTT_Z.STICKY_TOP_HEADER }} className="sticky top-0 flex bg-slate-100 text-xs uppercase tracking-wider text-slate-700 border-b border-slate-200">
-                {/* Left Header Corner */}
+              {/* 1. Header Container Grid (72px Total Height) */}
+              <div
+                role="row"
+                data-testid="detail-gantt-header-grid"
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: `${DETAIL_LEFT_WIDTH}px ${timelineWidth}px`,
+                  gridTemplateRows: `${GANTT_MONTH_HEADER_HEIGHT_PX}px ${GANTT_DATE_HEADER_HEIGHT_PX}px`,
+                  width: `${DETAIL_LEFT_WIDTH + timelineWidth}px`,
+                  minWidth: `${DETAIL_LEFT_WIDTH + timelineWidth}px`,
+                  height: `${GANTT_HEADER_TOTAL_HEIGHT_PX}px`,
+                  minHeight: `${GANTT_HEADER_TOTAL_HEIGHT_PX}px`,
+                  maxHeight: `${GANTT_HEADER_TOTAL_HEIGHT_PX}px`,
+                  position: 'sticky',
+                  top: 0,
+                  zIndex: GANTT_Z.STICKY_TOP_HEADER,
+                }}
+                className="sticky top-0 bg-slate-100 text-xs uppercase tracking-wider text-slate-700 border-b border-slate-200"
+              >
+                {/* Left Header Corner (Spans 2 Header Rows, 72px Height) */}
                 <div
                   role="columnheader"
                   data-testid="detail-sticky-corner"
                   style={{
-                    width: `${DETAIL_LEFT_WIDTH}px`,
-                    minWidth: `${DETAIL_LEFT_WIDTH}px`,
-                    maxWidth: `${DETAIL_LEFT_WIDTH}px`,
+                    gridColumn: '1',
+                    gridRow: '1 / span 2',
+                    height: `${GANTT_HEADER_TOTAL_HEIGHT_PX}px`,
+                    minHeight: `${GANTT_HEADER_TOTAL_HEIGHT_PX}px`,
+                    maxHeight: `${GANTT_HEADER_TOTAL_HEIGHT_PX}px`,
                     display: 'grid',
                     gridTemplateColumns: DETAIL_LEFT_WIDTH >= 564 ? '260px 240px 64px' : DETAIL_LEFT_WIDTH >= 504 ? '230px 210px 64px' : '210px 170px 64px',
+                    alignItems: 'center',
+                    alignSelf: 'stretch',
                     position: 'sticky',
                     left: 0,
-                    zIndex: GANTT_Z.STICKY_CORNER,
+                    top: 0,
+                    zIndex: GANTT_Z.STICKY_TOP_LEFT_CORNER,
                     backgroundColor: '#f1f5f9',
                     backgroundClip: 'padding-box',
                     isolation: 'isolate',
+                    opacity: 1,
                   }}
-                  className="sticky left-0 bg-slate-100 font-bold text-slate-800 border-r border-slate-200 shrink-0 items-center h-full relative"
+                  className="sticky left-0 top-0 bg-slate-100 font-bold text-slate-800 border-r border-slate-200 shrink-0 relative flex items-center"
                 >
-                  <span className="pl-[6px] pr-[4px] py-2 truncate">{lang === 'vi' ? 'Công việc chi tiết' : '세부 작업명'}</span>
-                  <span className="pl-[4px] pr-[4px] py-2 truncate">{lang === 'vi' ? 'Người phụ trách' : '작업자'}</span>
-                  <span className="pl-[2px] pr-[4px] py-2 text-right truncate">{lang === 'vi' ? 'Thao tác' : '액션'}</span>
+                  <span className="pl-[6px] pr-[4px] truncate">{lang === 'vi' ? 'Công việc chi tiết' : '세부 작업명'}</span>
+                  <span className="pl-[4px] pr-[4px] truncate">{lang === 'vi' ? 'Người phụ trách' : '작업자'}</span>
+                  <span className="pl-[2px] pr-[4px] text-right truncate">{lang === 'vi' ? 'Thao tác' : '액션'}</span>
+                  <div
+                    data-testid="gantt-sticky-occlusion-rail"
+                    style={{
+                      position: 'absolute',
+                      top: 0,
+                      right: '-1px',
+                      bottom: 0,
+                      height: `${GANTT_HEADER_TOTAL_HEIGHT_PX}px`,
+                      width: '2px',
+                      backgroundColor: '#f1f5f9',
+                      pointerEvents: 'none',
+                      zIndex: GANTT_Z.STICKY_OCCLUSION_RAIL,
+                      boxShadow: '4px 0 8px rgba(15, 23, 42, 0.08)',
+                    }}
+                  />
                 </div>
 
-                {/* Right Timeline Header Stack (Month Header + Date Header) */}
-                <div style={{ width: `${timelineWidth}px`, minWidth: `${timelineWidth}px` }} className="flex flex-col shrink-0">
-                  {/* Month Header Row */}
-                  <div className="grid w-full bg-slate-100 border-b border-slate-200 text-center font-bold text-blue-700 text-xs py-1.5" style={{ gridTemplateColumns: dateGridTemplate }}>
-                    {monthGroups.map((mg, idx) => (
-                      <div
-                        key={idx}
-                        style={{ gridColumn: `${mg.startIndex + 1} / span ${mg.span}` }}
-                        className="border-r border-slate-200 truncate px-1"
-                      >
-                        {mg.monthStr}
-                      </div>
-                    ))}
-                  </div>
+                {/* Month Header Row (Row 1, 28px) */}
+                <div
+                  data-testid="detail-month-header"
+                  style={{
+                    gridColumn: '2',
+                    gridRow: '1',
+                    height: `${GANTT_MONTH_HEADER_HEIGHT_PX}px`,
+                    minHeight: `${GANTT_MONTH_HEADER_HEIGHT_PX}px`,
+                    maxHeight: `${GANTT_MONTH_HEADER_HEIGHT_PX}px`,
+                    display: 'grid',
+                    gridTemplateColumns: dateGridTemplate,
+                  }}
+                  className="w-full bg-slate-100 border-b border-slate-200 text-center font-bold text-blue-700 text-xs items-center"
+                >
+                  {monthGroups.map((mg, idx) => (
+                    <div
+                      key={idx}
+                      style={{ gridColumn: `${mg.startIndex + 1} / span ${mg.span}` }}
+                      className="border-r border-slate-200 truncate px-1 flex items-center justify-center h-full"
+                    >
+                      {mg.monthStr}
+                    </div>
+                  ))}
+                </div>
 
-                  {/* Date Header Row */}
-                  <div className="grid w-full h-[44px]" style={{ gridTemplateColumns: dateGridTemplate }}>
+                {/* Date Header Row (Row 2, 44px) */}
+                <div
+                  data-testid="detail-date-header"
+                  style={{
+                    gridColumn: '2',
+                    gridRow: '2',
+                    height: `${GANTT_DATE_HEADER_HEIGHT_PX}px`,
+                    minHeight: `${GANTT_DATE_HEADER_HEIGHT_PX}px`,
+                    maxHeight: `${GANTT_DATE_HEADER_HEIGHT_PX}px`,
+                    display: 'grid',
+                    gridTemplateColumns: dateGridTemplate,
+                  }}
+                  className="w-full h-[44px]"
+                >
                     {dateColumns.map((col, idx) => {
                       const offInfo = getCountryOffState(col.dateStr, calendarOverrides, countryHolidays);
                       let bgStyle = 'bg-white text-slate-700 border-slate-200';
@@ -2041,7 +2104,6 @@ export const ProjectDetailPage: React.FC = () => {
                     })}
                   </div>
                 </div>
-              </div>
 
               {/* 2. Body Container */}
               <div className="divide-y divide-slate-200 text-sm flex flex-col">

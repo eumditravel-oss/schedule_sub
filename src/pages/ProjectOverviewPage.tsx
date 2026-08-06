@@ -13,6 +13,9 @@ import { getLocalizedErrorMessage } from '../i18n';
 import {
   GANTT_DAY_WIDTH_PX,
   PRIMARY_BUTTON_H36_CLASS,
+  GANTT_MONTH_HEADER_HEIGHT_PX,
+  GANTT_DATE_HEADER_HEIGHT_PX,
+  GANTT_HEADER_TOTAL_HEIGHT_PX,
 } from '../constants/gantt';
 import { GANTT_Z } from '../constants/ganttLayers';
 import { ProjectModal } from '../components/modals/ProjectModal';
@@ -612,24 +615,46 @@ export const ProjectOverviewPage: React.FC = () => {
                 role="table"
                 className="flex flex-col text-left"
               >
-                {/* 1. Header Container */}
-                <div role="row" style={{ zIndex: GANTT_Z.STICKY_TOP_HEADER }} className="sticky top-0 flex bg-slate-100 text-xs uppercase tracking-wider text-slate-700 border-b border-slate-200">
-                  {/* Left Header Corner */}
+                {/* 1. Header Container Grid (72px Total Height) */}
+                <div
+                  role="row"
+                  data-testid="overview-gantt-header-grid"
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: `${OVERVIEW_LEFT_WIDTH}px ${timelineWidth}px`,
+                    gridTemplateRows: `${GANTT_MONTH_HEADER_HEIGHT_PX}px ${GANTT_DATE_HEADER_HEIGHT_PX}px`,
+                    width: `${OVERVIEW_LEFT_WIDTH + timelineWidth}px`,
+                    minWidth: `${OVERVIEW_LEFT_WIDTH + timelineWidth}px`,
+                    height: `${GANTT_HEADER_TOTAL_HEIGHT_PX}px`,
+                    minHeight: `${GANTT_HEADER_TOTAL_HEIGHT_PX}px`,
+                    maxHeight: `${GANTT_HEADER_TOTAL_HEIGHT_PX}px`,
+                    position: 'sticky',
+                    top: 0,
+                    zIndex: GANTT_Z.STICKY_TOP_HEADER,
+                  }}
+                  className="sticky top-0 bg-slate-100 text-xs uppercase tracking-wider text-slate-700 border-b border-slate-200"
+                >
+                  {/* Left Header Corner (Spans 2 Header Rows, 72px Height) */}
                   <div
                     role="columnheader"
                     data-testid="overview-sticky-corner"
                     style={{
-                      width: `${OVERVIEW_LEFT_WIDTH}px`,
-                      minWidth: `${OVERVIEW_LEFT_WIDTH}px`,
-                      maxWidth: `${OVERVIEW_LEFT_WIDTH}px`,
+                      gridColumn: '1',
+                      gridRow: '1 / span 2',
+                      height: `${GANTT_HEADER_TOTAL_HEIGHT_PX}px`,
+                      minHeight: `${GANTT_HEADER_TOTAL_HEIGHT_PX}px`,
+                      maxHeight: `${GANTT_HEADER_TOTAL_HEIGHT_PX}px`,
                       position: 'sticky',
                       left: 0,
-                      zIndex: GANTT_Z.STICKY_CORNER,
+                      top: 0,
+                      zIndex: GANTT_Z.STICKY_TOP_LEFT_CORNER,
                       backgroundColor: '#f1f5f9',
                       backgroundClip: 'padding-box',
                       isolation: 'isolate',
+                      opacity: 1,
+                      alignSelf: 'stretch',
                     }}
-                    className="sticky left-0 bg-slate-100 px-3 py-2.5 font-bold text-slate-800 border-r border-slate-200 shrink-0 flex items-center justify-between relative"
+                    className="sticky left-0 top-0 bg-slate-100 px-3 font-bold text-slate-800 border-r border-slate-200 shrink-0 flex items-center justify-between relative"
                   >
                     <span>{t('projectInfo')}</span>
                     <span className="hidden md:inline text-[10px] text-slate-500 font-normal">{t('progress')}</span>
@@ -640,77 +665,99 @@ export const ProjectOverviewPage: React.FC = () => {
                         top: 0,
                         right: '-1px',
                         bottom: 0,
+                        height: `${GANTT_HEADER_TOTAL_HEIGHT_PX}px`,
                         width: '2px',
                         backgroundColor: '#f1f5f9',
                         pointerEvents: 'none',
-                        zIndex: 1,
+                        zIndex: GANTT_Z.STICKY_OCCLUSION_RAIL,
                         boxShadow: '4px 0 8px rgba(15, 23, 42, 0.08)',
                       }}
                     />
                   </div>
 
-                  {/* Right Timeline Header Stack (Month Header + Date Header) */}
-                  <div style={{ width: `${timelineWidth}px`, minWidth: `${timelineWidth}px`, zIndex: GANTT_Z.TIMELINE_HEADER }} className="flex flex-col shrink-0 relative">
-                    {/* Month Header Row */}
-                    <div className="grid w-full bg-slate-100 border-b border-slate-200 text-center font-bold text-blue-700 text-xs py-1.5" style={{ gridTemplateColumns: dateGridTemplate }}>
-                      {monthGroups.map((mg, idx) => (
+                  {/* Month Header Row (Row 1, 28px) */}
+                  <div
+                    data-testid="overview-month-header"
+                    style={{
+                      gridColumn: '2',
+                      gridRow: '1',
+                      height: `${GANTT_MONTH_HEADER_HEIGHT_PX}px`,
+                      minHeight: `${GANTT_MONTH_HEADER_HEIGHT_PX}px`,
+                      maxHeight: `${GANTT_MONTH_HEADER_HEIGHT_PX}px`,
+                      display: 'grid',
+                      gridTemplateColumns: dateGridTemplate,
+                    }}
+                    className="w-full bg-slate-100 border-b border-slate-200 text-center font-bold text-blue-700 text-xs items-center"
+                  >
+                    {monthGroups.map((mg, idx) => (
+                      <div
+                        key={idx}
+                        style={{ gridColumn: `${mg.startIndex + 1} / span ${mg.span}` }}
+                        className="border-r border-slate-200 truncate px-1 flex items-center justify-center h-full"
+                      >
+                        {mg.monthStr}
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Date Header Row (Row 2, 44px) */}
+                  <div
+                    data-testid="overview-date-header"
+                    style={{
+                      gridColumn: '2',
+                      gridRow: '2',
+                      height: `${GANTT_DATE_HEADER_HEIGHT_PX}px`,
+                      minHeight: `${GANTT_DATE_HEADER_HEIGHT_PX}px`,
+                      maxHeight: `${GANTT_DATE_HEADER_HEIGHT_PX}px`,
+                      display: 'grid',
+                      gridTemplateColumns: dateGridTemplate,
+                    }}
+                    className="w-full h-[44px]"
+                  >
+                    {dateColumns.map((col, idx) => {
+                      const offInfo = getCountryOffState(col.dateStr, calendarOverrides, krHolidays.concat(vnHolidays));
+                      let bgStyle = 'bg-white text-slate-700 border-slate-200';
+                      if (offInfo.state === 'BOTH_OFF') bgStyle = 'bg-rose-100 text-rose-900 border-rose-300 font-semibold';
+                      else if (offInfo.state === 'KR_ONLY_OFF') bgStyle = 'bg-orange-50 text-orange-900 border-orange-200 font-medium';
+                      else if (offInfo.state === 'VN_ONLY_OFF') bgStyle = 'bg-amber-50 text-amber-900 border-amber-200 font-medium';
+
+                      const todayStyle = col.isToday ? 'shadow-[inset_0_2px_0_rgba(59,130,246,0.9)] text-blue-700 font-extrabold' : '';
+
+                      let ariaText = `${col.dateStr} (${col.dayName})`;
+                      if (offInfo.krHolidayName && offInfo.vnHolidayName) ariaText += `, 한국과 베트남 모두 공휴일 (${offInfo.krHolidayName})`;
+                      else if (offInfo.krHolidayName) ariaText += `, 한국 공휴일 (${offInfo.krHolidayName}), 베트남 정상 근무`;
+                      else if (offInfo.vnHolidayName) ariaText += `, 베트남 공휴일 (${offInfo.vnHolidayName}), 한국 정상 근무`;
+
+                      const hasHoliday = !!offInfo.krHolidayName || !!offInfo.vnHolidayName;
+
+                      return (
                         <div
                           key={idx}
-                          style={{ gridColumn: `${mg.startIndex + 1} / span ${mg.span}` }}
-                          className="border-r border-slate-200 truncate px-1"
+                          role="columnheader"
+                          data-testid={`gantt-date-header-${col.dateStr}`}
+                          data-date={col.dateStr}
+                          data-country-off-state={offInfo.state}
+                          aria-label={ariaText}
+                          onClick={() => setHeaderInfoState({ isOpen: true, dateStr: col.dateStr, dayName: col.dayName })}
+                          style={{ boxSizing: 'border-box' }}
+                          className={`relative text-center p-0 border-r border-slate-200 text-[11px] font-medium cursor-pointer transition select-none flex flex-col items-center justify-center h-full ${bgStyle} ${todayStyle}`}
                         >
-                          {mg.monthStr}
+                          {hasHoliday && (
+                            <div
+                              className={`absolute top-0 left-0 right-0 h-[2px] ${
+                                offInfo.krHolidayName && offInfo.vnHolidayName
+                                  ? 'bg-rose-600'
+                                  : offInfo.krHolidayName
+                                  ? 'bg-orange-500'
+                                  : 'bg-amber-500'
+                              }`}
+                            />
+                          )}
+                          <div>{col.dayNum}</div>
+                          <div className="text-[10px] opacity-85">{col.dayName}</div>
                         </div>
-                      ))}
-                    </div>
-
-                    {/* Date Header Row */}
-                    <div className="grid w-full h-[44px]" style={{ gridTemplateColumns: dateGridTemplate }}>
-                      {dateColumns.map((col, idx) => {
-                        const offInfo = getCountryOffState(col.dateStr, calendarOverrides, krHolidays.concat(vnHolidays));
-                        let bgStyle = 'bg-white text-slate-700 border-slate-200';
-                        if (offInfo.state === 'BOTH_OFF') bgStyle = 'bg-rose-100 text-rose-900 border-rose-300 font-semibold';
-                        else if (offInfo.state === 'KR_ONLY_OFF') bgStyle = 'bg-orange-50 text-orange-900 border-orange-200 font-medium';
-                        else if (offInfo.state === 'VN_ONLY_OFF') bgStyle = 'bg-amber-50 text-amber-900 border-amber-200 font-medium';
-
-                        const todayStyle = col.isToday ? 'shadow-[inset_0_2px_0_rgba(59,130,246,0.9)] text-blue-700 font-extrabold' : '';
-
-                        let ariaText = `${col.dateStr} (${col.dayName})`;
-                        if (offInfo.krHolidayName && offInfo.vnHolidayName) ariaText += `, 한국과 베트남 모두 공휴일 (${offInfo.krHolidayName})`;
-                        else if (offInfo.krHolidayName) ariaText += `, 한국 공휴일 (${offInfo.krHolidayName}), 베트남 정상 근무`;
-                        else if (offInfo.vnHolidayName) ariaText += `, 베트남 공휴일 (${offInfo.vnHolidayName}), 한국 정상 근무`;
-
-                        const hasHoliday = !!offInfo.krHolidayName || !!offInfo.vnHolidayName;
-
-                        return (
-                          <div
-                            key={idx}
-                            role="columnheader"
-                            data-testid={`gantt-date-header-${col.dateStr}`}
-                            data-date={col.dateStr}
-                            data-country-off-state={offInfo.state}
-                            aria-label={ariaText}
-                            onClick={() => setHeaderInfoState({ isOpen: true, dateStr: col.dateStr, dayName: col.dayName })}
-                            style={{ boxSizing: 'border-box' }}
-                            className={`relative text-center p-0 border-r border-slate-200 text-[11px] font-medium cursor-pointer transition select-none flex flex-col items-center justify-center h-full ${bgStyle} ${todayStyle}`}
-                          >
-                            {hasHoliday && (
-                              <div
-                                className={`absolute top-0 left-0 right-0 h-[2px] ${
-                                  offInfo.krHolidayName && offInfo.vnHolidayName
-                                    ? 'bg-rose-600'
-                                    : offInfo.krHolidayName
-                                    ? 'bg-orange-500'
-                                    : 'bg-amber-500'
-                                }`}
-                              />
-                            )}
-                            <div>{col.dayNum}</div>
-                            <div className="text-[10px] opacity-85">{col.dayName}</div>
-                          </div>
-                        );
-                      })}
-                    </div>
+                      );
+                    })}
                   </div>
                 </div>
 
