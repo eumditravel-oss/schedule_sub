@@ -188,7 +188,7 @@ test.describe('Production Real Project Read-Only Audit & Geometry Alignment Suit
       expect(h0Box).not.toBeNull();
       expect(c0Box).not.toBeNull();
       expect(Math.abs(h0Box!.x - c0Box!.x)).toBeLessThanOrEqual(0.5);
-      expect(Math.abs(h0Box!.width - c0Box!.width)).toBeLessThanOrEqual(3.5);
+      expect(Math.abs(h0Box!.width - c0Box!.width)).toBeLessThanOrEqual(0.5);
     }
   });
 });

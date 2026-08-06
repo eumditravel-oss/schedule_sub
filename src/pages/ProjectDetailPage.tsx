@@ -904,7 +904,10 @@ export const ProjectDetailPage: React.FC = () => {
       const data = await api.getProjectDetail(projectId);
       setProject(data.project);
       if (data.project?.start_date) {
-        setAnchorDate(new Date(`${data.project.start_date}T00:00:00Z`));
+        const [pYear, pMonth] = data.project.start_date.split('-').map(Number);
+        if (pYear && pMonth) {
+          setAnchorDate(new Date(pYear, pMonth - 1, 1));
+        }
       }
       setTasks(data.tasks || []);
       setTaskGroups(data.task_groups || []);

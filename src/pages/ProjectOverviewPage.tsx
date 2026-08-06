@@ -582,7 +582,7 @@ export const ProjectOverviewPage: React.FC = () => {
               ref={scrollContainerRef}
               className="flex-1 bg-white border border-slate-200 rounded-xl shadow-sm overflow-x-auto overflow-y-auto custom-scrollbar relative max-w-full"
             >
-            <table className="w-full border-collapse text-left min-w-max">
+            <table className="w-full border-collapse text-left min-w-max table-fixed">
               <thead className="sticky top-0 z-20 bg-slate-100 text-xs uppercase tracking-wider text-slate-700">
                 <tr className="border-b border-slate-200">
                   <th
