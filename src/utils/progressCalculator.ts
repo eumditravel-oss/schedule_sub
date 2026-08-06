@@ -26,6 +26,16 @@ export function calculateTaskProgress(
   projectStatus: 'ACTIVE' | 'COMPLETED' = 'ACTIVE',
   referenceTodayStr?: string
 ): TaskProgressMetrics {
+  if (task.schedule_status === 'UNSCHEDULED' || !task.start_date || !task.end_date) {
+    return {
+      planned_working_days: 0,
+      completed_working_days: 0,
+      planned_progress: 0,
+      actual_progress: 0,
+      progress_gap: 0,
+      schedule_state: 'UPCOMING',
+    };
+  }
   const todayStr = referenceTodayStr || getTodayStrForWorker(worker);
   const workerObj = worker;
 

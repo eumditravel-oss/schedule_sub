@@ -70,7 +70,7 @@ export function calculateWorkerUtilization(
     if (!st.is_working_day) continue;
 
     const hasAssignedTask = activeWorkerTasks.some(
-      (t) => t.start_date <= dateStr && t.end_date >= dateStr
+      (t) => t.start_date && t.end_date && t.start_date <= dateStr && t.end_date >= dateStr
     );
     if (hasAssignedTask) {
       assigned_working_days += 1;

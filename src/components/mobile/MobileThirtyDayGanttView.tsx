@@ -295,7 +295,7 @@ export const MobileThirtyDayGanttView: React.FC<MobileThirtyDayGanttViewProps> =
                 ) : (
                   tasks.map((tItem) => {
                     const workerObj = workers.find((w) => w.id === tItem.worker_name || w.name === tItem.worker_name);
-                    const spanInfo = getGanttSpan(tItem.start_date, tItem.end_date);
+                    const spanInfo = (tItem.start_date && tItem.end_date) ? getGanttSpan(tItem.start_date, tItem.end_date) : null;
                     const plannedProg = tItem.planned_progress ?? 0;
                     const actualProg = tItem.actual_progress ?? 0;
                     const rawStatus = (tItem as any).schedule_state || (tItem as any).status;
@@ -361,8 +361,8 @@ export const MobileThirtyDayGanttView: React.FC<MobileThirtyDayGanttViewProps> =
                                 isMobile={true}
                                 interactionMode="PASS_THROUGH"
                                 title={getTaskDisplayName(tItem)}
-                                startDate={tItem.start_date}
-                                endDate={tItem.end_date}
+                                startDate={tItem.start_date || ''}
+                                endDate={tItem.end_date || ''}
                                 calendarSpanDays={(tItem as any).calendar_span_days ?? spanInfo.spanCount}
                                 plannedWorkingDays={(tItem as any).planned_working_days ?? 0}
                                 plannedProgress={plannedProg}

@@ -307,8 +307,8 @@ const SortableTaskRow: React.FC<SortableTaskRowProps> = ({
             >
               <ScheduleBar
                 title={taskTitle}
-                startDate={tItem.start_date}
-                endDate={tItem.end_date}
+                startDate={tItem.start_date || ''}
+                endDate={tItem.end_date || ''}
                 calendarSpanDays={spanInfo.spanCount}
                 plannedWorkingDays={tItem.planned_working_days || spanInfo.spanCount}
                 plannedProgress={tItem.planned_progress ?? tItem.progress ?? 0}
@@ -1991,8 +1991,8 @@ export const ProjectDetailPage: React.FC = () => {
         onClose={() => setInfoSheetState({ isOpen: false, task: null })}
         title={infoSheetState.task ? getTaskDisplayName(infoSheetState.task) : ''}
         subtitle={infoSheetState.task?.worker_name}
-        startDate={infoSheetState.task?.start_date}
-        endDate={infoSheetState.task?.end_date}
+        startDate={infoSheetState.task?.start_date || undefined}
+        endDate={infoSheetState.task?.end_date || undefined}
         progress={infoSheetState.task?.progress}
         workerName={infoSheetState.task?.worker_name}
         isReadOnly={isViewer || isCompleted}

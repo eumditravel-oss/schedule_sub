@@ -247,7 +247,7 @@ export const MobileWeekView: React.FC<MobileWeekViewProps> = ({
                       );
                       const countryOffInfo = getCountryOffState(col.dateStr, overrides, holidays);
                       const statusVal = tItem.daily_statuses?.[col.dateStr];
-                      const isInSchedule = col.dateStr >= tItem.start_date && col.dateStr <= tItem.end_date;
+                      const isInSchedule = !!(tItem.start_date && tItem.end_date && col.dateStr >= tItem.start_date && col.dateStr <= tItem.end_date);
 
                       return (
                         <WorkerDayCellBackground

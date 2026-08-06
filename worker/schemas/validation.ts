@@ -19,7 +19,7 @@ export const updateProjectSchema = projectSchema.partial().extend({
   confirm_schedule_cascade: z.boolean().optional(),
 });
 
-export const taskSchema = z.object({
+export const rawTaskSchema = z.object({
   project_id: z.string().min(1, '프로젝트 ID가 필요합니다.'),
   worker_name: z.string().min(1, '작업자명이 필요합니다.'),
   task_name: z.string().min(1, '작업내용을 입력해 주세요.').max(200),
@@ -41,7 +41,9 @@ export const taskSchema = z.object({
   progress_mode: z.string().optional(),
   availability_policy: z.string().optional(),
   completion_confirmed: z.number().optional(),
-}).superRefine((data, ctx) => {
+});
+
+export const taskSchema = rawTaskSchema.superRefine((data, ctx) => {
   if (data.schedule_status === 'UNSCHEDULED') {
     if (data.start_date || data.end_date) {
       ctx.addIssue({
@@ -76,7 +78,7 @@ export const taskSchema = z.object({
   }
 });
 
-export const updateTaskSchema = taskSchema.partial().extend({
+export const updateTaskSchema = rawTaskSchema.partial().extend({
   editor_name: z.string().min(1, '현재 접속자를 먼저 선택해 주세요.'),
 });
 

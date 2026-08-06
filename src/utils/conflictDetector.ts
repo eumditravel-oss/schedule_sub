@@ -52,6 +52,9 @@ export function detectWorkerTaskConflicts(
     const otherProject = activeProjectMap.get(otherTask.project_id);
     if (!otherProject) continue;
 
+    if (otherTask.schedule_status === 'UNSCHEDULED' || !otherTask.start_date || !otherTask.end_date) continue;
+    if (!target.start_date || !target.end_date) continue;
+
     // Date range overlap check
     if (otherTask.start_date <= target.end_date && otherTask.end_date >= target.start_date) {
       const overlapStart = otherTask.start_date > target.start_date ? otherTask.start_date : target.start_date;

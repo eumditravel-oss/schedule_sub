@@ -32,10 +32,10 @@ export const TodaySummaryCard: React.FC<TodaySummaryCardProps> = ({
     : tasks;
 
   // Active today tasks
-  const todayTasks = relevantTasks.filter((t) => t.start_date <= todayStr && t.end_date >= todayStr);
-  const inProgressTasks = relevantTasks.filter((t) => t.start_date <= todayStr && t.end_date >= todayStr && t.progress < 100);
+  const todayTasks = relevantTasks.filter((t) => t.start_date && t.end_date && t.start_date <= todayStr && t.end_date >= todayStr);
+  const inProgressTasks = relevantTasks.filter((t) => t.start_date && t.end_date && t.start_date <= todayStr && t.end_date >= todayStr && t.progress < 100);
   const completedTodayTasks = relevantTasks.filter((t) => t.daily_statuses && t.daily_statuses[todayStr] === 'COMPLETED');
-  const delayedTasks = relevantTasks.filter((t) => t.end_date < todayStr && t.progress < 100);
+  const delayedTasks = relevantTasks.filter((t) => t.end_date && t.end_date < todayStr && t.progress < 100);
 
   // Worker leave/off today
   const workerStatus = currentWorker
