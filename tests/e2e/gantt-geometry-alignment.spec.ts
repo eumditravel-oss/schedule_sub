@@ -188,10 +188,10 @@ test.describe('Gantt Geometry Single Source of Truth & Today Indicator Alignment
     await page.waitForLoadState('networkidle');
     await dismissWorkerPromptModal(page);
 
-    // Today Column Overlay should be rendered
+    // Today Column Overlay should be rendered exactly 1 per timeline track
     const todayColumns = page.locator('[data-testid="gantt-today-column"]');
     const todayCount = await todayColumns.count();
-    expect(todayCount).toBeGreaterThanOrEqual(1);
+    expect(todayCount).toBe(1);
 
     // worker-today-outline per-row blue squares count MUST be 0
     const perRowOutlines = page.locator('[data-testid="worker-today-outline"]');
