@@ -10,6 +10,7 @@ import { api, getCurrentWorkerId, setCurrentWorker as setCurrentWorkerApi } from
 import { calculateVisibleGanttSpan } from '../utils/dateUtils';
 import { resolveWorkDayStatus, getCountryOffState } from '../utils/workCalendar';
 import { useGanttDateRange } from '../hooks/useGanttDateRange';
+import { useGanttGeometry } from '../hooks/useGanttGeometry';
 import { useResponsiveLayout } from '../hooks/useResponsiveLayout';
 import { useI18n } from '../hooks/useI18n';
 import { getLocalizedErrorMessage } from '../i18n';
@@ -101,6 +102,9 @@ interface SortableTaskRowProps {
   isViewer: boolean;
   isCompleted: boolean;
   lang: string;
+  leftPanelWidth: number;
+  timelineWidth: number;
+  dateGridTemplate: string;
   t?: (key: any) => string;
   onEditTask: (task: Task) => void;
   onDeleteTask: (task: Task) => void;
@@ -120,6 +124,9 @@ const SortableTaskRow: React.FC<SortableTaskRowProps> = ({
   isViewer,
   isCompleted,
   lang,
+  leftPanelWidth,
+  timelineWidth,
+  dateGridTemplate,
   onEditTask,
   onDeleteTask,
   onMoveTask,
@@ -155,17 +162,22 @@ const SortableTaskRow: React.FC<SortableTaskRowProps> = ({
   const spanInfo = getGanttSpanColumns(tItem.start_date, tItem.end_date, dateColumns);
 
   return (
-    <tr
+    <div
       ref={setNodeRef}
       style={style}
+      role="row"
       data-testid={`task-row-${tItem.id}`}
-      className={`hover:bg-slate-50 transition border-b border-slate-200 h-11 ${isDragging ? 'bg-blue-50/50' : ''}`}
+      className={`hover:bg-slate-50 transition border-b border-slate-200 h-11 flex ${isDragging ? 'bg-blue-50/50' : ''}`}
     >
       {/* Sticky Task Info Header Cell */}
-      <td className="sticky left-0 z-10 bg-white hover:bg-slate-50 border-r border-slate-200 px-2 py-1 align-middle w-[444px] xl:w-[504px] 2xl:w-[564px] min-w-[444px]">
-        <div className="flex items-center justify-between text-xs min-w-0">
+      <div
+        role="cell"
+        style={{ width: `${leftPanelWidth}px`, minWidth: `${leftPanelWidth}px`, maxWidth: `${leftPanelWidth}px` }}
+        className="sticky left-0 z-10 bg-white hover:bg-slate-50 border-r border-slate-200 px-2 py-1 flex items-center shrink-0 h-full"
+      >
+        <div className="flex items-center justify-between text-xs min-w-0 w-full">
           {/* Task Name Column */}
-          <div className="flex items-center gap-1.5 min-w-0 w-[210px] xl:w-[230px] 2xl:w-[260px] shrink-0">
+          <div className="flex items-center gap-1.5 min-w-0 w-[180px] xl:w-[200px] shrink-0">
             {!isViewer && !isCompleted && (
               <button
                 type="button"
@@ -199,17 +211,17 @@ const SortableTaskRow: React.FC<SortableTaskRowProps> = ({
               e.stopPropagation();
               onOpenAssigneePopover?.(tItem, e.currentTarget.getBoundingClientRect());
             }}
-            className="w-[170px] xl:w-[210px] 2xl:w-[240px] shrink-0 px-1 truncate flex items-center gap-1 cursor-pointer hover:bg-slate-100/70 py-0.5 rounded transition"
+            className="w-[120px] xl:w-[135px] shrink-0 px-1 truncate flex items-center gap-1 cursor-pointer hover:bg-slate-100/70 py-0.5 rounded transition"
             title="클릭 시 담당자 상세 보기"
           >
             {/* Primary Worker Badge */}
-            <span className="px-1.5 py-0.5 rounded-md bg-slate-100 border border-slate-200 text-slate-700 font-bold text-[11px] truncate max-w-[96px] xl:max-w-[110px]">
+            <span className="px-1.5 py-0.5 rounded-md bg-slate-100 border border-slate-200 text-slate-700 font-bold text-[11px] truncate max-w-[80px]">
               {primaryWorkerName}
             </span>
 
             {/* Secondary Worker Badge */}
             {secondaryWorkerName && (
-              <span className="hidden xl:inline-block px-1.5 py-0.5 rounded-md bg-slate-100 border border-slate-200 text-slate-700 font-bold text-[11px] truncate max-w-[96px] xl:max-w-[110px]">
+              <span className="hidden xl:inline-block px-1.5 py-0.5 rounded-md bg-slate-100 border border-slate-200 text-slate-700 font-bold text-[11px] truncate max-w-[80px]">
                 {secondaryWorkerName}
               </span>
             )}
@@ -232,7 +244,7 @@ const SortableTaskRow: React.FC<SortableTaskRowProps> = ({
           </div>
 
           {/* Action Buttons Column */}
-          <div className="w-[64px] shrink-0 flex items-center justify-end gap-1">
+          <div className="w-[32px] shrink-0 flex items-center justify-end gap-0.5">
             {!isViewer && !isCompleted && (
               <>
                 <button
@@ -264,52 +276,47 @@ const SortableTaskRow: React.FC<SortableTaskRowProps> = ({
             )}
           </div>
         </div>
-      </td>
+      </div>
 
-      {/* Single Timeline Wrapper Cell for all Gantt Days */}
-      <td colSpan={dateColumns.length} className="p-0 border-b border-slate-200">
+      {/* Right Timeline Cell for all Gantt Days */}
+      <div role="cell" style={{ width: `${timelineWidth}px`, minWidth: `${timelineWidth}px` }} className="relative h-11 shrink-0">
+        {/* Layer 0: Day Cell Background Grid */}
         <div
-          className="relative h-11"
-          style={{
-            width: `${dateColumns.length * GANTT_DAY_WIDTH_PX}px`,
-            minWidth: `${dateColumns.length * GANTT_DAY_WIDTH_PX}px`,
-          }}
+          className="absolute inset-0 z-0 grid h-full w-full"
+          style={{ gridTemplateColumns: dateGridTemplate }}
         >
-          {/* Layer 0: Day Cell Background & Click Target Grid (z-0) */}
+          {(() => {
+            const isUnscheduled = tItem.schedule_status === 'UNSCHEDULED' || !tItem.start_date || !tItem.end_date;
+            return dateColumns.map((col, cIdx) => {
+              const isInRange = !isUnscheduled && col.dateStr >= tItem.start_date! && col.dateStr <= tItem.end_date!;
+              const workerObj = workers.find((w) => w.name === tItem.worker_name) || null;
+              const dayStatus = resolveWorkDayStatus(col.dateStr, (workerObj || { id: tItem.worker_name, name: tItem.worker_name }) as any, countryHolidays, calendarOverrides);
+              return (
+                <div
+                  key={cIdx}
+                  data-testid={`gantt-task-cell-${tItem.id}-${col.dateStr}`}
+                  onClick={() => onCellClick(tItem, col.dateStr, dayStatus, workerObj)}
+                  style={{ boxSizing: 'border-box' }}
+                  className={`border-r border-slate-200 cursor-pointer h-full ${isInRange ? 'bg-blue-50/30' : ''}`}
+                />
+              );
+            });
+          })()}
+        </div>
+
+        {/* Layer 5: Today Column Overlay Highlight */}
+        <TodayColumnOverlay dateColumns={dateColumns} dayWidthPx={timelineWidth / dateColumns.length} />
+
+        {/* Layer 10: ScheduleBar Grid Column Overlay (z-10) */}
+        {spanInfo && (
           <div
-            className="absolute inset-0 z-0 grid h-full w-full"
-            style={{ gridTemplateColumns: `repeat(${dateColumns.length}, ${GANTT_DAY_WIDTH_PX}px)` }}
+            className="absolute inset-0 z-10 grid h-full w-full pointer-events-none"
+            style={{ gridTemplateColumns: dateGridTemplate }}
           >
-            {(() => {
-              const isUnscheduled = tItem.schedule_status === 'UNSCHEDULED' || !tItem.start_date || !tItem.end_date;
-              return dateColumns.map((col, cIdx) => {
-                const isInRange = !isUnscheduled && col.dateStr >= tItem.start_date! && col.dateStr <= tItem.end_date!;
-                const workerObj = workers.find((w) => w.name === tItem.worker_name) || null;
-                const dayStatus = resolveWorkDayStatus(col.dateStr, (workerObj || { id: tItem.worker_name, name: tItem.worker_name }) as any, countryHolidays, calendarOverrides);
-                return (
-                  <div
-                    key={cIdx}
-                    data-testid={`gantt-task-cell-${tItem.id}-${col.dateStr}`}
-                    onClick={() => onCellClick(tItem, col.dateStr, dayStatus, workerObj)}
-                    className={`border-r border-slate-200 cursor-pointer h-full ${isInRange ? 'bg-blue-50/30' : ''}`}
-                  />
-                );
-              });
-            })()}
-          </div>
-
-          {/* Layer 5: Single Today Column Overlay Highlight (z-5) */}
-          <TodayColumnOverlay dateColumns={dateColumns} dayWidthPx={GANTT_DAY_WIDTH_PX} />
-
-          {/* Layer 10: ScheduleBar Continuous Track Overlay (z-10) */}
-          {spanInfo && (
             <div
               data-testid={`gantt-schedule-bar-track-${tItem.id}`}
-              className="absolute top-0 bottom-0 z-10 flex items-center px-1 pointer-events-none"
-              style={{
-                left: `${spanInfo.startIndex * GANTT_DAY_WIDTH_PX}px`,
-                width: `${spanInfo.spanCount * GANTT_DAY_WIDTH_PX}px`,
-              }}
+              style={{ gridColumn: `${spanInfo.startIndex + 1} / span ${spanInfo.spanCount}` }}
+              className="flex items-center h-full w-full pointer-events-auto"
             >
               <ScheduleBar
                 title={taskTitle}
@@ -324,37 +331,37 @@ const SortableTaskRow: React.FC<SortableTaskRowProps> = ({
                 onClick={() => onEditTask(tItem)}
               />
             </div>
-          )}
-
-          {/* Layer 20: Worker/Country Off & Vacation Hatch Grid (pointer-events-none, z-20) */}
-          <div
-            className="absolute inset-0 z-20 grid h-full w-full pointer-events-none"
-            style={{ gridTemplateColumns: `repeat(${dateColumns.length}, ${GANTT_DAY_WIDTH_PX}px)` }}
-          >
-            {dateColumns.map((col, cIdx) => {
-              const workerObj = workers.find((w) => w.name === tItem.worker_name) || null;
-              const dayStatus = resolveWorkDayStatus(col.dateStr, (workerObj || { id: tItem.worker_name, name: tItem.worker_name }) as any, countryHolidays, calendarOverrides);
-              return (
-                <WorkerDayCellBackground
-                  key={cIdx}
-                  dateStr={col.dateStr}
-                  taskId={tItem.id}
-                  worker={workerObj as any}
-                  assignees={tItem.assignees}
-                  availabilityPolicy={tItem.availability_policy}
-                  dayStatus={dayStatus}
-                  countryHolidays={countryHolidays}
-                  calendarOverrides={calendarOverrides}
-                  workers={workers}
-                  isToday={col.isToday}
-                  isOverlayOnly={true}
-                />
-              );
-            })}
           </div>
+        )}
+
+        {/* Layer 20: Worker/Country Off & Vacation Hatch Grid (z-20) */}
+        <div
+          className="absolute inset-0 z-20 grid h-full w-full pointer-events-none"
+          style={{ gridTemplateColumns: dateGridTemplate }}
+        >
+          {dateColumns.map((col, cIdx) => {
+            const workerObj = workers.find((w) => w.name === tItem.worker_name) || null;
+            const dayStatus = resolveWorkDayStatus(col.dateStr, (workerObj || { id: tItem.worker_name, name: tItem.worker_name }) as any, countryHolidays, calendarOverrides);
+            return (
+              <WorkerDayCellBackground
+                key={cIdx}
+                dateStr={col.dateStr}
+                taskId={tItem.id}
+                worker={workerObj as any}
+                assignees={tItem.assignees}
+                availabilityPolicy={tItem.availability_policy}
+                dayStatus={dayStatus}
+                countryHolidays={countryHolidays}
+                calendarOverrides={calendarOverrides}
+                workers={workers}
+                isToday={col.isToday}
+                isOverlayOnly={true}
+              />
+            );
+          })}
         </div>
-      </td>
-    </tr>
+      </div>
+    </div>
   );
 };
 
@@ -367,6 +374,8 @@ interface DroppableTaskGroupRowProps {
   isViewer: boolean;
   isCompleted: boolean;
   lang: string;
+  leftPanelWidth: number;
+  timelineWidth: number;
   onToggleCollapse: (groupId: string) => void;
   onOpenEditGroup: (group: TaskGroup) => void;
   onOpenDeleteGroup: (group: TaskGroup, taskCount: number) => void;
@@ -383,6 +392,8 @@ const DroppableTaskGroupRow: React.FC<DroppableTaskGroupRowProps> = ({
   isViewer,
   isCompleted,
   lang,
+  leftPanelWidth,
+  timelineWidth,
   onToggleCollapse,
   onOpenEditGroup,
   onOpenDeleteGroup,
@@ -423,26 +434,29 @@ const DroppableTaskGroupRow: React.FC<DroppableTaskGroupRowProps> = ({
   };
 
   return (
-    <tr
+    <div
       ref={(node) => {
         setDropNodeRef(node);
         setSortableNodeRef(node);
       }}
       style={style}
+      role="row"
       data-testid={`task-group-row-${group.id}`}
       data-testid-dropzone={`task-group-drop-zone-${group.id}`}
-      className={`transition h-10 border-b border-slate-200 ${
+      className={`transition h-10 border-b border-slate-200 flex ${
         isOver
           ? 'bg-blue-100/90 border-2 border-dashed border-blue-500'
           : 'bg-slate-100/90 hover:bg-slate-200/80'
       }`}
     >
-      <td
-        className={`sticky left-0 z-10 px-2 py-1 border-r border-slate-200 border-l-4 ${GROUP_BORDER_COLORS[colorKey]} align-middle w-[360px] lg:w-[420px] ${
+      <div
+        role="cell"
+        style={{ width: `${leftPanelWidth}px`, minWidth: `${leftPanelWidth}px`, maxWidth: `${leftPanelWidth}px` }}
+        className={`sticky left-0 z-10 px-2 py-1 border-r border-slate-200 border-l-4 ${GROUP_BORDER_COLORS[colorKey]} shrink-0 flex items-center h-full ${
           isOver ? 'bg-blue-100' : 'bg-slate-100/90'
         }`}
       >
-        <div className="flex items-center justify-between text-xs font-bold text-slate-800">
+        <div className="flex items-center justify-between text-xs font-bold text-slate-800 w-full">
           <div className="flex items-center gap-1 min-w-0 pr-2">
             {!isViewer && !isCompleted && (
               <button
@@ -514,36 +528,42 @@ const DroppableTaskGroupRow: React.FC<DroppableTaskGroupRowProps> = ({
             )}
           </div>
         </div>
-      </td>
+      </div>
 
-      <td colSpan={dateColumnsCount} className={`p-0 ${isOver ? 'bg-blue-50/50' : ''}`} />
-    </tr>
+      <div role="cell" style={{ width: `${timelineWidth}px`, minWidth: `${timelineWidth}px` }} className={`h-full shrink-0 ${isOver ? 'bg-blue-50/50' : ''}`} />
+    </div>
   );
 };
 
 const EmptyGroupDropZoneCard: React.FC<{
   groupId: string;
-  dateColumnsCount: number;
+  leftPanelWidth: number;
+  timelineWidth: number;
   lang: string;
   isOver: boolean;
-}> = ({ groupId, dateColumnsCount, lang, isOver }) => {
+}> = ({ groupId, leftPanelWidth, timelineWidth, lang, isOver }) => {
   const { setNodeRef } = useDroppable({
     id: `drop-group-${groupId}`,
   });
 
   return (
-    <tr
+    <div
       ref={setNodeRef}
+      role="row"
       data-testid={`task-group-empty-drop-zone-${groupId}`}
-      className={`h-9 border-b border-dashed border-slate-300 transition ${
+      className={`h-9 border-b border-dashed border-slate-300 transition flex ${
         isOver ? 'bg-blue-100 border-blue-500 font-bold text-blue-800' : 'bg-slate-50/70 text-slate-400'
       }`}
     >
-      <td className="sticky left-0 z-10 bg-slate-50 px-4 py-1.5 border-r border-slate-200 text-xs font-semibold text-center italic">
+      <div
+        role="cell"
+        style={{ width: `${leftPanelWidth}px`, minWidth: `${leftPanelWidth}px`, maxWidth: `${leftPanelWidth}px` }}
+        className="sticky left-0 z-10 bg-slate-50 px-4 py-1.5 border-r border-slate-200 text-xs font-semibold text-center italic shrink-0 flex items-center justify-center h-full"
+      >
         {lang === 'vi' ? 'Kéo công việc chi tiết vào đây' : '세부 작업을 여기에 끌어오세요'}
-      </td>
-      <td colSpan={dateColumnsCount} />
-    </tr>
+      </div>
+      <div role="cell" style={{ width: `${timelineWidth}px`, minWidth: `${timelineWidth}px` }} className="h-full shrink-0" />
+    </div>
   );
 };
 
@@ -869,6 +889,17 @@ export const ProjectDetailPage: React.FC = () => {
   } = useGanttDateRange();
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const DETAIL_LEFT_WIDTH = 340;
+
+  const {
+    timelineWidth,
+    dateGridTemplate,
+  } = useGanttGeometry({
+    containerRef: scrollContainerRef,
+    leftPanelWidth: DETAIL_LEFT_WIDTH,
+    dateCount: dateColumns.length,
+    minDayWidthPx: GANTT_DAY_WIDTH_PX,
+  });
 
   const fetchCalendarData = async () => {
     try {
@@ -1800,110 +1831,105 @@ export const ProjectDetailPage: React.FC = () => {
             )}
           </div>
         ) : (
-          /* Desktop Table View */
+          /* Desktop Canvas View */
           <div
             ref={scrollContainerRef}
+            data-testid="desktop-gantt-scroll"
             className="flex-1 bg-white border border-slate-200 rounded-xl shadow-sm overflow-x-auto overflow-y-auto custom-scrollbar relative max-w-full"
           >
-            <table className="w-full border-collapse text-left min-w-max">
-              <thead className="sticky top-0 z-20 bg-slate-100 text-xs uppercase tracking-wider text-slate-700">
-                <tr className="border-b border-slate-200">
-                  <th
-                    rowSpan={2}
-                    className="sticky left-0 z-30 bg-slate-100 px-3 py-2 font-bold text-slate-800 border-r border-slate-200 w-[444px] xl:w-[504px] 2xl:w-[564px] min-w-[444px]"
-                  >
-                    <div className="flex items-center text-xs font-bold text-slate-900 justify-between">
-                      <span className="w-[210px] xl:w-[230px] 2xl:w-[260px] truncate">{lang === 'vi' ? 'Công việc chi tiết' : '세부 작업명'}</span>
-                      <span className="w-[170px] xl:w-[210px] 2xl:w-[240px] truncate px-1">{lang === 'vi' ? 'Người phụ trách' : '작업자'}</span>
-                      <span className="w-[64px] text-right">{lang === 'vi' ? 'Thao tác' : '액션'}</span>
-                    </div>
-                  </th>
-                  {monthGroups.map((mg, idx) => (
-                    <th
-                      key={idx}
-                      colSpan={mg.span}
-                      style={{
-                        width: `${mg.span * GANTT_DAY_WIDTH_PX}px`,
-                        minWidth: `${mg.span * GANTT_DAY_WIDTH_PX}px`,
-                        maxWidth: `${mg.span * GANTT_DAY_WIDTH_PX}px`,
-                        boxSizing: 'border-box',
-                      }}
-                      className="text-center font-bold py-1.5 border-r border-slate-200 bg-slate-100 text-blue-700 text-xs select-none"
-                    >
-                      {mg.monthStr}
-                    </th>
-                  ))}
-                </tr>
+            <div
+              data-testid="desktop-gantt-canvas"
+              style={{
+                width: `${DETAIL_LEFT_WIDTH + timelineWidth}px`,
+                minWidth: `${DETAIL_LEFT_WIDTH + timelineWidth}px`,
+              }}
+              role="table"
+              className="flex flex-col text-left"
+            >
+              {/* 1. Header Container */}
+              <div role="row" className="sticky top-0 z-20 flex bg-slate-100 text-xs uppercase tracking-wider text-slate-700 border-b border-slate-200">
+                {/* Left Header */}
+                <div
+                  role="columnheader"
+                  style={{ width: `${DETAIL_LEFT_WIDTH}px`, minWidth: `${DETAIL_LEFT_WIDTH}px`, maxWidth: `${DETAIL_LEFT_WIDTH}px` }}
+                  className="sticky left-0 z-30 bg-slate-100 px-3 py-2 font-bold text-slate-800 border-r border-slate-200 shrink-0 flex items-center justify-between"
+                >
+                  <span className="w-[180px] xl:w-[200px] truncate">{lang === 'vi' ? 'Công việc chi tiết' : '세부 작업명'}</span>
+                  <span className="w-[120px] xl:w-[135px] truncate px-1">{lang === 'vi' ? 'Người phụ trách' : '작업자'}</span>
+                  <span className="w-[32px] text-right">{lang === 'vi' ? 'Thao tác' : '액션'}</span>
+                </div>
 
-                <tr className="border-b border-slate-200">
-                  {dateColumns.map((col, idx) => {
-                    const offInfo = getCountryOffState(col.dateStr, calendarOverrides, countryHolidays);
-
-                    let bgStyle = 'bg-white text-slate-700 border-slate-200';
-                    if (offInfo.state === 'BOTH_OFF') {
-                      bgStyle = 'bg-rose-100 text-rose-900 border-rose-300 font-semibold';
-                    } else if (offInfo.state === 'KR_ONLY_OFF') {
-                      bgStyle = 'bg-orange-50 text-orange-900 border-orange-200 font-medium';
-                    } else if (offInfo.state === 'VN_ONLY_OFF') {
-                      bgStyle = 'bg-amber-50 text-amber-900 border-amber-200 font-medium';
-                    }
-
-                    const todayStyle = col.isToday ? 'shadow-[inset_0_2px_0_rgba(59,130,246,0.9)] text-blue-700 font-extrabold' : '';
-
-                    let ariaText = `${col.dateStr} (${col.dayName})`;
-                    if (offInfo.krHolidayName && offInfo.vnHolidayName) {
-                      ariaText += `, 한국과 베트남 모두 공휴일 (${offInfo.krHolidayName})`;
-                    } else if (offInfo.krHolidayName) {
-                      ariaText += `, 한국 공휴일 (${offInfo.krHolidayName}), 베트남 정상 근무`;
-                    } else if (offInfo.vnHolidayName) {
-                      ariaText += `, 베트남 공휴일 (${offInfo.vnHolidayName}), 한국 정상 근무`;
-                    } else if (offInfo.state === 'BOTH_OFF') {
-                      ariaText += `, 한국과 베트남 모두 휴무`;
-                    } else if (offInfo.state === 'KR_ONLY_OFF') {
-                      ariaText += `, 한국 휴무, 베트남 근무`;
-                    } else if (offInfo.state === 'VN_ONLY_OFF') {
-                      ariaText += `, 베트남 휴무, 한국 근무`;
-                    }
-
-                    const hasHoliday = !!offInfo.krHolidayName || !!offInfo.vnHolidayName;
-
-                    return (
-                      <th
+                {/* Right Timeline Header Stack (Month Header + Date Header) */}
+                <div style={{ width: `${timelineWidth}px`, minWidth: `${timelineWidth}px` }} className="flex flex-col shrink-0">
+                  {/* Month Header Row */}
+                  <div className="grid w-full bg-slate-100 border-b border-slate-200 text-center font-bold text-blue-700 text-xs py-1.5" style={{ gridTemplateColumns: dateGridTemplate }}>
+                    {monthGroups.map((mg, idx) => (
+                      <div
                         key={idx}
-                        data-testid={`gantt-date-header-${col.dateStr}`}
-                        data-date={col.dateStr}
-                        data-country-off-state={offInfo.state}
-                        aria-label={ariaText}
-                        onClick={() => setHeaderInfoState({ isOpen: true, dateStr: col.dateStr, dayName: col.dayName })}
-                        style={{ width: `${GANTT_DAY_WIDTH_PX}px`, minWidth: `${GANTT_DAY_WIDTH_PX}px`, maxWidth: `${GANTT_DAY_WIDTH_PX}px`, height: '44px', boxSizing: 'border-box' }}
-                        className={`relative text-center py-1 border-r border-slate-200 text-[11px] font-medium cursor-pointer transition select-none ${bgStyle} ${todayStyle}`}
+                        style={{ gridColumn: `${mg.startIndex + 1} / span ${mg.span}` }}
+                        className="border-r border-slate-200 truncate px-1"
                       >
-                        {hasHoliday && (
-                          <div
-                            className={`absolute top-0 left-0 right-0 h-[2px] ${
-                              offInfo.krHolidayName && offInfo.vnHolidayName
-                                ? 'bg-rose-600'
-                                : offInfo.krHolidayName
-                                ? 'bg-orange-500'
-                                : 'bg-amber-500'
-                            }`}
-                          />
-                        )}
-                        <div>{col.dayNum}</div>
-                        <div className="text-[10px] opacity-85">{col.dayName}</div>
-                      </th>
-                    );
-                  })}
-                </tr>
-              </thead>
+                        {mg.monthStr}
+                      </div>
+                    ))}
+                  </div>
 
-              <tbody className="divide-y divide-slate-200 text-sm">
+                  {/* Date Header Row */}
+                  <div className="grid w-full h-[44px]" style={{ gridTemplateColumns: dateGridTemplate }}>
+                    {dateColumns.map((col, idx) => {
+                      const offInfo = getCountryOffState(col.dateStr, calendarOverrides, countryHolidays);
+                      let bgStyle = 'bg-white text-slate-700 border-slate-200';
+                      if (offInfo.state === 'BOTH_OFF') bgStyle = 'bg-rose-100 text-rose-900 border-rose-300 font-semibold';
+                      else if (offInfo.state === 'KR_ONLY_OFF') bgStyle = 'bg-orange-50 text-orange-900 border-orange-200 font-medium';
+                      else if (offInfo.state === 'VN_ONLY_OFF') bgStyle = 'bg-amber-50 text-amber-900 border-amber-200 font-medium';
+
+                      const todayStyle = col.isToday ? 'shadow-[inset_0_2px_0_rgba(59,130,246,0.9)] text-blue-700 font-extrabold' : '';
+
+                      let ariaText = `${col.dateStr} (${col.dayName})`;
+                      if (offInfo.krHolidayName && offInfo.vnHolidayName) ariaText += `, 한국과 베트남 모두 공휴일 (${offInfo.krHolidayName})`;
+                      else if (offInfo.krHolidayName) ariaText += `, 한국 공휴일 (${offInfo.krHolidayName}), 베트남 정상 근무`;
+                      else if (offInfo.vnHolidayName) ariaText += `, 베트남 공휴일 (${offInfo.vnHolidayName}), 한국 정상 근무`;
+
+                      const hasHoliday = !!offInfo.krHolidayName || !!offInfo.vnHolidayName;
+
+                      return (
+                        <div
+                          key={idx}
+                          role="columnheader"
+                          data-testid={`gantt-date-header-${col.dateStr}`}
+                          data-date={col.dateStr}
+                          data-country-off-state={offInfo.state}
+                          aria-label={ariaText}
+                          onClick={() => setHeaderInfoState({ isOpen: true, dateStr: col.dateStr, dayName: col.dayName })}
+                          style={{ boxSizing: 'border-box' }}
+                          className={`relative text-center p-0 border-r border-slate-200 text-[11px] font-medium cursor-pointer transition select-none flex flex-col items-center justify-center h-full ${bgStyle} ${todayStyle}`}
+                        >
+                          {hasHoliday && (
+                            <div
+                              className={`absolute top-0 left-0 right-0 h-[2px] ${
+                                offInfo.krHolidayName && offInfo.vnHolidayName
+                                  ? 'bg-rose-600'
+                                  : offInfo.krHolidayName
+                                  ? 'bg-orange-500'
+                                  : 'bg-amber-500'
+                              }`}
+                            />
+                          )}
+                          <div>{col.dayNum}</div>
+                          <div className="text-[10px] opacity-85">{col.dayName}</div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+
+              {/* 2. Body Container */}
+              <div className="divide-y divide-slate-200 text-sm flex flex-col">
                 {loading ? (
-                  <tr>
-                    <td colSpan={dateColumns.length + 1} className="py-12 text-center text-slate-500 font-medium">
-                      {t('loading')}
-                    </td>
-                  </tr>
+                  <div className="py-12 text-center text-slate-500 font-medium w-full">
+                    {t('loading')}
+                  </div>
                 ) : (
                   (() => {
                     const groupsToRender = taskGroups.length > 0 ? taskGroups : [
@@ -1939,6 +1965,8 @@ export const ProjectDetailPage: React.FC = () => {
                                   isViewer={isViewer}
                                   isCompleted={isCompleted}
                                   lang={lang}
+                                  leftPanelWidth={DETAIL_LEFT_WIDTH}
+                                  timelineWidth={timelineWidth}
                                   onToggleCollapse={toggleGroupCollapse}
                                   onOpenEditGroup={handleOpenEditGroup}
                                   onOpenDeleteGroup={(grp: TaskGroup, count: number) => setDeleteGroupModalState({ isOpen: true, group: grp, taskCount: count })}
@@ -1963,6 +1991,9 @@ export const ProjectDetailPage: React.FC = () => {
                                           isViewer={isViewer}
                                           isCompleted={isCompleted}
                                           lang={lang}
+                                          leftPanelWidth={DETAIL_LEFT_WIDTH}
+                                          timelineWidth={timelineWidth}
+                                          dateGridTemplate={dateGridTemplate}
                                           t={t}
                                           onEditTask={handleEditTask}
                                           onDeleteTask={handleDeleteTask}
@@ -1974,7 +2005,8 @@ export const ProjectDetailPage: React.FC = () => {
                                     ) : (
                                       <EmptyGroupDropZoneCard
                                         groupId={group.id}
-                                        dateColumnsCount={dateColumns.length}
+                                        leftPanelWidth={DETAIL_LEFT_WIDTH}
+                                        timelineWidth={timelineWidth}
                                         lang={lang}
                                         isOver={overGroupId === group.id}
                                       />
@@ -1993,8 +2025,8 @@ export const ProjectDetailPage: React.FC = () => {
                     );
                   })()
                 )}
-              </tbody>
-            </table>
+              </div>
+            </div>
           </div>
         )}
       </main>

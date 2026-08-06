@@ -1,0 +1,19 @@
+{
+  "label": "overview",
+  "viewport": {
+    "width": 1366,
+    "height": 768
+  },
+  "geoResult": {
+    "headerCount": 30,
+    "rowCount": 0,
+    "evaluatedCellCount": 0,
+    "evaluatedBarCount": 0,
+    "maxLeftError": 0,
+    "maxRightError": 0,
+    "maxWidthError": 0,
+    "maxBarStartError": 0,
+    "maxBarEndError": 0,
+    "sampleErrors": []
+  }
+}

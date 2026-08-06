@@ -136,16 +136,18 @@ export function generateDateColumns(
   return columns;
 }
 
-export function groupColumnsByMonth(columns: GanttDateColumn[]): Array<{ monthStr: string; span: number }> {
-  const groups: Array<{ monthStr: string; span: number }> = [];
+export function groupColumnsByMonth(columns: GanttDateColumn[]): Array<{ monthStr: string; span: number; startIndex: number }> {
+  const groups: Array<{ monthStr: string; span: number; startIndex: number }> = [];
 
+  let currentIndex = 0;
   for (const col of columns) {
     const lastGroup = groups[groups.length - 1];
     if (lastGroup && lastGroup.monthStr === col.monthStr) {
       lastGroup.span += 1;
     } else {
-      groups.push({ monthStr: col.monthStr, span: 1 });
+      groups.push({ monthStr: col.monthStr, span: 1, startIndex: currentIndex });
     }
+    currentIndex++;
   }
 
   return groups;

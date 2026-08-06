@@ -6,6 +6,7 @@ import { api, getCurrentWorkerId, setCurrentWorker as setCurrentWorkerApi } from
 import { calculateVisibleGanttSpan } from '../utils/dateUtils';
 import { getCountryOffState } from '../utils/workCalendar';
 import { useGanttDateRange } from '../hooks/useGanttDateRange';
+import { useGanttGeometry } from '../hooks/useGanttGeometry';
 import { useResponsiveLayout } from '../hooks/useResponsiveLayout';
 import { useI18n } from '../hooks/useI18n';
 import { getLocalizedErrorMessage } from '../i18n';
@@ -104,6 +105,17 @@ export const ProjectOverviewPage: React.FC = () => {
   } = useGanttDateRange();
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const OVERVIEW_LEFT_WIDTH = 300;
+
+  const {
+    timelineWidth,
+    dateGridTemplate,
+  } = useGanttGeometry({
+    containerRef: scrollContainerRef,
+    leftPanelWidth: OVERVIEW_LEFT_WIDTH,
+    dateCount: dateColumns.length,
+    minDayWidthPx: GANTT_DAY_WIDTH_PX,
+  });
 
   const fetchCompletedYears = async () => {
     try {
@@ -578,249 +590,241 @@ export const ProjectOverviewPage: React.FC = () => {
               overrides={calendarOverrides}
             />
 
+            {/* Outer Gantt Scroll Container */}
             <div
               ref={scrollContainerRef}
+              data-testid="desktop-gantt-scroll"
               className="flex-1 bg-white border border-slate-200 rounded-xl shadow-sm overflow-x-auto overflow-y-auto custom-scrollbar relative max-w-full"
             >
-            <table className="w-full border-collapse text-left min-w-max table-fixed">
-              <thead className="sticky top-0 z-20 bg-slate-100 text-xs uppercase tracking-wider text-slate-700">
-                <tr className="border-b border-slate-200">
-                  <th
-                    rowSpan={2}
-                    className="sticky left-0 z-30 bg-slate-100 px-3 py-2.5 font-bold text-slate-800 border-r border-slate-200 w-[160px] md:w-[300px] min-w-[160px] md:min-w-[300px] max-w-[300px]"
+              {/* Inner Gantt Canvas */}
+              <div
+                data-testid="desktop-gantt-canvas"
+                style={{
+                  width: `${OVERVIEW_LEFT_WIDTH + timelineWidth}px`,
+                  minWidth: `${OVERVIEW_LEFT_WIDTH + timelineWidth}px`,
+                }}
+                role="table"
+                className="flex flex-col text-left"
+              >
+                {/* 1. Header Container */}
+                <div role="row" className="sticky top-0 z-20 flex bg-slate-100 text-xs uppercase tracking-wider text-slate-700 border-b border-slate-200">
+                  {/* Left Header */}
+                  <div
+                    role="columnheader"
+                    style={{ width: `${OVERVIEW_LEFT_WIDTH}px`, minWidth: `${OVERVIEW_LEFT_WIDTH}px`, maxWidth: `${OVERVIEW_LEFT_WIDTH}px` }}
+                    className="sticky left-0 z-30 bg-slate-100 px-3 py-2.5 font-bold text-slate-800 border-r border-slate-200 shrink-0 flex items-center justify-between"
                   >
-                    <div className="flex justify-between items-center text-xs font-bold text-slate-900">
-                      <span>{t('projectInfo')}</span>
-                      <span className="hidden md:inline text-[10px] text-slate-500 font-normal">{t('progress')}</span>
+                    <span>{t('projectInfo')}</span>
+                    <span className="hidden md:inline text-[10px] text-slate-500 font-normal">{t('progress')}</span>
+                  </div>
+
+                  {/* Right Timeline Header Stack (Month Header + Date Header) */}
+                  <div style={{ width: `${timelineWidth}px`, minWidth: `${timelineWidth}px` }} className="flex flex-col shrink-0">
+                    {/* Month Header Row */}
+                    <div className="grid w-full bg-slate-100 border-b border-slate-200 text-center font-bold text-blue-700 text-xs py-1.5" style={{ gridTemplateColumns: dateGridTemplate }}>
+                      {monthGroups.map((mg, idx) => (
+                        <div
+                          key={idx}
+                          style={{ gridColumn: `${mg.startIndex + 1} / span ${mg.span}` }}
+                          className="border-r border-slate-200 truncate px-1"
+                        >
+                          {mg.monthStr}
+                        </div>
+                      ))}
                     </div>
-                  </th>
-                  {monthGroups.map((mg, idx) => (
-                    <th
-                      key={idx}
-                      colSpan={mg.span}
-                      className="text-center font-bold py-1.5 border-r border-slate-200 bg-slate-100 text-blue-700 text-xs"
-                    >
-                      {mg.monthStr}
-                    </th>
-                  ))}
-                </tr>
 
-                <tr className="border-b border-slate-200">
-                  {dateColumns.map((col, idx) => {
-                    const offInfo = getCountryOffState(col.dateStr, calendarOverrides, krHolidays.concat(vnHolidays));
+                    {/* Date Header Row */}
+                    <div className="grid w-full h-[44px]" style={{ gridTemplateColumns: dateGridTemplate }}>
+                      {dateColumns.map((col, idx) => {
+                        const offInfo = getCountryOffState(col.dateStr, calendarOverrides, krHolidays.concat(vnHolidays));
+                        let bgStyle = 'bg-white text-slate-700 border-slate-200';
+                        if (offInfo.state === 'BOTH_OFF') bgStyle = 'bg-rose-100 text-rose-900 border-rose-300 font-semibold';
+                        else if (offInfo.state === 'KR_ONLY_OFF') bgStyle = 'bg-orange-50 text-orange-900 border-orange-200 font-medium';
+                        else if (offInfo.state === 'VN_ONLY_OFF') bgStyle = 'bg-amber-50 text-amber-900 border-amber-200 font-medium';
 
-                    let bgStyle = 'bg-white text-slate-700 border-slate-200';
-                    if (offInfo.state === 'BOTH_OFF') {
-                      bgStyle = 'bg-rose-100 text-rose-900 border-rose-300 font-semibold';
-                    } else if (offInfo.state === 'KR_ONLY_OFF') {
-                      bgStyle = 'bg-orange-50 text-orange-900 border-orange-200 font-medium';
-                    } else if (offInfo.state === 'VN_ONLY_OFF') {
-                      bgStyle = 'bg-amber-50 text-amber-900 border-amber-200 font-medium';
-                    }
+                        const todayStyle = col.isToday ? 'shadow-[inset_0_2px_0_rgba(59,130,246,0.9)] text-blue-700 font-extrabold' : '';
 
-                    const todayStyle = col.isToday ? 'shadow-[inset_0_2px_0_rgba(59,130,246,0.9)] text-blue-700 font-extrabold' : '';
+                        let ariaText = `${col.dateStr} (${col.dayName})`;
+                        if (offInfo.krHolidayName && offInfo.vnHolidayName) ariaText += `, 한국과 베트남 모두 공휴일 (${offInfo.krHolidayName})`;
+                        else if (offInfo.krHolidayName) ariaText += `, 한국 공휴일 (${offInfo.krHolidayName}), 베트남 정상 근무`;
+                        else if (offInfo.vnHolidayName) ariaText += `, 베트남 공휴일 (${offInfo.vnHolidayName}), 한국 정상 근무`;
 
-                    let ariaText = `${col.dateStr} (${col.dayName})`;
-                    if (offInfo.krHolidayName && offInfo.vnHolidayName) {
-                      ariaText += `, 한국과 베트남 모두 공휴일 (${offInfo.krHolidayName})`;
-                    } else if (offInfo.krHolidayName) {
-                      ariaText += `, 한국 공휴일 (${offInfo.krHolidayName}), 베트남 정상 근무`;
-                    } else if (offInfo.vnHolidayName) {
-                      ariaText += `, 베트남 공휴일 (${offInfo.vnHolidayName}), 한국 정상 근무`;
-                    } else if (offInfo.state === 'BOTH_OFF') {
-                      ariaText += `, 한국과 베트남 모두 휴무`;
-                    } else if (offInfo.state === 'KR_ONLY_OFF') {
-                      ariaText += `, 한국 휴무, 베트남 근무`;
-                    } else if (offInfo.state === 'VN_ONLY_OFF') {
-                      ariaText += `, 베트남 휴무, 한국 근무`;
-                    }
+                        const hasHoliday = !!offInfo.krHolidayName || !!offInfo.vnHolidayName;
 
-                    const hasHoliday = !!offInfo.krHolidayName || !!offInfo.vnHolidayName;
-
-                    return (
-                      <th
-                        key={idx}
-                        data-testid={`gantt-date-header-${col.dateStr}`}
-                        data-date={col.dateStr}
-                        data-country-off-state={offInfo.state}
-                        aria-label={ariaText}
-                        onClick={() => setHeaderInfoState({ isOpen: true, dateStr: col.dateStr, dayName: col.dayName })}
-                        style={{ width: `${GANTT_DAY_WIDTH_PX}px`, minWidth: `${GANTT_DAY_WIDTH_PX}px`, maxWidth: `${GANTT_DAY_WIDTH_PX}px`, height: '44px', boxSizing: 'border-box' }}
-                        className={`relative text-center p-0 border-r border-slate-200 text-[11px] font-medium cursor-pointer transition select-none ${bgStyle} ${todayStyle}`}
-                      >
-                        {hasHoliday && (
+                        return (
                           <div
-                            className={`absolute top-0 left-0 right-0 h-[2px] ${
-                              offInfo.krHolidayName && offInfo.vnHolidayName
-                                ? 'bg-rose-600'
-                                : offInfo.krHolidayName
-                                ? 'bg-orange-500'
-                                : 'bg-amber-500'
-                            }`}
-                          />
-                        )}
-                        <div>{col.dayNum}</div>
-                        <div className="text-[10px] opacity-85">{col.dayName}</div>
-                      </th>
-                    );
-                  })}
-                </tr>
-              </thead>
+                            key={idx}
+                            role="columnheader"
+                            data-testid={`gantt-date-header-${col.dateStr}`}
+                            data-date={col.dateStr}
+                            data-country-off-state={offInfo.state}
+                            aria-label={ariaText}
+                            onClick={() => setHeaderInfoState({ isOpen: true, dateStr: col.dateStr, dayName: col.dayName })}
+                            style={{ boxSizing: 'border-box' }}
+                            className={`relative text-center p-0 border-r border-slate-200 text-[11px] font-medium cursor-pointer transition select-none flex flex-col items-center justify-center h-full ${bgStyle} ${todayStyle}`}
+                          >
+                            {hasHoliday && (
+                              <div
+                                className={`absolute top-0 left-0 right-0 h-[2px] ${
+                                  offInfo.krHolidayName && offInfo.vnHolidayName
+                                    ? 'bg-rose-600'
+                                    : offInfo.krHolidayName
+                                    ? 'bg-orange-500'
+                                    : 'bg-amber-500'
+                                }`}
+                              />
+                            )}
+                            <div>{col.dayNum}</div>
+                            <div className="text-[10px] opacity-85">{col.dayName}</div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
 
-              <tbody className="divide-y divide-slate-200 text-sm">
-                {loading ? (
-                  <tr>
-                    <td colSpan={dateColumns.length + 1} className="py-12 text-center text-slate-500 font-medium">
+                {/* 2. Body Container */}
+                <div className="divide-y divide-slate-200 text-sm flex flex-col">
+                  {loading ? (
+                    <div className="py-12 text-center text-slate-500 font-medium w-full">
                       {t('loading')}
-                    </td>
-                  </tr>
-                ) : projects.length === 0 ? (
-                  <tr>
-                    <td colSpan={dateColumns.length + 1} className="py-12 text-center text-slate-500 font-medium">
+                    </div>
+                  ) : projects.length === 0 ? (
+                    <div className="py-12 text-center text-slate-500 font-medium w-full">
                       {t('noData')}
-                    </td>
-                  </tr>
-                ) : (
-                  projects.map((project) => {
-                    const displayName = getDisplayName(project);
-                    const isFallback = isFallbackOriginal(project);
+                    </div>
+                  ) : (
+                    projects.map((project) => {
+                      const displayName = getDisplayName(project);
+                      const isFallback = isFallbackOriginal(project);
 
-                    return (
-                      <tr
-                        key={project.id}
-                        data-testid={`project-row-${project.id}`}
-                        onClick={() => navigate(`/projects/${project.id}`)}
-                        className="hover:bg-blue-50/50 transition cursor-pointer group"
-                      >
-                        <td className="sticky left-0 z-10 bg-white group-hover:bg-blue-50/50 px-3 py-2 border-r border-slate-200 w-[160px] md:w-[300px] min-w-[160px] md:min-w-[300px] max-w-[300px] align-middle h-[60px] min-h-[60px]">
-                          <div className="flex items-center justify-between">
-                            <div className="pr-1 overflow-hidden min-w-0 flex-1">
-                              <div className="font-bold text-slate-900 group-hover:text-blue-600 transition truncate flex items-center gap-1 text-xs" title={displayName}>
-                                <span className="truncate">{displayName}</span>
-                                {isFallback && (
-                                  <span className="text-[9px] text-slate-500 bg-slate-100 px-1 rounded shrink-0 border border-slate-200 font-normal">
-                                    {t('originalTag')}
-                                  </span>
-                                )}
-                                {project.conflict_count && project.conflict_count > 0 ? (
-                                  <span
-                                    className="shrink-0 text-[9px] font-extrabold text-rose-700 bg-rose-100 px-1 py-0.5 rounded border border-rose-200"
-                                    title={lang === 'vi' ? `Xung đột lịch ${project.conflict_count}` : `일정 충돌 ${project.conflict_count}건`}
-                                  >
-                                    {lang === 'vi' ? `Trùng ${project.conflict_count}` : `충돌 ${project.conflict_count}건`}
-                                  </span>
-                                ) : null}
-                                <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                      return (
+                        <div
+                          key={project.id}
+                          role="row"
+                          data-testid={`project-row-${project.id}`}
+                          onClick={() => navigate(`/projects/${project.id}`)}
+                          className="flex hover:bg-blue-50/50 transition cursor-pointer group h-[60px]"
+                        >
+                          {/* Left Sticky Info Cell */}
+                          <div
+                            role="cell"
+                            style={{ width: `${OVERVIEW_LEFT_WIDTH}px`, minWidth: `${OVERVIEW_LEFT_WIDTH}px`, maxWidth: `${OVERVIEW_LEFT_WIDTH}px` }}
+                            className="sticky left-0 z-10 bg-white group-hover:bg-blue-50/50 px-3 py-2 border-r border-slate-200 shrink-0 flex items-center h-full"
+                          >
+                            <div className="flex items-center justify-between w-full">
+                              <div className="pr-1 overflow-hidden min-w-0 flex-1">
+                                <div className="font-bold text-slate-900 group-hover:text-blue-600 transition truncate flex items-center gap-1 text-xs" title={displayName}>
+                                  <span className="truncate">{displayName}</span>
+                                  {isFallback && (
+                                    <span className="text-[9px] text-slate-500 bg-slate-100 px-1 rounded shrink-0 border border-slate-200 font-normal">
+                                      {t('originalTag')}
+                                    </span>
+                                  )}
+                                  {project.conflict_count && project.conflict_count > 0 ? (
+                                    <span
+                                      className="shrink-0 text-[9px] font-extrabold text-rose-700 bg-rose-100 px-1 py-0.5 rounded border border-rose-200"
+                                      title={lang === 'vi' ? `Xung đột lịch ${project.conflict_count}` : `일정 충돌 ${project.conflict_count}건`}
+                                    >
+                                      {lang === 'vi' ? `Trùng ${project.conflict_count}` : `충돌 ${project.conflict_count}건`}
+                                    </span>
+                                  ) : null}
+                                  <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                </div>
+                                <div className="mt-0.5 text-[10px] text-slate-500 truncate">
+                                  {project.start_date} ~ {project.end_date}
+                                </div>
                               </div>
-                              <div className="mt-0.5 text-[10px] text-slate-500 truncate">
-                                {project.start_date} ~ {project.end_date}
-                              </div>
-                            </div>
 
-                            <div
-                              data-testid={`project-action-group-${project.id}`}
-                              className="w-[132px] shrink-0 flex flex-col items-end justify-center gap-0.5"
-                            >
-                              {/* Top Row: [Edit] [Delete] [Status Badge] — buttons left of badge */}
                               <div
-                                data-testid={`project-action-top-row-${project.id}`}
-                                className="flex items-center justify-end gap-1 w-full whitespace-nowrap"
+                                data-testid={`project-action-group-${project.id}`}
+                                className="w-[132px] shrink-0 flex flex-col items-end justify-center gap-0.5"
                               >
-                                {activeTab === 'ACTIVE' && !isExecutiveViewer(currentWorker) && (
-                                  <>
-                                    <button
-                                      type="button"
-                                      data-testid={`project-edit-btn-${project.id}`}
-                                      aria-label={lang === 'vi' ? 'Chỉnh sửa dự án' : '프로젝트 수정'}
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleEditProject(project);
-                                      }}
-                                      className="w-6 h-6 rounded-md border border-slate-200 bg-white hover:bg-slate-100 text-slate-600 hover:text-slate-900 flex items-center justify-center transition shadow-2xs cursor-pointer focus:outline-none focus:ring-1 focus:ring-blue-500"
-                                    >
-                                      <Pencil className="w-3 h-3" />
-                                    </button>
-                                    <button
-                                      type="button"
-                                      data-testid={`project-delete-btn-${project.id}`}
-                                      aria-label={lang === 'vi' ? 'Xóa dự án' : '프로젝트 삭제'}
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleOpenDeleteModal(project);
-                                      }}
-                                      className="w-6 h-6 rounded-md border border-slate-200 bg-white hover:bg-rose-50 hover:border-rose-200 text-slate-500 hover:text-rose-600 flex items-center justify-center transition shadow-2xs cursor-pointer focus:outline-none focus:ring-1 focus:ring-rose-500"
-                                    >
-                                      <Trash2 className="w-3 h-3" />
-                                    </button>
-                                  </>
-                                )}
-                                <span
-                                  data-testid={`project-status-badge-${project.id}`}
-                                  className={`text-[9px] font-bold px-1.5 py-0.5 rounded border cursor-default select-none whitespace-nowrap ${
-                                    project.schedule_state === 'DELAYED'
-                                      ? 'bg-rose-100 text-rose-800 border-rose-200'
-                                      : project.schedule_state === 'COMPLETED'
-                                      ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
-                                      : project.schedule_state === 'IN_PROGRESS'
-                                      ? 'bg-blue-100 text-blue-800 border-blue-200'
-                                      : 'bg-slate-100 text-slate-700 border-slate-200'
-                                  }`}
-                                  onClick={(e) => e.stopPropagation()}
+                                <div
+                                  data-testid={`project-action-top-row-${project.id}`}
+                                  className="flex items-center justify-end gap-1 w-full whitespace-nowrap"
                                 >
-                                  {project.schedule_state === 'DELAYED'
-                                    ? (lang === 'vi' ? 'Chậm' : '지연')
-                                    : project.schedule_state === 'COMPLETED'
-                                    ? (lang === 'vi' ? 'Xong' : '완료')
-                                    : project.schedule_state === 'IN_PROGRESS'
-                                    ? (lang === 'vi' ? '진행' : '진행 중')
-                                    : (lang === 'vi' ? 'Sắp' : '예정')}
-                                </span>
-                              </div>
+                                  {activeTab === 'ACTIVE' && !isExecutiveViewer(currentWorker) && (
+                                    <>
+                                      <button
+                                        type="button"
+                                        data-testid={`project-edit-btn-${project.id}`}
+                                        aria-label={lang === 'vi' ? 'Chỉnh sửa dự án' : '프로젝트 수정'}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleEditProject(project);
+                                        }}
+                                        className="w-6 h-6 rounded-md border border-slate-200 bg-white hover:bg-slate-100 text-slate-600 hover:text-slate-900 flex items-center justify-center transition shadow-2xs cursor-pointer focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                      >
+                                        <Pencil className="w-3 h-3" />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        data-testid={`project-delete-btn-${project.id}`}
+                                        aria-label={lang === 'vi' ? 'Xóa dự án' : '프로젝트 삭제'}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleOpenDeleteModal(project);
+                                        }}
+                                        className="w-6 h-6 rounded-md border border-slate-200 bg-white hover:bg-rose-50 hover:border-rose-200 text-slate-500 hover:text-rose-600 flex items-center justify-center transition shadow-2xs cursor-pointer focus:outline-none focus:ring-1 focus:ring-rose-500"
+                                      >
+                                        <Trash2 className="w-3 h-3" />
+                                      </button>
+                                    </>
+                                  )}
+                                  <span
+                                    data-testid={`project-status-badge-${project.id}`}
+                                    className={`text-[9px] font-bold px-1.5 py-0.5 rounded border cursor-default select-none whitespace-nowrap ${
+                                      project.schedule_state === 'DELAYED'
+                                        ? 'bg-rose-100 text-rose-800 border-rose-200'
+                                        : project.schedule_state === 'COMPLETED'
+                                        ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
+                                        : project.schedule_state === 'IN_PROGRESS'
+                                        ? 'bg-blue-100 text-blue-800 border-blue-200'
+                                        : 'bg-slate-100 text-slate-700 border-slate-200'
+                                    }`}
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    {project.schedule_state === 'DELAYED'
+                                      ? (lang === 'vi' ? 'Chậm' : '지연')
+                                      : project.schedule_state === 'COMPLETED'
+                                      ? (lang === 'vi' ? 'Xong' : '완료')
+                                      : project.schedule_state === 'IN_PROGRESS'
+                                      ? (lang === 'vi' ? '진행' : '진행 중')
+                                      : (lang === 'vi' ? 'Sắp' : '예정')}
+                                  </span>
+                                </div>
 
-                              {/* Bottom Row: Progress Summary */}
-                              <div
-                                data-testid={`project-progress-summary-${project.id}`}
-                                className="text-[9px] font-semibold text-slate-600 flex items-center gap-1 select-none whitespace-nowrap"
-                              >
-                                <span>{lang === 'vi' ? 'KH' : '예정'} {project.planned_progress ?? project.progress ?? 0}%</span>
-                                <span>/</span>
-                                <span className="font-extrabold text-emerald-700">{lang === 'vi' ? 'TT' : '실제'} {project.actual_progress ?? project.progress ?? 0}%</span>
+                                <div
+                                  data-testid={`project-progress-summary-${project.id}`}
+                                  className="text-[9px] font-semibold text-slate-600 flex items-center gap-1 select-none whitespace-nowrap"
+                                >
+                                  <span>{lang === 'vi' ? 'KH' : '예정'} {project.planned_progress ?? project.progress ?? 0}%</span>
+                                  <span>/</span>
+                                  <span className="font-extrabold text-emerald-700">{lang === 'vi' ? 'TT' : '실제'} {project.actual_progress ?? project.progress ?? 0}%</span>
+                                </div>
                               </div>
                             </div>
                           </div>
-                        </td>
 
-                        <td colSpan={dateColumns.length} className="p-0 border-0 relative">
-                          <div
-                            className="relative h-[60px]"
-                            style={{ 
-                              width: `${dateColumns.length * GANTT_DAY_WIDTH_PX}px`,
-                              minWidth: `${dateColumns.length * GANTT_DAY_WIDTH_PX}px` 
-                            }}
-                          >
-                            {/* 1. Date Cells Background Layer */}
-                            <div
-                              className="grid w-full h-full"
-                              style={{
-                                gridTemplateColumns: `repeat(${dateColumns.length}, ${GANTT_DAY_WIDTH_PX}px)`,
-                              }}
-                            >
+                          {/* Right Timeline Cell */}
+                          <div role="cell" style={{ width: `${timelineWidth}px`, minWidth: `${timelineWidth}px` }} className="relative h-full shrink-0">
+                            {/* Layer 0: Day Grid */}
+                            <div className="grid w-full h-full" style={{ gridTemplateColumns: dateGridTemplate }}>
                               {dateColumns.map((col, cIdx) => (
                                 <div
                                   key={cIdx}
                                   data-testid={`gantt-task-cell-overview-${project.id}-${col.dateStr}`}
-                                  style={{ width: `${GANTT_DAY_WIDTH_PX}px`, minWidth: `${GANTT_DAY_WIDTH_PX}px`, maxWidth: `${GANTT_DAY_WIDTH_PX}px`, boxSizing: 'border-box' }}
-                                  className={`h-full border-r border-slate-200 ${
-                                    col.isWeekend ? 'bg-slate-50/70' : 'bg-white'
-                                  }`}
+                                  style={{ boxSizing: 'border-box' }}
+                                  className={`h-full border-r border-slate-200 ${col.isWeekend ? 'bg-slate-50/70' : 'bg-white'}`}
                                 />
                               ))}
                             </div>
 
-                            {/* 1.5 Today Column Overlay Highlight (z-5) */}
-                            <TodayColumnOverlay dateColumns={dateColumns} dayWidthPx={GANTT_DAY_WIDTH_PX} />
+                            {/* Layer 5: Today Overlay */}
+                            <TodayColumnOverlay dateColumns={dateColumns} dayWidthPx={timelineWidth / dateColumns.length} />
 
-                            {/* 2. Continuous Project ScheduleBar Layer (z-10) */}
+                            {/* Layer 10: ScheduleBar */}
                             {(() => {
                               const spanInfo = getGanttSpanColumns(project.start_date, project.end_date, dateColumns);
                               if (!spanInfo) return null;
@@ -836,14 +840,10 @@ export const ProjectOverviewPage: React.FC = () => {
                               return (
                                 <div
                                   className="absolute inset-0 grid pointer-events-none z-10 w-full h-full"
-                                  style={{
-                                    gridTemplateColumns: `repeat(${dateColumns.length}, ${GANTT_DAY_WIDTH_PX}px)`,
-                                  }}
+                                  style={{ gridTemplateColumns: dateGridTemplate }}
                                 >
                                   <div
-                                    style={{
-                                      gridColumn: `${spanInfo.startIndex + 1} / span ${spanInfo.spanCount}`,
-                                    }}
+                                    style={{ gridColumn: `${spanInfo.startIndex + 1} / span ${spanInfo.spanCount}` }}
                                     className="px-0.5 flex items-center h-full w-full min-w-0 pointer-events-auto"
                                   >
                                     <ScheduleBar
@@ -854,8 +854,7 @@ export const ProjectOverviewPage: React.FC = () => {
                                       plannedWorkingDays={prjBreakdown.planned_working_days}
                                       plannedProgress={project.planned_progress ?? project.progress ?? 0}
                                       actualProgress={project.actual_progress ?? project.progress ?? 0}
-                                      status={project.schedule_state || (project.status === 'COMPLETED' ? 'COMPLETED' : 'IN_PROGRESS')}
-                                      onClick={() => navigate(`/projects/${project.id}`)}
+                                      status={project.schedule_state || 'UPCOMING'}
                                     />
                                   </div>
                                 </div>
@@ -870,20 +869,19 @@ export const ProjectOverviewPage: React.FC = () => {
                               dateColumns={dateColumns}
                               calendarOverrides={calendarOverrides}
                               countryHolidays={[...krHolidays, ...vnHolidays]}
-                              dayWidthPx={GANTT_DAY_WIDTH_PX}
+                              dayWidthPx={timelineWidth / dateColumns.length}
                             />
                           </div>
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+            </div>
           </div>
-        </div>
-      )}
-    </main>
+        )}
+      </main>
 
       {/* Modals */}
       <ProjectModal

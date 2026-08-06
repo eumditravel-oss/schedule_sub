@@ -1,0 +1,19 @@
+{
+  "label": "hub_detail_scrolled",
+  "viewport": {
+    "width": 1536,
+    "height": 864
+  },
+  "geoResult": {
+    "headerCount": 30,
+    "rowCount": 0,
+    "evaluatedCellCount": 0,
+    "evaluatedBarCount": 0,
+    "maxLeftError": 0,
+    "maxRightError": 0,
+    "maxWidthError": 0,
+    "maxBarStartError": 0,
+    "maxBarEndError": 0,
+    "sampleErrors": []
+  }
+}
