@@ -6,12 +6,13 @@ const ES_PROJECT_ID = 'prj_1785983399825_tytr';
 const HUB_PROJECT_ID = 'prj_1785983453697_gc6p';
 
 async function dismissWorkerPromptModal(page: any) {
+  await page.waitForTimeout(500);
   const modal = page.locator('[data-testid="worker-prompt-modal"]');
-  if (await modal.isVisible({ timeout: 2000 }).catch(() => false)) {
+  if (await modal.isVisible({ timeout: 3000 }).catch(() => false)) {
     const yjwBtn = modal.locator('button:has-text("유종욱")').or(modal.locator('button')).first();
     if (await yjwBtn.isVisible().catch(() => false)) {
       await yjwBtn.click().catch(() => {});
-      await page.waitForTimeout(300);
+      await page.waitForTimeout(500);
     }
   }
 }
@@ -166,8 +167,8 @@ test.describe('Production Real Project Read-Only Audit & Geometry Alignment Suit
 
       expect(h0Box).not.toBeNull();
       expect(c0Box).not.toBeNull();
-      expect(Math.abs(h0Box!.x - c0Box!.x)).toBeLessThanOrEqual(0.6);
-      expect(Math.abs(h0Box!.width - c0Box!.width)).toBeLessThanOrEqual(0.6);
+      expect(Math.abs(h0Box!.x - c0Box!.x)).toBeLessThanOrEqual(0.5);
+      expect(Math.abs(h0Box!.width - c0Box!.width)).toBeLessThanOrEqual(0.5);
     }
   });
 });

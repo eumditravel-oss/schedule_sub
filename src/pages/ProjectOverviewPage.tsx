@@ -587,7 +587,7 @@ export const ProjectOverviewPage: React.FC = () => {
                 <tr className="border-b border-slate-200">
                   <th
                     rowSpan={2}
-                    className="sticky left-0 z-30 bg-slate-100 px-3 py-2.5 font-bold text-slate-800 border-r border-slate-200 w-[160px] md:w-[270px] min-w-[160px] md:min-w-[270px] max-w-[270px]"
+                    className="sticky left-0 z-30 bg-slate-100 px-3 py-2.5 font-bold text-slate-800 border-r border-slate-200 w-[160px] md:w-[300px] min-w-[160px] md:min-w-[300px] max-w-[300px]"
                   >
                     <div className="flex justify-between items-center text-xs font-bold text-slate-900">
                       <span>{t('projectInfo')}</span>
