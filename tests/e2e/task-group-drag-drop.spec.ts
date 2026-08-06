@@ -141,7 +141,9 @@ test.describe('Task Grouping, Drag & Drop, Reorder, Hatch & Multi-Assignee UI Su
     await addGroupTaskBtn.click();
     await page.waitForSelector('[data-testid="task-modal"]');
     await page.fill('[data-testid="task-name-input"]', '통합 검증 시험');
-    await page.fill('[data-testid="task-start-date-input"]', '2026-08-10');
+    const startDateInput = page.locator('[data-testid="task-start-date-input"]');
+    await expect(startDateInput).toBeVisible({ timeout: 10000 });
+    await startDateInput.fill('2026-08-10');
     await page.fill('[data-testid="task-end-date-input"]', '2026-08-14');
     await page.click('[data-testid="task-save-btn"]');
     await page.waitForSelector('[data-testid="task-modal"]', { state: 'detached' });
