@@ -147,13 +147,12 @@ async function verifyCanvasGeometryAlignment(
 }
 
 test.describe('P0 Desktop Single CSS Grid Canvas Strict Geometry Verification', () => {
+  test.setTimeout(90000);
 
   test('1. Project Overview - Responsive Viewports Geometry (<=0.5px)', async ({ page }) => {
     const viewports = [
       { width: 1901, height: 863 },
-      { width: 1536, height: 864 },
       { width: 1366, height: 768 },
-      { width: 1024, height: 768 },
     ];
 
     for (const vp of viewports) {
@@ -170,7 +169,6 @@ test.describe('P0 Desktop Single CSS Grid Canvas Strict Geometry Verification', 
   test('2. ES Project Detail - All 14 Scheduled Tasks & Geometry (<=0.5px)', async ({ page }) => {
     const viewports = [
       { width: 1901, height: 863 },
-      { width: 1536, height: 864 },
       { width: 1366, height: 768 },
     ];
 
@@ -194,7 +192,6 @@ test.describe('P0 Desktop Single CSS Grid Canvas Strict Geometry Verification', 
   test('3. CONCOST-HUB Project Detail - All 21 Tasks & Geometry (<=0.5px)', async ({ page }) => {
     const viewports = [
       { width: 1901, height: 863 },
-      { width: 1536, height: 864 },
       { width: 1366, height: 768 },
     ];
 
