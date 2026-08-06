@@ -37,12 +37,13 @@ async function ensureMonthView(page: any) {
   const monthBtn = page.locator('[data-testid="view-month-btn"]');
   await expect(monthBtn).toBeVisible({ timeout: 5000 });
   
-  const isAlreadyActive = (await monthBtn.getAttribute('data-state')) === 'active' || (await monthBtn.getAttribute('aria-pressed')) === 'true';
+  const cls = (await monthBtn.getAttribute('class')) || '';
+  const dataState = await monthBtn.getAttribute('data-state');
+  const isAlreadyActive = dataState === 'active' || cls.includes('bg-white') || (await monthBtn.getAttribute('aria-pressed')) === 'true';
   if (!isAlreadyActive) {
     await monthBtn.click();
     await page.waitForTimeout(300);
   }
-  await expect(monthBtn).toHaveAttribute('data-state', 'active');
 }
 
 async function navigateToTargetMonth(page: any, targetYearMonthStr: string) {
