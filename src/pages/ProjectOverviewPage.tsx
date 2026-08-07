@@ -19,6 +19,8 @@ import {
   GANTT_HEADER_TOTAL_HEIGHT_PX,
 } from '../constants/gantt';
 import { GANTT_Z } from '../constants/ganttLayers';
+import { detectWorkerCapacityConflicts, CapacityConflictGroup } from '../utils/capacityConflictDetector';
+import { WorkerConflictSummaryModal } from '../components/modals/WorkerConflictSummaryModal';
 import { ProjectModal } from '../components/modals/ProjectModal';
 import { WorkerSelector } from '../components/common/WorkerSelector';
 import { WorkerPromptModal } from '../components/modals/WorkerPromptModal';
@@ -121,6 +123,32 @@ export const ProjectOverviewPage: React.FC = () => {
     dateCount: dateColumns.length,
     minDayWidthPx: GANTT_DAY_WIDTH_PX,
   });
+
+  const [conflictModalState, setConflictModalState] = useState<{
+    isOpen: boolean;
+    projectName?: string;
+    conflicts: CapacityConflictGroup[];
+  }>({
+    isOpen: false,
+    projectName: '',
+    conflicts: [],
+  });
+
+  const handleOpenConflictModal = async (e: React.MouseEvent, prj: Project) => {
+    e.stopPropagation();
+    try {
+      const res = await api.getProjectConflicts(prj.id);
+      if (res && res.groups) {
+        setConflictModalState({
+          isOpen: true,
+          projectName: prj.name_ko || prj.name,
+          conflicts: res.groups,
+        });
+      }
+    } catch (err) {
+      console.error('Failed to fetch project conflicts:', err);
+    }
+  };
 
   const fetchCompletedYears = async () => {
     try {
@@ -818,12 +846,15 @@ export const ProjectOverviewPage: React.FC = () => {
                                     </span>
                                   )}
                                   {project.conflict_count && project.conflict_count > 0 ? (
-                                    <span
-                                      className="shrink-0 text-[9px] font-extrabold text-rose-700 bg-rose-100 px-1 py-0.5 rounded border border-rose-200"
-                                      title={lang === 'vi' ? `Xung đột lịch ${project.conflict_count}` : `일정 충돌 ${project.conflict_count}건`}
+                                    <button
+                                      type="button"
+                                      data-testid={`project-conflict-badge-${project.id}`}
+                                      onClick={(e) => handleOpenConflictModal(e, project)}
+                                      className="shrink-0 text-[9px] font-extrabold text-rose-700 bg-rose-100 hover:bg-rose-200 px-1 py-0.5 rounded border border-rose-300 transition cursor-pointer"
+                                      title={lang === 'vi' ? `Xem chi tiết xung đột lịch (${project.conflict_count})` : `일정 충돌 상세 보기 (${project.conflict_count}건)`}
                                     >
-                                      {lang === 'vi' ? `Trùng ${project.conflict_count}` : `충돌 ${project.conflict_count}건`}
-                                    </span>
+                                      {lang === 'vi' ? `Trùng ${project.conflict_count}` : `⚠ 충돌 ${project.conflict_count}건`}
+                                    </button>
                                   ) : null}
                                   <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                                 </div>
@@ -1033,6 +1064,16 @@ export const ProjectOverviewPage: React.FC = () => {
         holidays={[...krHolidays, ...vnHolidays]}
         currentWorker={currentWorker}
         onRefreshHolidays={fetchCalendarData}
+      />
+
+      <WorkerConflictSummaryModal
+        isOpen={conflictModalState.isOpen}
+        onClose={() => setConflictModalState({ isOpen: false, conflicts: [] })}
+        projectName={conflictModalState.projectName}
+        conflicts={conflictModalState.conflicts}
+        onNavigateToTask={(pId, tId) => {
+          navigate(`/projects/${pId}?focusTask=${tId}`);
+        }}
       />
 
       <ProjectDeleteConfirmModal

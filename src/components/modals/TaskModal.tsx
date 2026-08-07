@@ -84,7 +84,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
   }, [autoTranslatedText, autoStatus, manualLock]);
 
   useEffect(() => {
-    const src = currentWorker?.ui_language || (task?.source_language as 'ko' | 'vi') || workerLang;
+    const src = (task?.source_language as 'ko' | 'vi') || currentWorker?.ui_language || workerLang;
     setInputLang(src);
     setSaveError(null);
 
@@ -312,10 +312,18 @@ export const TaskModal: React.FC<TaskModalProps> = ({
 
       if (inputLang === 'ko') {
         payload.task_name_ko = taskNameInput.trim();
-        payload.task_name_vi = targetText.trim();
+        if (targetText.trim()) {
+          payload.task_name_vi = targetText.trim();
+        } else if (task && task.task_name_vi && targetText === '') {
+          payload.task_name_vi = '';
+        }
       } else {
         payload.task_name_vi = taskNameInput.trim();
-        payload.task_name_ko = targetText.trim();
+        if (targetText.trim()) {
+          payload.task_name_ko = targetText.trim();
+        } else if (task && task.task_name_ko && targetText === '') {
+          payload.task_name_ko = '';
+        }
       }
 
       const res: any = await onSave(payload);

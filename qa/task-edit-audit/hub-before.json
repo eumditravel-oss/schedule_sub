@@ -1,0 +1,42 @@
+{
+  "task_id": "tsk_1785986746256_dnk6",
+  "task_name": "1. Khởi tạo solution .NET & CI/CD pipeline",
+  "task_name_ko": "1. .NET 및 CI/CD 파이프라인 솔루션의 시작",
+  "task_name_vi": "1. Khởi tạo solution .NET & CI/CD pipeline",
+  "source_language": "vi",
+  "translation_status": "COMPLETED",
+  "translation_error": null,
+  "start_date": "2026-07-06",
+  "end_date": "2026-07-06",
+  "schedule_status": "SCHEDULED",
+  "schedule_revision": 0,
+  "primary_worker_id": "wrk_03",
+  "assignees": [
+    {
+      "worker_id": "wrk_03",
+      "name": "Thanh Phuong(탄 프엉)",
+      "country_code": "VN",
+      "assignment_role": "PRIMARY",
+      "allocation_percent": 34,
+      "sort_order": 0
+    },
+    {
+      "worker_id": "wrk_04",
+      "name": "Manh Cuong(끄엉)",
+      "country_code": "VN",
+      "assignment_role": "CO_ASSIGNEE",
+      "allocation_percent": 33,
+      "sort_order": 1
+    },
+    {
+      "worker_id": "wrk_05",
+      "name": "Quoc Nhut(꾸옥 느엿)",
+      "country_code": "VN",
+      "assignment_role": "CO_ASSIGNEE",
+      "allocation_percent": 33,
+      "sort_order": 2
+    }
+  ],
+  "availability_policy": "ANY_AVAILABLE",
+  "progress_mode": "AUTO_TIME"
+}

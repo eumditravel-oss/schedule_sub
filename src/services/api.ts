@@ -212,6 +212,11 @@ export const api = {
     return handleResponse<Project>(res);
   },
 
+  async getProjectConflicts(id: string): Promise<any> {
+    const res = await fetch(`/api/projects/${id}/conflicts`);
+    return handleResponse<any>(res);
+  },
+
   // 2. Tasks
   async createTask(data: Partial<Task>): Promise<Task> {
     const res = await fetch('/api/tasks', {

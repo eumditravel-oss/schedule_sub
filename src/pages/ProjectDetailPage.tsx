@@ -1,5 +1,5 @@
 // src/pages/ProjectDetailPage.tsx
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Project, Task, TaskGroup, TaskGroupColorKey, Worker, CountryHoliday, CalendarOverride, DailyStatusType, WorkDayStatus, CountryCode, WorkweekProfile, ScheduleConflictDetail, isExecutiveViewer, isEditableWorker } from '../types';
 import { WorkerConflictModal } from '../components/modals/WorkerConflictModal';
@@ -27,6 +27,8 @@ import {
 } from '../constants/gantt';
 import { GANTT_Z } from '../constants/ganttLayers';
 import { TaskModal } from '../components/modals/TaskModal';
+import { GlobalCountryCalendarOverlay } from '../components/gantt/GlobalCountryCalendarOverlay';
+import { WorkerConflictSummaryModal } from '../components/modals/WorkerConflictSummaryModal';
 import { StatusPopover } from '../components/modals/StatusPopover';
 import { WorkerSelector } from '../components/common/WorkerSelector';
 import { WorkerPromptModal } from '../components/modals/WorkerPromptModal';
@@ -974,20 +976,63 @@ export const ProjectDetailPage: React.FC = () => {
     }
   };
 
-  // Date Range Hook
-  const {
-    viewMode,
-    setAnchorDate,
-    startDate,
-    endDate,
-    dateColumns,
-    monthGroups,
-    rangeTitle,
-    changeViewMode,
-    goPrevious,
-    goNext,
-    goToday,
-  } = useGanttDateRange();
+  const detailDateColumns = useMemo(() => {
+    if (!project?.start_date || !project?.end_date) return [];
+    const cols = [];
+    let cur = new Date(`${project.start_date}T00:00:00Z`);
+    const endObj = new Date(`${project.end_date}T00:00:00Z`);
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const dayNamesKo = ['일', '월', '화', '수', '목', '금', '토'];
+    const dayNamesVi = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
+
+    while (cur <= endObj) {
+      const dateStr = cur.toISOString().slice(0, 10);
+      const dayOfWeek = cur.getUTCDay();
+      const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+      const monthStr = `${cur.getUTCFullYear()}-${String(cur.getUTCMonth() + 1).padStart(2, '0')}`;
+      cols.push({
+        dateStr,
+        date: new Date(cur),
+        dayNum: cur.getUTCDate(),
+        dayNumber: cur.getUTCDate(),
+        dayOfWeek,
+        dayName: lang === 'vi' ? dayNamesVi[dayOfWeek] : dayNamesKo[dayOfWeek],
+        isToday: dateStr === todayStr,
+        isWeekend,
+        monthStr,
+      });
+      cur.setUTCDate(cur.getUTCDate() + 1);
+    }
+    return cols;
+  }, [project?.start_date, project?.end_date, lang]);
+
+  const detailMonthGroups = useMemo(() => {
+    if (detailDateColumns.length === 0) return [];
+    const groups: { monthStr: string; startIndex: number; span: number }[] = [];
+    let currentMonth = '';
+    let currentGroup: { monthStr: string; startIndex: number; span: number } | null = null;
+
+    detailDateColumns.forEach((col, idx) => {
+      const parts = col.dateStr.split('-');
+      const monthKey = `${parts[0]}-${parts[1]}`;
+      const year = parts[0];
+      const monthNum = Number(parts[1]);
+      const monthLabel = lang === 'vi' ? `Tháng ${monthNum}, ${year}` : `${year}년 ${monthNum}월`;
+
+      if (monthKey !== currentMonth) {
+        currentMonth = monthKey;
+        if (currentGroup) groups.push(currentGroup);
+        currentGroup = { monthStr: monthLabel, startIndex: idx, span: 1 };
+      } else if (currentGroup) {
+        currentGroup.span += 1;
+      }
+    });
+    if (currentGroup) groups.push(currentGroup);
+    return groups;
+  }, [detailDateColumns, lang]);
+
+  const dateColumns = detailDateColumns;
+  const monthGroups = detailMonthGroups;
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const { width: windowWidth } = useResponsiveLayout();
@@ -1041,12 +1086,6 @@ export const ProjectDetailPage: React.FC = () => {
       setLoading(true);
       const data = await api.getProjectDetail(projectId);
       setProject(data.project);
-      if (data.project?.start_date) {
-        const [pYear, pMonth] = data.project.start_date.split('-').map(Number);
-        if (pYear && pMonth) {
-          setAnchorDate(new Date(pYear, pMonth - 1, 1));
-        }
-      }
       setTasks(data.tasks || []);
       setTaskGroups(data.task_groups || []);
     } catch (err: any) {
@@ -1799,79 +1838,38 @@ export const ProjectDetailPage: React.FC = () => {
               </span>
             </div>
 
-            {/* Center: View Mode Toggle & Date Range Badge */}
+            {/* Center: Project Boundary Badge */}
             <div className="flex items-center gap-2 shrink-0">
-              <div className="flex items-center p-0.5 bg-slate-100 rounded-lg border border-slate-200 text-xs font-semibold">
-                <button
-                  type="button"
-                  data-testid="view-30days-btn"
-                  data-state={viewMode === 'THIRTY_DAYS' ? 'active' : 'inactive'}
-                  aria-pressed={viewMode === 'THIRTY_DAYS'}
-                  onClick={() => changeViewMode('THIRTY_DAYS')}
-                  className={`px-3 py-1.5 rounded-md transition font-bold ${
-                    viewMode === 'THIRTY_DAYS'
-                      ? 'bg-white text-blue-700 shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  {t('gantt30View')}
-                </button>
-                <button
-                  type="button"
-                  data-testid="view-month-btn"
-                  data-state={viewMode === 'MONTH' ? 'active' : 'inactive'}
-                  aria-pressed={viewMode === 'MONTH'}
-                  onClick={() => changeViewMode('MONTH')}
-                  className={`px-3 py-1.5 rounded-md transition font-bold ${
-                    viewMode === 'MONTH'
-                      ? 'bg-white text-blue-700 shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  {t('viewMonth')}
-                </button>
-              </div>
-
-              <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-extrabold text-slate-800 shrink-0">
+              <div
+                data-testid="project-boundary-badge"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50/70 border border-blue-200 rounded-lg text-xs font-bold text-blue-900 shrink-0"
+              >
                 <Calendar className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-                <span>{rangeTitle}</span>
+                <span>{lang === 'vi' ? 'Thời gian dự án' : '프로젝트 일정'}: {project?.start_date} ~ {project?.end_date}</span>
               </div>
             </div>
 
-            {/* Right: Navigation Controls & Shift History */}
+            {/* Right: Today Control & Shift History */}
             <div className="flex items-center gap-2 shrink-0">
-              <div className="flex items-center gap-1 bg-white border border-slate-300 p-0.5 rounded-lg shadow-2xs shrink-0">
-                <button
-                  type="button"
-                  data-testid="nav-prev-btn"
-                  onClick={goPrevious}
-                  className="h-7 px-2.5 rounded hover:bg-slate-100 text-slate-700 font-bold text-xs transition flex items-center gap-1"
-                  aria-label={t('prev')}
-                >
-                  <ChevronLeft className="w-4 h-4 text-slate-500" />
-                  <span>{t('prev')}</span>
-                </button>
-
-                <button
-                  type="button"
-                  data-testid="nav-today-btn"
-                  onClick={goToday}
-                  className="h-7 px-3 bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold rounded text-xs transition border border-blue-200"
-                >
-                  {t('today')}
-                </button>
-
-                <button
-                  type="button"
-                  data-testid="nav-next-btn"
-                  onClick={goNext}
-                  className="h-7 px-2.5 rounded hover:bg-slate-100 text-slate-700 font-bold text-xs transition flex items-center gap-1"
-                  aria-label={t('next')}
-                >
-                  <span>{t('next')}</span>
-                  <ChevronRight className="w-4 h-4 text-slate-500" />
-                </button>
-              </div>
+              <button
+                type="button"
+                data-testid="nav-today-btn"
+                disabled={!(project?.start_date && project?.end_date && new Date().toISOString().slice(0, 10) >= project.start_date && new Date().toISOString().slice(0, 10) <= project.end_date)}
+                onClick={() => {
+                  const todayStr = new Date().toISOString().slice(0, 10);
+                  const todayIdx = dateColumns.findIndex((c) => c.dateStr === todayStr);
+                  if (todayIdx >= 0 && scrollContainerRef.current) {
+                    scrollContainerRef.current.scrollTo({ left: todayIdx * GANTT_DAY_WIDTH_PX, behavior: 'smooth' });
+                  }
+                }}
+                className={`h-8 px-3 rounded-lg text-xs font-bold transition border ${
+                  project?.start_date && project?.end_date && new Date().toISOString().slice(0, 10) >= project.start_date && new Date().toISOString().slice(0, 10) <= project.end_date
+                    ? 'bg-blue-50 hover:bg-blue-100 text-blue-700 border-blue-200 cursor-pointer shadow-2xs'
+                    : 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed'
+                }`}
+              >
+                {t('today')}
+              </button>
 
               <button
                 type="button"
@@ -2111,11 +2109,36 @@ export const ProjectDetailPage: React.FC = () => {
                         </div>
                       );
                     })}
-                  </div>
                 </div>
+              </div>
+
+              {/* Global Country Background Overlay Layer (z-0) */}
+              {project && project.start_date && project.end_date && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: `${GANTT_HEADER_TOTAL_HEIGHT_PX}px`,
+                    left: `${DETAIL_LEFT_WIDTH}px`,
+                    width: `${timelineWidth}px`,
+                    bottom: 0,
+                    pointerEvents: 'none',
+                    zIndex: 0,
+                  }}
+                >
+                  <GlobalCountryCalendarOverlay
+                    projectId={project.id}
+                    startDate={project.start_date}
+                    endDate={project.end_date}
+                    dateColumns={dateColumns}
+                    calendarOverrides={calendarOverrides}
+                    countryHolidays={countryHolidays}
+                    dayWidthPx={timelineWidth / (dateColumns.length || 1)}
+                  />
+                </div>
+              )}
 
               {/* 2. Body Container */}
-              <div className="divide-y divide-slate-200 text-sm flex flex-col">
+              <div className="divide-y divide-slate-200 text-sm flex flex-col relative z-10">
                 {loading ? (
                   <div className="py-12 text-center text-slate-500 font-medium w-full">
                     {t('loading')}

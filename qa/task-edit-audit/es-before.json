@@ -1,0 +1,34 @@
+{
+  "task_id": "tsk_1785986692954_uttb",
+  "task_name": "시스템 프로세스 및 업무 분석",
+  "task_name_ko": "시스템 프로세스 및 업무 분석",
+  "task_name_vi": "Phân tích quy trình hệ thống & nghiệp vụ.",
+  "source_language": "ko",
+  "translation_status": "MANUAL",
+  "translation_error": null,
+  "start_date": "2026-05-07",
+  "end_date": "2026-05-09",
+  "schedule_status": "SCHEDULED",
+  "schedule_revision": 0,
+  "primary_worker_id": "wrk_03",
+  "assignees": [
+    {
+      "worker_id": "wrk_03",
+      "name": "Thanh Phuong(탄 프엉)",
+      "country_code": "VN",
+      "assignment_role": "PRIMARY",
+      "allocation_percent": 50,
+      "sort_order": 0
+    },
+    {
+      "worker_id": "wrk_04",
+      "name": "Manh Cuong(끄엉)",
+      "country_code": "VN",
+      "assignment_role": "CO_ASSIGNEE",
+      "allocation_percent": 50,
+      "sort_order": 1
+    }
+  ],
+  "availability_policy": "ANY_AVAILABLE",
+  "progress_mode": "AUTO_TIME"
+}

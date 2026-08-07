@@ -23,6 +23,7 @@ import {
   detectWorkerTaskConflictsServer,
   getTodayStrForWorkerServer,
 } from './services/progressAndConflictServer';
+import { detectWorkerCapacityConflictsServer } from './services/capacityConflictServer';
 
 export interface Env {
   DB: any;
@@ -716,18 +717,15 @@ async function validateAndNormalizeTaskAssigneesServer(
             dailyStatusMap
           );
 
-          let conflict_count = 0;
-          projectTasks.forEach((t: any) => {
-            const confs = detectWorkerTaskConflictsServer(
-              t,
-              allActiveProjects,
-              allActiveTasks,
-              calendarBatch.workers,
-              calendarBatch.holidays,
-              calendarBatch.overrides
-            );
-            conflict_count += confs.length;
-          });
+          const conflictData = detectWorkerCapacityConflictsServer(
+            allActiveProjects,
+            allActiveTasks,
+            calendarBatch.workers,
+            calendarBatch.holidays,
+            calendarBatch.overrides,
+            prj.id
+          );
+          const conflict_count = conflictData.conflict_count;
 
           return {
             ...prj,
@@ -1250,6 +1248,28 @@ function addPureCalendarDays(dateStr: string, deltaDays: number): string {
   const d = String(next.getUTCDate()).padStart(2, '0');
   return `${y}-${m}-${d}`;
 }
+
+      // 5.5 GET /api/projects/:id/conflicts
+      const getConflictsMatch = path.match(/^\/api\/projects\/([^/]+)\/conflicts$/);
+      if (method === 'GET' && getConflictsMatch) {
+        const projectId = getConflictsMatch[1];
+        const [allActiveProjectsRes, allActiveTasksRes, batch] = await Promise.all([
+          db.prepare(`SELECT * FROM projects WHERE status = 'ACTIVE'`).all(),
+          db.prepare(`SELECT * FROM tasks`).all(),
+          fetchCalendarBatchData(db),
+        ]);
+
+        const conflictData = detectWorkerCapacityConflictsServer(
+          allActiveProjectsRes.results || [],
+          allActiveTasksRes.results || [],
+          batch.workers,
+          batch.holidays,
+          batch.overrides,
+          projectId
+        );
+
+        return jsonResponse(conflictData);
+      }
 
       // 6. PATCH /api/projects/:id
       const patchPrjMatch = path.match(/^\/api\/projects\/([^/]+)$/);
@@ -2886,23 +2906,53 @@ function addPureCalendarDays(dateStr: string, deltaDays: number): string {
         const targetGroupId = body.task_group_id || existing.task_group_id;
         const targetSortOrder = body.task_sort_order !== undefined ? Number(body.task_sort_order) : (existing.task_sort_order || 0);
 
-        if (body.confirm_worker_schedule_conflict !== true) {
+        const dateChanged = (validated.start_date !== undefined && validated.start_date !== existing.start_date) || (validated.end_date !== undefined && validated.end_date !== existing.end_date);
+        const scheduleStatusChanged = body.schedule_status !== undefined && body.schedule_status !== existing.schedule_status;
+
+        const existingAssigneeIds = currentAssignees.map((a: any) => a.worker_id).sort().join(',');
+        const newAssigneeIds = (assignValidation.assignees || []).map((a: any) => a.worker_id).sort().join(',');
+        const assigneeChanged = body.assignee_ids !== undefined && existingAssigneeIds !== newAssigneeIds;
+
+        const existingAllocations = JSON.stringify(currentAssignees.map((a: any) => ({ worker_id: a.worker_id, allocation_percent: a.allocation_percent })));
+        const newAllocations = JSON.stringify((assignValidation.assignees || []).map((a: any) => ({ worker_id: a.worker_id, allocation_percent: a.allocation_percent })));
+        const allocationChanged = body.assignee_allocations !== undefined && existingAllocations !== newAllocations;
+
+        const availabilityPolicyChanged = body.availability_policy !== undefined && body.availability_policy !== existing.availability_policy;
+
+        const scheduleRelevantChanged = dateChanged || scheduleStatusChanged || assigneeChanged || allocationChanged || availabilityPolicyChanged;
+
+        if (scheduleRelevantChanged && body.confirm_worker_schedule_conflict !== true) {
           const [allActiveProjectsRes, allActiveTasksRes, batch] = await Promise.all([
             db.prepare(`SELECT * FROM projects WHERE status = 'ACTIVE'`).all(),
             db.prepare(`SELECT * FROM tasks`).all(),
             fetchCalendarBatchData(db),
           ]);
 
-          const conflicts = detectWorkerTaskConflictsServer(
-            { id: taskId, worker_name: assignValidation.primaryWorkerName!, start_date: newStart, end_date: newEnd, project_id: existing.project_id, assignees: assignValidation.assignees },
+          const updatedTasks = (allActiveTasksRes.results || []).map((t: any) => {
+            if (t.id === taskId) {
+              return {
+                ...t,
+                start_date: newStart,
+                end_date: newEnd,
+                schedule_status: body.schedule_status || existing.schedule_status,
+                assignees: assignValidation.assignees,
+                availability_policy: assignValidation.availabilityPolicy,
+              };
+            }
+            return t;
+          });
+
+          const conflictData = detectWorkerCapacityConflictsServer(
             allActiveProjectsRes.results || [],
-            allActiveTasksRes.results || [],
+            updatedTasks,
             batch.workers,
             batch.holidays,
-            batch.overrides
+            batch.overrides,
+            existing.project_id
           );
 
-          if (conflicts.length > 0) {
+          if (conflictData.conflict_count > 0) {
+            const firstGroup = conflictData.groups[0];
             return new Response(
               JSON.stringify({
                 success: false,
@@ -2910,9 +2960,9 @@ function addPureCalendarDays(dateStr: string, deltaDays: number): string {
                   code: 'WORKER_SCHEDULE_CONFLICT_CONFIRMATION_REQUIRED',
                   message: '같은 작업자의 일정이 다른 프로젝트와 겹칩니다.',
                   details: {
-                    worker_id: conflicts[0].worker_id,
-                    worker_name: conflicts[0].worker_name,
-                    conflicts,
+                    worker_id: firstGroup.worker_id,
+                    worker_name: firstGroup.worker_name,
+                    conflicts: conflictData.groups,
                   },
                 },
               }),
