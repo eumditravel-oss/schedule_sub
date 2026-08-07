@@ -101,8 +101,9 @@ export const IntegrationManagerModal: React.FC<IntegrationManagerModalProps> = (
       });
 
       if (res.ok) {
-        const data: any = await res.json();
-        setGeneratedToken(data.raw_token_once);
+        const json: any = await res.json();
+        const token = json.data?.raw_token_once || json.raw_token_once || null;
+        setGeneratedToken(token);
         setIsCreating(false);
         setKeyName('');
         setKeyError(null);

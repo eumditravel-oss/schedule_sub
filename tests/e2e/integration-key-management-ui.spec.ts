@@ -46,6 +46,7 @@ test.describe('P0 Integration API Key Management & QA Bearer Token Suite', () =>
     const keyNameInput = page.locator('input[placeholder="e.g. Codex CLI Sync"]');
     await expect(keyNameInput).toBeVisible();
     await keyNameInput.fill('QA E2E Integration Key');
+    await expect(keyNameInput).toHaveValue('QA E2E Integration Key');
 
     const submitBtn = page.locator('[data-testid="submit-create-key-btn"]');
     await expect(submitBtn).toBeVisible();
