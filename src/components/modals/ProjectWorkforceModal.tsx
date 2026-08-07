@@ -148,12 +148,17 @@ export const ProjectWorkforceModal: React.FC<ProjectWorkforceModalProps> = ({
 
   return (
     <div
-      data-testid="project-workforce-modal"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 overflow-y-auto"
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-black/50 backdrop-blur-xs select-none overflow-hidden"
     >
-      <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-xl overflow-hidden my-8 select-none">
-        {/* Modal Header */}
-        <div className="px-6 py-4 bg-slate-900 text-white flex items-center justify-between">
+      <div
+        data-testid="project-workforce-modal"
+        className="w-full max-w-xl max-h-[calc(100dvh-24px)] bg-white rounded-2xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden my-auto"
+      >
+        {/* Persistent Modal Header */}
+        <header
+          data-testid="project-workforce-header"
+          className="shrink-0 px-6 py-4 bg-slate-900 text-white flex items-center justify-between border-b border-slate-800"
+        >
           <div className="flex items-center gap-2">
             <Users className="w-5 h-5 text-blue-400" />
             <div>
@@ -167,22 +172,17 @@ export const ProjectWorkforceModal: React.FC<ProjectWorkforceModalProps> = ({
             type="button"
             data-testid="project-workforce-close-btn"
             onClick={onClose}
-            className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition"
+            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition"
           >
             <X className="w-5 h-5" />
           </button>
-        </div>
+        </header>
 
-        {/* Error Alert */}
-        {errorMsg && (
-          <div className="mx-6 mt-4 p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-xs font-bold flex items-center gap-2">
-            <AlertCircle className="w-4 h-4 shrink-0" />
-            <span>{errorMsg}</span>
-          </div>
-        )}
-
-        {/* Body */}
-        <div className="p-6 space-y-5 text-xs">
+        {/* Scrollable Body Container */}
+        <div
+          data-testid="project-workforce-scroll-body"
+          className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-6 space-y-5 text-xs"
+        >
           {/* Summary Metric Header */}
           <div className="flex items-center justify-between p-3.5 bg-blue-50/70 border border-blue-200 rounded-xl text-blue-900">
             <div>
@@ -205,7 +205,7 @@ export const ProjectWorkforceModal: React.FC<ProjectWorkforceModalProps> = ({
               <span>{lang === 'vi' ? 'Đang tải...' : '투입 인력 정보를 불러오는 중...'}</span>
             </div>
           ) : (
-            <div className="space-y-3 max-h-80 overflow-y-auto pr-1">
+            <div className="space-y-3">
               <label className="block font-bold text-slate-800 text-xs">
                 {lang === 'vi' ? 'Danh sách nhân sự phân bổ' : '프로젝트 투입 인력 및 비율 (%)'}
               </label>
@@ -346,38 +346,49 @@ export const ProjectWorkforceModal: React.FC<ProjectWorkforceModalProps> = ({
               <span>{lang === 'vi' ? 'Thêm' : '추가'}</span>
             </button>
           </div>
-
-          {/* Modal Actions */}
-          <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-200">
-            <button
-              type="button"
-              data-testid="project-workforce-cancel-btn"
-              onClick={onClose}
-              className="px-4 py-2 text-xs font-bold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-lg transition"
-            >
-              {lang === 'vi' ? 'Hủy' : '취소'}
-            </button>
-            <button
-              type="button"
-              data-testid="project-workforce-save-btn"
-              onClick={handleSave}
-              disabled={saving}
-              className="px-5 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded-lg transition flex items-center gap-1.5 shadow-xs"
-            >
-              {saving ? (
-                <>
-                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                  <span>{lang === 'vi' ? 'Đang lưu...' : '저장 중...'}</span>
-                </>
-              ) : (
-                <>
-                  <Save className="w-3.5 h-3.5" />
-                  <span>{lang === 'vi' ? 'Lưu' : '저장'}</span>
-                </>
-              )}
-            </button>
-          </div>
         </div>
+
+        {/* Persistent Error Banner */}
+        {errorMsg && (
+          <div className="shrink-0 px-6 py-2.5 bg-red-50 border-t border-red-200 text-red-700 text-xs font-bold flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 shrink-0" />
+            <span>{errorMsg}</span>
+          </div>
+        )}
+
+        {/* Persistent Modal Footer */}
+        <footer
+          data-testid="project-workforce-footer"
+          className="shrink-0 px-6 py-3.5 bg-white border-t border-slate-200 flex items-center justify-end gap-3 shadow-xs"
+        >
+          <button
+            type="button"
+            data-testid="project-workforce-cancel-btn"
+            onClick={onClose}
+            className="px-4 py-2 text-xs font-bold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-lg transition"
+          >
+            {lang === 'vi' ? 'Hủy' : '취소'}
+          </button>
+          <button
+            type="button"
+            data-testid="project-workforce-save-btn"
+            onClick={handleSave}
+            disabled={saving}
+            className="px-5 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded-lg transition flex items-center gap-1.5 shadow-xs"
+          >
+            {saving ? (
+              <>
+                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                <span>{lang === 'vi' ? 'Đang lưu...' : '저장 중...'}</span>
+              </>
+            ) : (
+              <>
+                <Save className="w-3.5 h-3.5" />
+                <span>{lang === 'vi' ? 'Lưu' : '저장'}</span>
+              </>
+            )}
+          </button>
+        </footer>
       </div>
     </div>
   );

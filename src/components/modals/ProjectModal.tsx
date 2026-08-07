@@ -334,9 +334,13 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
         /* Normal Project Edit/Add Modal Form */
         <div
           data-testid="project-modal"
-          className="w-full max-w-lg bg-white rounded-2xl shadow-2xl overflow-hidden border border-slate-200 text-slate-900 animate-in fade-in zoom-in-95 duration-150"
+          className="w-full max-w-lg max-h-[calc(100dvh-24px)] bg-white rounded-2xl shadow-2xl overflow-hidden border border-slate-200 text-slate-900 flex flex-col my-auto"
         >
-          <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 bg-slate-50/50">
+          {/* Header */}
+          <header
+            data-testid="project-modal-header"
+            className="shrink-0 flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/50"
+          >
             <h3 className="font-bold text-slate-900 text-sm">
               {project ? t('editProject') : t('addProject')}
             </h3>
@@ -349,13 +353,99 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
             >
               <X className="w-5 h-5" />
             </button>
-          </div>
+          </header>
 
-          <form onSubmit={handleSubmit} className="p-5 space-y-4 text-xs">
+          {/* Form wrapping scroll body + persistent error + persistent footer */}
+          <form onSubmit={handleSubmit} className="min-h-0 flex-1 flex flex-col">
+            {/* Scrollable Body Container */}
+            <div
+              data-testid="project-modal-scroll-body"
+              className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-6 space-y-4 text-xs"
+            >
+              {/* Read-only Input Language Label */}
+              <div className="bg-slate-50 border border-slate-200 p-2.5 rounded-lg text-slate-700 font-bold text-xs flex items-center justify-between">
+                <span>{inputLang === 'ko' ? '입력 언어: 한국어' : 'Ngôn ngữ nhập: Tiếng Việt'}</span>
+                <span className="text-[10px] font-extrabold px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 uppercase">
+                  {inputLang}
+                </span>
+              </div>
+
+              {/* Source Text Input */}
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">
+                  {t('projectInfo')} ({t('originalTag')}) *
+                </label>
+                <input
+                  type="text"
+                  data-testid="project-name-input"
+                  value={nameInput}
+                  onChange={handleNameChange}
+                  required
+                  placeholder={inputLang === 'ko' ? '프로젝트명을 입력하세요' : 'Nhập tên dự án'}
+                  className="w-full h-10 px-3 rounded-lg border border-slate-300 focus:outline-none focus:border-blue-500 font-medium text-slate-900 bg-white"
+                />
+              </div>
+
+              {/* Auto Translated Text Input */}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="font-bold text-slate-700 flex items-center gap-1">
+                    <Sparkles className="w-3.5 h-3.5 text-blue-600" />
+                    <span>{t('translatedTextLabel')} ({targetLang.toUpperCase()})</span>
+                  </label>
+                  {autoStatus === 'TRANSLATING' && (
+                    <span className="text-[10px] text-blue-600 font-semibold flex items-center gap-1 animate-pulse">
+                      <RefreshCw className="w-3 h-3 animate-spin" />
+                      {t('translating')}
+                    </span>
+                  )}
+                </div>
+                <input
+                  type="text"
+                  data-testid="project-translated-input"
+                  value={targetText}
+                  onChange={handleTargetTextChange}
+                  placeholder={t('automaticTranslationPlaceholder')}
+                  className="w-full h-10 px-3 rounded-lg border border-slate-200 bg-slate-50 font-medium text-slate-800 focus:outline-none focus:border-blue-500"
+                />
+              </div>
+
+              {/* Dates */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">
+                    {t('startDate')} *
+                  </label>
+                  <input
+                    type="date"
+                    data-testid="project-start-date"
+                    value={startDate}
+                    onChange={(e) => handleStartDateChange(e.target.value)}
+                    required
+                    className="w-full h-9 px-3 rounded-lg border border-slate-300 font-medium text-slate-900"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">
+                    {t('endDate')} *
+                  </label>
+                  <input
+                    type="date"
+                    data-testid="project-end-date"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    required
+                    className="w-full h-9 px-3 rounded-lg border border-slate-300 font-medium text-slate-900"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Persistent Error Banner */}
             {saveError && (
               <div
                 data-testid="project-save-error"
-                className="p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-xs font-semibold space-y-1 animate-in fade-in duration-150"
+                className="shrink-0 px-6 py-2.5 bg-red-50 border-t border-red-200 text-red-700 text-xs font-semibold space-y-1"
               >
                 <div className="font-bold flex items-center justify-between">
                   <span>{lang === 'vi' ? 'Lưu thất bại' : '저장하지 못했습니다.'}</span>
@@ -367,88 +457,11 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
               </div>
             )}
 
-            {/* Read-only Input Language Label */}
-            <div className="bg-slate-50 border border-slate-200 p-2.5 rounded-lg text-slate-700 font-bold text-xs flex items-center justify-between">
-              <span>{inputLang === 'ko' ? '입력 언어: 한국어' : 'Ngôn ngữ nhập: Tiếng Việt'}</span>
-              <span className="text-[10px] font-extrabold px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 uppercase">
-                {inputLang}
-              </span>
-            </div>
-
-            {/* Source Text Input */}
-            <div>
-              <label className="block font-bold text-slate-700 mb-1">
-                {t('projectInfo')} ({t('originalTag')}) *
-              </label>
-              <input
-                type="text"
-                data-testid="project-name-input"
-                value={nameInput}
-                onChange={handleNameChange}
-                required
-                placeholder={inputLang === 'ko' ? '프로젝트명을 입력하세요' : 'Nhập tên dự án'}
-                className="w-full h-10 px-3 rounded-lg border border-slate-300 focus:outline-none focus:border-blue-500 font-medium text-slate-900 bg-white"
-              />
-            </div>
-
-            {/* Auto Translated Text Input */}
-            <div>
-              <div className="flex items-center justify-between mb-1">
-                <label className="font-bold text-slate-700 flex items-center gap-1">
-                  <Sparkles className="w-3.5 h-3.5 text-blue-600" />
-                  <span>{t('translatedTextLabel')} ({targetLang.toUpperCase()})</span>
-                </label>
-                {autoStatus === 'TRANSLATING' && (
-                  <span className="text-[10px] text-blue-600 font-semibold flex items-center gap-1 animate-pulse">
-                    <RefreshCw className="w-3 h-3 animate-spin" />
-                    {t('translating')}
-                  </span>
-                )}
-              </div>
-              <input
-                type="text"
-                data-testid="project-translated-input"
-                value={targetText}
-                onChange={handleTargetTextChange}
-                placeholder={t('automaticTranslationPlaceholder')}
-                className="w-full h-10 px-3 rounded-lg border border-slate-200 bg-slate-50 font-medium text-slate-800 focus:outline-none focus:border-blue-500"
-              />
-            </div>
-
-            {/* Dates */}
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">
-                  {t('startDate')} *
-                </label>
-                <input
-                  type="date"
-                  data-testid="project-start-date"
-                  value={startDate}
-                  onChange={(e) => handleStartDateChange(e.target.value)}
-                  required
-                  className="w-full h-9 px-3 rounded-lg border border-slate-300 font-medium text-slate-900"
-                />
-              </div>
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">
-                  {t('endDate')} *
-                </label>
-                <input
-                  type="date"
-                  data-testid="project-end-date"
-                  value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
-                  required
-                  className="w-full h-9 px-3 rounded-lg border border-slate-300 font-medium text-slate-900"
-                />
-              </div>
-            </div>
-
-
-
-            {/* Footer Actions */}
-            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+            {/* Persistent Footer Actions */}
+            <footer
+              data-testid="project-modal-footer"
+              className="shrink-0 px-6 py-3.5 bg-white border-t border-slate-200 flex items-center justify-end gap-2"
+            >
               <button
                 type="button"
                 data-testid="project-cancel-btn"
@@ -465,7 +478,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
               >
                 {saving ? t('saving') : t('save')}
               </button>
-            </div>
+            </footer>
           </form>
         </div>
       )}

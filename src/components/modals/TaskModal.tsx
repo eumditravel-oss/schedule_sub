@@ -144,7 +144,6 @@ export const TaskModal: React.FC<TaskModalProps> = ({
     if (!newId) return;
     setPrimaryWorkerId(newId);
     setSaveError(null);
-    // If new PIC was in support list, remove from support
     setSupportWorkerIds((prev) => prev.filter((id) => id !== newId));
   };
 
@@ -182,7 +181,6 @@ export const TaskModal: React.FC<TaskModalProps> = ({
 
   const primaryWorkerObj = workers.find((w) => w.id === primaryWorkerId) || currentWorker;
 
-  // Workday calculation depends STRICTLY on the PIC's Calendar
   const breakdown = calculateTaskWorkdayBreakdown(
     primaryWorkerObj || null,
     startDate,
@@ -315,12 +313,17 @@ export const TaskModal: React.FC<TaskModalProps> = ({
 
   return (
     <div
-      data-testid="task-modal"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 overflow-y-auto"
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-black/50 backdrop-blur-xs select-none overflow-hidden"
     >
-      <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-lg overflow-hidden my-8">
-        {/* Header */}
-        <div className="px-6 py-4 bg-slate-900 text-white flex items-center justify-between">
+      <div
+        data-testid="task-modal"
+        className="w-full max-w-xl max-h-[calc(100dvh-24px)] bg-white rounded-2xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden my-auto"
+      >
+        {/* Persistent Header */}
+        <header
+          data-testid="task-modal-header"
+          className="shrink-0 px-6 py-4 bg-slate-900 text-white flex items-center justify-between border-b border-slate-800"
+        >
           <div className="flex items-center gap-2">
             <Calendar className="w-5 h-5 text-blue-400" />
             <h3 className="font-bold text-base">
@@ -335,327 +338,336 @@ export const TaskModal: React.FC<TaskModalProps> = ({
           >
             <X className="w-5 h-5" />
           </button>
-        </div>
+        </header>
 
-        {/* Error Alert */}
-        {saveError && (
+        {/* Form wrapping scroll body + persistent error + persistent footer */}
+        <form onSubmit={handleSubmit} className="min-h-0 flex-1 flex flex-col">
+          {/* Scrollable Body Container */}
           <div
-            data-testid="task-save-error"
-            className="mx-6 mt-4 p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-xs font-bold flex items-center gap-2"
+            data-testid="task-modal-scroll-body"
+            className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-6 space-y-4 text-xs"
           >
-            <AlertCircle className="w-4 h-4 shrink-0" />
-            <span>{saveError.message}</span>
-          </div>
-        )}
-
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-4 text-xs">
-          {/* Task Group Selection */}
-          <div>
-            <label className="block font-bold text-slate-700 mb-1">
-              {lang === 'vi' ? 'Nhóm công việc' : '공정 대분류'} *
-            </label>
-            <select
-              value={taskGroupId}
-              onChange={(e) => setTaskGroupId(e.target.value)}
-              required
-              className="w-full h-10 px-3 rounded-lg border border-slate-300 font-semibold text-slate-900 bg-white focus:outline-none focus:border-blue-500"
-            >
-              {taskGroups.map((g) => (
-                <option key={g.id} value={g.id}>
-                  {lang === 'vi' ? (g.group_name_vi || g.group_name) : (g.group_name_ko || g.group_name)}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* V2 RESPONSIBILITY SECTION: PIC & Support */}
-          <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
-            {/* PIC (Primary Worker) */}
+            {/* Task Group Selection */}
             <div>
-              <label className="block font-bold text-slate-800 mb-1 flex items-center gap-1">
-                <UserCheck className="w-4 h-4 text-blue-600" />
-                <span>{lang === 'vi' ? 'Người phụ trách chính (PIC) *' : '주 담당자 (PIC) *'}</span>
+              <label className="block font-bold text-slate-700 mb-1">
+                {lang === 'vi' ? 'Nhóm công việc' : '공정 대분류'} *
               </label>
               <select
-                data-testid="task-primary-worker-select"
-                value={primaryWorkerId}
-                onChange={(e) => handlePrimaryChange(e.target.value)}
+                value={taskGroupId}
+                onChange={(e) => setTaskGroupId(e.target.value)}
                 required
-                className="w-full h-10 px-3 rounded-lg border border-blue-300 font-bold text-blue-900 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full h-10 px-3 rounded-lg border border-slate-300 font-semibold text-slate-900 bg-white focus:outline-none focus:border-blue-500"
               >
-                {activeEditors.map((w) => (
-                  <option key={w.id} value={w.id}>
-                    {w.name} ({w.country_code === 'VN' ? '🇻🇳 베트남' : '🇰🇷 한국'})
+                {taskGroups.map((g) => (
+                  <option key={g.id} value={g.id}>
+                    {lang === 'vi' ? (g.group_name_vi || g.group_name) : (g.group_name_ko || g.group_name)}
                   </option>
                 ))}
               </select>
-              <p className="text-[10px] text-slate-500 mt-1">
-                {lang === 'vi' ? '* Lịch làm việc của người phụ trách chính (PIC) sẽ quyết định số ngày làm việc thực tế.' : '* 주 담당자(PIC)의 캘린더를 기준으로 실제 근무일수가 계산됩니다.'}
-              </p>
             </div>
 
-            {/* PIC Change Impact Preview Alert */}
-            {isPicChanged && (
-              <div data-testid="pic-change-alert" className="p-2.5 bg-amber-50 border border-amber-300 rounded-lg text-amber-900 text-[11px] font-bold flex items-center gap-1.5">
-                <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
-                <span>
-                  {lang === 'vi'
-                    ? 'Thay đổi người phụ trách chính (PIC): Lịch làm việc sẽ được tính lại theo PIC mới (Schedule Revision +1).'
-                    : '주 담당자(PIC)가 변경됩니다. 근무 캘린더가 새 PIC 기준으로 재계산되며 Schedule Revision(+1)이 적용됩니다.'}
-                </span>
+            {/* V2 RESPONSIBILITY SECTION: PIC & Support */}
+            <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
+              {/* PIC (Primary Worker) */}
+              <div>
+                <label className="block font-bold text-slate-800 mb-1 flex items-center gap-1">
+                  <UserCheck className="w-4 h-4 text-blue-600" />
+                  <span>{lang === 'vi' ? 'Người phụ trách chính (PIC) *' : '주 담당자 (PIC) *'}</span>
+                </label>
+                <select
+                  data-testid="task-primary-worker-select"
+                  value={primaryWorkerId}
+                  onChange={(e) => handlePrimaryChange(e.target.value)}
+                  required
+                  className="w-full h-10 px-3 rounded-lg border border-blue-300 font-bold text-blue-900 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  {activeEditors.map((w) => (
+                    <option key={w.id} value={w.id}>
+                      {w.name} ({w.country_code === 'VN' ? '🇻🇳 베트남' : '🇰🇷 한국'})
+                    </option>
+                  ))}
+                </select>
+                <p className="text-[10px] text-slate-500 mt-1">
+                  {lang === 'vi' ? '* Lịch làm việc của người phụ trách chính (PIC) sẽ quyết định số ngày làm việc thực tế.' : '* 주 담당자(PIC)의 캘린더를 기준으로 실제 근무일수가 계산됩니다.'}
+                </p>
+              </div>
+
+              {/* PIC Change Impact Preview Alert */}
+              {isPicChanged && (
+                <div data-testid="pic-change-alert" className="p-2.5 bg-amber-50 border border-amber-300 rounded-lg text-amber-900 text-[11px] font-bold flex items-center gap-1.5">
+                  <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                  <span>
+                    {lang === 'vi'
+                      ? 'Thay đổi người phụ trách chính (PIC): Lịch làm việc sẽ được tính lại theo PIC mới (Schedule Revision +1).'
+                      : '주 담당자(PIC)가 변경됩니다. 근무 캘린더가 새 PIC 기준으로 재계산되며 Schedule Revision(+1)이 적용됩니다.'}
+                  </span>
+                </div>
+              )}
+
+              {/* Support Workers */}
+              <div>
+                <label className="block font-bold text-slate-800 mb-1.5 flex items-center gap-1">
+                  <Users className="w-4 h-4 text-slate-600" />
+                  <span>{lang === 'vi' ? 'Người hỗ trợ (Support)' : '지원 담당자 (Support)'}</span>
+                </label>
+
+                {/* Support Chips */}
+                <div className="space-y-1.5 mb-2">
+                  {supportWorkerIds.length === 0 ? (
+                    <div className="text-[11px] text-slate-400 italic py-1">
+                      {lang === 'vi' ? 'Chưa có người hỗ trợ' : '지원 담당자 없음'}
+                    </div>
+                  ) : (
+                    supportWorkerIds.map((sId) => {
+                      const sWorker = workers.find((w) => w.id === sId);
+                      return (
+                        <div
+                          key={sId}
+                          data-testid={`task-support-chip-${sId}`}
+                          className="flex items-center justify-between bg-white px-3 py-1.5 rounded-lg border border-slate-200"
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-slate-800">{sWorker?.name || sId}</span>
+                            <span className="text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded font-bold">
+                              Support
+                            </span>
+                            <span className="text-[10px] text-slate-400">
+                              {sWorker?.country_code === 'VN' ? '🇻🇳 VN' : '🇰🇷 KR'}
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            data-testid={`task-support-remove-${sId}`}
+                            onClick={() => handleRemoveSupport(sId)}
+                            className="p-1 text-slate-400 hover:text-red-600 rounded"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+
+                {/* Add Support Selector */}
+                {supportWorkerIds.length < 4 && (
+                  <div className="flex items-center gap-2 pt-1">
+                    <select
+                      data-testid="task-support-selector"
+                      value={selectedSupportToAdd}
+                      onChange={(e) => setSelectedSupportToAdd(e.target.value)}
+                      className="flex-1 h-9 px-2 rounded-lg border border-slate-300 font-medium text-slate-700 bg-white"
+                    >
+                      <option value="">{lang === 'vi' ? '+ Chọn người hỗ trợ...' : '+ 지원 담당자 선택...'}</option>
+                      {activeEditors
+                        .filter((w) => w.id !== primaryWorkerId && !supportWorkerIds.includes(w.id))
+                        .map((w) => (
+                          <option key={w.id} value={w.id}>
+                            {w.name} ({w.country_code === 'VN' ? '베트남' : '한국'})
+                          </option>
+                        ))}
+                    </select>
+                    <button
+                      type="button"
+                      data-testid="task-add-support-btn"
+                      onClick={() => handleAddSupport(selectedSupportToAdd)}
+                      disabled={!selectedSupportToAdd}
+                      className="h-9 px-3 bg-slate-700 hover:bg-slate-800 disabled:opacity-50 text-white font-bold rounded-lg flex items-center gap-1"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>{lang === 'vi' ? 'Thêm' : '추가'}</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Progress Mode Selector */}
+            <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+              <label className="block font-bold text-slate-800 mb-1">
+                {lang === 'vi' ? 'Phương thức tính tiến độ thực tế' : '실제 공정률 계산 방식'}
+              </label>
+              <div className="space-y-1.5 pt-1">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="progress_mode"
+                    data-testid="progress-mode-radio"
+                    value="AUTO_TIME"
+                    checked={progressMode === 'AUTO_TIME'}
+                    onChange={() => setProgressMode('AUTO_TIME')}
+                    className="text-blue-600 focus:ring-blue-500"
+                  />
+                  <span className="font-semibold text-slate-800">시간 경과형 (자동 100%)</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="progress_mode"
+                    value="STATUS_BASED"
+                    checked={progressMode === 'STATUS_BASED'}
+                    onChange={() => setProgressMode('STATUS_BASED')}
+                    className="text-blue-600 focus:ring-blue-500"
+                  />
+                  <span className="font-semibold text-slate-800">일별 상태 입력형 (COMPLETED)</span>
+                </label>
+              </div>
+            </div>
+
+            {/* Read-only Input Language Label */}
+            <div className="bg-slate-50 border border-slate-200 p-2.5 rounded-lg text-slate-700 font-bold text-xs flex items-center justify-between">
+              <span>{inputLang === 'ko' ? '입력 언어: 한국어' : 'Ngôn ngữ nhập: Tiếng Việt'}</span>
+              <span className="text-[10px] font-extrabold px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 uppercase">
+                {inputLang}
+              </span>
+            </div>
+
+            {/* Task Name Input */}
+            <div>
+              <label className="block font-bold text-slate-700 mb-1">
+                {t('taskContent')} ({t('originalTag')}) *
+              </label>
+              <input
+                type="text"
+                data-testid="task-name-input"
+                value={taskNameInput}
+                onChange={handleNameChange}
+                required
+                placeholder={inputLang === 'ko' ? '작업 내용을 입력하세요' : 'Nhập nội dung công việc'}
+                className="w-full h-10 px-3 rounded-lg border border-slate-300 focus:outline-none focus:border-blue-500 font-medium text-slate-900 bg-white"
+              />
+            </div>
+
+            {/* Auto Translated Text Input */}
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="font-bold text-slate-700 flex items-center gap-1">
+                  <Sparkles className="w-3.5 h-3.5 text-blue-600" />
+                  <span>{t('translatedTextLabel')} ({targetLang.toUpperCase()})</span>
+                </label>
+                {autoStatus === 'TRANSLATING' && (
+                  <span className="text-[10px] text-blue-600 font-semibold flex items-center gap-1 animate-pulse">
+                    <RefreshCw className="w-3 h-3 animate-spin" />
+                    {t('translating')}
+                  </span>
+                )}
+              </div>
+              <div className="relative">
+                <input
+                  type="text"
+                  data-testid="task-translated-input"
+                  value={targetText}
+                  onChange={handleTargetTextChange}
+                  placeholder={
+                    autoStatus === 'TRANSLATING'
+                      ? (lang === 'vi' ? 'Đang dịch...' : '번역 중...')
+                      : (targetLang === 'vi' ? 'Bản dịch tự động' : '자동 번역 내용')
+                  }
+                  className={`w-full h-10 px-3 pr-20 rounded-lg border font-medium text-slate-900 ${
+                    manualLock ? 'border-amber-400 bg-amber-50/30' : 'border-slate-300 bg-slate-50'
+                  }`}
+                />
+              </div>
+            </div>
+
+            {/* Schedule Status Selection */}
+            <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+              <label className="block font-bold text-slate-800">
+                {lang === 'vi' ? 'Trạng thái lịch công việc' : '일정 확정 상태'}
+              </label>
+              <div className="flex items-center gap-4">
+                <label className="flex items-center gap-2 cursor-pointer font-bold text-slate-800">
+                  <input
+                    type="radio"
+                    name="scheduleStatus"
+                    data-testid="task-schedule-status-scheduled"
+                    value="SCHEDULED"
+                    checked={scheduleStatus === 'SCHEDULED'}
+                    onChange={() => setScheduleStatus('SCHEDULED')}
+                    className="text-blue-600 focus:ring-blue-500"
+                  />
+                  <span>{lang === 'vi' ? 'Đã xếp lịch (Có ngày bắt đầu/kết thúc)' : '일정 확정 (시작일/종료일 지정)'}</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer font-bold text-slate-800">
+                  <input
+                    type="radio"
+                    name="scheduleStatus"
+                    data-testid="task-schedule-status-unscheduled"
+                    value="UNSCHEDULED"
+                    checked={scheduleStatus === 'UNSCHEDULED'}
+                    onChange={() => setScheduleStatus('UNSCHEDULED')}
+                    className="text-blue-600 focus:ring-blue-500"
+                  />
+                  <span>{lang === 'vi' ? 'Chưa xếp lịch (UNSCHEDULED)' : '미정 (UNSCHEDULED)'}</span>
+                </label>
+              </div>
+            </div>
+
+            {/* Date Picker Section */}
+            {scheduleStatus === 'SCHEDULED' && (
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">
+                    {lang === 'vi' ? 'Ngày bắt đầu' : '시작일'} *
+                  </label>
+                  <input
+                    type="date"
+                    data-testid="task-start-date-input"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    required
+                    className="w-full h-10 px-3 rounded-lg border border-slate-300 font-semibold text-slate-900 bg-white"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">
+                    {lang === 'vi' ? 'Ngày kết thúc' : '종료일'} *
+                  </label>
+                  <input
+                    type="date"
+                    data-testid="task-end-date-input"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    required
+                    className="w-full h-10 px-3 rounded-lg border border-slate-300 font-semibold text-slate-900 bg-white"
+                  />
+                </div>
               </div>
             )}
 
-            {/* Support Workers */}
-            <div>
-              <label className="block font-bold text-slate-800 mb-1.5 flex items-center gap-1">
-                <Users className="w-4 h-4 text-slate-600" />
-                <span>{lang === 'vi' ? 'Người hỗ trợ (Support)' : '지원 담당자 (Support)'}</span>
-              </label>
-
-              {/* Support Chips */}
-              <div className="space-y-1.5 mb-2">
-                {supportWorkerIds.length === 0 ? (
-                  <div className="text-[11px] text-slate-400 italic py-1">
-                    {lang === 'vi' ? 'Chưa có người hỗ trợ' : '지원 담당자 없음'}
-                  </div>
-                ) : (
-                  supportWorkerIds.map((sId) => {
-                    const sWorker = workers.find((w) => w.id === sId);
-                    return (
-                      <div
-                        key={sId}
-                        data-testid={`task-support-chip-${sId}`}
-                        className="flex items-center justify-between bg-white px-3 py-1.5 rounded-lg border border-slate-200"
-                      >
-                        <div className="flex items-center gap-2">
-                          <span className="font-bold text-slate-800">{sWorker?.name || sId}</span>
-                          <span className="text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded font-bold">
-                            Support
-                          </span>
-                          <span className="text-[10px] text-slate-400">
-                            {sWorker?.country_code === 'VN' ? '🇻🇳 VN' : '🇰🇷 KR'}
-                          </span>
-                        </div>
-                        <button
-                          type="button"
-                          data-testid={`task-support-remove-${sId}`}
-                          onClick={() => handleRemoveSupport(sId)}
-                          className="p-1 text-slate-400 hover:text-red-600 rounded"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-
-              {/* Add Support Selector */}
-              {supportWorkerIds.length < 4 && (
-                <div className="flex items-center gap-2 pt-1">
-                  <select
-                    data-testid="task-support-selector"
-                    value={selectedSupportToAdd}
-                    onChange={(e) => setSelectedSupportToAdd(e.target.value)}
-                    className="flex-1 h-9 px-2 rounded-lg border border-slate-300 font-medium text-slate-700 bg-white"
-                  >
-                    <option value="">{lang === 'vi' ? '+ Chọn người hỗ trợ...' : '+ 지원 담당자 선택...'}</option>
-                    {activeEditors
-                      .filter((w) => w.id !== primaryWorkerId && !supportWorkerIds.includes(w.id))
-                      .map((w) => (
-                        <option key={w.id} value={w.id}>
-                          {w.name} ({w.country_code === 'VN' ? '베트남' : '한국'})
-                        </option>
-                      ))}
-                  </select>
-                  <button
-                    type="button"
-                    data-testid="task-add-support-btn"
-                    onClick={() => handleAddSupport(selectedSupportToAdd)}
-                    disabled={!selectedSupportToAdd}
-                    className="h-9 px-3 bg-slate-700 hover:bg-slate-800 disabled:opacity-50 text-white font-bold rounded-lg flex items-center gap-1"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    <span>{lang === 'vi' ? 'Thêm' : '추가'}</span>
-                  </button>
+            {/* Working Days Summary */}
+            {scheduleStatus === 'SCHEDULED' && startDate && endDate && (
+              <div className="p-3 bg-blue-50/70 border border-blue-200 rounded-xl text-blue-900 space-y-1">
+                <div className="flex items-center justify-between font-bold text-xs">
+                  <span>{lang === 'vi' ? 'Số ngày làm việc dự kiến (PIC):' : '주 담당자(PIC) 기준 근무일수:'}</span>
+                  <span className="text-sm font-extrabold text-blue-700">{breakdown.planned_working_days}일</span>
                 </div>
-              )}
-            </div>
-          </div>
-
-          {/* Progress Mode Selector */}
-          <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
-            <label className="block font-bold text-slate-800 mb-1">
-              {lang === 'vi' ? 'Phương thức tính tiến độ thực tế' : '실제 공정률 계산 방식'}
-            </label>
-            <div className="space-y-1.5 pt-1">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="radio"
-                  name="progress_mode"
-                  data-testid="progress-mode-radio"
-                  value="AUTO_TIME"
-                  checked={progressMode === 'AUTO_TIME'}
-                  onChange={() => setProgressMode('AUTO_TIME')}
-                  className="text-blue-600 focus:ring-blue-500"
-                />
-                <span className="font-semibold text-slate-800">시간 경과형 (자동 100%)</span>
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="radio"
-                  name="progress_mode"
-                  value="STATUS_BASED"
-                  checked={progressMode === 'STATUS_BASED'}
-                  onChange={() => setProgressMode('STATUS_BASED')}
-                  className="text-blue-600 focus:ring-blue-500"
-                />
-                <span className="font-semibold text-slate-800">일별 상태 입력형 (COMPLETED)</span>
-              </label>
-            </div>
-          </div>
-
-          {/* Read-only Input Language Label */}
-          <div className="bg-slate-50 border border-slate-200 p-2.5 rounded-lg text-slate-700 font-bold text-xs flex items-center justify-between">
-            <span>{inputLang === 'ko' ? '입력 언어: 한국어' : 'Ngôn ngữ nhập: Tiếng Việt'}</span>
-            <span className="text-[10px] font-extrabold px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 uppercase">
-              {inputLang}
-            </span>
-          </div>
-
-          {/* Task Name Input */}
-          <div>
-            <label className="block font-bold text-slate-700 mb-1">
-              {t('taskContent')} ({t('originalTag')}) *
-            </label>
-            <input
-              type="text"
-              data-testid="task-name-input"
-              value={taskNameInput}
-              onChange={handleNameChange}
-              required
-              placeholder={inputLang === 'ko' ? '작업 내용을 입력하세요' : 'Nhập nội dung công việc'}
-              className="w-full h-10 px-3 rounded-lg border border-slate-300 focus:outline-none focus:border-blue-500 font-medium text-slate-900 bg-white"
-            />
-          </div>
-
-          {/* Auto Translated Text Input */}
-          <div>
-            <div className="flex items-center justify-between mb-1">
-              <label className="font-bold text-slate-700 flex items-center gap-1">
-                <Sparkles className="w-3.5 h-3.5 text-blue-600" />
-                <span>{t('translatedTextLabel')} ({targetLang.toUpperCase()})</span>
-              </label>
-              {autoStatus === 'TRANSLATING' && (
-                <span className="text-[10px] text-blue-600 font-semibold flex items-center gap-1 animate-pulse">
-                  <RefreshCw className="w-3 h-3 animate-spin" />
-                  {t('translating')}
-                </span>
-              )}
-            </div>
-            <div className="relative">
-              <input
-                type="text"
-                data-testid="task-translated-input"
-                value={targetText}
-                onChange={handleTargetTextChange}
-                placeholder={
-                  autoStatus === 'TRANSLATING'
-                    ? (lang === 'vi' ? 'Đang dịch...' : '번역 중...')
-                    : (targetLang === 'vi' ? 'Bản dịch tự động' : '자동 번역 내용')
-                }
-                className={`w-full h-10 px-3 pr-20 rounded-lg border font-medium text-slate-900 ${
-                  manualLock ? 'border-amber-400 bg-amber-50/30' : 'border-slate-300 bg-slate-50'
-                }`}
-              />
-            </div>
-          </div>
-
-          {/* Schedule Status Selection */}
-          <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
-            <label className="block font-bold text-slate-800">
-              {lang === 'vi' ? 'Trạng thái lịch công việc' : '일정 확정 상태'}
-            </label>
-            <div className="flex items-center gap-4">
-              <label className="flex items-center gap-2 cursor-pointer font-bold text-slate-800">
-                <input
-                  type="radio"
-                  name="scheduleStatus"
-                  data-testid="task-schedule-status-scheduled"
-                  value="SCHEDULED"
-                  checked={scheduleStatus === 'SCHEDULED'}
-                  onChange={() => setScheduleStatus('SCHEDULED')}
-                  className="text-blue-600 focus:ring-blue-500"
-                />
-                <span>{lang === 'vi' ? 'Đã xếp lịch (Có ngày bắt đầu/kết thúc)' : '일정 확정 (시작일/종료일 지정)'}</span>
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer font-bold text-slate-800">
-                <input
-                  type="radio"
-                  name="scheduleStatus"
-                  data-testid="task-schedule-status-unscheduled"
-                  value="UNSCHEDULED"
-                  checked={scheduleStatus === 'UNSCHEDULED'}
-                  onChange={() => setScheduleStatus('UNSCHEDULED')}
-                  className="text-blue-600 focus:ring-blue-500"
-                />
-                <span>{lang === 'vi' ? 'Chưa xếp lịch (UNSCHEDULED)' : '미정 (UNSCHEDULED)'}</span>
-              </label>
-            </div>
-          </div>
-
-          {/* Date Picker Section */}
-          {scheduleStatus === 'SCHEDULED' && (
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">
-                  {lang === 'vi' ? 'Ngày bắt đầu' : '시작일'} *
-                </label>
-                <input
-                  type="date"
-                  data-testid="task-start-date-input"
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                  required
-                  className="w-full h-10 px-3 rounded-lg border border-slate-300 font-semibold text-slate-900 bg-white"
-                />
+                <div className="text-[11px] text-blue-700 flex flex-wrap gap-x-3 gap-y-1">
+                  <span>근무일: {breakdown.planned_working_days}일</span>
+                  <span>주말휴무: {breakdown.excluded_weekly_off_days}일</span>
+                  <span>공휴일: {breakdown.excluded_public_holiday_days}일</span>
+                  {breakdown.excluded_leave_days > 0 && <span>개인휴가: {breakdown.excluded_leave_days}일</span>}
+                </div>
               </div>
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">
-                  {lang === 'vi' ? 'Ngày kết thúc' : '종료일'} *
-                </label>
-                <input
-                  type="date"
-                  data-testid="task-end-date-input"
-                  value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
-                  required
-                  className="w-full h-10 px-3 rounded-lg border border-slate-300 font-semibold text-slate-900 bg-white"
-                />
-              </div>
+            )}
+          </div>
+
+          {/* Persistent Error Banner */}
+          {saveError && (
+            <div
+              data-testid="task-save-error"
+              className="shrink-0 px-6 py-2.5 bg-red-50 border-t border-red-200 text-red-700 text-xs font-bold flex items-center gap-2"
+            >
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              <span>{saveError.message}</span>
             </div>
           )}
 
-          {/* Working Days Summary */}
-          {scheduleStatus === 'SCHEDULED' && startDate && endDate && (
-            <div className="p-3 bg-blue-50/70 border border-blue-200 rounded-xl text-blue-900 space-y-1">
-              <div className="flex items-center justify-between font-bold text-xs">
-                <span>{lang === 'vi' ? 'Số ngày làm việc dự kiến (PIC):' : '주 담당자(PIC) 기준 근무일수:'}</span>
-                <span className="text-sm font-extrabold text-blue-700">{breakdown.planned_working_days}일</span>
-              </div>
-              <div className="text-[11px] text-blue-700 flex flex-wrap gap-x-3 gap-y-1">
-                <span>근무일: {breakdown.planned_working_days}일</span>
-                <span>주말휴무: {breakdown.excluded_weekly_off_days}일</span>
-                <span>공휴일: {breakdown.excluded_public_holiday_days}일</span>
-                {breakdown.excluded_leave_days > 0 && <span>개인휴가: {breakdown.excluded_leave_days}일</span>}
-              </div>
-            </div>
-          )}
-
-          {/* Modal Actions */}
-          <div className="flex items-center justify-end gap-3 pt-2 border-t border-slate-200">
+          {/* Persistent Footer */}
+          <footer
+            data-testid="task-modal-footer"
+            className="shrink-0 px-6 py-3.5 bg-white border-t border-slate-200 flex items-center justify-end gap-3"
+          >
             <button
               type="button"
               data-testid="task-cancel-btn"
@@ -679,7 +691,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
                 <span>{lang === 'vi' ? 'Lưu' : '저장'}</span>
               )}
             </button>
-          </div>
+          </footer>
         </form>
       </div>
     </div>

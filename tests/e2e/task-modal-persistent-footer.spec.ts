@@ -1,0 +1,241 @@
+// tests/e2e/task-modal-persistent-footer.spec.ts
+import { test, expect } from '@playwright/test';
+import * as fs from 'fs';
+import * as path from 'path';
+
+test.describe('P0 Task & Workforce Modal Persistent Action Footer Suite', () => {
+  const BASE_URL = process.env.PLAYWRIGHT_TEST_BASE_URL || 'https://concost-dev-scheduler-qa.eumditravel.workers.dev';
+
+  const VIEWPORTS = [
+    { width: 900, height: 600 },
+    { width: 900, height: 700 },
+    { width: 1024, height: 600 },
+    { width: 1024, height: 768 },
+    { width: 1100, height: 650 },
+    { width: 1280, height: 720 },
+    { width: 1366, height: 768 },
+    { width: 1536, height: 864 },
+    { width: 1920, height: 1080 },
+  ];
+
+  test.beforeAll(() => {
+    const dir = path.join(process.cwd(), 'qa', 'modal');
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+  });
+
+  test.beforeEach(async ({ page }) => {
+    await page.goto(`${BASE_URL}/projects`);
+    await page.evaluate(() => {
+      localStorage.setItem('schedule_current_worker_id', 'wrk_02');
+      localStorage.setItem('schedule_current_worker_name', '박용진 수석');
+    });
+    await page.reload();
+    await page.waitForLoadState('networkidle');
+  });
+
+  for (const vp of VIEWPORTS) {
+    test(`Verify Task Add Modal persistent footer at ${vp.width}x${vp.height}`, async ({ page }) => {
+      await page.setViewportSize(vp);
+      await page.goto(`${BASE_URL}/projects`);
+
+      const firstProjectLink = page.locator('a[href^="/projects/"]').first();
+      await expect(firstProjectLink).toBeVisible();
+      await firstProjectLink.click();
+
+      await page.waitForSelector('[data-testid="project-detail-page"]');
+
+      // Click Add Task button
+      const addTaskBtn = page.locator('[data-testid="add-task-btn"]');
+      await expect(addTaskBtn).toBeVisible();
+      await addTaskBtn.click();
+
+      const modal = page.locator('[data-testid="task-modal"]');
+      await expect(modal).toBeVisible();
+
+      // Verify initial scrollTop is strictly 0 without any user scroll
+      const scrollTop = await page.$eval('[data-testid="task-modal-scroll-body"]', (el) => el.scrollTop);
+      expect(scrollTop).toBe(0);
+
+      // Measure Save & Cancel Button Visibility without scrolling
+      const saveBtn = page.locator('[data-testid="task-save-btn"]');
+      const cancelBtn = page.locator('[data-testid="task-cancel-btn"]');
+
+      await expect(saveBtn).toBeVisible();
+      await expect(cancelBtn).toBeVisible();
+
+      const saveBox = await saveBtn.boundingBox();
+      const cancelBox = await cancelBtn.boundingBox();
+
+      expect(saveBox).not.toBeNull();
+      expect(cancelBox).not.toBeNull();
+
+      if (saveBox && cancelBox) {
+        expect(saveBox.top).toBeGreaterThanOrEqual(0);
+        expect(saveBox.bottom).toBeLessThanOrEqual(vp.height);
+
+        expect(cancelBox.top).toBeGreaterThanOrEqual(0);
+        expect(cancelBox.bottom).toBeLessThanOrEqual(vp.height);
+      }
+
+      // Check modal container geometry alignment
+      const modalBox = await modal.boundingBox();
+      const footer = page.locator('[data-testid="task-modal-footer"]');
+      const footerBox = await footer.boundingBox();
+
+      if (modalBox && footerBox) {
+        expect(footerBox.bottom).toBeLessThanOrEqual(modalBox.bottom + 1.0);
+        expect(footerBox.top).toBeGreaterThanOrEqual(modalBox.top);
+      }
+
+      // Capture screenshot for specific resolutions
+      if (vp.width === 1024 && vp.height === 600) {
+        await page.screenshot({ path: path.join(process.cwd(), 'qa', 'modal', 'task-add-v2-1024x600.png') });
+      }
+
+      await cancelBtn.click();
+    });
+
+    test(`Verify Task Edit Modal persistent footer at ${vp.width}x${vp.height}`, async ({ page }) => {
+      await page.setViewportSize(vp);
+      await page.goto(`${BASE_URL}/projects`);
+
+      const firstProjectLink = page.locator('a[href^="/projects/"]').first();
+      await expect(firstProjectLink).toBeVisible();
+      await firstProjectLink.click();
+
+      await page.waitForSelector('[data-testid="project-detail-page"]');
+
+      // Edit first task
+      const editBtn = page.locator('[data-testid^="task-edit-btn-"]').first();
+      await expect(editBtn).toBeVisible();
+      await editBtn.click();
+
+      const modal = page.locator('[data-testid="task-modal"]');
+      await expect(modal).toBeVisible();
+
+      // Verify initial scrollTop is strictly 0
+      const scrollTop = await page.$eval('[data-testid="task-modal-scroll-body"]', (el) => el.scrollTop);
+      expect(scrollTop).toBe(0);
+
+      // Measure Save & Cancel Button Visibility without scrolling
+      const saveBtn = page.locator('[data-testid="task-save-btn"]');
+      const cancelBtn = page.locator('[data-testid="task-cancel-btn"]');
+
+      await expect(saveBtn).toBeVisible();
+      await expect(cancelBtn).toBeVisible();
+
+      const saveBox = await saveBtn.boundingBox();
+      const cancelBox = await cancelBtn.boundingBox();
+
+      expect(saveBox).not.toBeNull();
+      expect(cancelBox).not.toBeNull();
+
+      if (saveBox && cancelBox) {
+        expect(saveBox.top).toBeGreaterThanOrEqual(0);
+        expect(saveBox.bottom).toBeLessThanOrEqual(vp.height);
+
+        expect(cancelBox.top).toBeGreaterThanOrEqual(0);
+        expect(cancelBox.bottom).toBeLessThanOrEqual(vp.height);
+      }
+
+      // Capture screenshot for specific resolutions
+      if (vp.width === 1024 && vp.height === 600) {
+        await page.screenshot({ path: path.join(process.cwd(), 'qa', 'modal', 'task-edit-v2-1024x600.png') });
+      }
+      if (vp.width === 1366 && vp.height === 768) {
+        await page.screenshot({ path: path.join(process.cwd(), 'qa', 'modal', 'task-edit-v2-1366x768.png') });
+      }
+
+      await cancelBtn.click();
+    });
+  }
+
+  test('Verify Footer Y stability during body scrolling (0%, 25%, 50%, 75%, 100%)', async ({ page }) => {
+    await page.setViewportSize({ width: 1024, height: 600 });
+    await page.goto(`${BASE_URL}/projects`);
+
+    const firstProjectLink = page.locator('a[href^="/projects/"]').first();
+    await firstProjectLink.click();
+
+    await page.waitForSelector('[data-testid="project-detail-page"]');
+
+    const addTaskBtn = page.locator('[data-testid="add-task-btn"]');
+    await addTaskBtn.click();
+
+    const modal = page.locator('[data-testid="task-modal"]');
+    await expect(modal).toBeVisible();
+
+    const footer = page.locator('[data-testid="task-modal-footer"]');
+    const scrollBody = page.locator('[data-testid="task-modal-scroll-body"]');
+
+    const initialFooterBox = await footer.boundingBox();
+    expect(initialFooterBox).not.toBeNull();
+
+    const initialY = initialFooterBox!.y;
+
+    // Scroll to 25%, 50%, 75%, 100%
+    const scrollHeights = [0, 0.25, 0.5, 0.75, 1.0];
+
+    for (const ratio of scrollHeights) {
+      await scrollBody.evaluate((el, r) => {
+        el.scrollTop = (el.scrollHeight - el.clientHeight) * r;
+      }, ratio);
+
+      await page.waitForTimeout(100);
+
+      const currentFooterBox = await footer.boundingBox();
+      expect(currentFooterBox).not.toBeNull();
+
+      const diffY = Math.abs(currentFooterBox!.y - initialY);
+      expect(diffY).toBeLessThanOrEqual(0.5);
+    }
+
+    const cancelBtn = page.locator('[data-testid="task-cancel-btn"]');
+    await cancelBtn.click();
+  });
+
+  test('Verify ProjectWorkforceModal persistent footer with multi-worker allocations', async ({ page }) => {
+    await page.setViewportSize({ width: 1024, height: 600 });
+    await page.goto(`${BASE_URL}/projects`);
+
+    const firstProjectLink = page.locator('a[href^="/projects/"]').first();
+    await firstProjectLink.click();
+
+    await page.waitForSelector('[data-testid="project-detail-page"]');
+
+    const workforceBtn = page.locator('[data-testid="project-workforce-btn"]');
+    await expect(workforceBtn).toBeVisible();
+    await workforceBtn.click();
+
+    const modal = page.locator('[data-testid="project-workforce-modal"]');
+    await expect(modal).toBeVisible();
+
+    // Verify initial scrollTop is 0
+    const scrollTop = await page.$eval('[data-testid="project-workforce-scroll-body"]', (el) => el.scrollTop);
+    expect(scrollTop).toBe(0);
+
+    const saveBtn = page.locator('[data-testid="project-workforce-save-btn"]');
+    const cancelBtn = page.locator('[data-testid="project-workforce-cancel-btn"]');
+
+    await expect(saveBtn).toBeVisible();
+    await expect(cancelBtn).toBeVisible();
+
+    const saveBox = await saveBtn.boundingBox();
+    const cancelBox = await cancelBtn.boundingBox();
+
+    expect(saveBox).not.toBeNull();
+    expect(cancelBox).not.toBeNull();
+
+    if (saveBox && cancelBox) {
+      expect(saveBox.top).toBeGreaterThanOrEqual(0);
+      expect(saveBox.bottom).toBeLessThanOrEqual(600);
+
+      expect(cancelBox.top).toBeGreaterThanOrEqual(0);
+      expect(cancelBox.bottom).toBeLessThanOrEqual(600);
+    }
+
+    await cancelBtn.click();
+  });
+});
