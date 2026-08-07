@@ -44,9 +44,9 @@ export async function getTodayDashboardSummaryServer(
     .all();
   const activeTasks: any[] = tasksRes.results || [];
 
-  // Fetch daily status for businessDate
+  // Fetch daily status for businessDate (table name is daily_status)
   const dailyRes = await db
-    .prepare(`SELECT task_id, status FROM task_daily_status WHERE work_date = ?`)
+    .prepare(`SELECT task_id, status FROM daily_status WHERE work_date = ?`)
     .bind(businessDate)
     .all();
   const dailyStatusMap = new Map<string, string>();
