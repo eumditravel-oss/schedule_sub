@@ -11,9 +11,9 @@ export async function getTodayDashboardSummaryServer(
   db: any,
   businessDate: string
 ): Promise<TodaySummaryResult> {
-  // Fetch active projects
+  // Fetch active projects (column is 'status')
   const activePrjRes = await db
-    .prepare(`SELECT id, status, schedule_state FROM projects WHERE status = 'ACTIVE'`)
+    .prepare(`SELECT id, status FROM projects WHERE status = 'ACTIVE'`)
     .all();
   const activeProjects: any[] = activePrjRes.results || [];
   const activeProjectMap = new Map<string, any>();
@@ -29,11 +29,11 @@ export async function getTodayDashboardSummaryServer(
     };
   }
 
-  // Fetch active scheduled tasks (Note: tasks table column is 'progress', NOT 'actual_progress')
+  // Fetch active scheduled tasks
   const tasksRes = await db
     .prepare(
       `SELECT t.id, t.project_id, t.task_name, t.start_date, t.end_date, t.progress,
-              t.completion_confirmed, t.schedule_status, t.schedule_state, t.progress_mode
+              t.completion_confirmed, t.schedule_status, t.progress_mode
        FROM tasks t
        JOIN projects p ON t.project_id = p.id
        WHERE p.status = 'ACTIVE'
@@ -61,7 +61,6 @@ export async function getTodayDashboardSummaryServer(
 
   activeTasks.forEach((t) => {
     const isScheduledToday = t.start_date <= businessDate && businessDate <= t.end_date;
-    const prj = activeProjectMap.get(t.project_id);
 
     // 1. Scheduled Today
     if (isScheduledToday) {
@@ -74,8 +73,6 @@ export async function getTodayDashboardSummaryServer(
     const isInProgressState =
       ds === 'IN_PROGRESS' ||
       (prog > 0 && prog < 100) ||
-      t.schedule_state === 'IN_PROGRESS' ||
-      (prj && prj.schedule_state === 'IN_PROGRESS' && isScheduledToday && prog < 100) ||
       (isScheduledToday && Number(t.completion_confirmed) !== 1);
 
     if (isScheduledToday && isInProgressState && Number(t.completion_confirmed) !== 1) {
