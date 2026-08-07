@@ -9,6 +9,7 @@ import { TaskMoveModal } from '../components/modals/TaskMoveModal';
 import { api, getCurrentWorkerId, setCurrentWorker as setCurrentWorkerApi } from '../services/api';
 import { calculateVisibleGanttSpan } from '../utils/dateUtils';
 import { resolveWorkDayStatus, getCountryOffState } from '../utils/workCalendar';
+import { getCalendarVisualStyle, CalendarVisualState, buildCalendarHatchPattern } from '../utils/calendarVisualTokens';
 import { useGanttDateRange } from '../hooks/useGanttDateRange';
 import { useGanttGeometry } from '../hooks/useGanttGeometry';
 import { useResponsiveLayout } from '../hooks/useResponsiveLayout';
@@ -2062,10 +2063,9 @@ export const ProjectDetailPage: React.FC = () => {
                 >
                     {dateColumns.map((col, idx) => {
                       const offInfo = getCountryOffState(col.dateStr, calendarOverrides, countryHolidays);
-                      let bgStyle = 'bg-white text-slate-700 border-slate-200';
-                      if (offInfo.state === 'BOTH_OFF') bgStyle = 'bg-rose-100 text-rose-900 border-rose-300 font-semibold';
-                      else if (offInfo.state === 'KR_ONLY_OFF') bgStyle = 'bg-orange-50 text-orange-900 border-orange-200 font-medium';
-                      else if (offInfo.state === 'VN_ONLY_OFF') bgStyle = 'bg-amber-50 text-amber-900 border-amber-200 font-medium';
+                      const token = getCalendarVisualStyle(offInfo.state === 'BOTH_WORK' ? 'WORKDAY' : (offInfo.state as CalendarVisualState));
+                      const pattern = buildCalendarHatchPattern(token, 0.60);
+                      const headerHatchStyle: React.CSSProperties = pattern ? { backgroundImage: pattern } : {};
 
                       const todayStyle = col.isToday ? 'shadow-[inset_0_2px_0_rgba(59,130,246,0.9)] text-blue-700 font-extrabold' : '';
 
@@ -2083,19 +2083,26 @@ export const ProjectDetailPage: React.FC = () => {
                           data-testid={`gantt-date-header-${col.dateStr}`}
                           data-date={col.dateStr}
                           data-country-off-state={offInfo.state}
+                          data-calendar-surface="HEADER"
+                          data-calendar-visual-state={token.visualState}
+                          data-calendar-hatch-type={token.hatch.type}
+                          data-calendar-hatch-angle={token.hatch.angle}
                           aria-label={ariaText}
                           onClick={() => setHeaderInfoState({ isOpen: true, dateStr: col.dateStr, dayName: col.dayName })}
                           style={{ boxSizing: 'border-box' }}
-                          className={`relative text-center p-0 border-r border-slate-200 text-[11px] font-medium cursor-pointer transition select-none flex flex-col items-center justify-center h-full ${bgStyle} ${todayStyle}`}
+                          className={`relative text-center p-0 border-r text-[11px] font-medium cursor-pointer transition select-none flex flex-col items-center justify-center h-full overflow-hidden ${token.headerClass} ${todayStyle}`}
                         >
+                          {pattern && (
+                            <div className="absolute inset-0 pointer-events-none opacity-100" style={headerHatchStyle} />
+                          )}
                           {hasHoliday && (
                             <div
-                              className={`absolute top-0 left-0 right-0 h-[2px] ${
+                              className={`absolute top-0 left-0 right-0 h-[2px] z-10 ${
                                 offInfo.krHolidayName && offInfo.vnHolidayName
                                   ? 'bg-rose-600'
                                   : offInfo.krHolidayName
                                   ? 'bg-orange-500'
-                                  : 'bg-amber-500'
+                                  : 'bg-sky-500'
                               }`}
                             />
                           )}

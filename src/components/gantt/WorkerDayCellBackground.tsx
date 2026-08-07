@@ -2,7 +2,7 @@
 import React from 'react';
 import { Worker, WorkDayStatus, CountryHoliday, CalendarOverride, TaskAssignee, AvailabilityPolicy } from '../../types';
 import { CountryOffState, resolveWorkDayStatus } from '../../utils/workCalendar';
-import { resolveCalendarVisualState, CalendarVisualToken } from '../../utils/calendarVisualTokens';
+import { resolveCalendarVisualState, CalendarVisualToken, buildCalendarHatchPattern } from '../../utils/calendarVisualTokens';
 
 interface WorkerDayCellBackgroundProps {
   dateStr: string;
@@ -64,7 +64,6 @@ export const WorkerDayCellBackground: React.FC<WorkerDayCellBackgroundProps> = (
   let validAssigneesCount = 1;
   let profileErrorCount = 0;
   let hasVacation = false;
-  let hasManualOff = false;
   let offCount = 0;
   let offReasonText = '';
 
@@ -101,9 +100,6 @@ export const WorkerDayCellBackground: React.FC<WorkerDayCellBackgroundProps> = (
       if (offResolutions.some((r) => r.status!.day_type === 'LEAVE')) {
         hasVacation = true;
       }
-      if (offResolutions.some((r) => r.status!.day_type === 'MANUAL_OFF')) {
-        hasManualOff = true;
-      }
 
       if (workingCount === totalAssignees) {
         partialState = 'ALL_WORKING';
@@ -117,9 +113,9 @@ export const WorkerDayCellBackground: React.FC<WorkerDayCellBackgroundProps> = (
         offReasonText = `담당자 ${totalAssignees}명 중 ${offCount}명 휴무 (${offDetails})`;
       }
 
-      // Explicit visual reason priority: LEAVE > MANUAL_OFF > PUBLIC_HOLIDAY > WEEKLY_OFF
+      // Explicit visual reason priority: LEAVE > PUBLIC_HOLIDAY > COUNTRY_OFF > WEEKLY_OFF
       if (offResolutions.length > 0) {
-        const priorityOrder: WorkDayStatus['day_type'][] = ['LEAVE', 'MANUAL_OFF', 'PUBLIC_HOLIDAY', 'WEEKLY_OFF'];
+        const priorityOrder: WorkDayStatus['day_type'][] = ['LEAVE', 'PUBLIC_HOLIDAY', 'COUNTRY_OFF', 'WEEKLY_OFF'];
         let picked = offResolutions[0];
         for (const type of priorityOrder) {
           const found = offResolutions.find((r) => r.status!.day_type === type);
@@ -160,9 +156,6 @@ export const WorkerDayCellBackground: React.FC<WorkerDayCellBackgroundProps> = (
       if (st?.day_type === 'LEAVE') {
         hasVacation = true;
       }
-      if (st?.day_type === 'MANUAL_OFF') {
-        hasManualOff = true;
-      }
       overallToken = resolveCalendarVisualState(
         dateStr,
         singleWorkerObj,
@@ -185,12 +178,13 @@ export const WorkerDayCellBackground: React.FC<WorkerDayCellBackgroundProps> = (
     : partialState !== 'ALL_OFF';
 
   let hatchPatternStyle: React.CSSProperties | undefined;
-  if (partialState !== 'ALL_WORKING' && partialState !== 'PROFILE_ERROR' && overallToken.hatchColor) {
-    const hatchColor = overallToken.hatchColor;
-    hatchPatternStyle = {
-      backgroundImage: `repeating-linear-gradient(135deg, ${hatchColor} 0px, ${hatchColor} 3px, transparent 3px, transparent 10px)`,
-      opacity: 1.0,
-    };
+  if (partialState !== 'ALL_WORKING' && partialState !== 'PROFILE_ERROR' && overallToken.hatch.enabled) {
+    const pattern = buildCalendarHatchPattern(overallToken, 0.65);
+    if (pattern) {
+      hatchPatternStyle = {
+        backgroundImage: pattern,
+      };
+    }
   }
 
   const ariaLabel = `${dateStr} - ${offReasonText}`;
@@ -205,6 +199,10 @@ export const WorkerDayCellBackground: React.FC<WorkerDayCellBackgroundProps> = (
     <div
       data-task-id={taskId}
       data-date={dateStr}
+      data-calendar-surface="TASK"
+      data-calendar-visual-state={overallToken.visualState}
+      data-calendar-hatch-type={overallToken.hatch.type}
+      data-calendar-hatch-angle={overallToken.hatch.angle}
       data-worker-day-type={dayStatus?.day_type || 'WORKDAY'}
       data-worker-visual-state={overallToken.visualState}
       data-total-assignee-count={totalAssignees}
@@ -224,18 +222,22 @@ export const WorkerDayCellBackground: React.FC<WorkerDayCellBackgroundProps> = (
       {/* Layer 0: Base Cell Content / Background */}
       <div className="absolute inset-0 z-0 h-full w-full" />
 
-      {/* Layer 10: ScheduleBar & Cell Inner Children */}
-      <div className="relative z-10 h-full w-full">{children}</div>
-
-      {/* Layer 20: Subtle Hatch Pattern Overlay (pointer-events-none, z-20) */}
+      {/* Layer 10: Hatch Pattern Overlay (pointer-events-none, z-10) */}
       {hatchPatternStyle && (
         <div
           data-testid={hatchTestId}
           data-assignee-availability={partialState}
+          data-calendar-surface="TASK"
+          data-calendar-visual-state={overallToken.visualState}
+          data-calendar-hatch-type={overallToken.hatch.type}
+          data-calendar-hatch-angle={overallToken.hatch.angle}
           style={{ ...hatchPatternStyle, width: `${offWidthPercent}%` }}
-          className="absolute top-0 bottom-0 left-0 z-20 pointer-events-none"
+          className="absolute top-0 bottom-0 left-0 z-10 pointer-events-none"
         />
       )}
+
+      {/* Layer 20: ScheduleBar & Cell Inner Children (z-20 so ScheduleBar is ABOVE Hatch Overlay!) */}
+      <div className="relative z-20 h-full w-full">{children}</div>
 
       {/* Partial Off / Vacation Badge Indicator (Shown ONLY within task schedule range when no profile error) */}
       {partialState === 'PARTIAL_OFF' && inRange && (
@@ -246,7 +248,7 @@ export const WorkerDayCellBackground: React.FC<WorkerDayCellBackgroundProps> = (
             hasVacation ? 'bg-purple-600 text-white' : 'bg-amber-500 text-white'
           }`}
         >
-          {offCount}/{totalAssignees}{hasVacation ? ' 휴가' : hasManualOff ? ' 수동휴무' : ' 휴무'}
+          {offCount}/{totalAssignees}{hasVacation ? ' 휴가' : ' 휴무'}
         </div>
       )}
 

@@ -51,13 +51,6 @@ export const CalendarLegend: React.FC<CalendarLegendProps> = ({ isMobileView }) 
       colorClass: `${CALENDAR_VISUAL_TOKENS.PERSONAL_LEAVE.baseClass} border ${CALENDAR_VISUAL_TOKENS.PERSONAL_LEAVE.borderClass} ${CALENDAR_VISUAL_TOKENS.PERSONAL_LEAVE.textClass} font-bold`,
     },
     {
-      key: 'off',
-      tokenState: 'MANUAL_OFF',
-      labelKo: '수동 휴무',
-      labelVi: 'Nghỉ thủ công',
-      colorClass: `${CALENDAR_VISUAL_TOKENS.MANUAL_OFF.baseClass} border ${CALENDAR_VISUAL_TOKENS.MANUAL_OFF.borderClass} ${CALENDAR_VISUAL_TOKENS.MANUAL_OFF.textClass} font-bold`,
-    },
-    {
       key: 'work_override',
       tokenState: 'WORK_OVERRIDE',
       labelKo: '근무일 지정',
@@ -122,6 +115,10 @@ export const CalendarLegend: React.FC<CalendarLegendProps> = ({ isMobileView }) 
                     <div
                       key={item.key}
                       data-testid={`legend-item-${item.key}`}
+                      data-calendar-surface="LEGEND"
+                      data-calendar-visual-state={token?.visualState || 'WORKDAY'}
+                      data-calendar-hatch-type={token?.hatch.type || 'none'}
+                      data-calendar-hatch-angle={token?.hatch.angle || 0}
                       className={`p-2 rounded-lg flex items-center gap-2 relative overflow-hidden ${item.colorClass}`}
                     >
                       {hatchStyle && (
@@ -171,6 +168,10 @@ export const CalendarLegend: React.FC<CalendarLegendProps> = ({ isMobileView }) 
             <div
               key={item.key}
               data-testid={`legend-item-${item.key}`}
+              data-calendar-surface="LEGEND"
+              data-calendar-visual-state={token?.visualState || 'WORKDAY'}
+              data-calendar-hatch-type={token?.hatch.type || 'none'}
+              data-calendar-hatch-angle={token?.hatch.angle || 0}
               className={`px-2 py-0.5 rounded-md flex items-center gap-1 text-[11px] relative overflow-hidden select-none ${item.colorClass}`}
             >
               {hatchStyle && (

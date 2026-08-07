@@ -8,7 +8,6 @@ export type CalendarVisualState =
   | 'KR_ONLY_OFF'
   | 'VN_ONLY_OFF'
   | 'PERSONAL_LEAVE'
-  | 'MANUAL_OFF'
   | 'WORK_OVERRIDE'
   | 'WORKDAY';
 
@@ -49,7 +48,7 @@ export const CALENDAR_VISUAL_TOKENS: Record<CalendarVisualState, CalendarVisualT
     baseColor: '#FFF1F2',
     accentColor: '#E11D48',
     textColor: '#881337',
-    hatchColor: 'rgba(225, 29, 72, 0.24)',
+    hatchColor: 'rgba(225, 29, 72, 0.20)',
     hatch: {
       enabled: true,
       type: 'cross',
@@ -57,9 +56,9 @@ export const CALENDAR_VISUAL_TOKENS: Record<CalendarVisualState, CalendarVisualT
       stripePx: 3,
       gapPx: 8,
       color: '#E11D48',
-      alpha: 0.24,
+      alpha: 0.20,
       pattern:
-        'repeating-linear-gradient(45deg, rgba(225, 29, 72, 0.24) 0px, rgba(225, 29, 72, 0.24) 3px, transparent 3px, transparent 11px), repeating-linear-gradient(135deg, rgba(225, 29, 72, 0.24) 0px, rgba(225, 29, 72, 0.24) 3px, transparent 3px, transparent 11px)',
+        'repeating-linear-gradient(45deg, rgba(225, 29, 72, 0.20) 0px, rgba(225, 29, 72, 0.20) 3px, transparent 3px, transparent 11px), repeating-linear-gradient(135deg, rgba(225, 29, 72, 0.20) 0px, rgba(225, 29, 72, 0.20) 3px, transparent 3px, transparent 11px)',
     },
     labelKo: '양국 휴무',
     labelVi: 'Nghỉ cả hai nước',
@@ -74,7 +73,7 @@ export const CALENDAR_VISUAL_TOKENS: Record<CalendarVisualState, CalendarVisualT
     baseColor: '#FFF7ED',
     accentColor: '#F97316',
     textColor: '#7C2D12',
-    hatchColor: 'rgba(249, 115, 22, 0.24)',
+    hatchColor: 'rgba(249, 115, 22, 0.22)',
     hatch: {
       enabled: true,
       type: 'single',
@@ -82,9 +81,9 @@ export const CALENDAR_VISUAL_TOKENS: Record<CalendarVisualState, CalendarVisualT
       stripePx: 3,
       gapPx: 8,
       color: '#F97316',
-      alpha: 0.24,
+      alpha: 0.22,
       pattern:
-        'repeating-linear-gradient(135deg, rgba(249, 115, 22, 0.24) 0px, rgba(249, 115, 22, 0.24) 3px, transparent 3px, transparent 11px)',
+        'repeating-linear-gradient(135deg, rgba(249, 115, 22, 0.22) 0px, rgba(249, 115, 22, 0.22) 3px, transparent 3px, transparent 11px)',
     },
     labelKo: '한국만 휴무',
     labelVi: 'Chỉ Hàn Quốc nghỉ',
@@ -99,7 +98,7 @@ export const CALENDAR_VISUAL_TOKENS: Record<CalendarVisualState, CalendarVisualT
     baseColor: '#F0F9FF',
     accentColor: '#0284C7',
     textColor: '#0C4A6E',
-    hatchColor: 'rgba(2, 132, 199, 0.24)',
+    hatchColor: 'rgba(2, 132, 199, 0.22)',
     hatch: {
       enabled: true,
       type: 'single',
@@ -107,9 +106,9 @@ export const CALENDAR_VISUAL_TOKENS: Record<CalendarVisualState, CalendarVisualT
       stripePx: 3,
       gapPx: 8,
       color: '#0284C7',
-      alpha: 0.24,
+      alpha: 0.22,
       pattern:
-        'repeating-linear-gradient(45deg, rgba(2, 132, 199, 0.24) 0px, rgba(2, 132, 199, 0.24) 3px, transparent 3px, transparent 11px)',
+        'repeating-linear-gradient(45deg, rgba(2, 132, 199, 0.22) 0px, rgba(2, 132, 199, 0.22) 3px, transparent 3px, transparent 11px)',
     },
     labelKo: '베트남만 휴무',
     labelVi: 'Chỉ Việt Nam nghỉ',
@@ -124,7 +123,7 @@ export const CALENDAR_VISUAL_TOKENS: Record<CalendarVisualState, CalendarVisualT
     baseColor: '#F5F3FF',
     accentColor: '#7C3AED',
     textColor: '#4C1D95',
-    hatchColor: 'rgba(124, 58, 237, 0.24)',
+    hatchColor: 'rgba(124, 58, 237, 0.22)',
     hatch: {
       enabled: true,
       type: 'single',
@@ -132,38 +131,13 @@ export const CALENDAR_VISUAL_TOKENS: Record<CalendarVisualState, CalendarVisualT
       stripePx: 3,
       gapPx: 11,
       color: '#7C3AED',
-      alpha: 0.24,
+      alpha: 0.22,
       pattern:
-        'repeating-linear-gradient(135deg, rgba(124, 58, 237, 0.24) 0px, rgba(124, 58, 237, 0.24) 3px, transparent 3px, transparent 14px)',
+        'repeating-linear-gradient(135deg, rgba(124, 58, 237, 0.22) 0px, rgba(124, 58, 237, 0.22) 3px, transparent 3px, transparent 14px)',
     },
     labelKo: '개인 휴가',
     labelVi: 'Nghỉ phép cá nhân',
     label: '개인 휴가',
-  },
-  MANUAL_OFF: {
-    visualState: 'MANUAL_OFF',
-    baseClass: 'bg-slate-50',
-    headerClass: 'bg-slate-50 border-slate-300 text-slate-900 font-bold',
-    borderClass: 'border-slate-300',
-    textClass: 'text-slate-900',
-    baseColor: '#F8FAFC',
-    accentColor: '#475569',
-    textColor: '#0F172A',
-    hatchColor: 'rgba(71, 85, 105, 0.22)',
-    hatch: {
-      enabled: true,
-      type: 'vertical',
-      angle: 90,
-      stripePx: 2,
-      gapPx: 8,
-      color: '#475569',
-      alpha: 0.22,
-      pattern:
-        'repeating-linear-gradient(90deg, rgba(71, 85, 105, 0.22) 0px, rgba(71, 85, 105, 0.22) 2px, transparent 2px, transparent 10px)',
-    },
-    labelKo: '수동 휴무',
-    labelVi: 'Nghỉ thủ công',
-    label: '수동 휴무',
   },
   WORK_OVERRIDE: {
     visualState: 'WORK_OVERRIDE',
@@ -221,6 +195,47 @@ export const TODAY_OUTLINE_STYLE: React.CSSProperties = {
   pointerEvents: 'none',
 };
 
+/**
+ * Builds a parameterized CSS background pattern string with explicit opacity adjustment.
+ */
+export function buildCalendarHatchPattern(
+  token: CalendarVisualToken,
+  opacityMultiplier: number = 1.0
+): string {
+  if (!token.hatch.enabled || token.hatch.type === 'none') {
+    return '';
+  }
+
+  const alpha = Math.max(0, Math.min(1, token.hatch.alpha * opacityMultiplier));
+  const hex = token.hatch.color;
+
+  // Convert hex color to rgb
+  let r = 0, g = 0, b = 0;
+  if (hex.startsWith('#')) {
+    if (hex.length === 7) {
+      r = parseInt(hex.slice(1, 3), 16);
+      g = parseInt(hex.slice(3, 5), 16);
+      b = parseInt(hex.slice(5, 7), 16);
+    } else if (hex.length === 4) {
+      r = parseInt(hex[1] + hex[1], 16);
+      g = parseInt(hex[2] + hex[2], 16);
+      b = parseInt(hex[3] + hex[3], 16);
+    }
+  }
+
+  const rgbaStr = `rgba(${r}, ${g}, ${b}, ${alpha.toFixed(3)})`;
+  const stripePx = token.hatch.stripePx;
+  const gapPx = token.hatch.gapPx;
+  const totalPx = stripePx + gapPx;
+
+  if (token.hatch.type === 'cross') {
+    return `repeating-linear-gradient(45deg, ${rgbaStr} 0px, ${rgbaStr} ${stripePx}px, transparent ${stripePx}px, transparent ${totalPx}px), repeating-linear-gradient(135deg, ${rgbaStr} 0px, ${rgbaStr} ${stripePx}px, transparent ${stripePx}px, transparent ${totalPx}px)`;
+  }
+
+  const angle = token.hatch.angle;
+  return `repeating-linear-gradient(${angle}deg, ${rgbaStr} 0px, ${rgbaStr} ${stripePx}px, transparent ${stripePx}px, transparent ${totalPx}px)`;
+}
+
 export function resolveCalendarVisualState(
   dateStr: string,
   worker?: Partial<Worker> | null,
@@ -245,22 +260,17 @@ export function resolveCalendarVisualState(
     return CALENDAR_VISUAL_TOKENS.WORK_OVERRIDE;
   }
 
-  // 2. Priority: PERSONAL_LEAVE
-  if (dayType === 'LEAVE') {
+  // 2. Priority: PERSONAL_LEAVE (also maps legacy MANUAL_OFF to PERSONAL_LEAVE for safety)
+  if (dayType === 'LEAVE' || dayType === 'MANUAL_OFF') {
     return CALENDAR_VISUAL_TOKENS.PERSONAL_LEAVE;
   }
 
-  // 3. Priority: Personal MANUAL_OFF
-  if (dayType === 'MANUAL_OFF') {
-    return CALENDAR_VISUAL_TOKENS.MANUAL_OFF;
-  }
-
-  // 4. Working day (no off)
+  // 3. Working day (no off)
   if (isWorking) {
     return CALENDAR_VISUAL_TOKENS.WORKDAY;
   }
 
-  // 5. Non-working day (WEEKLY_OFF / PUBLIC_HOLIDAY / COUNTRY_SATURDAY_OFF) -> Map to Country Off Visual States
+  // 4. Non-working day (COUNTRY_OFF / PUBLIC_HOLIDAY / WEEKLY_OFF) -> Map to Country Off Visual States
   if (offState === 'BOTH_OFF') {
     return CALENDAR_VISUAL_TOKENS.BOTH_OFF;
   }
@@ -285,4 +295,5 @@ export function resolveCalendarVisualState(
 export function getCalendarVisualStyle(state: CalendarVisualState): CalendarVisualToken {
   return CALENDAR_VISUAL_TOKENS[state] || CALENDAR_VISUAL_TOKENS.WORKDAY;
 }
+
 

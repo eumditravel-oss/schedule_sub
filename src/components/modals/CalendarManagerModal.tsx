@@ -1265,7 +1265,7 @@ export const CalendarManagerModal: React.FC<CalendarManagerModalProps> = ({
                   : 'border-transparent text-slate-500 hover:text-slate-800'
               }`}
             >
-              {lang === 'vi' ? 'Nghỉ phép cá nhân' : '개인 휴가·휴무'}
+              {lang === 'vi' ? 'Nghỉ phép cá nhân' : '개인 휴가'}
             </button>
             <button
               type="button"
@@ -1369,7 +1369,7 @@ export const CalendarManagerModal: React.FC<CalendarManagerModalProps> = ({
                 <form onSubmit={handleCreateOverride} className="space-y-4 bg-slate-50 p-4 rounded-xl border border-slate-200">
                   <h3 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
                     <Plus className="w-4 h-4 text-blue-600" />
-                    <span>{lang === 'vi' ? 'Tạo lịch nghỉ / làm việc mới' : '휴가 및 수동 휴무 등록'}</span>
+                    <span>{lang === 'vi' ? 'Tạo lịch nghỉ phép mới' : '개인 휴가 등록'}</span>
                   </h3>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
@@ -1392,7 +1392,6 @@ export const CalendarManagerModal: React.FC<CalendarManagerModalProps> = ({
                         className="w-full h-9 px-3 bg-white border border-slate-300 rounded-lg font-bold text-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-none"
                       >
                         <option value="LEAVE">{lang === 'vi' ? 'Nghỉ phép cá nhân' : '개인 휴가 (LEAVE)'}</option>
-                        <option value="OFF">{lang === 'vi' ? 'Ngày nghỉ thủ công' : '수동 휴무 (OFF)'}</option>
                         <option value="WORK">{lang === 'vi' ? 'Chỉ định ngày làm việc' : '근무일 지정 (WORK)'}</option>
                       </select>
                     </div>

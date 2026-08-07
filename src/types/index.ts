@@ -13,7 +13,15 @@ export type WorkweekProfile = 'MON_FRI' | 'MON_SAT';
 export type HolidaySource = 'KASI' | 'NAGER' | 'MANUAL';
 export type OverrideScopeType = 'COUNTRY' | 'WORKER';
 export type OverrideType = 'WORK' | 'OFF' | 'LEAVE';
-export type DayType = 'WORKDAY' | 'WEEKLY_OFF' | 'PUBLIC_HOLIDAY' | 'MANUAL_OFF' | 'LEAVE' | 'WORK_OVERRIDE';
+export type DayType =
+  | 'WORKDAY'
+  | 'WEEKLY_OFF'
+  | 'PUBLIC_HOLIDAY'
+  | 'COUNTRY_OFF'
+  | 'LEAVE'
+  | 'WORK_OVERRIDE'
+  | 'PROFILE_ERROR'
+  | 'MANUAL_OFF';
 export type AccessRole = 'VIEWER' | 'EDITOR';
 export type UiLanguage = 'ko' | 'vi';
 

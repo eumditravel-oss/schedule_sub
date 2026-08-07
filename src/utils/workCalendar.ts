@@ -25,7 +25,7 @@ export function resolveWorkDayStatus(
       worker_id: worker?.id || '',
       worker_name: worker?.name || '',
       country_code: worker?.country_code,
-      day_type: 'MANUAL_OFF',
+      day_type: 'PROFILE_ERROR',
       is_working_day: false,
       label_ko: '작업자 캘린더 정보 오류',
       label_vi: 'Lỗi thông tin lịch làm việc của nhân viên',
@@ -82,10 +82,10 @@ export function resolveWorkDayStatus(
       worker_id: worker.id,
       worker_name: worker.name,
       country_code: countryCode,
-      day_type: 'MANUAL_OFF',
+      day_type: 'LEAVE',
       is_working_day: false,
-      label_ko: workerOverride.label_ko || '수동 휴무',
-      label_vi: workerOverride.label_vi || 'Ngày nghỉ thủ công',
+      label_ko: workerOverride.label_ko || '개인 휴가',
+      label_vi: workerOverride.label_vi || 'Nghỉ phép',
       source: 'MANUAL',
     };
   }
@@ -117,10 +117,10 @@ export function resolveWorkDayStatus(
       worker_id: worker.id,
       worker_name: worker.name,
       country_code: countryCode,
-      day_type: 'MANUAL_OFF',
+      day_type: 'COUNTRY_OFF',
       is_working_day: false,
-      label_ko: countryOverride.label_ko || '공식 임시 휴무',
-      label_vi: countryOverride.label_vi || 'Nghỉ lễ bổ sung',
+      label_ko: countryOverride.label_ko || '국가 휴무',
+      label_vi: countryOverride.label_vi || 'Nghỉ quốc gia',
       source: 'MANUAL',
     };
   }

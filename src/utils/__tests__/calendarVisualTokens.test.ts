@@ -41,17 +41,7 @@ describe('CALENDAR_VISUAL_TOKENS & Unified Hatch System', () => {
     expect(token.hatch.pattern).toContain('14px');
   });
 
-  it('5. MANUAL_OFF: Slate base, Slate accent, 90deg vertical stripe', () => {
-    const token = CALENDAR_VISUAL_TOKENS.MANUAL_OFF;
-    expect(token.baseColor).toBe('#F8FAFC');
-    expect(token.accentColor).toBe('#475569');
-    expect(token.hatch.enabled).toBe(true);
-    expect(token.hatch.type).toBe('vertical');
-    expect(token.hatch.angle).toBe(90);
-    expect(token.hatch.pattern).toContain('90deg');
-  });
-
-  it('6. WORK_OVERRIDE: Emerald base, Emerald accent, Hatch disabled', () => {
+  it('5. WORK_OVERRIDE: Emerald base, Emerald accent, Hatch disabled', () => {
     const token = CALENDAR_VISUAL_TOKENS.WORK_OVERRIDE;
     expect(token.baseColor).toBe('#ECFDF5');
     expect(token.accentColor).toBe('#059669');

@@ -389,8 +389,7 @@ describe('Phase 2 Automated Progress & Worker Conflict Test Suite (Requirement 2
     ];
     const bd = calculateTaskWorkdayBreakdown(krWorker, '2026-05-11', '2026-05-12', [], overrides);
     expect(bd.planned_working_days).toBe(0);
-    expect(bd.excluded_leave_days).toBe(1);
-    expect(bd.excluded_manual_off_days).toBe(1);
+    expect(bd.excluded_leave_days).toBe(2);
   });
 
   // 29. WORK Override Inclusion

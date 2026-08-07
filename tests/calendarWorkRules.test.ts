@@ -118,7 +118,7 @@ describe('Worker Calendar & Holiday Resolution Rules (Requirement 32)', () => {
       { id: 'o3', scope_type: 'WORKER', scope_key: 'wrk_03', work_date: '2026-08-08', override_type: 'OFF', label_ko: '토요 휴무 지정', created_by_name: 'Thanh Phuong(탄 프엉)', updated_by_name: 'Thanh Phuong(탄 프엉)' },
     ];
     const st = resolveWorkDayStatus('2026-08-08', workers[4], [], overrides);
-    expect(st.day_type).toBe('MANUAL_OFF');
+    expect(st.day_type).toBe('LEAVE');
     expect(st.is_working_day).toBe(false);
   });
 
@@ -162,7 +162,7 @@ describe('Worker Calendar & Holiday Resolution Rules (Requirement 32)', () => {
     expect(stLeave.is_working_day).toBe(false);
 
     const stOff = resolveWorkDayStatus('2026-05-08', workers[4], [], [offOvr]);
-    expect(stOff.day_type).toBe('MANUAL_OFF');
+    expect(stOff.day_type).toBe('LEAVE');
     expect(stOff.is_working_day).toBe(false);
 
     const stWork = resolveWorkDayStatus('2026-05-10', workers[3], [], [workOvr]);

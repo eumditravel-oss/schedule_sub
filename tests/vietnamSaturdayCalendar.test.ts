@@ -89,7 +89,7 @@ describe('Vietnam Saturday Calendar & Priority Unit Test Suite', () => {
     for (const w of vnWorkers) {
       const st = resolveWorkDayStatus('2026-08-15', w, [], overrides);
       expect(st.is_working_day, `${w.name} must be OFF on August 15`).toBe(false);
-      expect(st.day_type).toBe('MANUAL_OFF');
+      expect(st.day_type).toBe('COUNTRY_OFF');
     }
   });
 
@@ -144,7 +144,7 @@ describe('Vietnam Saturday Calendar & Priority Unit Test Suite', () => {
     expect(stThanhPhuong.day_type).toBe('WORK_OVERRIDE');
 
     expect(stManhCuong.is_working_day, 'Manh Cuong falls back to Country OFF -> OFF').toBe(false);
-    expect(stManhCuong.day_type).toBe('MANUAL_OFF');
+    expect(stManhCuong.day_type).toBe('COUNTRY_OFF');
   });
 
   it('11. Worker LEAVE override takes priority over Country OFF override', () => {

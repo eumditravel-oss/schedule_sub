@@ -102,7 +102,7 @@ describe('multiAssigneeCalendarResolution & WorkerDayCellBackground', () => {
     expect(html).toContain('data-assignee-availability="PARTIAL_OFF"');
     expect(html).toContain('data-working-count="1"');
     expect(html).toContain('data-off-count="1"');
-    expect(html).toMatch(/1.*\/.*2.*수동휴무/);
+    expect(html).toMatch(/1.*\/.*2.*휴가/);
     expect(html).toContain('data-testid="worker-partial-off-badge"');
   });
 

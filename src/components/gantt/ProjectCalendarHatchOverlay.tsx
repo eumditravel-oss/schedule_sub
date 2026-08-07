@@ -2,7 +2,7 @@ import React from 'react';
 import { CalendarOverride, CountryHoliday } from '../../types';
 import { getCountryOffState } from '../../utils/workCalendar';
 import { GANTT_DAY_WIDTH_PX } from '../../utils/ganttGeometry';
-import { CALENDAR_VISUAL_TOKENS } from '../../utils/calendarVisualTokens';
+import { CALENDAR_VISUAL_TOKENS, buildCalendarHatchPattern } from '../../utils/calendarVisualTokens';
 
 export interface ProjectCalendarHatchOverlayProps {
   projectId: string;
@@ -28,7 +28,7 @@ export const ProjectCalendarHatchOverlay: React.FC<ProjectCalendarHatchOverlayPr
   return (
     <div
       data-testid={`project-calendar-hatch-grid-${projectId}`}
-      className={`absolute inset-0 z-20 grid pointer-events-none select-none ${className}`}
+      className={`absolute inset-0 z-10 grid pointer-events-none select-none ${className}`}
       style={{ gridTemplateColumns: `repeat(${dateColumns.length}, ${dayWidthPx}px)` }}
     >
       {dateColumns.map((col, cIdx) => {
@@ -46,8 +46,9 @@ export const ProjectCalendarHatchOverlay: React.FC<ProjectCalendarHatchOverlayPr
 
         const token = CALENDAR_VISUAL_TOKENS[state as keyof typeof CALENDAR_VISUAL_TOKENS] || CALENDAR_VISUAL_TOKENS.WORKDAY;
         
-        const hatchStyle: React.CSSProperties = token.hatch.enabled
-          ? { backgroundImage: token.hatch.pattern }
+        const pattern = buildCalendarHatchPattern(token, 0.60);
+        const hatchStyle: React.CSSProperties = pattern
+          ? { backgroundImage: pattern }
           : {};
 
         return (
@@ -55,7 +56,11 @@ export const ProjectCalendarHatchOverlay: React.FC<ProjectCalendarHatchOverlayPr
             key={cIdx}
             data-testid={`project-calendar-hatch-${projectId}-${col.dateStr}`}
             data-project-calendar-state={state}
-            className={`w-full h-full transition-opacity ${token.baseClass}`}
+            data-calendar-surface="PROJECT_OVERVIEW"
+            data-calendar-visual-state={state}
+            data-calendar-hatch-type={token.hatch.type}
+            data-calendar-hatch-angle={token.hatch.angle}
+            className="w-full h-full bg-transparent transition-opacity"
             style={hatchStyle}
           />
         );
