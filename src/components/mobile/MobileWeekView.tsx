@@ -253,11 +253,17 @@ export const MobileWeekView: React.FC<MobileWeekViewProps> = ({
                         <WorkerDayCellBackground
                           key={col.dateStr}
                           dateStr={col.dateStr}
+                          taskId={tItem.id}
+                          taskStartDate={tItem.start_date}
+                          taskEndDate={tItem.end_date}
                           worker={workerObj as any}
+                          assignees={tItem.assignees}
+                          availabilityPolicy={tItem.availability_policy}
                           dayStatus={dayStatus}
                           countryOffState={countryOffInfo}
                           countryHolidays={holidays}
                           calendarOverrides={overrides}
+                          workers={workers}
                           isToday={col.isToday}
                           onClick={() => onTaskCellClick?.(tItem, col.dateStr)}
                           className="p-1 cursor-pointer flex items-center justify-center min-h-[36px]"

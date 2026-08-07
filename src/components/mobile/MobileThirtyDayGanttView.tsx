@@ -322,11 +322,17 @@ export const MobileThirtyDayGanttView: React.FC<MobileThirtyDayGanttViewProps> =
                               <WorkerDayCellBackground
                                 key={col.dateStr}
                                 dateStr={col.dateStr}
+                                taskId={tItem.id}
+                                taskStartDate={tItem.start_date}
+                                taskEndDate={tItem.end_date}
                                 worker={workerObj as any}
+                                assignees={tItem.assignees}
+                                availabilityPolicy={tItem.availability_policy}
                                 dayStatus={dayStatus}
                                 countryOffState={countryOffInfo}
                                 countryHolidays={holidays}
                                 calendarOverrides={overrides}
+                                workers={workers}
                                 isToday={col.isToday}
                                 onClick={() => onTaskCellClick?.(tItem, col.dateStr)}
                                 className="w-[30px] min-w-[30px] max-w-[30px] h-full p-0.5 flex items-center justify-center shrink-0 cursor-pointer"
