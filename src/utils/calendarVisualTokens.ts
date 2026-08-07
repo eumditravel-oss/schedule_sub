@@ -281,3 +281,8 @@ export function resolveCalendarVisualState(
 
   return workerCountry === 'VN' ? CALENDAR_VISUAL_TOKENS.VN_ONLY_OFF : CALENDAR_VISUAL_TOKENS.KR_ONLY_OFF;
 }
+
+export function getCalendarVisualStyle(state: CalendarVisualState): CalendarVisualToken {
+  return CALENDAR_VISUAL_TOKENS[state] || CALENDAR_VISUAL_TOKENS.WORKDAY;
+}
+

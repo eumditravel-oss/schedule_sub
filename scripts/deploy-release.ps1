@@ -23,6 +23,21 @@ if ($LASTEXITCODE -ne 0) {
   exit 1
 }
 
+# 3.5 Verify D1 Database Required Schema (Preflight Guard)
+Write-Host "Verifying QA D1 Database Schema Preflight..." -ForegroundColor Yellow
+$qaSchemaCheck = cmd /c "npx wrangler d1 execute concost-db-qa -e qa --remote --command=""PRAGMA table_info(tasks);"""
+if ($qaSchemaCheck -notmatch "schedule_revision") {
+  Write-Error "SCHEMA_MIGRATION_REQUIRED: QA D1 database tasks table is missing required column schedule_revision."
+  exit 1
+}
+
+Write-Host "Verifying Production D1 Database Schema Preflight..." -ForegroundColor Yellow
+$prodSchemaCheck = cmd /c "npx wrangler d1 execute concost-db --remote --command=""PRAGMA table_info(tasks);"""
+if ($prodSchemaCheck -notmatch "schedule_revision") {
+  Write-Error "SCHEMA_MIGRATION_REQUIRED: Production D1 database tasks table is missing required column schedule_revision."
+  exit 1
+}
+
 # 4. Deploy QA Worker
 Write-Host "Deploying QA Worker..." -ForegroundColor Yellow
 cmd /c "npx wrangler deploy -e qa --var BUILD_SHA:$sha --var ENVIRONMENT_NAME:qa --var DEPLOYED_AT:$deployedAt"

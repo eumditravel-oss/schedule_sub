@@ -1,0 +1,15 @@
+{
+  "timestamp": "2026-08-07T01:59:15Z",
+  "environment": "production",
+  "database": "concost-db",
+  "counts": {
+    "projects": 2,
+    "task_groups": 15,
+    "tasks": 35,
+    "task_assignees": 91,
+    "daily_status": 0,
+    "calendar_overrides": 9,
+    "leave_schedule_shift_events": 7,
+    "leave_schedule_shift_task_logs": 11
+  }
+}

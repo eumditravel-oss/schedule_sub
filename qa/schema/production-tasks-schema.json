@@ -1,0 +1,32 @@
+{
+  "timestamp": "2026-08-07T01:59:51Z",
+  "environment": "production",
+  "database": "concost-db",
+  "table": "tasks",
+  "columns": [
+    { "cid": 0, "name": "id", "type": "TEXT", "notnull": 0, "pk": 1 },
+    { "cid": 1, "name": "project_id", "type": "TEXT", "notnull": 1, "pk": 0 },
+    { "cid": 2, "name": "task_group_id", "type": "TEXT", "notnull": 0, "pk": 0 },
+    { "cid": 3, "name": "task_sort_order", "type": "INTEGER", "notnull": 0, "dflt_value": "1", "pk": 0 },
+    { "cid": 4, "name": "worker_name", "type": "TEXT", "notnull": 1, "pk": 0 },
+    { "cid": 5, "name": "primary_worker_id", "type": "TEXT", "notnull": 0, "pk": 0 },
+    { "cid": 6, "name": "task_name", "type": "TEXT", "notnull": 1, "pk": 0 },
+    { "cid": 7, "name": "start_date", "type": "TEXT", "notnull": 0, "pk": 0 },
+    { "cid": 8, "name": "end_date", "type": "TEXT", "notnull": 0, "pk": 0 },
+    { "cid": 9, "name": "progress", "type": "REAL", "notnull": 0, "dflt_value": "0", "pk": 0 },
+    { "cid": 10, "name": "progress_mode", "type": "TEXT", "notnull": 0, "dflt_value": "'AUTO_TIME'", "pk": 0 },
+    { "cid": 11, "name": "availability_policy", "type": "TEXT", "notnull": 0, "dflt_value": "'ANY_AVAILABLE'", "pk": 0 },
+    { "cid": 12, "name": "completion_confirmed", "type": "INTEGER", "notnull": 0, "dflt_value": "0", "pk": 0 },
+    { "cid": 13, "name": "schedule_status", "type": "TEXT", "notnull": 1, "dflt_value": "'SCHEDULED'", "pk": 0 },
+    { "cid": 14, "name": "created_by_name", "type": "TEXT", "notnull": 0, "pk": 0 },
+    { "cid": 15, "name": "updated_by_name", "type": "TEXT", "notnull": 0, "pk": 0 },
+    { "cid": 16, "name": "task_name_ko", "type": "TEXT", "notnull": 0, "pk": 0 },
+    { "cid": 17, "name": "task_name_vi", "type": "TEXT", "notnull": 0, "pk": 0 },
+    { "cid": 18, "name": "source_language", "type": "TEXT", "notnull": 0, "pk": 0 },
+    { "cid": 19, "name": "translation_status", "type": "TEXT", "notnull": 0, "dflt_value": "'PENDING'", "pk": 0 },
+    { "cid": 20, "name": "translation_error", "type": "TEXT", "notnull": 0, "pk": 0 },
+    { "cid": 21, "name": "created_at", "type": "TEXT", "notnull": 0, "dflt_value": "CURRENT_TIMESTAMP", "pk": 0 },
+    { "cid": 22, "name": "updated_at", "type": "TEXT", "notnull": 0, "dflt_value": "CURRENT_TIMESTAMP", "pk": 0 },
+    { "cid": 23, "name": "schedule_revision", "type": "INTEGER", "notnull": 1, "dflt_value": "0", "pk": 0 }
+  ]
+}

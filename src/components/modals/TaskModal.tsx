@@ -58,6 +58,8 @@ export const TaskModal: React.FC<TaskModalProps> = ({
   const [availabilityPolicy, setAvailabilityPolicy] = useState<AvailabilityPolicy>('ANY_AVAILABLE');
   const [selectedToAdd, setSelectedToAdd] = useState<string>('');
 
+  const [saveError, setSaveError] = useState<{ code?: string; message: string } | null>(null);
+
   const targetLang = inputLang === 'ko' ? 'vi' : 'ko';
 
   const {
@@ -84,6 +86,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
   useEffect(() => {
     const src = currentWorker?.ui_language || (task?.source_language as 'ko' | 'vi') || workerLang;
     setInputLang(src);
+    setSaveError(null);
 
     if (task && task.id) {
       setTaskGroupId(task.task_group_id || taskGroups[0]?.id || '');
@@ -159,6 +162,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
 
   const handlePrimaryChange = (newId: string) => {
     setPrimaryWorkerId(newId);
+    setSaveError(null);
     if (!selectedAssigneeIds.includes(newId)) {
       const nextIds = [newId, ...selectedAssigneeIds];
       setSelectedAssigneeIds(nextIds);
@@ -168,6 +172,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
 
   const handleAddAssignee = (workerId: string) => {
     if (!workerId || selectedAssigneeIds.includes(workerId)) return;
+    setSaveError(null);
     const nextIds = [...selectedAssigneeIds, workerId];
     setSelectedAssigneeIds(nextIds);
     setAllocations(handleEqualizeAllocations(nextIds));
@@ -175,8 +180,9 @@ export const TaskModal: React.FC<TaskModalProps> = ({
   };
 
   const handleRemoveAssignee = (workerId: string) => {
+    setSaveError(null);
     if (selectedAssigneeIds.length <= 1) {
-      alert(lang === 'vi' ? 'Phải có ít nhất một người phụ trách.' : '최소 한 명 이상의 담당자가 필요합니다.');
+      setSaveError({ code: 'MIN_ASSIGNEE', message: lang === 'vi' ? 'Phải có ít nhất một người phụ trách.' : '최소 한 명 이상의 담당자가 필요합니다.' });
       return;
     }
     const nextIds = selectedAssigneeIds.filter((id) => id !== workerId);
@@ -188,6 +194,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
   };
 
   const handleAllocationChange = (workerId: string, val: number) => {
+    setSaveError(null);
     setAllocations((prev) => ({
       ...prev,
       [workerId]: val,
@@ -210,6 +217,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
 
   const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setTaskNameInput(e.target.value);
+    setSaveError(null);
   };
 
   const handleTargetTextChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -217,58 +225,62 @@ export const TaskModal: React.FC<TaskModalProps> = ({
     setTargetText(val);
     setManualText(val);
     setManualLock(true);
+    setSaveError(null);
   };
 
   const handleRegenerate = () => {
     setManualLock(false);
     setManualText('');
+    setSaveError(null);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setSaveError(null);
+
     if (!taskNameInput.trim()) {
-      alert(t('taskSaveFailed'));
+      setSaveError({ message: t('taskSaveFailed') });
       return;
     }
     if (!taskGroupId) {
-      alert(lang === 'vi' ? 'Vui lòng chọn nhóm công việc.' : '공정 대분류를 선택하세요.');
+      setSaveError({ message: lang === 'vi' ? 'Vui lòng chọn nhóm công việc.' : '공정 대분류를 선택하세요.' });
       return;
     }
     if (startDate && endDate && endDate < startDate) {
-      alert(lang === 'vi' ? 'Ngày kết thúc phải sau ngày bắt đầu.' : '종료일은 시작일 이후여야 합니다.');
+      setSaveError({ message: lang === 'vi' ? 'Ngày kết thúc phải sau ngày bắt đầu.' : '종료일은 시작일 이후여야 합니다.' });
       return;
     }
 
     if (project) {
       if (startDate < project.start_date || endDate > project.end_date) {
-        alert(lang === 'vi' ? 'Lịch công việc phải nằm trong thời gian của dự án.' : '작업 일정은 프로젝트 기간 안에서만 설정할 수 있습니다.');
+        setSaveError({ message: lang === 'vi' ? 'Lịch công việc phải nằm trong thời gian của dự án.' : '작업 일정은 프로젝트 기간 안에서만 설정할 수 있습니다.' });
         return;
       }
     }
 
     if (selectedAssigneeIds.length === 0) {
-      alert(lang === 'vi' ? 'Phải chọn ít nhất một người phụ trách.' : '최소 1명 이상의 담당자를 배정해야 합니다.');
+      setSaveError({ message: lang === 'vi' ? 'Phải chọn ít nhất một người phụ trách.' : '최소 1명 이상의 담당자를 배정해야 합니다.' });
       return;
     }
 
     if (totalAllocationSum !== 100) {
-      alert(lang === 'vi' ? 'Tổng tỷ lệ phân công phải bằng 100%.' : '담당 비중의 합계는 반드시 100%여야 합니다.');
+      setSaveError({ message: lang === 'vi' ? 'Tổng tỷ lệ phân công phải bằng 100%.' : '담당 비중의 합계는 반드시 100%여야 합니다.' });
       return;
     }
 
     if (scheduleStatus === 'SCHEDULED') {
       if (!startDate || !endDate) {
-        alert(lang === 'vi' ? 'Vui lòng chọn ngày bắt đầu và kết thúc.' : '시작일과 종료일을 입력해 주세요.');
+        setSaveError({ message: lang === 'vi' ? 'Vui lòng chọn ngày bắt đầu và kết thúc.' : '시작일과 종료일을 입력해 주세요.' });
         return;
       }
 
       if (breakdown.has_profile_error) {
-        alert(lang === 'vi' ? 'Không thể xác minh thông tin lịch làm việc của nhân viên.' : '작업자 캘린더 정보를 확인할 수 없습니다.');
+        setSaveError({ message: lang === 'vi' ? 'Không thể xác minh thông tin lịch làm việc của nhân viên.' : '작업자 캘린더 정보를 확인할 수 없습니다.' });
         return;
       }
 
       if (breakdown.planned_working_days === 0) {
-        alert(lang === 'vi' ? 'Không có ngày làm việc thực tế trong khoảng thời gian đã chọn.' : '선택한 기간에 실제 근무 가능한 날짜가 없습니다.');
+        setSaveError({ message: lang === 'vi' ? 'Không có ngày làm việc thực tế trong khoảng thời gian đã chọn.' : '선택한 기간에 실제 근무 가능한 날짜가 없습니다.' });
         return;
       }
     }
@@ -306,10 +318,14 @@ export const TaskModal: React.FC<TaskModalProps> = ({
         payload.task_name_ko = targetText.trim();
       }
 
-      await onSave(payload);
+      const res: any = await onSave(payload);
+      if (res && res.error) {
+        setSaveError({ message: res.error.message || t('taskSaveFailed') });
+        return;
+      }
       onClose();
     } catch (err: any) {
-      alert(err.message || t('taskSaveFailed'));
+      setSaveError({ message: err.message || t('taskSaveFailed') });
     } finally {
       setSaving(false);
     }
@@ -336,6 +352,11 @@ export const TaskModal: React.FC<TaskModalProps> = ({
         </div>
 
         <form onSubmit={handleSubmit} className="p-5 space-y-4 text-xs">
+          {saveError && (
+            <div data-testid="task-save-error" className="p-3 bg-red-50 text-red-700 font-semibold rounded-lg border border-red-200">
+              {saveError.message}
+            </div>
+          )}
           {/* Project Period Notice */}
           {project && (
             <div className="bg-blue-50 border border-blue-200 px-3 py-2 rounded-lg text-blue-700 font-bold text-xs flex items-center gap-1.5">
