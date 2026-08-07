@@ -52,7 +52,7 @@ export const IntegrationManagerModal: React.FC<IntegrationManagerModalProps> = (
     try {
       setLoading(true);
       const res = await fetch('/api/admin/integration-keys', {
-        headers: { 'x-editor-name': encodeURIComponent(currentWorker?.name || '') },
+        headers: { 'x-editor-name': encodeURIComponent(currentWorker?.id || currentWorker?.name || '') },
       });
       if (res.ok) {
         const data: any = await res.json();
@@ -68,7 +68,7 @@ export const IntegrationManagerModal: React.FC<IntegrationManagerModalProps> = (
   const fetchLogs = async () => {
     try {
       const res = await fetch('/api/admin/integration-logs', {
-        headers: { 'x-editor-name': encodeURIComponent(currentWorker?.name || '') },
+        headers: { 'x-editor-name': encodeURIComponent(currentWorker?.id || currentWorker?.name || '') },
       });
       if (res.ok) {
         const data: any = await res.json();
@@ -91,7 +91,7 @@ export const IntegrationManagerModal: React.FC<IntegrationManagerModalProps> = (
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-editor-name': encodeURIComponent(currentWorker?.name || ''),
+          'x-editor-name': encodeURIComponent(currentWorker?.id || currentWorker?.name || ''),
         },
         body: JSON.stringify({
           name: keyName.trim(),
@@ -124,7 +124,7 @@ export const IntegrationManagerModal: React.FC<IntegrationManagerModalProps> = (
       setLoading(true);
       const res = await fetch(`/api/admin/integration-keys/${keyId}`, {
         method: 'DELETE',
-        headers: { 'x-editor-name': encodeURIComponent(currentWorker?.name || '') },
+        headers: { 'x-editor-name': encodeURIComponent(currentWorker?.id || currentWorker?.name || '') },
       });
       if (res.ok) {
         await fetchKeys();
