@@ -18,37 +18,80 @@ test.describe('P0 Task & Workforce Modal Persistent Action Footer Suite', () => 
     { width: 1920, height: 1080 },
   ];
 
-  test.beforeAll(() => {
+  let createdProjectId = '';
+  let createdTaskId = '';
+
+  test.beforeAll(async () => {
     const dir = path.join(process.cwd(), 'qa', 'modal');
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });
     }
+
+    const runId = Date.now();
+    const prjRes = await fetch(`${BASE_URL}/api/projects`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-editor-name': encodeURIComponent('박용진 수석'),
+      },
+      body: JSON.stringify({
+        name: `[E2E-PERSISTENT-FOOTER-${runId}] 모달 저장버튼 고정 검증 프로젝트`,
+        start_date: '2026-08-01',
+        end_date: '2026-08-31',
+        progress: 0,
+        editor_name: '박용진 수석',
+      }),
+    });
+    const prjJson: any = await prjRes.json();
+    createdProjectId = prjJson.id || prjJson.data?.id;
+
+    // Create test task
+    const taskRes = await fetch(`${BASE_URL}/api/tasks`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-editor-name': encodeURIComponent('박용진 수석'),
+      },
+      body: JSON.stringify({
+        project_id: createdProjectId,
+        task_name: '하위 작업 모달 검증',
+        start_date: '2026-08-03',
+        end_date: '2026-08-07',
+        primary_worker_id: 'wrk_02',
+        schedule_status: 'SCHEDULED',
+        progress_mode: 'AUTO_TIME',
+        editor_name: '박용진 수석',
+      }),
+    });
+    const taskJson: any = await taskRes.json();
+    createdTaskId = taskJson.id || taskJson.data?.id;
   });
 
-  test.beforeEach(async ({ page }) => {
-    await page.goto(`${BASE_URL}/projects`);
-    await page.evaluate(() => {
-      localStorage.setItem('schedule_current_worker_id', 'wrk_02');
-      localStorage.setItem('schedule_current_worker_name', '박용진 수석');
-    });
-    await page.reload();
-    await page.waitForLoadState('networkidle');
+  test.afterAll(async () => {
+    if (createdProjectId) {
+      await fetch(`${BASE_URL}/api/projects/${createdProjectId}`, {
+        method: 'DELETE',
+        headers: { 'x-editor-name': encodeURIComponent('박용진 수석') },
+      });
+    }
   });
 
   for (const vp of VIEWPORTS) {
     test(`Verify Task Add Modal persistent footer at ${vp.width}x${vp.height}`, async ({ page }) => {
-      await page.setViewportSize(vp);
-      await page.goto(`${BASE_URL}/projects`);
+      await page.addInitScript(() => {
+        localStorage.setItem('schedule_current_worker_id', 'wrk_02');
+        localStorage.setItem('schedule_current_worker_name', '박용진 수석');
+      });
 
-      const firstProjectLink = page.locator('a[href^="/projects/"]').first();
-      await expect(firstProjectLink).toBeVisible();
-      await firstProjectLink.click();
+      await page.setViewportSize(vp);
+      await page.goto(`${BASE_URL}/projects/${createdProjectId}`);
+      await page.waitForLoadState('networkidle');
 
       await page.waitForSelector('[data-testid="project-detail-page"]');
 
       // Click Add Task button
       const addTaskBtn = page.locator('[data-testid="add-task-btn"]');
-      await expect(addTaskBtn).toBeVisible();
+      await expect(addTaskBtn).toBeVisible({ timeout: 10000 });
       await addTaskBtn.click();
 
       const modal = page.locator('[data-testid="task-modal"]');
@@ -98,18 +141,20 @@ test.describe('P0 Task & Workforce Modal Persistent Action Footer Suite', () => 
     });
 
     test(`Verify Task Edit Modal persistent footer at ${vp.width}x${vp.height}`, async ({ page }) => {
-      await page.setViewportSize(vp);
-      await page.goto(`${BASE_URL}/projects`);
+      await page.addInitScript(() => {
+        localStorage.setItem('schedule_current_worker_id', 'wrk_02');
+        localStorage.setItem('schedule_current_worker_name', '박용진 수석');
+      });
 
-      const firstProjectLink = page.locator('a[href^="/projects/"]').first();
-      await expect(firstProjectLink).toBeVisible();
-      await firstProjectLink.click();
+      await page.setViewportSize(vp);
+      await page.goto(`${BASE_URL}/projects/${createdProjectId}`);
+      await page.waitForLoadState('networkidle');
 
       await page.waitForSelector('[data-testid="project-detail-page"]');
 
       // Edit first task
       const editBtn = page.locator('[data-testid^="task-edit-btn-"]').first();
-      await expect(editBtn).toBeVisible();
+      await expect(editBtn).toBeVisible({ timeout: 10000 });
       await editBtn.click();
 
       const modal = page.locator('[data-testid="task-modal"]');
@@ -153,11 +198,14 @@ test.describe('P0 Task & Workforce Modal Persistent Action Footer Suite', () => 
   }
 
   test('Verify Footer Y stability during body scrolling (0%, 25%, 50%, 75%, 100%)', async ({ page }) => {
-    await page.setViewportSize({ width: 1024, height: 600 });
-    await page.goto(`${BASE_URL}/projects`);
+    await page.addInitScript(() => {
+      localStorage.setItem('schedule_current_worker_id', 'wrk_02');
+      localStorage.setItem('schedule_current_worker_name', '박용진 수석');
+    });
 
-    const firstProjectLink = page.locator('a[href^="/projects/"]').first();
-    await firstProjectLink.click();
+    await page.setViewportSize({ width: 1024, height: 600 });
+    await page.goto(`${BASE_URL}/projects/${createdProjectId}`);
+    await page.waitForLoadState('networkidle');
 
     await page.waitForSelector('[data-testid="project-detail-page"]');
 
@@ -175,7 +223,7 @@ test.describe('P0 Task & Workforce Modal Persistent Action Footer Suite', () => 
 
     const initialY = initialFooterBox!.y;
 
-    // Scroll to 25%, 50%, 75%, 100%
+    // Scroll to 0%, 25%, 50%, 75%, 100%
     const scrollHeights = [0, 0.25, 0.5, 0.75, 1.0];
 
     for (const ratio of scrollHeights) {
@@ -197,16 +245,19 @@ test.describe('P0 Task & Workforce Modal Persistent Action Footer Suite', () => 
   });
 
   test('Verify ProjectWorkforceModal persistent footer with multi-worker allocations', async ({ page }) => {
-    await page.setViewportSize({ width: 1024, height: 600 });
-    await page.goto(`${BASE_URL}/projects`);
+    await page.addInitScript(() => {
+      localStorage.setItem('schedule_current_worker_id', 'wrk_02');
+      localStorage.setItem('schedule_current_worker_name', '박용진 수석');
+    });
 
-    const firstProjectLink = page.locator('a[href^="/projects/"]').first();
-    await firstProjectLink.click();
+    await page.setViewportSize({ width: 1024, height: 600 });
+    await page.goto(`${BASE_URL}/projects/${createdProjectId}`);
+    await page.waitForLoadState('networkidle');
 
     await page.waitForSelector('[data-testid="project-detail-page"]');
 
     const workforceBtn = page.locator('[data-testid="project-workforce-btn"]');
-    await expect(workforceBtn).toBeVisible();
+    await expect(workforceBtn).toBeVisible({ timeout: 10000 });
     await workforceBtn.click();
 
     const modal = page.locator('[data-testid="project-workforce-modal"]');

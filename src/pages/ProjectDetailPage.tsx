@@ -1700,7 +1700,7 @@ export const ProjectDetailPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-100 flex flex-col font-sans text-slate-900">
+    <div data-testid="project-detail-page" className="min-h-screen bg-slate-100 flex flex-col font-sans text-slate-900">
       {/* App Header */}
       {isMobileView ? (
         <MobileAppHeader
