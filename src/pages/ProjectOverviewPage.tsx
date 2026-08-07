@@ -871,6 +871,8 @@ export const ProjectOverviewPage: React.FC = () => {
                           key={project.id}
                           role="row"
                           data-testid={`project-row-${project.id}`}
+                          data-project-start={project.start_date}
+                          data-project-end={project.end_date}
                           onClick={() => navigate(`/projects/${project.id}`)}
                           style={{ position: 'relative', isolation: 'isolate' }}
                           className="flex hover:bg-blue-50/50 transition cursor-pointer group h-[60px]"

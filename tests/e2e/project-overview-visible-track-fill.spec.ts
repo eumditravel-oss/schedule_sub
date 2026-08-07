@@ -32,6 +32,8 @@ test.describe('AUTO_TIME Visible Track Fill Precision Suite', () => {
       await page.setViewportSize(vp);
       await page.goto('/');
       await page.waitForLoadState('networkidle');
+      // Wait 400ms for CSS transitions (duration-300) to settle
+      await page.waitForTimeout(400);
 
       const todayStr = getTodayStr();
       const todayHeader = page.locator(`[data-date="${todayStr}"]`).first();
@@ -59,23 +61,43 @@ test.describe('AUTO_TIME Visible Track Fill Precision Suite', () => {
         const fillSource = await actualOverlay.getAttribute('data-fill-source');
         if (fillSource !== 'auto-time-visible-track') continue;
 
+        let projectEnd = await row.getAttribute('data-project-end');
+        if (!projectEnd) {
+          const datesText = await row.locator('div.mt-0\\.5.text-\\[10px\\]').first().innerText().catch(() => '');
+          const match = datesText.match(/~\s*(\d{4}-\d{2}-\d{2})/);
+          if (match) projectEnd = match[1];
+        }
+
         const todayHeaderBox = await todayHeader.boundingBox();
         const overlayBox = await actualOverlay.boundingBox();
         if (!todayHeaderBox || !overlayBox) continue;
 
         const fillRight = overlayBox.x + overlayBox.width;
+        let expectedTargetLeft = todayHeaderBox.x;
+
+        // Case D: project end_date < todayStr (project completed in the past) -> fill ends at project end_date right
+        if (projectEnd && projectEnd < todayStr) {
+          const endHeader = page.locator(`[data-date="${projectEnd}"]`).first();
+          if (await endHeader.isVisible().catch(() => false)) {
+            const endBox = await endHeader.boundingBox();
+            if (endBox) {
+              expectedTargetLeft = endBox.x + endBox.width;
+            }
+          }
+        }
+
+        const boundaryError = Math.abs(fillRight - expectedTargetLeft);
+
+        // Intersection width inside Today cell (only for active projects where today is within range)
         const todayLeft = todayHeaderBox.x;
         const todayRight = todayHeaderBox.x + todayHeaderBox.width;
-        const boundaryError = Math.abs(fillRight - todayLeft);
-
-        // Intersection width inside Today cell
         const intersectionLeft = Math.max(overlayBox.x, todayLeft);
         const intersectionRight = Math.min(fillRight, todayRight);
-        const darkFillInsideToday = Math.max(0, intersectionRight - intersectionLeft);
+        const darkFillInsideToday = projectEnd && projectEnd < todayStr ? 0 : Math.max(0, intersectionRight - intersectionLeft);
 
         console.log(
-          `[${vp.width}px] Project ${rowId}: ` +
-          `Fill Right=${fillRight.toFixed(2)}, Today Left=${todayLeft.toFixed(2)}, ` +
+          `[${vp.width}px] Project ${rowId} (end: ${projectEnd}): ` +
+          `Fill Right=${fillRight.toFixed(2)}, Expected Target=${expectedTargetLeft.toFixed(2)}, ` +
           `Error=${boundaryError.toFixed(2)}px, Dark Fill in Today=${darkFillInsideToday.toFixed(2)}px`
         );
 
@@ -92,7 +114,6 @@ test.describe('AUTO_TIME Visible Track Fill Precision Suite', () => {
     await page.waitForLoadState('networkidle');
 
     const result = await page.evaluate(() => {
-      // Simulate calcVisibleTrackAutoTimeFillPercent logic
       function calcVisibleTrack(params: {
         projectStartDate: string;
         projectEndDate: string;
@@ -109,7 +130,13 @@ test.describe('AUTO_TIME Visible Track Fill Precision Suite', () => {
         const renderEndIndex = renderStartIndex + renderSpan - 1;
         const todayIndex = dateColumns.findIndex((c) => c.dateStr === todayStr);
 
-        if (todayIndex < 0 || todayIndex < renderStartIndex) return 0;
+        if (todayIndex < 0) {
+          if (todayStr < dateColumns[0].dateStr) return 0;
+          if (todayStr > dateColumns[dateColumns.length - 1].dateStr) return 100;
+          return 0;
+        }
+
+        if (todayIndex < renderStartIndex) return 0;
         if (todayIndex > renderEndIndex) return 100;
 
         const elapsedVisibleColumns = todayIndex - renderStartIndex;
