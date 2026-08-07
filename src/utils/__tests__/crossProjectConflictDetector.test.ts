@@ -12,7 +12,6 @@ describe('Cross-Project Conflict Engine', () => {
       workweek_profile: 'MON_SAT',
       is_active: 1,
       can_manage_country_calendar: 1,
-      can_manage_integrations: 0,
     },
     {
       id: 'wrk_04',
@@ -21,7 +20,6 @@ describe('Cross-Project Conflict Engine', () => {
       workweek_profile: 'MON_SAT',
       is_active: 1,
       can_manage_country_calendar: 0,
-      can_manage_integrations: 0,
     },
   ];
 
