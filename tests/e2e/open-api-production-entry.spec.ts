@@ -35,7 +35,14 @@ test.describe('P0 Open API Entry Button Production Suite', () => {
     const modal = page.locator('[data-testid="integration-manager-modal"]');
     await expect(modal).toBeVisible({ timeout: 10000 });
 
-    // 5. Verify Close via ESC key
+    // 5. Verify Close via Close Button
+    const closeBtn = page.locator('[data-testid="integration-modal-close-btn"]');
+    await closeBtn.click();
+    await expect(modal).not.toBeVisible();
+
+    // 6. Verify Close via ESC key
+    await openApiBtn.click();
+    await expect(modal).toBeVisible();
     await page.keyboard.press('Escape');
     await expect(modal).not.toBeVisible();
   });

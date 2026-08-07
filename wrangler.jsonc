@@ -29,6 +29,11 @@
   "env": {
     "qa": {
       "name": "concost-dev-scheduler-qa",
+      "assets": {
+        "directory": "./dist",
+        "binding": "ASSETS",
+        "not_found_handling": "single-page-application"
+      },
       "vars": {
         "ENVIRONMENT_NAME": "qa",
         "BUILD_SHA": "DEV_BUILD_SHA"

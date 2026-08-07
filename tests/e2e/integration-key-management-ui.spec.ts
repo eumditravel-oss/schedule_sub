@@ -45,9 +45,8 @@ test.describe('P0 Integration API Key Management & QA Bearer Token Suite', () =>
     await submitBtn.click();
 
     // 5. Verify success alert & copy raw token
-    await page.waitForTimeout(1000);
-    const rawTokenContainer = page.locator('div.font-mono.text-xs');
-    await expect(rawTokenContainer).toBeVisible();
+    const rawTokenContainer = page.locator('[data-testid="generated-raw-token"]');
+    await expect(rawTokenContainer).toBeVisible({ timeout: 10000 });
     rawToken = (await rawTokenContainer.innerText()).trim();
     expect(rawToken).toBeTruthy();
     expect(rawToken.startsWith('sched_live_')).toBe(true);

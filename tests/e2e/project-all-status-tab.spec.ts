@@ -67,6 +67,7 @@ test.describe('P0 Project Status Tabs (ALL / ACTIVE / COMPLETED) Suite', () => {
     const summaryRes = await page.request.get('/api/dashboard/today-summary?date=2026-08-07');
     expect(summaryRes.status()).toBe(200);
     const summaryData = (await summaryRes.json()).data;
-    expect(summaryData.scheduled_today).toBeGreaterThanOrEqual(0);
+    const scheduledTodayCount = typeof summaryData.scheduled_today === 'object' ? summaryData.scheduled_today.count : summaryData.scheduled_today;
+    expect(scheduledTodayCount).toBeGreaterThanOrEqual(0);
   });
 });

@@ -38,6 +38,16 @@ export const IntegrationManagerModal: React.FC<IntegrationManagerModalProps> = (
     }
   }, [isOpen, currentWorker]);
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isOpen) {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
   const fetchKeys = async () => {
     try {
       setLoading(true);
@@ -239,7 +249,7 @@ export const IntegrationManagerModal: React.FC<IntegrationManagerModalProps> = (
                     </button>
                   </div>
                   <div className="flex items-center gap-2 bg-white p-2.5 rounded-lg border border-emerald-200 font-mono text-xs text-slate-900 break-all select-all">
-                    <span className="flex-1">{generatedToken}</span>
+                    <span data-testid="generated-raw-token" className="flex-1">{generatedToken}</span>
                     <button
                       type="button"
                       onClick={() => copyToClipboard(generatedToken)}
