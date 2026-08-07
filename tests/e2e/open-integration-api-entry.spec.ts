@@ -1,6 +1,13 @@
 import { test, expect } from '@playwright/test';
 
 test.describe('P1 Open API Entry Button & Integration Modal Suite', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.addInitScript(() => {
+      localStorage.setItem('schedule_current_worker_id', 'wrk_02');
+      localStorage.setItem('schedule_current_worker_name', '박용진 수석');
+    });
+  });
+
   test('Open API button is visible in Legend Row and opens IntegrationManagerModal', async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 720 });
     await page.goto('/');

@@ -10,6 +10,13 @@ const viewports = [
 ];
 
 test.describe('P0 Worker Selector Dropdown Portal & Top Layer Suite', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.addInitScript(() => {
+      localStorage.setItem('schedule_current_worker_id', 'wrk_02');
+      localStorage.setItem('schedule_current_worker_name', '박용진 수석');
+    });
+  });
+
   for (const vp of viewports) {
     test(`Project Overview Worker Dropdown Portal at ${vp.width}x${vp.height}`, async ({ page }) => {
       await page.setViewportSize(vp);

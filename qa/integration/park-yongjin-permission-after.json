@@ -1,0 +1,7 @@
+{
+  "worker_id": "wrk_02",
+  "name": "박용진 수석",
+  "access_role": "EDITOR",
+  "is_active": 1,
+  "can_manage_integrations": 1
+}

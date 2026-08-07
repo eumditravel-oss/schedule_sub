@@ -42,7 +42,12 @@ export const TodaySummaryCard: React.FC<TodaySummaryCardProps> = ({
       const res = await api.getTodaySummary(todayStr);
       setData(res || null);
     } catch (err: any) {
-      console.error('Failed to fetch today summary:', err);
+      console.error('[TodaySummary] API error details:', {
+        message: err?.message,
+        code: err?.code,
+        status: err?.status,
+        details: err?.details,
+      });
       setError(err?.message || 'Error fetching summary');
     } finally {
       setLoading(false);

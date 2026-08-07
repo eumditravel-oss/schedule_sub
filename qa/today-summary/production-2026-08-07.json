@@ -1,0 +1,14 @@
+{
+  "audit_date": "2026-08-07",
+  "active_projects": 3,
+  "scheduled_tasks": 21,
+  "scheduled_today": 1,
+  "in_progress": 1,
+  "completed_today": 0,
+  "overdue": 20,
+  "details": {
+    "scheduled_today_task_ids": ["tsk_1786081351216_o7v2"],
+    "in_progress_task_ids": ["tsk_1786081351216_o7v2"],
+    "overdue_count": 20
+  }
+}
