@@ -109,9 +109,12 @@ export const IntegrationManagerModal: React.FC<IntegrationManagerModalProps> = (
         await fetchKeys();
       } else {
         const errData: any = await res.json();
-        setKeyError(errData.error?.message || 'API Key를 생성하지 못했습니다.');
+        const msg = errData.error?.message || 'API Key를 생성하지 못했습니다.';
+        console.error('[IntegrationManagerModal] create key failed:', errData);
+        setKeyError(msg);
       }
     } catch (err: any) {
+      console.error('[IntegrationManagerModal] create key exception:', err);
       setKeyError(err.message || 'API Key를 생성하지 못했습니다.');
     } finally {
       setLoading(false);
@@ -344,6 +347,7 @@ export const IntegrationManagerModal: React.FC<IntegrationManagerModalProps> = (
                         </button>
                         <button
                           type="submit"
+                          data-testid="submit-create-key-btn"
                           disabled={loading}
                           className="px-4 py-1.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition"
                         >

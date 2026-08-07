@@ -41,12 +41,15 @@ test.describe('P0 Integration API Key Management & QA Bearer Token Suite', () =>
     await expect(createBtn).toBeVisible({ timeout: 10000 });
     await expect(createBtn).toBeEnabled();
 
-    // 4. Fill form to generate QA test key and submit via Enter key
+    // 4. Fill form to generate QA test key and submit via click
     await createBtn.click();
     const keyNameInput = page.locator('input[placeholder="e.g. Codex CLI Sync"]');
     await expect(keyNameInput).toBeVisible();
     await keyNameInput.fill('QA E2E Integration Key');
-    await keyNameInput.press('Enter');
+
+    const submitBtn = page.locator('[data-testid="submit-create-key-btn"]');
+    await expect(submitBtn).toBeVisible();
+    await submitBtn.click();
 
     // 5. Verify success alert & copy raw token
     const rawTokenContainer = page.locator('[data-testid="generated-raw-token"]');
