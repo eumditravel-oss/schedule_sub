@@ -98,7 +98,8 @@ export const TaskAssigneePopover: React.FC<TaskAssigneePopoverProps> = ({
       ref={popoverRef}
       role="dialog"
       aria-label={`${taskTitle} 작업 담당자 목록`}
-      data-testid="task-role-popover"
+      data-testid={`task-assignee-popover-${taskId}`}
+      data-role-popover="true"
       style={{
         position: 'fixed',
         left: `${left}px`,
