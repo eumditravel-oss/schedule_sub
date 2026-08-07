@@ -70,16 +70,16 @@ test.describe('P0 Integration API Key Management & QA Bearer Token Suite', () =>
     // 7. Cleanup: Revoke generated QA key via admin API
     const listRes = await page.request.get('/api/admin/integration-keys', {
       headers: {
-        'x-editor-name': '박용진 수석',
+        'x-editor-name': encodeURIComponent('박용진 수석'),
       },
     });
-    const keys: any[] = await listRes.json();
-    const testKey = keys.find((k) => k.name === 'QA E2E Integration Key');
+    const keys: any[] = (await listRes.json()).data || (await listRes.json());
+    const testKey = Array.isArray(keys) ? keys.find((k) => k.name === 'QA E2E Integration Key') : null;
     if (testKey) {
       createdKeyId = testKey.id;
       const deleteRes = await page.request.delete(`/api/admin/integration-keys/${createdKeyId}`, {
         headers: {
-          'x-editor-name': '박용진 수석',
+          'x-editor-name': encodeURIComponent('박용진 수석'),
         },
       });
       expect(deleteRes.status()).toBe(200);
