@@ -346,30 +346,30 @@ export const ProjectOverviewPage: React.FC = () => {
           onOpenWorkerSheet={() => setIsMobileWorkerSheetOpen(true)}
         />
       ) : (
-        /* Desktop App Header — Status Tabs가 Header 우측에 통합됨 */
+        /* Desktop App Header — Status Tabs가 Header 우측에 통합됨 (1024px 반응형 컴팩트 가로폭) */
         <header
           data-testid="desktop-app-header"
-          className="bg-white border-b border-slate-200 px-4 md:px-5 py-2 flex items-center justify-between shadow-2xs gap-2"
+          className="bg-white border-b border-slate-200 px-3 md:px-5 py-2 flex items-center justify-between shadow-2xs gap-1.5 w-full max-w-full overflow-x-hidden"
         >
           {/* Brand Area */}
-          <div data-testid="overview-brand-area" className="flex items-center gap-2.5 shrink-0">
+          <div data-testid="overview-brand-area" className="flex items-center gap-2 shrink-0">
             <img
               src="/logo3-mobile-cropped.png"
               alt="Logo"
               className="h-8 object-contain"
             />
             <div>
-              <h1 className="font-extrabold text-sm md:text-base text-slate-900 tracking-tight leading-none">
+              <h1 className="font-extrabold text-xs md:text-sm text-slate-900 tracking-tight leading-none whitespace-nowrap">
                 {t('appTitle')}
               </h1>
-              <p className="text-[10px] text-slate-500 font-medium mt-0.5 hidden md:block">
+              <p className="text-[10px] text-slate-500 font-medium mt-0.5 hidden xl:block">
                 {t('appSubtitle')}
               </p>
             </div>
           </div>
 
           {/* Flexible Spacer */}
-          <div className="flex-1" />
+          <div className="flex-1 min-w-1" />
 
           {/* Header Actions: Status Tabs | Calendar | Worker | Add */}
           <div
@@ -379,14 +379,14 @@ export const ProjectOverviewPage: React.FC = () => {
             {/* [1] Project Status Tabs — 휴일·휴가 관리 바로 왼쪽 */}
             <div
               data-testid="overview-project-status-tabs"
-              className="flex items-center gap-1"
+              className="flex items-center gap-1 shrink-0"
             >
               <div className="flex p-0.5 bg-slate-100 rounded-lg border border-slate-200 text-xs font-semibold shrink-0">
                 <button
                   type="button"
                   data-testid="active-tab-btn"
                   onClick={() => setActiveTab('ACTIVE')}
-                  className={`px-2.5 py-1 rounded-md transition font-bold whitespace-nowrap ${
+                  className={`px-2 py-1 rounded-md transition font-bold whitespace-nowrap text-xs ${
                     activeTab === 'ACTIVE'
                       ? 'bg-blue-600 text-white shadow-xs'
                       : 'text-slate-600 hover:text-slate-900'
@@ -398,7 +398,7 @@ export const ProjectOverviewPage: React.FC = () => {
                   type="button"
                   data-testid="completed-tab-btn"
                   onClick={() => setActiveTab('COMPLETED')}
-                  className={`px-2.5 py-1 rounded-md transition font-bold whitespace-nowrap ${
+                  className={`px-2 py-1 rounded-md transition font-bold whitespace-nowrap text-xs ${
                     activeTab === 'COMPLETED'
                       ? 'bg-blue-600 text-white shadow-xs'
                       : 'text-slate-600 hover:text-slate-900'
@@ -411,7 +411,7 @@ export const ProjectOverviewPage: React.FC = () => {
                 <select
                   value={selectedYear}
                   onChange={(e) => setSelectedYear(e.target.value)}
-                  className="h-7 text-xs font-bold bg-white border border-slate-200 rounded-lg px-1.5 text-slate-700 shadow-2xs focus:ring-1 focus:ring-blue-500 shrink-0"
+                  className="h-7 text-xs font-bold bg-white border border-slate-200 rounded-lg px-1 text-slate-700 shadow-2xs focus:ring-1 focus:ring-blue-500 shrink-0"
                 >
                   {completedYears.map((yr) => (
                     <option key={yr} value={yr}>
