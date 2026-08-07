@@ -69,9 +69,12 @@ export const IntegrationManagerModal: React.FC<IntegrationManagerModalProps> = (
     }
   };
 
+  const [keyError, setKeyError] = useState<string | null>(null);
+
   const handleCreateKey = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!keyName.trim()) return;
+    setKeyError(null);
     try {
       setLoading(true);
       const res = await fetch('/api/admin/integration-keys', {
@@ -82,7 +85,7 @@ export const IntegrationManagerModal: React.FC<IntegrationManagerModalProps> = (
         },
         body: JSON.stringify({
           name: keyName.trim(),
-          scopes: ['tasks:write', 'projects:read', 'tasks:delete'],
+          scopes: ['projects:read', 'projects:write', 'groups:read', 'groups:write', 'tasks:read', 'tasks:write'],
           expires_in_days: expiresInDays,
         }),
       });
@@ -92,13 +95,14 @@ export const IntegrationManagerModal: React.FC<IntegrationManagerModalProps> = (
         setGeneratedToken(data.raw_token_once);
         setIsCreating(false);
         setKeyName('');
+        setKeyError(null);
         await fetchKeys();
       } else {
         const errData: any = await res.json();
-        alert(errData.error?.message || 'Failed to create key');
+        setKeyError(errData.error?.message || 'API Key를 생성하지 못했습니다.');
       }
     } catch (err: any) {
-      alert(err.message || 'Error creating key');
+      setKeyError(err.message || 'API Key를 생성하지 못했습니다.');
     } finally {
       setLoading(false);
     }
@@ -245,6 +249,10 @@ export const IntegrationManagerModal: React.FC<IntegrationManagerModalProps> = (
                       <span className="text-[11px]">{copied ? 'Copied' : 'Copy'}</span>
                     </button>
                   </div>
+                  <div className="text-[11px] text-emerald-800 font-medium space-y-0.5 pt-1 border-t border-emerald-200">
+                    <div><strong>Base URL:</strong> <code className="bg-emerald-100/80 px-1 rounded">https://concost-dev-scheduler.eumditravel.workers.dev/api/integrations/v1</code></div>
+                    <div><strong>OpenAPI Spec:</strong> <code className="bg-emerald-100/80 px-1 rounded">/api/integrations/v1/openapi.json</code></div>
+                  </div>
                 </div>
               )}
 
@@ -276,6 +284,16 @@ export const IntegrationManagerModal: React.FC<IntegrationManagerModalProps> = (
                       <h4 className="font-bold text-xs text-blue-900">
                         {isVi ? 'Tạo khóa API mới' : '신규 API Key 발급'}
                       </h4>
+
+                      {keyError && (
+                        <div
+                          data-testid="integration-key-error"
+                          className="p-3 bg-rose-50 border border-rose-200 rounded-lg text-rose-800 text-xs font-bold flex items-center gap-2"
+                        >
+                          <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                          <span>{keyError}</span>
+                        </div>
+                      )}
                       <div className="grid grid-cols-2 gap-3 text-xs">
                         <div>
                           <label className="block font-semibold text-slate-700 mb-1">

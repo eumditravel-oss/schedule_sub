@@ -56,7 +56,7 @@ export const ProjectOverviewPage: React.FC = () => {
 
   const currentYearStr = new Date().getFullYear().toString();
 
-  const [activeTab, setActiveTab] = useState<'ACTIVE' | 'COMPLETED'>('ACTIVE');
+  const [activeTab, setActiveTab] = useState<'ALL' | 'ACTIVE' | 'COMPLETED'>('ACTIVE');
   const [selectedYear, setSelectedYear] = useState<string>(currentYearStr);
   const [completedYears, setCompletedYears] = useState<string[]>([currentYearStr]);
   const [projects, setProjects] = useState<Project[]>([]);
@@ -374,19 +374,50 @@ export const ProjectOverviewPage: React.FC = () => {
           {/* Flexible Spacer */}
           <div className="flex-1 min-w-1" />
 
-          {/* Header Actions: Status Tabs | Calendar | Worker | Add */}
+          {/* Header Actions: Open API | Status Tabs (ALL / ACTIVE / COMPLETED) | Calendar | Worker | Add */}
           <div
             data-testid="overview-header-actions"
             className="flex items-center gap-1.5 shrink-0"
           >
-            {/* [1] Project Status Tabs — 휴일·휴가 관리 바로 왼쪽 */}
+            {/* [0] Open API Button */}
+            <button
+              type="button"
+              data-testid="open-integration-api-btn"
+              onClick={() => setIsIntegrationModalOpen(true)}
+              title={lang === 'vi' ? 'Kết nối lịch trình với công cụ phát triển bên ngoài' : '외부 개발도구 일정 연동'}
+              className="h-8 px-2.5 rounded-lg border border-slate-200 bg-slate-50 hover:bg-blue-50 hover:border-blue-300 text-slate-700 hover:text-blue-700 font-bold text-xs flex items-center gap-1.5 transition shadow-2xs shrink-0 whitespace-nowrap"
+            >
+              <KeyRound className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+              <span>Open API</span>
+            </button>
+
+            {/* [1] Project Status Tabs — Open API 바로 오른쪽 */}
             <div
               data-testid="overview-project-status-tabs"
               className="flex items-center gap-1 shrink-0"
             >
-              <div className="flex p-0.5 bg-slate-100 rounded-lg border border-slate-200 text-xs font-semibold shrink-0">
+              <div className="flex p-0.5 bg-slate-100 rounded-lg border border-slate-200 text-xs font-semibold shrink-0" role="tablist" aria-label="Project Status Tabs">
                 <button
                   type="button"
+                  role="tab"
+                  aria-selected={activeTab === 'ALL'}
+                  aria-pressed={activeTab === 'ALL'}
+                  data-testid="all-tab-btn"
+                  onClick={() => setActiveTab('ALL')}
+                  className={`px-2 py-1 rounded-md transition font-bold whitespace-nowrap text-xs ${
+                    activeTab === 'ALL'
+                      ? 'bg-blue-600 text-white shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <span className="hidden xl:inline">{t('allProjectsTab')}</span>
+                  <span className="xl:hidden">{t('allTabCompact')}</span>
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={activeTab === 'ACTIVE'}
+                  aria-pressed={activeTab === 'ACTIVE'}
                   data-testid="active-tab-btn"
                   onClick={() => setActiveTab('ACTIVE')}
                   className={`px-2 py-1 rounded-md transition font-bold whitespace-nowrap text-xs ${
@@ -395,10 +426,14 @@ export const ProjectOverviewPage: React.FC = () => {
                       : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
-                  {t('activeProjects')}
+                  <span className="hidden xl:inline">{t('activeProjects')}</span>
+                  <span className="xl:hidden">{t('activeTabCompact')}</span>
                 </button>
                 <button
                   type="button"
+                  role="tab"
+                  aria-selected={activeTab === 'COMPLETED'}
+                  aria-pressed={activeTab === 'COMPLETED'}
                   data-testid="completed-tab-btn"
                   onClick={() => setActiveTab('COMPLETED')}
                   className={`px-2 py-1 rounded-md transition font-bold whitespace-nowrap text-xs ${
@@ -407,7 +442,8 @@ export const ProjectOverviewPage: React.FC = () => {
                       : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
-                  {t('completedProjects')}
+                  <span className="hidden xl:inline">{t('completedProjects')}</span>
+                  <span className="xl:hidden">{t('completedTabCompact')}</span>
                 </button>
               </div>
               {activeTab === 'COMPLETED' && (
@@ -522,24 +558,13 @@ export const ProjectOverviewPage: React.FC = () => {
         </div>
       )}
 
-      {/* Desktop Calendar Legend & Open API Button Row */}
+      {/* Desktop Calendar Legend Row */}
       {!isMobileView && (
         <div
           data-testid="overview-legend-row"
           className="bg-white border-b border-slate-200 px-4 md:px-5 py-2 flex items-center justify-between gap-3 overflow-x-hidden"
         >
           <CalendarLegend isMobileView={false} />
-
-          <button
-            type="button"
-            data-testid="open-integration-api-btn"
-            onClick={() => setIsIntegrationModalOpen(true)}
-            title={lang === 'vi' ? 'Kết nối lịch trình với công cụ phát triển bên ngoài' : '외부 개발도구 일정 연동'}
-            className="h-8 px-3 rounded-lg border border-slate-200 bg-slate-50 hover:bg-blue-50 hover:border-blue-300 text-slate-700 hover:text-blue-700 font-bold text-xs flex items-center gap-1.5 transition shadow-2xs shrink-0 whitespace-nowrap"
-          >
-            <KeyRound className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-            <span>Open API</span>
-          </button>
         </div>
       )}
 

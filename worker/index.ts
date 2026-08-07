@@ -890,23 +890,40 @@ async function validateAndNormalizeTaskAssigneesServer(
         const statusFilter = url.searchParams.get('status') || 'ACTIVE';
         const yearFilter = url.searchParams.get('year');
 
-        let query = `
-          SELECT p.*, COUNT(t.id) as task_count
-          FROM projects p
-          LEFT JOIN tasks t ON p.id = t.project_id
-          WHERE p.status = ?
-        `;
-        const params: any[] = [statusFilter];
+        let query = '';
+        let params: any[] = [];
 
-        if (statusFilter === 'COMPLETED' && yearFilter) {
-          query += ` AND (strftime('%Y', p.completed_at) = ? OR strftime('%Y', p.end_date) = ?)`;
-          params.push(yearFilter, yearFilter);
+        if (statusFilter === 'ALL') {
+          query = `
+            SELECT p.*, COUNT(t.id) as task_count
+            FROM projects p
+            LEFT JOIN tasks t ON p.id = t.project_id
+            GROUP BY p.id
+            ORDER BY
+              CASE WHEN p.status = 'ACTIVE' THEN 0 ELSE 1 END,
+              CASE WHEN p.status = 'ACTIVE' THEN p.start_date END DESC,
+              CASE WHEN p.status = 'COMPLETED' THEN COALESCE(p.completed_at, p.end_date) END DESC,
+              p.created_at DESC
+          `;
+        } else {
+          query = `
+            SELECT p.*, COUNT(t.id) as task_count
+            FROM projects p
+            LEFT JOIN tasks t ON p.id = t.project_id
+            WHERE p.status = ?
+          `;
+          params = [statusFilter];
+
+          if (statusFilter === 'COMPLETED' && yearFilter) {
+            query += ` AND (strftime('%Y', p.completed_at) = ? OR strftime('%Y', p.end_date) = ?)`;
+            params.push(yearFilter, yearFilter);
+          }
+
+          query += ` GROUP BY p.id ORDER BY p.start_date DESC, p.created_at DESC`;
         }
 
-        query += ` GROUP BY p.id ORDER BY p.start_date DESC, p.created_at DESC`;
-
         const stmt = db.prepare(query);
-        const bound = params.length === 1 ? stmt.bind(params[0]) : stmt.bind(...params);
+        const bound = params.length === 0 ? stmt : (params.length === 1 ? stmt.bind(params[0]) : stmt.bind(...params));
         const result = await bound.all();
 
         const calendarBatch = await fetchCalendarBatchData(db);
@@ -940,16 +957,19 @@ async function validateAndNormalizeTaskAssigneesServer(
             dailyStatusMap
           );
 
-          const conflictData = detectCrossProjectWorkerConflictsServer(
-            allActiveProjects,
-            allActiveTasks,
-            calendarBatch.workers,
-            calendarBatch.holidays,
-            calendarBatch.overrides,
-            prj.id,
-            ackRecords
-          );
-          const conflict_count = conflictData.unacknowledged_conflict_count;
+          let conflict_count = 0;
+          if (prj.status === 'ACTIVE') {
+            const conflictData = detectCrossProjectWorkerConflictsServer(
+              allActiveProjects,
+              allActiveTasks,
+              calendarBatch.workers,
+              calendarBatch.holidays,
+              calendarBatch.overrides,
+              prj.id,
+              ackRecords
+            );
+            conflict_count = conflictData.unacknowledged_conflict_count;
+          }
 
           return {
             ...prj,

@@ -2,9 +2,12 @@
 import { ko } from './ko';
 
 export const vi: Record<keyof typeof ko, string> = {
-  headerTitle: 'Lịch dự án nhóm phát triển',
+  allProjectsTab: 'Tất cả dự án',
   activeProjectsTab: 'Dự án đang làm',
-  completedProjectsTab: 'Đã xong',
+  completedProjectsTab: 'Dự án đã xong',
+  allTabCompact: 'Tất cả',
+  activeTabCompact: 'Đang làm',
+  completedTabCompact: 'Đã xong',
   completedProjectsYear: 'Hoàn thành năm {year}',
   yearOption: 'Năm {year}',
   addProject: 'Thêm dự án',

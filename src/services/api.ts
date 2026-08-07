@@ -85,7 +85,7 @@ export const api = {
   },
 
   // 1. Projects
-  async getProjects(status: 'ACTIVE' | 'COMPLETED' = 'ACTIVE', year?: string): Promise<Project[]> {
+  async getProjects(status: 'ALL' | 'ACTIVE' | 'COMPLETED' = 'ACTIVE', year?: string): Promise<Project[]> {
     let url = `/api/projects?status=${status}`;
     if (status === 'COMPLETED' && year) {
       url += `&year=${year}`;

@@ -1,8 +1,11 @@
 // src/i18n/ko.ts
 export const ko = {
-  headerTitle: '개발팀 프로젝트 스케쥴러',
+  allProjectsTab: '전체 프로젝트',
   activeProjectsTab: '진행 프로젝트',
-  completedProjectsTab: '완료',
+  completedProjectsTab: '완료 프로젝트',
+  allTabCompact: '전체',
+  activeTabCompact: '진행',
+  completedTabCompact: '완료',
   completedProjectsYear: '{year}년 완료',
   yearOption: '{year}년',
   addProject: '프로젝트 추가',
