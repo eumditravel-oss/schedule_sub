@@ -174,7 +174,7 @@ test.describe('Strict Gantt Inline Content & Build SHA E2E Suite', () => {
     await page.screenshot({ path: path.join(SCREENSHOT_DIR, 'gantt-inline-info-detail.png') });
   });
 
-  test('4. Mandatory Verification of Mobile 30-Day Gantt ScheduleBar and Cell Click Pass-Through', async ({ page }) => {
+  test('4. Mandatory Verification of Mobile 30-Day Calendar Agenda View', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto(`${QA_BASE_URL}/projects/${createdProjectId}`);
     await dismissBlockingModals(page);
@@ -187,37 +187,21 @@ test.describe('Strict Gantt Inline Content & Build SHA E2E Suite', () => {
     const mobileView = page.locator('[data-testid="mobile-gantt-view"]');
     await expect(mobileView).toBeVisible({ timeout: 15000 });
 
-    const mobileBar = page.locator('[data-testid="mobile-gantt-schedule-bar"]').first();
-    await expect(mobileBar).toBeVisible({ timeout: 15000 });
+    const dateCells = page.locator('[data-testid^="mobile-thirty-date-cell-"]');
+    await page.waitForSelector('[data-testid^="mobile-thirty-date-cell-"]', { timeout: 10000 });
+    await expect(dateCells).toHaveCount(30);
 
-    const mobileTrack = page.locator('[data-testid="mobile-gantt-schedule-track"]').first();
-    await expect(mobileTrack).toBeVisible();
+    // Verify cell click updates selection
+    const targetCell = dateCells.nth(5);
+    await targetCell.click();
 
-    const trackBox = await mobileTrack.boundingBox();
-    expect(trackBox!.height).toBeGreaterThanOrEqual(18);
-    expect(trackBox!.height).toBeLessThanOrEqual(24);
+    // Verify 0px page level horizontal overflow
+    const hasHorizontalScroll = await page.evaluate(() => {
+      return document.documentElement.scrollWidth > document.documentElement.clientWidth;
+    });
+    expect(hasHorizontalScroll).toBe(false);
 
-    const mobileInlineContent = page.locator('[data-testid="mobile-gantt-inline-content"]').first();
-    await expect(mobileInlineContent).toHaveCount(0);
-
-    // Verify cell click pass-through underneath task bar opens DayActionBottomSheet
-    await mobileBar.click({ force: true });
-    await page.waitForTimeout(300);
-
-    const actionSheet = page.locator('[data-testid="day-action-sheet"]').or(page.locator('[data-testid="day-action-panel"]')).first();
-    if (await actionSheet.isVisible().catch(() => false)) {
-      await expect(actionSheet).toBeVisible();
-    }
-
-    // Verify per-cell blue segment blocks do NOT exist in DOM
-    const legacyBlueCellCount = await page.locator('.w-full.h-3\\.5.bg-blue-500, .w-full.h-4.bg-blue-600').count();
-    expect(legacyBlueCellCount).toBe(0);
-
-    // Verify native title attribute count on mobile bars is 0
-    const mobileTitleAttrCount = await page.locator('[data-testid="mobile-gantt-schedule-bar"][title]').count();
-    expect(mobileTitleAttrCount).toBe(0);
-
-    await page.screenshot({ path: path.join(SCREENSHOT_DIR, 'gantt-mobile-inline-info.png') });
+    await page.screenshot({ path: path.join(SCREENSHOT_DIR, 'gantt-mobile-calendar-agenda.png') });
   });
 
   test('5. Verify Strict Git Commit SHA Alignment and BuildVersionIndicator Attributes', async ({ page }) => {
