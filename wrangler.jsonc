@@ -13,7 +13,7 @@
   },
   "vars": {
     "ENVIRONMENT_NAME": "production",
-    "BUILD_SHA": "ab62b03565fa9375da4c6674314faeec79bdde54"
+    "BUILD_SHA": "57036d1ce152ba33f5e030aa0daa5368416ed84e"
   },
   "ai": {
     "binding": "AI"
@@ -31,7 +31,7 @@
       "name": "concost-dev-scheduler-qa",
       "vars": {
         "ENVIRONMENT_NAME": "qa",
-        "BUILD_SHA": "ab62b03565fa9375da4c6674314faeec79bdde54"
+        "BUILD_SHA": "57036d1ce152ba33f5e030aa0daa5368416ed84e"
       },
       "ai": {
         "binding": "AI"
