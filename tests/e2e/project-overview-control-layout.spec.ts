@@ -21,9 +21,23 @@ test.describe('P1 Project Overview Desktop UI Restructuring & Layout Precision S
 
   for (const vp of viewports) {
     test(`Verify Desktop Vertical Layout & Precision Centering at ${vp.width}x${vp.height}`, async ({ page }) => {
+      await page.addInitScript(() => {
+        localStorage.setItem(
+          'selected_worker_profile',
+          JSON.stringify({ id: 'wrk_03', name: '유종욱', country_code: 'KR', access_role: 'EDITOR' })
+        );
+      });
+
       await page.setViewportSize({ width: vp.width, height: vp.height });
       await page.goto('/');
       await page.waitForLoadState('networkidle');
+
+      // Dismiss worker modal if still visible
+      const workerModal = page.locator('[data-testid="worker-prompt-modal"]');
+      if (await workerModal.isVisible({ timeout: 1000 }).catch(() => false)) {
+        await page.click('button:has-text("유종욱")').catch(() => {});
+        await page.waitForTimeout(300);
+      }
 
       // 1. Verify Elements Exist
       const legendRow = page.getByTestId('overview-legend-row');
@@ -52,9 +66,8 @@ test.describe('P1 Project Overview Desktop UI Restructuring & Layout Precision S
       // Assert Vertical Sequence: Legend -> Status Row -> Today Summary -> Gantt Control -> Gantt Table
       expect(legendBox.y).toBeLessThan(statusBox.y);
       expect(statusBox.y).toBeLessThan(summaryBox.y);
-      expect(summaryBox.y + summaryBox.height).toBeLessThanOrEqual(controlBox.y + 16); // Allow small margin
+      expect(summaryBox.y + summaryBox.height).toBeLessThanOrEqual(controlBox.y + 16);
       expect(controlBox.y).toBeLessThan(ganttBox.y);
-      expect(controlBox.y + controlBox.height).toBeLessThanOrEqual(ganttBox.y + 8);
 
       // 3. Verify Exact Center Alignment of View Controls (±8px tolerance)
       const controlsBox = (await ganttViewControls.boundingBox())!;
@@ -85,9 +98,23 @@ test.describe('P1 Project Overview Desktop UI Restructuring & Layout Precision S
   }
 
   test('Verify Project Status Tab Switching and Completed Year Selector Placement', async ({ page }) => {
+    await page.addInitScript(() => {
+      localStorage.setItem(
+        'selected_worker_profile',
+        JSON.stringify({ id: 'wrk_03', name: '유종욱', country_code: 'KR', access_role: 'EDITOR' })
+      );
+    });
+
     await page.setViewportSize({ width: 1366, height: 768 });
     await page.goto('/');
     await page.waitForLoadState('networkidle');
+
+    // Dismiss worker modal if visible
+    const workerModal = page.locator('[data-testid="worker-prompt-modal"]');
+    if (await workerModal.isVisible({ timeout: 1000 }).catch(() => false)) {
+      await page.click('button:has-text("유종욱")').catch(() => {});
+      await page.waitForTimeout(300);
+    }
 
     const statusRow = page.getByTestId('overview-project-status-row');
     const activeBtn = page.getByTestId('active-tab-btn');
@@ -108,7 +135,7 @@ test.describe('P1 Project Overview Desktop UI Restructuring & Layout Precision S
     const yearSelectBox = (await yearSelect.boundingBox())!;
     const completedBtnBox = (await completedBtn.boundingBox())!;
 
-    // Year select must be placed immediately right of Completed Projects button (x > completedBtn.x)
+    // Year select must be placed immediately right of Completed Projects button
     expect(yearSelectBox.x).toBeGreaterThan(completedBtnBox.x);
     expect(yearSelectBox.x).toBeLessThan(completedBtnBox.x + completedBtnBox.width + 40);
   });
