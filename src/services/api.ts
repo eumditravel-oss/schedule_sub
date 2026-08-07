@@ -421,4 +421,13 @@ export const api = {
     });
     return handleResponse<any>(res);
   },
+
+  async acknowledgeConflict(projectId: string, fingerprint: string): Promise<any> {
+    const res = await fetch(`/api/projects/${encodeURIComponent(projectId)}/conflicts/${encodeURIComponent(fingerprint)}/acknowledge`, {
+      method: 'POST',
+      headers: getWriteHeaders(),
+      body: JSON.stringify({ policy_version: 'cross_project_v1' }),
+    });
+    return handleResponse<any>(res);
+  },
 };

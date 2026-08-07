@@ -148,13 +148,6 @@ export const ScheduleBar: React.FC<ScheduleBarProps> = ({
             className="absolute top-0 bottom-0 w-0.5 bg-slate-900/70 z-2"
           />
         )}
-
-        {/* Conflict Warning Indicator */}
-        {hasConflict && (
-          <div className="absolute right-1 z-5 flex items-center justify-center pointer-events-none">
-            <span className="w-2.5 h-2.5 rounded-full bg-amber-500 ring-2 ring-white animate-ping" />
-          </div>
-        )}
       </div>
     </div>
   );

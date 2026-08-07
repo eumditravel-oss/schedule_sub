@@ -10,8 +10,8 @@ if ($status) {
   exit 1
 }
 
-# 2. Extract git short commit SHA
-$sha = (git rev-parse --short HEAD).Trim()
+# 2. Extract git full commit SHA
+$sha = (git rev-parse HEAD).Trim()
 $deployedAt = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
 Write-Host "Releasing Commit SHA: $sha deployed at $deployedAt" -ForegroundColor Green
 

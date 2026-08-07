@@ -19,7 +19,7 @@ import {
   GANTT_HEADER_TOTAL_HEIGHT_PX,
 } from '../constants/gantt';
 import { GANTT_Z } from '../constants/ganttLayers';
-import { detectWorkerCapacityConflicts, CapacityConflictGroup } from '../utils/capacityConflictDetector';
+import { detectCrossProjectWorkerConflicts, CrossProjectConflictGroup } from '../utils/crossProjectConflictDetector';
 import { WorkerConflictSummaryModal } from '../components/modals/WorkerConflictSummaryModal';
 import { ProjectModal } from '../components/modals/ProjectModal';
 import { WorkerSelector } from '../components/common/WorkerSelector';
@@ -126,10 +126,12 @@ export const ProjectOverviewPage: React.FC = () => {
 
   const [conflictModalState, setConflictModalState] = useState<{
     isOpen: boolean;
+    projectId?: string;
     projectName?: string;
-    conflicts: CapacityConflictGroup[];
+    conflicts: CrossProjectConflictGroup[];
   }>({
     isOpen: false,
+    projectId: '',
     projectName: '',
     conflicts: [],
   });
@@ -141,6 +143,7 @@ export const ProjectOverviewPage: React.FC = () => {
       if (res && res.groups) {
         setConflictModalState({
           isOpen: true,
+          projectId: prj.id,
           projectName: prj.name_ko || prj.name,
           conflicts: res.groups,
         });
@@ -1073,6 +1076,12 @@ export const ProjectOverviewPage: React.FC = () => {
         conflicts={conflictModalState.conflicts}
         onNavigateToTask={(pId, tId) => {
           navigate(`/projects/${pId}?focusTask=${tId}`);
+        }}
+        onAcknowledgeGroup={async (group) => {
+          if (conflictModalState.projectId) {
+            await api.acknowledgeConflict(conflictModalState.projectId, group.fingerprint);
+            await fetchProjects();
+          }
         }}
       />
 

@@ -23,7 +23,7 @@ import {
   detectWorkerTaskConflictsServer,
   getTodayStrForWorkerServer,
 } from './services/progressAndConflictServer';
-import { detectWorkerCapacityConflictsServer } from './services/capacityConflictServer';
+import { detectCrossProjectWorkerConflictsServer } from './services/crossProjectConflictServer';
 
 export interface Env {
   DB: any;
@@ -689,14 +689,16 @@ async function validateAndNormalizeTaskAssigneesServer(
         const result = await bound.all();
 
         const calendarBatch = await fetchCalendarBatchData(db);
-        const [allActiveProjectsRes, allActiveTasksRes, allDailyStatusesRes] = await Promise.all([
+        const [allActiveProjectsRes, allActiveTasksRes, allDailyStatusesRes, ackRes] = await Promise.all([
           db.prepare(`SELECT * FROM projects WHERE status = 'ACTIVE'`).all(),
           db.prepare(`SELECT * FROM tasks`).all(),
           db.prepare(`SELECT task_id, work_date, status FROM daily_status`).all(),
+          db.prepare(`SELECT * FROM conflict_acknowledgements`).all().catch(() => ({ results: [] })),
         ]);
 
         const allActiveProjects = allActiveProjectsRes.results || [];
         const allActiveTasks = allActiveTasksRes.results || [];
+        const ackRecords = ackRes.results || [];
 
         const dailyStatusMap: Record<string, Record<string, string>> = {};
         (allDailyStatusesRes.results || []).forEach((st: any) => {
@@ -717,15 +719,16 @@ async function validateAndNormalizeTaskAssigneesServer(
             dailyStatusMap
           );
 
-          const conflictData = detectWorkerCapacityConflictsServer(
+          const conflictData = detectCrossProjectWorkerConflictsServer(
             allActiveProjects,
             allActiveTasks,
             calendarBatch.workers,
             calendarBatch.holidays,
             calendarBatch.overrides,
-            prj.id
+            prj.id,
+            ackRecords
           );
-          const conflict_count = conflictData.conflict_count;
+          const conflict_count = conflictData.unacknowledged_conflict_count;
 
           return {
             ...prj,
@@ -1253,22 +1256,75 @@ function addPureCalendarDays(dateStr: string, deltaDays: number): string {
       const getConflictsMatch = path.match(/^\/api\/projects\/([^/]+)\/conflicts$/);
       if (method === 'GET' && getConflictsMatch) {
         const projectId = getConflictsMatch[1];
-        const [allActiveProjectsRes, allActiveTasksRes, batch] = await Promise.all([
+        const [allActiveProjectsRes, allActiveTasksRes, batch, ackRes] = await Promise.all([
           db.prepare(`SELECT * FROM projects WHERE status = 'ACTIVE'`).all(),
           db.prepare(`SELECT * FROM tasks`).all(),
           fetchCalendarBatchData(db),
+          db.prepare(`SELECT * FROM conflict_acknowledgements`).all().catch(() => ({ results: [] })),
         ]);
 
-        const conflictData = detectWorkerCapacityConflictsServer(
+        const conflictData = detectCrossProjectWorkerConflictsServer(
           allActiveProjectsRes.results || [],
           allActiveTasksRes.results || [],
           batch.workers,
           batch.holidays,
           batch.overrides,
-          projectId
+          projectId,
+          ackRes.results || []
         );
 
         return jsonResponse(conflictData);
+      }
+
+      // 5.6 POST /api/projects/:id/conflicts/:fingerprint/acknowledge
+      const ackMatch = path.match(/^\/api\/projects\/([^/]+)\/conflicts\/([^/]+)\/acknowledge$/);
+      if (method === 'POST' && ackMatch) {
+        const projectId = ackMatch[1];
+        const fingerprint = decodeURIComponent(ackMatch[2]);
+        const body: any = await request.json().catch(() => ({}));
+        const editor = getEditorName(body, request);
+        const editCheck = await requireEditableWorker(db, editor);
+        if (!editCheck.allowed) {
+          return errorResponse(editCheck.errorMsg!, 403, editCheck.errorCode!);
+        }
+
+        const id = `ack_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+        const workerId = body.worker_id || '';
+        const projectIdsJson = JSON.stringify(body.project_ids || []);
+        const startDate = body.overlap_start_date || '2000-01-01';
+        const endDate = body.overlap_end_date || '2099-12-31';
+
+        await db.prepare(`
+          INSERT INTO conflict_acknowledgements (id, conflict_fingerprint, policy_version, worker_id, project_ids_json, overlap_start_date, overlap_end_date, acknowledged_by_id, acknowledged_by_name)
+          VALUES (?, ?, 'cross_project_v1', ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(conflict_fingerprint) DO UPDATE SET
+            acknowledged_by_id = excluded.acknowledged_by_id,
+            acknowledged_by_name = excluded.acknowledged_by_name,
+            acknowledged_at = CURRENT_TIMESTAMP
+        `).bind(id, fingerprint, workerId, projectIdsJson, startDate, endDate, editCheck.worker?.id || 'editor', editor).run();
+
+        const [allActiveProjectsRes, allActiveTasksRes, batch, ackRes] = await Promise.all([
+          db.prepare(`SELECT * FROM projects WHERE status = 'ACTIVE'`).all(),
+          db.prepare(`SELECT * FROM tasks`).all(),
+          fetchCalendarBatchData(db),
+          db.prepare(`SELECT * FROM conflict_acknowledgements`).all().catch(() => ({ results: [] })),
+        ]);
+
+        const conflictData = detectCrossProjectWorkerConflictsServer(
+          allActiveProjectsRes.results || [],
+          allActiveTasksRes.results || [],
+          batch.workers,
+          batch.holidays,
+          batch.overrides,
+          projectId,
+          ackRes.results || []
+        );
+
+        return jsonResponse({
+          acknowledged: true,
+          fingerprint,
+          remaining_conflict_count: conflictData.unacknowledged_conflict_count,
+        });
       }
 
       // 6. PATCH /api/projects/:id
@@ -1978,6 +2034,13 @@ function addPureCalendarDays(dateStr: string, deltaDays: number): string {
           if (scope_key !== editorWorker.id && scope_key !== editorWorker.name) {
             return errorResponse('본인의 휴일·휴가 일정만 변경할 수 있습니다.', 403, 'CALENDAR_SELF_ONLY');
           }
+          if (override_type === 'OFF') {
+            const isVi = editorWorker.ui_language === 'vi';
+            const msg = isVi
+              ? 'Lịch nghỉ cá nhân vui lòng đăng ký dưới dạng Nghỉ phép (LEAVE).'
+              : '개인 비근무 일정은 개인 휴가(LEAVE)로 등록하세요.';
+            return errorResponse(msg, 400, 'WORKER_MANUAL_OFF_DISABLED');
+          }
         }
 
         const workerProfile = await db
@@ -2684,37 +2747,76 @@ function addPureCalendarDays(dateStr: string, deltaDays: number): string {
         }
 
         if (!isUnscheduled && finalStartDate && finalEndDate && body.confirm_worker_schedule_conflict !== true) {
-          const [allActiveProjectsRes, allActiveTasksRes, batch] = await Promise.all([
+          const prospectiveTask = {
+            id: 'temp_create_id',
+            project_id: validated.project_id,
+            task_name: validated.task_name,
+            start_date: finalStartDate,
+            end_date: finalEndDate,
+            schedule_status: 'SCHEDULED',
+            primary_worker_id: assignValidation.primaryWorkerId,
+            worker_name: assignValidation.primaryWorkerName,
+            assignees: assignValidation.assignees,
+          };
+
+          const [allActiveProjectsRes, allActiveTasksRes, batch, ackRes] = await Promise.all([
             db.prepare(`SELECT * FROM projects WHERE status = 'ACTIVE'`).all(),
             db.prepare(`SELECT * FROM tasks`).all(),
             fetchCalendarBatchData(db),
+            db.prepare(`SELECT * FROM conflict_acknowledgements`).all().catch(() => ({ results: [] })),
           ]);
 
-          const conflicts = detectWorkerTaskConflictsServer(
-            { worker_name: assignValidation.primaryWorkerName!, start_date: finalStartDate, end_date: finalEndDate, project_id: validated.project_id, assignees: assignValidation.assignees },
+          const prospectiveTasks = [...(allActiveTasksRes.results || []), prospectiveTask];
+
+          const conflictData = detectCrossProjectWorkerConflictsServer(
             allActiveProjectsRes.results || [],
-            allActiveTasksRes.results || [],
+            prospectiveTasks,
             batch.workers,
             batch.holidays,
-            batch.overrides
+            batch.overrides,
+            validated.project_id,
+            ackRes.results || []
           );
 
-          if (conflicts.length > 0) {
+          const unackNewConflicts = conflictData.groups.filter((g) => !g.acknowledged);
+
+          if (unackNewConflicts.length > 0 && body.confirm_worker_schedule_conflict !== true && !Array.isArray(body.confirm_cross_project_conflicts)) {
+            const isVi = editCheck.worker?.ui_language === 'vi';
+            const msg = isVi ? 'Tổng tỷ lệ phân công của nhân viên vượt quá 100%.' : '담당자의 업무 배정 비중이 100%를 초과합니다.';
+            const first = unackNewConflicts[0];
             return new Response(
               JSON.stringify({
                 success: false,
                 error: {
-                  code: 'WORKER_SCHEDULE_CONFLICT_CONFIRMATION_REQUIRED',
-                  message: '같은 작업자의 일정이 다른 프로젝트와 겹칩니다.',
+                  code: 'CROSS_PROJECT_CONFLICT_CONFIRMATION_REQUIRED',
+                  message: msg,
                   details: {
-                    worker_id: conflicts[0].worker_id,
-                    worker_name: conflicts[0].worker_name,
-                    conflicts,
+                    worker_id: first.worker_id,
+                    worker_name: first.worker_name,
+                    fingerprints: unackNewConflicts.map((g) => g.fingerprint),
+                    conflicts: unackNewConflicts,
                   },
                 },
               }),
               { status: 409, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } }
             );
+          }
+
+          if (Array.isArray(body.confirm_cross_project_conflicts)) {
+            for (const fp of body.confirm_cross_project_conflicts) {
+              const matchingGroup = conflictData.groups.find((g) => g.fingerprint === fp);
+              if (matchingGroup) {
+                const ackId = `ack_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+                await db.prepare(`
+                  INSERT INTO conflict_acknowledgements (id, conflict_fingerprint, policy_version, worker_id, project_ids_json, overlap_start_date, overlap_end_date, acknowledged_by_id, acknowledged_by_name)
+                  VALUES (?, ?, 'cross_project_v1', ?, ?, ?, ?, ?, ?)
+                  ON CONFLICT(conflict_fingerprint) DO UPDATE SET
+                    acknowledged_by_id = excluded.acknowledged_by_id,
+                    acknowledged_by_name = excluded.acknowledged_by_name,
+                    acknowledged_at = CURRENT_TIMESTAMP
+                `).bind(ackId, fp, matchingGroup.worker_id, JSON.stringify(matchingGroup.project_ids), matchingGroup.overlap_start_date, matchingGroup.overlap_end_date, editCheck.worker?.id || 'editor', editor).run();
+              }
+            }
           }
         }
 
@@ -2920,21 +3022,23 @@ function addPureCalendarDays(dateStr: string, deltaDays: number): string {
         const availabilityPolicyChanged = body.availability_policy !== undefined && body.availability_policy !== existing.availability_policy;
 
         const scheduleRelevantChanged = dateChanged || scheduleStatusChanged || assigneeChanged || allocationChanged || availabilityPolicyChanged;
+        const targetScheduleStatus = body.schedule_status !== undefined ? body.schedule_status : existing.schedule_status;
 
-        if (scheduleRelevantChanged && body.confirm_worker_schedule_conflict !== true) {
-          const [allActiveProjectsRes, allActiveTasksRes, batch] = await Promise.all([
+        if (scheduleRelevantChanged && body.confirm_worker_schedule_conflict !== true && !Array.isArray(body.confirm_cross_project_conflicts)) {
+          const [allActiveProjectsRes, allActiveTasksRes, batch, ackRes] = await Promise.all([
             db.prepare(`SELECT * FROM projects WHERE status = 'ACTIVE'`).all(),
             db.prepare(`SELECT * FROM tasks`).all(),
             fetchCalendarBatchData(db),
+            db.prepare(`SELECT * FROM conflict_acknowledgements`).all().catch(() => ({ results: [] })),
           ]);
 
           const updatedTasks = (allActiveTasksRes.results || []).map((t: any) => {
             if (t.id === taskId) {
               return {
                 ...t,
-                start_date: newStart,
-                end_date: newEnd,
-                schedule_status: body.schedule_status || existing.schedule_status,
+                start_date: targetScheduleStatus === 'UNSCHEDULED' ? null : newStart,
+                end_date: targetScheduleStatus === 'UNSCHEDULED' ? null : newEnd,
+                schedule_status: targetScheduleStatus,
                 assignees: assignValidation.assignees,
                 availability_policy: assignValidation.availabilityPolicy,
               };
@@ -2942,27 +3046,33 @@ function addPureCalendarDays(dateStr: string, deltaDays: number): string {
             return t;
           });
 
-          const conflictData = detectWorkerCapacityConflictsServer(
+          const conflictData = detectCrossProjectWorkerConflictsServer(
             allActiveProjectsRes.results || [],
             updatedTasks,
             batch.workers,
             batch.holidays,
             batch.overrides,
-            existing.project_id
+            existing.project_id,
+            ackRes.results || []
           );
 
-          if (conflictData.conflict_count > 0) {
-            const firstGroup = conflictData.groups[0];
+          const unackNewConflicts = conflictData.groups.filter((g) => !g.acknowledged);
+
+          if (unackNewConflicts.length > 0) {
+            const isVi = editCheck.worker?.ui_language === 'vi';
+            const msg = isVi ? 'Tổng tỷ lệ phân công của nhân viên vượt quá 100%.' : '담당자의 업무 배정 비중이 100%를 초과합니다.';
+            const first = unackNewConflicts[0];
             return new Response(
               JSON.stringify({
                 success: false,
                 error: {
-                  code: 'WORKER_SCHEDULE_CONFLICT_CONFIRMATION_REQUIRED',
-                  message: '같은 작업자의 일정이 다른 프로젝트와 겹칩니다.',
+                  code: 'CROSS_PROJECT_CONFLICT_CONFIRMATION_REQUIRED',
+                  message: msg,
                   details: {
-                    worker_id: firstGroup.worker_id,
-                    worker_name: firstGroup.worker_name,
-                    conflicts: conflictData.groups,
+                    worker_id: first.worker_id,
+                    worker_name: first.worker_name,
+                    fingerprints: unackNewConflicts.map((g) => g.fingerprint),
+                    conflicts: unackNewConflicts,
                   },
                 },
               }),
@@ -2971,8 +3081,21 @@ function addPureCalendarDays(dateStr: string, deltaDays: number): string {
           }
         }
 
-        const isDateChanged = (validated.start_date && validated.start_date !== existing.start_date) || (validated.end_date && validated.end_date !== existing.end_date);
-        const nextRevision = isDateChanged ? (existing.schedule_revision || 0) + 1 : (existing.schedule_revision || 0);
+        if (Array.isArray(body.confirm_cross_project_conflicts)) {
+          for (const fp of body.confirm_cross_project_conflicts) {
+            const ackId = `ack_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+            await db.prepare(`
+              INSERT INTO conflict_acknowledgements (id, conflict_fingerprint, policy_version, worker_id, project_ids_json, overlap_start_date, overlap_end_date, acknowledged_by_id, acknowledged_by_name)
+              VALUES (?, ?, 'cross_project_v1', ?, ?, ?, ?, ?, ?)
+              ON CONFLICT(conflict_fingerprint) DO UPDATE SET
+                acknowledged_by_id = excluded.acknowledged_by_id,
+                acknowledged_by_name = excluded.acknowledged_by_name,
+                acknowledged_at = CURRENT_TIMESTAMP
+            `).bind(ackId, fp, assignValidation.primaryWorkerId || 'wrk_unknown', JSON.stringify([existing.project_id]), '2000-01-01', '2099-12-31', editCheck.worker?.id || 'editor', editor).run();
+          }
+        }
+
+        const nextRevision = (dateChanged || scheduleStatusChanged) ? (existing.schedule_revision || 0) + 1 : (existing.schedule_revision || 0);
         const nowIso = new Date().toISOString();
 
         const dbQueries: any[] = [];

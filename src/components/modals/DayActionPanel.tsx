@@ -15,7 +15,7 @@ export interface DayActionPanelProps {
   holidays: CountryHoliday[];
   overrides: CalendarOverride[];
   onUpdateStatus: (taskId: string, dateStr: string, status: DailyStatusType) => Promise<void>;
-  onCreateOverride: (overrideType: 'LEAVE' | 'OFF' | 'WORK') => Promise<void>;
+  onCreateOverride: (overrideType: 'LEAVE' | 'WORK') => Promise<void>;
   onClearOverride: (overrideId?: string) => Promise<void>;
   isMobileView?: boolean;
   anchorRect?: DOMRect | null;
@@ -76,7 +76,7 @@ export const DayActionPanel: React.FC<DayActionPanelProps> = ({
     }
   };
 
-  const handleCalendarSelect = async (type: 'LEAVE' | 'OFF' | 'WORK') => {
+  const handleCalendarSelect = async (type: 'LEAVE' | 'WORK') => {
     if (!canEditCalendar) {
       alert(lang === 'vi' ? 'Bạn chỉ có thể thay đổi lịch nghỉ của chính mình.' : '본인의 휴일·휴가만 변경할 수 있습니다.');
       return;
@@ -286,24 +286,13 @@ export const DayActionPanel: React.FC<DayActionPanelProps> = ({
 
                   <button
                     type="button"
-                    data-testid="day-action-off-btn"
-                    disabled={loading}
-                    onClick={() => handleCalendarSelect('OFF')}
-                    className="p-2.5 rounded-xl border border-orange-300 bg-orange-50 hover:bg-orange-100 text-orange-900 font-bold text-left transition flex items-center gap-2"
-                  >
-                    <span className="w-3.5 h-3.5 rounded bg-orange-500 shrink-0" />
-                    <span>{lang === 'vi' ? 'Nghỉ thủ công (OFF)' : '수동 휴무 (OFF)'}</span>
-                  </button>
-
-                  <button
-                    type="button"
                     data-testid="day-action-work-btn"
                     disabled={loading}
                     onClick={() => handleCalendarSelect('WORK')}
-                    className="p-2.5 rounded-xl border border-cyan-300 bg-cyan-50 hover:bg-cyan-100 text-cyan-900 font-bold text-left transition flex items-center gap-2 col-span-2"
+                    className="p-2.5 rounded-xl border border-cyan-300 bg-cyan-50 hover:bg-cyan-100 text-cyan-900 font-bold text-left transition flex items-center gap-2"
                   >
                     <span className="w-3.5 h-3.5 rounded bg-cyan-600 shrink-0" />
-                    <span>{lang === 'vi' ? 'Chỉ định ngày làm việc (WORK)' : '근무일 지정 (WORK)'}</span>
+                    <span>{lang === 'vi' ? 'Ngày làm việc (WORK)' : '근무일 지정 (WORK)'}</span>
                   </button>
                 </div>
 
