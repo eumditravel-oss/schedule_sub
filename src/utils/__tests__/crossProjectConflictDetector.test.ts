@@ -11,6 +11,7 @@ describe('Cross-Project Conflict Engine', () => {
       country_code: 'VN',
       workweek_profile: 'MON_SAT',
       is_active: 1,
+      sort_order: 1,
       can_manage_country_calendar: 1,
     },
     {
@@ -19,6 +20,7 @@ describe('Cross-Project Conflict Engine', () => {
       country_code: 'VN',
       workweek_profile: 'MON_SAT',
       is_active: 1,
+      sort_order: 2,
       can_manage_country_calendar: 0,
     },
   ];
