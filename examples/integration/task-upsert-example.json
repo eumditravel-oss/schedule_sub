@@ -1,0 +1,43 @@
+{
+  "source": "codex",
+  "project": {
+    "external_id": "concost-hub",
+    "name": "CONCOST-HUB Development Project",
+    "start_date": "2026-08-01",
+    "end_date": "2026-08-31"
+  },
+  "task_group": {
+    "external_id": "auth-subsystem",
+    "group_name": "Authentication Subsystem"
+  },
+  "tasks": [
+    {
+      "external_id": "task-login-api",
+      "task_name": "API Login Authentication Fix",
+      "assignees": [
+        {
+          "worker_id": "wrk_03",
+          "allocation_percent": 50
+        },
+        {
+          "worker_id": "wrk_04",
+          "allocation_percent": 50
+        }
+      ],
+      "start_date": "2026-08-10",
+      "end_date": "2026-08-12"
+    },
+    {
+      "external_id": "task-oauth2-flow",
+      "task_name": "OAuth2 Refresh Token Handling",
+      "assignees": [
+        {
+          "worker_id": "wrk_03",
+          "allocation_percent": 100
+        }
+      ],
+      "start_date": "2026-08-13",
+      "end_date": "2026-08-15"
+    }
+  ]
+}

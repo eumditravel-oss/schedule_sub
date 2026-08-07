@@ -1,0 +1,43 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "IntegrationTaskUpsertPayload",
+  "type": "object",
+  "required": ["task_name"],
+  "properties": {
+    "source": { "type": "string", "example": "codex" },
+    "external_id": { "type": "string", "example": "task-login-123" },
+    "project": {
+      "type": "object",
+      "properties": {
+        "external_id": { "type": "string" },
+        "name": { "type": "string" },
+        "start_date": { "type": "string" },
+        "end_date": { "type": "string" }
+      }
+    },
+    "task_group": {
+      "type": "object",
+      "properties": {
+        "external_id": { "type": "string" },
+        "group_name": { "type": "string" }
+      }
+    },
+    "task_name": { "type": "string" },
+    "task_name_ko": { "type": "string" },
+    "task_name_vi": { "type": "string" },
+    "start_date": { "type": ["string", "null"] },
+    "end_date": { "type": ["string", "null"] },
+    "schedule_status": { "type": "string", "enum": ["SCHEDULED", "UNSCHEDULED"] },
+    "assignees": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["worker_id"],
+        "properties": {
+          "worker_id": { "type": "string" },
+          "allocation_percent": { "type": "number", "minimum": 1, "maximum": 100 }
+        }
+      }
+    }
+  }
+}

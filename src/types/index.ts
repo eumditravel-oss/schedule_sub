@@ -35,6 +35,7 @@ export interface Worker {
   access_role?: AccessRole;
   ui_language?: UiLanguage;
   can_manage_country_calendar?: number;
+  can_manage_integrations?: number;
   created_at?: string;
   updated_at?: string;
 }
@@ -392,4 +393,50 @@ export interface ApiResponse<T> {
     code?: string;
     details?: any;
   };
+}
+
+export interface IntegrationApiKey {
+  id: string;
+  name: string;
+  key_prefix: string;
+  scopes_json: string;
+  allowed_project_ids_json?: string;
+  allowed_ips_json?: string;
+  is_active: number;
+  expires_at?: string;
+  last_used_at?: string;
+  created_by_id: string;
+  created_by_name: string;
+  created_at: string;
+  revoked_at?: string;
+  raw_token_once?: string;
+}
+
+export interface IntegrationEntityLink {
+  id: string;
+  api_key_id: string;
+  source: string;
+  entity_type: 'PROJECT' | 'TASK_GROUP' | 'TASK';
+  external_id: string;
+  internal_id: string;
+  external_updated_at?: string;
+  last_payload_hash?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface IntegrationApiLog {
+  id: string;
+  request_id: string;
+  api_key_id: string;
+  method: string;
+  route: string;
+  source?: string;
+  external_id?: string;
+  entity_type?: string;
+  internal_id?: string;
+  http_status: number;
+  error_code?: string;
+  client_ip?: string;
+  created_at: string;
 }

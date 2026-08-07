@@ -24,6 +24,18 @@ import {
   getTodayStrForWorkerServer,
 } from './services/progressAndConflictServer';
 import { detectCrossProjectWorkerConflictsServer } from './services/crossProjectConflictServer';
+import {
+  upsertProjectService,
+  upsertTaskGroupService,
+  upsertTaskService,
+} from './services/domainServices';
+import {
+  authenticateIntegrationKey,
+  generateIntegrationApiKey,
+  checkAndEnforceRateLimit,
+  logIntegrationApiRequest,
+} from './services/integrationAuthServer';
+import { OPENAPI_V1_SPEC } from './services/openapiSpec';
 
 export interface Env {
   DB: any;
@@ -484,6 +496,207 @@ async function validateAndNormalizeTaskAssigneesServer(
     availabilityPolicy: body.availability_policy === 'ALL_REQUIRED' ? 'ALL_REQUIRED' : 'ANY_AVAILABLE',
   };
 }
+
+      // ==========================================
+      // INTEGRATION REST API V1 (/api/integrations/v1/*)
+      // ==========================================
+
+      if (path.startsWith('/api/integrations/v1')) {
+        const reqId = `req_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+        const clientIp = request.headers.get('cf-connecting-ip') || 'unknown';
+
+        if (path === '/api/integrations/v1/health') {
+          return jsonResponse({
+            status: 'ok',
+            version: '1.0.0',
+            timestamp: new Date().toISOString(),
+          });
+        }
+
+        if (path === '/api/integrations/v1/openapi.json') {
+          return jsonResponse(OPENAPI_V1_SPEC);
+        }
+
+        let requiredScope = 'tasks:write';
+        if (method === 'GET') requiredScope = 'projects:read';
+        if (method === 'DELETE') requiredScope = 'tasks:delete';
+
+        const auth = await authenticateIntegrationKey(db, request, requiredScope);
+        if (!auth.allowed) {
+          await logIntegrationApiRequest(db, reqId, 'none', method, path, 401, undefined, undefined, undefined, undefined, auth.errorCode, clientIp);
+          return errorResponse(auth.errorMessage!, 401, auth.errorCode!);
+        }
+
+        const apiKey = auth.apiKey!;
+
+        const rateCheck = await checkAndEnforceRateLimit(db, apiKey.id, 120);
+        if (!rateCheck.allowed) {
+          await logIntegrationApiRequest(db, reqId, apiKey.id, method, path, 429, undefined, undefined, undefined, undefined, 'RATE_LIMIT_EXCEEDED', clientIp);
+          return errorResponse('Rate limit exceeded (Max 120 requests/minute).', 429, 'RATE_LIMIT_EXCEEDED');
+        }
+
+        if (method === 'GET' && path === '/api/integrations/v1/workers') {
+          const res = await db.prepare(`SELECT id, name, is_active, sort_order, country_code, workweek_profile, access_role FROM workers WHERE is_active = 1 ORDER BY sort_order ASC`).all();
+          await logIntegrationApiRequest(db, reqId, apiKey.id, method, path, 200, undefined, undefined, undefined, undefined, undefined, clientIp);
+          return jsonResponse(res.results || []);
+        }
+
+        if (method === 'GET' && path === '/api/integrations/v1/projects') {
+          const res = await db.prepare(`SELECT * FROM projects ORDER BY start_date DESC`).all();
+          await logIntegrationApiRequest(db, reqId, apiKey.id, method, path, 200, undefined, undefined, undefined, undefined, undefined, clientIp);
+          return jsonResponse(res.results || []);
+        }
+
+        const prjMatch = path.match(/^\/api\/integrations\/v1\/projects\/([^/]+)$/);
+        if (method === 'GET' && prjMatch) {
+          const pId = prjMatch[1];
+          const prj = await db.prepare(`SELECT * FROM projects WHERE id = ?`).bind(pId).first();
+          if (!prj) {
+            await logIntegrationApiRequest(db, reqId, apiKey.id, method, path, 404, undefined, undefined, 'PROJECT', pId, 'PROJECT_NOT_FOUND', clientIp);
+            return errorResponse('Project not found.', 404, 'PROJECT_NOT_FOUND');
+          }
+          const tasks = await db.prepare(`SELECT * FROM tasks WHERE project_id = ?`).bind(pId).all();
+          await logIntegrationApiRequest(db, reqId, apiKey.id, method, path, 200, undefined, undefined, 'PROJECT', pId, undefined, clientIp);
+          return jsonResponse({ project: prj, tasks: tasks.results || [] });
+        }
+
+        if (method === 'GET' && path === '/api/integrations/v1/entity-links') {
+          const src = url.searchParams.get('source');
+          const type = url.searchParams.get('entity_type');
+          let q = `SELECT * FROM integration_entity_links WHERE 1=1`;
+          const params: any[] = [];
+          if (src) { q += ` AND source = ?`; params.push(src); }
+          if (type) { q += ` AND entity_type = ?`; params.push(type); }
+          q += ` ORDER BY created_at DESC LIMIT 200`;
+          const stmt = db.prepare(q);
+          const bound = params.length > 0 ? stmt.bind(...params) : stmt;
+          const res = await bound.all();
+          await logIntegrationApiRequest(db, reqId, apiKey.id, method, path, 200, undefined, undefined, undefined, undefined, undefined, clientIp);
+          return jsonResponse(res.results || []);
+        }
+
+        if (method === 'POST' && path === '/api/integrations/v1/projects/upsert') {
+          const body: any = await request.json().catch(() => ({}));
+          if (!body.name || !body.start_date || !body.end_date) {
+            await logIntegrationApiRequest(db, reqId, apiKey.id, method, path, 400, body.source, body.external_id, 'PROJECT', undefined, 'MISSING_REQUIRED_FIELDS', clientIp);
+            return errorResponse('name, start_date, and end_date are required.', 400, 'MISSING_REQUIRED_FIELDS');
+          }
+          const result = await upsertProjectService(db, env, apiKey.id, body, `api:${apiKey.name}`);
+          await logIntegrationApiRequest(db, reqId, apiKey.id, method, path, 200, body.source, body.external_id, 'PROJECT', result.project.id, undefined, clientIp);
+          return jsonResponse(result);
+        }
+
+        if (method === 'POST' && path === '/api/integrations/v1/task-groups/upsert') {
+          const body: any = await request.json().catch(() => ({}));
+          if (!body.group_name) {
+            await logIntegrationApiRequest(db, reqId, apiKey.id, method, path, 400, body.source, body.external_id, 'TASK_GROUP', undefined, 'MISSING_REQUIRED_FIELDS', clientIp);
+            return errorResponse('group_name is required.', 400, 'MISSING_REQUIRED_FIELDS');
+          }
+          const result = await upsertTaskGroupService(db, env, apiKey.id, body, `api:${apiKey.name}`);
+          await logIntegrationApiRequest(db, reqId, apiKey.id, method, path, 200, body.source, body.external_id, 'TASK_GROUP', result.group.id, undefined, clientIp);
+          return jsonResponse(result);
+        }
+
+        if (method === 'POST' && path === '/api/integrations/v1/tasks/upsert') {
+          const body: any = await request.json().catch(() => ({}));
+          if (!body.task_name) {
+            await logIntegrationApiRequest(db, reqId, apiKey.id, method, path, 400, body.source, body.external_id, 'TASK', undefined, 'MISSING_REQUIRED_FIELDS', clientIp);
+            return errorResponse('task_name is required.', 400, 'MISSING_REQUIRED_FIELDS');
+          }
+          const result = await upsertTaskService(db, env, apiKey.id, body, `api:${apiKey.name}`);
+          const status = result.conflict_warning ? 409 : 200;
+          await logIntegrationApiRequest(db, reqId, apiKey.id, method, path, status, body.source, body.external_id, 'TASK', result.task.id, result.conflict_warning?.code, clientIp);
+          return jsonResponse(result, status);
+        }
+
+        if (method === 'POST' && path === '/api/integrations/v1/tasks/batch-upsert') {
+          const body: any = await request.json().catch(() => ({}));
+          const items: any[] = body.tasks || body.items || [];
+          if (!Array.isArray(items) || items.length === 0) {
+            return errorResponse('tasks array is required and must contain at least 1 task.', 400, 'EMPTY_BATCH');
+          }
+          if (items.length > 100) {
+            return errorResponse('Batch size exceeds maximum limit of 100 tasks per request.', 400, 'BATCH_LIMIT_EXCEEDED');
+          }
+          const results: any[] = [];
+          for (const item of items) {
+            try {
+              const res = await upsertTaskService(db, env, apiKey.id, item, `api:${apiKey.name}`);
+              results.push({ success: true, ...res });
+            } catch (err: any) {
+              results.push({ success: false, external_id: item.external_id, error: err.message });
+            }
+          }
+          await logIntegrationApiRequest(db, reqId, apiKey.id, method, path, 200, items[0]?.source, undefined, 'TASK_BATCH', undefined, undefined, clientIp);
+          return jsonResponse({ total_processed: items.length, results });
+        }
+
+        const taskMatch = path.match(/^\/api\/integrations\/v1\/tasks\/([^/]+)$/);
+        if ((method === 'PATCH' || method === 'PUT') && taskMatch) {
+          const tId = taskMatch[1];
+          const body: any = await request.json().catch(() => ({}));
+          body.internal_id = tId;
+          const result = await upsertTaskService(db, env, apiKey.id, body, `api:${apiKey.name}`);
+          await logIntegrationApiRequest(db, reqId, apiKey.id, method, path, 200, body.source, body.external_id, 'TASK', tId, undefined, clientIp);
+          return jsonResponse(result);
+        }
+
+        if (method === 'DELETE' && taskMatch) {
+          const tId = taskMatch[1];
+          await db.prepare(`DELETE FROM tasks WHERE id = ?`).bind(tId).run();
+          await db.prepare(`DELETE FROM integration_entity_links WHERE internal_id = ?`).bind(tId).run();
+          await logIntegrationApiRequest(db, reqId, apiKey.id, method, path, 200, undefined, undefined, 'TASK', tId, undefined, clientIp);
+          return jsonResponse({ deleted: true, id: tId });
+        }
+
+        return errorResponse('Integration route not found.', 404, 'NOT_FOUND');
+      }
+
+      // ==========================================
+      // INTEGRATION MANAGEMENT API FOR ADMIN UI (/api/admin/integration-keys/*)
+      // ==========================================
+
+      if (path.startsWith('/api/admin/integration-keys') || path.startsWith('/api/admin/integration-logs')) {
+        const editor = getEditorName(null, request);
+        const editCheck = await requireEditableWorker(db, editor);
+        if (!editCheck.allowed) {
+          return errorResponse(editCheck.errorMsg!, 403, editCheck.errorCode!);
+        }
+
+        const currentWorker = editCheck.worker!;
+        if (Number(currentWorker.can_manage_integrations) !== 1) {
+          return errorResponse('Integration key management requires can_manage_integrations permission.', 403, 'INTEGRATION_MANAGEMENT_FORBIDDEN');
+        }
+
+        if (method === 'GET' && path === '/api/admin/integration-keys') {
+          const res = await db.prepare(`SELECT id, name, key_prefix, scopes_json, is_active, expires_at, last_used_at, created_by_id, created_by_name, created_at, revoked_at FROM integration_api_keys ORDER BY created_at DESC`).all();
+          return jsonResponse(res.results || []);
+        }
+
+        if (method === 'POST' && path === '/api/admin/integration-keys') {
+          const body: any = await request.json().catch(() => ({}));
+          if (!body.name) return errorResponse('Key name is required.', 400);
+          const scopes = body.scopes || ['tasks:write', 'projects:read'];
+          const expiresInDays = body.expires_in_days ? Number(body.expires_in_days) : undefined;
+          const result = await generateIntegrationApiKey(db, body.name, scopes, currentWorker.id, currentWorker.name, expiresInDays);
+          return jsonResponse({
+            key: result.record,
+            raw_token_once: result.raw_secret_once,
+          });
+        }
+
+        const revokeMatch = path.match(/^\/api\/admin\/integration-keys\/([^/]+)$/);
+        if (method === 'DELETE' && revokeMatch) {
+          const keyId = revokeMatch[1];
+          await db.prepare(`UPDATE integration_api_keys SET is_active = 0, revoked_at = CURRENT_TIMESTAMP WHERE id = ?`).bind(keyId).run();
+          return jsonResponse({ revoked: true, id: keyId });
+        }
+
+        if (method === 'GET' && path === '/api/admin/integration-logs') {
+          const res = await db.prepare(`SELECT * FROM integration_api_logs ORDER BY created_at DESC LIMIT 100`).all();
+          return jsonResponse(res.results || []);
+        }
+      }
 
       // 0.9 POST /api/admin/backfill-assignees
       if ((method === 'POST' || method === 'GET') && path === '/api/admin/backfill-assignees') {
