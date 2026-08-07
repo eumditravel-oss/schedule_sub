@@ -1,9 +1,11 @@
 import { describe, it, expect } from 'vitest';
+import React from 'react';
+import { renderToString } from 'react-dom/server';
 import { resolveWorkDayStatus } from '../../../utils/workCalendar';
-import { resolveCalendarVisualState } from '../../../utils/calendarVisualTokens';
-import { Worker, CountryHoliday, CalendarOverride } from '../../../types';
+import { Worker, CountryHoliday, CalendarOverride, TaskAssignee } from '../../../types';
+import { WorkerDayCellBackground } from '../WorkerDayCellBackground';
 
-describe('multiAssigneeCalendarResolution', () => {
+describe('multiAssigneeCalendarResolution & WorkerDayCellBackground', () => {
   const wThanh: Worker = {
     id: 'wrk_03',
     name: 'Thanh Phuong',
@@ -34,6 +36,13 @@ describe('multiAssigneeCalendarResolution', () => {
     access_role: 'EDITOR',
   };
 
+  const assignees2VN: TaskAssignee[] = [
+    { worker_id: 'wrk_03', name: 'Thanh Phuong', country_code: 'VN', assignment_role: 'PRIMARY', allocation_percent: 50, sort_order: 0 },
+    { worker_id: 'wrk_04', name: 'Manh Cuong', country_code: 'VN', assignment_role: 'CO_ASSIGNEE', allocation_percent: 50, sort_order: 1 },
+  ];
+
+  const workersList = [wThanh, wManh, wKorean];
+
   const holidays: CountryHoliday[] = [
     {
       id: 'hol_KR_2026-05-05',
@@ -48,18 +57,26 @@ describe('multiAssigneeCalendarResolution', () => {
     },
   ];
 
-  it('resolves 2/2 WORK for two VN workers on a Saturday (2026-05-09) when no overrides exist', () => {
-    const stThanh = resolveWorkDayStatus('2026-05-09', wThanh, holidays, []);
-    const stManh = resolveWorkDayStatus('2026-05-09', wManh, holidays, []);
+  it('1. 2 WORK: renders ALL_WORKING / Badge 0 / Hatch 0', () => {
+    const html = renderToString(
+      React.createElement(WorkerDayCellBackground, {
+        dateStr: '2026-05-09',
+        taskId: 'tsk_test',
+        assignees: assignees2VN,
+        workers: workersList,
+        countryHolidays: holidays,
+        calendarOverrides: [],
+      })
+    );
 
-    expect(stThanh.is_working_day).toBe(true);
-    expect(stManh.is_working_day).toBe(true);
-
-    const workingCount = [stThanh, stManh].filter((s) => s.is_working_day).length;
-    expect(workingCount).toBe(2);
+    expect(html).toContain('data-assignee-availability="ALL_WORKING"');
+    expect(html).toContain('data-working-count="2"');
+    expect(html).toContain('data-off-count="0"');
+    expect(html).not.toContain('data-testid="worker-partial-off-badge"');
+    expect(html).not.toContain('data-testid="task-worker-hatch-tsk_test-2026-05-09"');
   });
 
-  it('resolves 1/2 OFF when one worker has a WORKER OFF override', () => {
+  it('2. 1 OFF: renders PARTIAL_OFF / 1/2 수동휴무', () => {
     const overrides: CalendarOverride[] = [
       {
         id: 'ovr_test_off',
@@ -71,20 +88,25 @@ describe('multiAssigneeCalendarResolution', () => {
       },
     ];
 
-    const stThanh = resolveWorkDayStatus('2026-05-09', wThanh, holidays, overrides);
-    const stManh = resolveWorkDayStatus('2026-05-09', wManh, holidays, overrides);
+    const html = renderToString(
+      React.createElement(WorkerDayCellBackground, {
+        dateStr: '2026-05-09',
+        taskId: 'tsk_test',
+        assignees: assignees2VN,
+        workers: workersList,
+        countryHolidays: holidays,
+        calendarOverrides: overrides,
+      })
+    );
 
-    expect(stThanh.is_working_day).toBe(false);
-    expect(stThanh.day_type).toBe('MANUAL_OFF');
-    expect(stManh.is_working_day).toBe(true);
-
-    const workingCount = [stThanh, stManh].filter((s) => s.is_working_day).length;
-    const offCount = 2 - workingCount;
-    expect(workingCount).toBe(1);
-    expect(offCount).toBe(1);
+    expect(html).toContain('data-assignee-availability="PARTIAL_OFF"');
+    expect(html).toContain('data-working-count="1"');
+    expect(html).toContain('data-off-count="1"');
+    expect(html).toMatch(/1.*\/.*2.*수동휴무/);
+    expect(html).toContain('data-testid="worker-partial-off-badge"');
   });
 
-  it('resolves 1/2 LEAVE when one worker has a LEAVE override', () => {
+  it('3. 1 LEAVE: renders PARTIAL_OFF / 1/2 휴가', () => {
     const overrides: CalendarOverride[] = [
       {
         id: 'ovr_test_leave',
@@ -96,35 +118,82 @@ describe('multiAssigneeCalendarResolution', () => {
       },
     ];
 
-    const stThanh = resolveWorkDayStatus('2026-05-09', wThanh, holidays, overrides);
-    const stManh = resolveWorkDayStatus('2026-05-09', wManh, holidays, overrides);
+    const html = renderToString(
+      React.createElement(WorkerDayCellBackground, {
+        dateStr: '2026-05-09',
+        taskId: 'tsk_test',
+        assignees: assignees2VN,
+        workers: workersList,
+        countryHolidays: holidays,
+        calendarOverrides: overrides,
+      })
+    );
 
-    expect(stThanh.is_working_day).toBe(false);
-    expect(stThanh.day_type).toBe('LEAVE');
-    expect(stManh.is_working_day).toBe(true);
+    expect(html).toContain('data-assignee-availability="PARTIAL_OFF"');
+    expect(html).toMatch(/1.*\/.*2.*휴가/);
+    expect(html).toContain('bg-purple-600');
   });
 
-  it('resolves KR_ONLY_OFF on 2026-05-05 for KR worker but WORKDAY for VN workers', () => {
-    const stKR = resolveWorkDayStatus('2026-05-05', wKorean, holidays, []);
-    const stVN1 = resolveWorkDayStatus('2026-05-05', wThanh, holidays, []);
-    const stVN2 = resolveWorkDayStatus('2026-05-05', wManh, holidays, []);
+  it('4. 2 OFF: renders ALL_OFF / Full Hatch', () => {
+    // On Sunday 2026-05-10, both VN MON_SAT workers are WEEKLY_OFF
+    const html = renderToString(
+      React.createElement(WorkerDayCellBackground, {
+        dateStr: '2026-05-10',
+        taskId: 'tsk_test',
+        assignees: assignees2VN,
+        workers: workersList,
+        countryHolidays: holidays,
+        calendarOverrides: [],
+      })
+    );
 
-    expect(stKR.is_working_day).toBe(false);
-    expect(stKR.day_type).toBe('PUBLIC_HOLIDAY');
-
-    expect(stVN1.is_working_day).toBe(true);
-    expect(stVN1.day_type).toBe('WORKDAY');
-    expect(stVN2.is_working_day).toBe(true);
-
-    const vnWorkingCount = [stVN1, stVN2].filter((s) => s.is_working_day).length;
-    expect(vnWorkingCount).toBe(2);
+    expect(html).toContain('data-assignee-availability="ALL_OFF"');
+    expect(html).toContain('data-working-count="0"');
+    expect(html).toContain('data-off-count="2"');
+    expect(html).toContain('data-testid="task-worker-hatch-tsk_test-2026-05-10"');
+    expect(html).not.toContain('data-testid="worker-partial-off-badge"');
   });
 
-  it('handles missing worker or missing profile without treating as MANUAL_OFF for ratio', () => {
-    const incompleteWorker = { id: 'wrk_invalid', name: 'Unknown' } as any;
-    const st = resolveWorkDayStatus('2026-05-09', incompleteWorker, holidays, []);
+  it('5. 1 Invalid + 1 WORK: renders PROFILE_ERROR badge, ratio badge NOT displayed', () => {
+    const invalidAssignees: TaskAssignee[] = [
+      { worker_id: 'wrk_invalid', name: 'Unknown', country_code: 'VN', assignment_role: 'PRIMARY', allocation_percent: 50, sort_order: 0 },
+      { worker_id: 'wrk_04', name: 'Manh Cuong', country_code: 'VN', assignment_role: 'CO_ASSIGNEE', allocation_percent: 50, sort_order: 1 },
+    ];
 
-    expect(st.source).toBe('ERROR');
-    expect(st.label_ko).toContain('작업자 캘린더 정보 오류');
+    const html = renderToString(
+      React.createElement(WorkerDayCellBackground, {
+        dateStr: '2026-05-09',
+        taskId: 'tsk_test',
+        assignees: invalidAssignees,
+        workers: workersList,
+        countryHolidays: holidays,
+        calendarOverrides: [],
+      })
+    );
+
+    expect(html).toContain('data-assignee-availability="PROFILE_ERROR"');
+    expect(html).toContain('data-profile-error-count="1"');
+    expect(html).toContain('data-testid="worker-profile-error-badge"');
+    expect(html).toContain('작업자 정보 오류');
+    expect(html).not.toContain('data-testid="worker-partial-off-badge"');
+  });
+
+  it('6. KR_ONLY_OFF + VN 2명: renders ALL_WORKING / Hatch 0', () => {
+    const html = renderToString(
+      React.createElement(WorkerDayCellBackground, {
+        dateStr: '2026-05-05',
+        taskId: 'tsk_test',
+        assignees: assignees2VN,
+        workers: workersList,
+        countryHolidays: holidays,
+        calendarOverrides: [],
+      })
+    );
+
+    expect(html).toContain('data-assignee-availability="ALL_WORKING"');
+    expect(html).toContain('data-working-count="2"');
+    expect(html).toContain('data-off-count="0"');
+    expect(html).not.toContain('data-testid="task-worker-hatch-tsk_test-2026-05-05"');
+    expect(html).not.toContain('data-testid="worker-partial-off-badge"');
   });
 });

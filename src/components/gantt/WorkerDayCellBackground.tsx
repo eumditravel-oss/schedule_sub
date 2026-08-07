@@ -58,15 +58,19 @@ export const WorkerDayCellBackground: React.FC<WorkerDayCellBackgroundProps> = (
       : true;
 
   let overallToken: CalendarVisualToken;
-  let partialState: 'ALL_WORKING' | 'ALL_OFF' | 'PARTIAL_OFF' = 'ALL_WORKING';
+  let partialState: 'ALL_WORKING' | 'ALL_OFF' | 'PARTIAL_OFF' | 'PROFILE_ERROR' = 'ALL_WORKING';
   let workingCount = 1;
   let totalAssignees = 1;
+  let validAssigneesCount = 1;
+  let profileErrorCount = 0;
   let hasVacation = false;
   let hasManualOff = false;
   let offCount = 0;
-  let hasProfileError = false;
+  let offReasonText = '';
 
   if (hasMultiAssignees) {
+    totalAssignees = assignees.length;
+
     const resolvedAssignees = assignees.map((a) => {
       const wObj = workers.find((w) => w.id === a.worker_id);
       if (!wObj || !wObj.country_code || !wObj.workweek_profile) {
@@ -79,17 +83,17 @@ export const WorkerDayCellBackground: React.FC<WorkerDayCellBackgroundProps> = (
     });
 
     const validResolutions = resolvedAssignees.filter((r) => !r.isError && r.status && r.token);
+    profileErrorCount = resolvedAssignees.filter((r) => r.isError).length;
+    validAssigneesCount = validResolutions.length;
 
-    if (validResolutions.length === 0) {
-      hasProfileError = true;
-      totalAssignees = assignees.length;
-      workingCount = totalAssignees;
-      offCount = 0;
-      partialState = 'ALL_WORKING'; // Profile error is NOT treated as MANUAL_OFF
+    if (profileErrorCount > 0) {
+      // Partial or total profile error
+      partialState = 'PROFILE_ERROR';
+      workingCount = validResolutions.filter((r) => r.status!.is_working_day).length;
+      offCount = validResolutions.filter((r) => !r.status!.is_working_day).length;
       overallToken = resolveCalendarVisualState(dateStr, null, dayStatus, countryOffState, countryHolidays, calendarOverrides);
+      offReasonText = `작업자 캘린더 정보 오류 ${profileErrorCount}명`;
     } else {
-      totalAssignees = validResolutions.length;
-      // Single Source of Truth: resolveWorkDayStatus(...).is_working_day
       workingCount = validResolutions.filter((r) => r.status!.is_working_day).length;
       offCount = totalAssignees - workingCount;
 
@@ -103,10 +107,14 @@ export const WorkerDayCellBackground: React.FC<WorkerDayCellBackgroundProps> = (
 
       if (workingCount === totalAssignees) {
         partialState = 'ALL_WORKING';
+        offReasonText = `담당자 ${totalAssignees}명 모두 근무`;
       } else if (workingCount === 0) {
         partialState = 'ALL_OFF';
+        offReasonText = `담당자 ${totalAssignees}명 모두 휴무`;
       } else {
         partialState = 'PARTIAL_OFF';
+        const offDetails = offResolutions.map((r) => `${r.worker!.name} ${r.status!.label_ko}`).join(', ');
+        offReasonText = `담당자 ${totalAssignees}명 중 ${offCount}명 휴무 (${offDetails})`;
       }
 
       // Explicit visual reason priority: LEAVE > MANUAL_OFF > PUBLIC_HOLIDAY > WEEKLY_OFF
@@ -127,6 +135,7 @@ export const WorkerDayCellBackground: React.FC<WorkerDayCellBackgroundProps> = (
     }
   } else {
     // Single assignee logic
+    totalAssignees = 1;
     let singleWorkerObj = worker;
     if ((!singleWorkerObj || !singleWorkerObj.country_code || !singleWorkerObj.workweek_profile) && assignees.length === 1) {
       singleWorkerObj = workers.find((w) => w.id === assignees[0].worker_id) || null;
@@ -137,13 +146,16 @@ export const WorkerDayCellBackground: React.FC<WorkerDayCellBackgroundProps> = (
       if (assignees.length === 1 && assignees[0].worker_id) {
         console.error(`ASSIGNEE_WORKER_NOT_FOUND_OR_PROFILE_MISSING:${assignees[0].worker_id}`);
       }
-      hasProfileError = true;
-      overallToken = resolveCalendarVisualState(dateStr, null, dayStatus, countryOffState, countryHolidays, calendarOverrides);
-      partialState = 'ALL_WORKING';
-      workingCount = 1;
+      profileErrorCount = 1;
+      validAssigneesCount = 0;
+      workingCount = 0;
       offCount = 0;
-      totalAssignees = 1;
+      partialState = 'PROFILE_ERROR';
+      overallToken = resolveCalendarVisualState(dateStr, null, dayStatus, countryOffState, countryHolidays, calendarOverrides);
+      offReasonText = `작업자 캘린더 정보 오류 1명`;
     } else {
+      profileErrorCount = 0;
+      validAssigneesCount = 1;
       const st = resolveWorkDayStatus(dateStr, singleWorkerObj as Worker, countryHolidays, calendarOverrides);
       if (st?.day_type === 'LEAVE') {
         hasVacation = true;
@@ -160,12 +172,11 @@ export const WorkerDayCellBackground: React.FC<WorkerDayCellBackgroundProps> = (
         calendarOverrides
       );
 
-      // Single Source of Truth: st.is_working_day
       const isW = st ? st.is_working_day : (overallToken.visualState === 'WORKDAY' || overallToken.visualState === 'WORK_OVERRIDE');
       partialState = isW ? 'ALL_WORKING' : 'ALL_OFF';
       workingCount = isW ? 1 : 0;
       offCount = isW ? 0 : 1;
-      totalAssignees = 1;
+      offReasonText = isW ? '정상 근무' : (st?.label_ko || overallToken.label);
     }
   }
 
@@ -173,10 +184,8 @@ export const WorkerDayCellBackground: React.FC<WorkerDayCellBackgroundProps> = (
     ? partialState === 'ALL_WORKING'
     : partialState !== 'ALL_OFF';
 
-  const offReason = dayStatus?.label_ko || overallToken.label;
-
   let hatchPatternStyle: React.CSSProperties | undefined;
-  if (partialState !== 'ALL_WORKING' && overallToken.hatchColor) {
+  if (partialState !== 'ALL_WORKING' && partialState !== 'PROFILE_ERROR' && overallToken.hatchColor) {
     const hatchColor = overallToken.hatchColor;
     hatchPatternStyle = {
       backgroundImage: `repeating-linear-gradient(135deg, ${hatchColor} 0px, ${hatchColor} 3px, transparent 3px, transparent 10px)`,
@@ -184,7 +193,7 @@ export const WorkerDayCellBackground: React.FC<WorkerDayCellBackgroundProps> = (
     };
   }
 
-  const ariaLabel = `${dateStr} - ${offReason} (${overallToken.label})`;
+  const ariaLabel = `${dateStr} - ${offReasonText}`;
   const hatchTestId = taskId ? `task-worker-hatch-${taskId}-${dateStr}` : `worker-off-hatch-${dateStr}`;
 
   // Width percentage for partial off hatch based on actual off ratio
@@ -194,15 +203,19 @@ export const WorkerDayCellBackground: React.FC<WorkerDayCellBackgroundProps> = (
 
   return (
     <div
+      data-task-id={taskId}
+      data-date={dateStr}
       data-worker-day-type={dayStatus?.day_type || 'WORKDAY'}
       data-worker-visual-state={overallToken.visualState}
-      data-worker-availability-state={partialState}
-      data-assignee-availability={partialState}
-      data-worker-is-working={isWorking ? 'true' : 'false'}
-      data-worker-off-reason={offReason}
+      data-total-assignee-count={totalAssignees}
+      data-valid-assignee-count={validAssigneesCount}
+      data-profile-error-count={profileErrorCount}
       data-working-count={workingCount}
       data-off-count={offCount}
-      data-has-profile-error={hasProfileError ? 'true' : 'false'}
+      data-assignee-availability={partialState}
+      data-worker-availability-state={partialState}
+      data-worker-is-working={isWorking ? 'true' : 'false'}
+      data-worker-off-reason={offReasonText}
       aria-label={ariaLabel}
       onClick={onClick}
       style={style}
@@ -224,11 +237,11 @@ export const WorkerDayCellBackground: React.FC<WorkerDayCellBackgroundProps> = (
         />
       )}
 
-      {/* Partial Off / Vacation Badge Indicator (Shown ONLY within task schedule range) */}
+      {/* Partial Off / Vacation Badge Indicator (Shown ONLY within task schedule range when no profile error) */}
       {partialState === 'PARTIAL_OFF' && inRange && (
         <div
           data-testid="worker-partial-off-badge"
-          title={`일부 작업자 휴무 (${offCount}/${totalAssignees}명 휴무)`}
+          title={offReasonText}
           className={`absolute top-0.5 right-0.5 z-25 text-[9px] font-extrabold px-1 rounded shadow-xs pointer-events-none ${
             hasVacation ? 'bg-purple-600 text-white' : 'bg-amber-500 text-white'
           }`}
@@ -244,6 +257,17 @@ export const WorkerDayCellBackground: React.FC<WorkerDayCellBackgroundProps> = (
           className="absolute top-0.5 right-0.5 z-25 text-[9px] font-extrabold px-1 rounded bg-purple-600 text-white shadow-xs pointer-events-none"
         >
           휴가
+        </div>
+      )}
+
+      {/* Profile Error Indicator (Shown ONLY within task schedule range when worker profile error exists) */}
+      {partialState === 'PROFILE_ERROR' && inRange && (
+        <div
+          data-testid="worker-profile-error-badge"
+          title={`작업자 캘린더 정보 오류 (${profileErrorCount}명 오류)`}
+          className="absolute top-0.5 right-0.5 z-25 text-[9px] font-extrabold px-1 rounded bg-rose-600 text-white shadow-xs pointer-events-none"
+        >
+          작업자 정보 오류
         </div>
       )}
     </div>
