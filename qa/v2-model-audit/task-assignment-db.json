@@ -1,0 +1,22 @@
+{
+  "audit_timestamp": "2026-08-07T21:45:30Z",
+  "schema_tables": {
+    "tasks": [
+      "id",
+      "task_name",
+      "worker_name",
+      "availability_policy",
+      "progress_mode",
+      "schedule_status",
+      "start_date",
+      "end_date"
+    ],
+    "task_assignees": [
+      "task_id",
+      "worker_id",
+      "assignment_role",
+      "allocation_percent",
+      "created_at"
+    ]
+  }
+}

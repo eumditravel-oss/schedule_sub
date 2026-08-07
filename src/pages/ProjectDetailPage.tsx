@@ -27,6 +27,7 @@ import {
 } from '../constants/gantt';
 import { GANTT_Z } from '../constants/ganttLayers';
 import { TaskModal } from '../components/modals/TaskModal';
+import { ProjectWorkforceModal } from '../components/modals/ProjectWorkforceModal';
 import { GlobalCountryCalendarOverlay } from '../components/gantt/GlobalCountryCalendarOverlay';
 import { isMonthStartColumn, GANTT_MONTH_BOUNDARY_STYLE } from '../utils/GanttMonthBoundary';
 import { WorkerConflictSummaryModal } from '../components/modals/WorkerConflictSummaryModal';
@@ -873,6 +874,7 @@ export const ProjectDetailPage: React.FC = () => {
   const [isShiftHistoryOpen, setIsShiftHistoryOpen] = useState(false);
 
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
+  const [isWorkforceModalOpen, setIsWorkforceModalOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
 
   const [conflictModalState, setConflictModalState] = useState<{
@@ -1742,15 +1744,26 @@ export const ProjectDetailPage: React.FC = () => {
                 <span>{lang === 'vi' ? 'Chỉ xem' : '보기 전용'}</span>
               </div>
             ) : (
-              <button
-                type="button"
-                data-testid="desktop-manage-calendar-btn"
-                onClick={() => setIsCalendarModalOpen(true)}
-                className="h-9 px-3 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-xs font-bold text-slate-700 flex items-center gap-1.5 transition shadow-xs"
-              >
-                <Calendar className="w-4 h-4 text-blue-600" />
-                <span>{t('manageHolidays')}</span>
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  data-testid="project-workforce-btn"
+                  onClick={() => setIsWorkforceModalOpen(true)}
+                  className="h-9 px-3 rounded-lg border border-blue-200 bg-blue-50 hover:bg-blue-100 text-xs font-bold text-blue-700 flex items-center gap-1.5 transition shadow-xs"
+                >
+                  <Users className="w-4 h-4 text-blue-600" />
+                  <span>{lang === 'vi' ? 'Phân bổ nhân lực' : '투입 인력'}</span>
+                </button>
+                <button
+                  type="button"
+                  data-testid="desktop-manage-calendar-btn"
+                  onClick={() => setIsCalendarModalOpen(true)}
+                  className="h-9 px-3 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-xs font-bold text-slate-700 flex items-center gap-1.5 transition shadow-xs"
+                >
+                  <Calendar className="w-4 h-4 text-blue-600" />
+                  <span>{t('manageHolidays')}</span>
+                </button>
+              </div>
             )}
 
             <WorkerSelector
@@ -2329,6 +2342,15 @@ export const ProjectDetailPage: React.FC = () => {
         holidays={countryHolidays}
         overrides={calendarOverrides}
         workers={workers}
+      />
+
+      <ProjectWorkforceModal
+        isOpen={isWorkforceModalOpen}
+        project={project}
+        workers={workers}
+        tasks={tasks}
+        onClose={() => setIsWorkforceModalOpen(false)}
+        onSaved={fetchProjectDetail}
       />
 
       <TaskGroupModal

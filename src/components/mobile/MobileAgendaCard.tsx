@@ -49,10 +49,13 @@ export const MobileAgendaCard: React.FC<MobileAgendaCardProps> = ({
     statusText = lang === 'ko' ? '예정' : 'Dự kiến';
   }
 
-  const assigneeNames = assignees
-    .map((a) => a.name || a.worker_name || '')
-    .filter(Boolean)
-    .join(', ');
+  const primaryName = assignees[0]?.name || assignees[0]?.worker_name || '';
+  const supportCount = Math.max(0, assignees.length - 1);
+  const assigneeDisplay = primaryName
+    ? supportCount > 0
+      ? `주담당 ${primaryName} (지원 +${supportCount})`
+      : `주담당 ${primaryName}`
+    : '';
 
   return (
     <div
@@ -86,9 +89,9 @@ export const MobileAgendaCard: React.FC<MobileAgendaCardProps> = ({
         <span>
           {startDate || ''} {endDate ? `~ ${endDate}` : ''}
         </span>
-        {assigneeNames && (
-          <span className="truncate max-w-[140px] text-right font-medium text-slate-600">
-            {assigneeNames}
+        {assigneeDisplay && (
+          <span className="truncate max-w-[170px] text-right font-semibold text-slate-700">
+            {assigneeDisplay}
           </span>
         )}
       </div>

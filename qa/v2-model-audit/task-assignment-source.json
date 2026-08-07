@@ -1,0 +1,27 @@
+{
+  "audit_timestamp": "2026-08-07T21:45:30Z",
+  "audited_source_symbols": {
+    "allocation_percent": [
+      "src/components/modals/TaskModal.tsx",
+      "src/components/gantt/GanttTaskRow.tsx",
+      "src/components/gantt/CompactTaskRow.tsx",
+      "src/types/index.ts",
+      "worker/index.ts",
+      "worker/services/integrationService.ts"
+    ],
+    "assignment_role": [
+      "src/types/index.ts",
+      "src/components/modals/TaskModal.tsx",
+      "worker/index.ts"
+    ],
+    "availability_policy": [
+      "src/types/index.ts",
+      "src/utils/calendarUtils.ts",
+      "worker/index.ts"
+    ],
+    "conflict_detection": [
+      "src/utils/conflictUtils.ts",
+      "worker/index.ts"
+    ]
+  }
+}

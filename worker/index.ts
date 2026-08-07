@@ -37,6 +37,7 @@ import {
 } from './services/integrationAuthServer';
 import { OPENAPI_V1_SPEC } from './services/openapiSpec';
 import { getTodayDashboardSummaryServer } from './services/todaySummaryService';
+import { getProjectAllocations, updateProjectAllocations } from './services/projectAllocationService';
 
 export interface Env {
   DB: any;
@@ -1457,6 +1458,36 @@ async function validateAndNormalizeTaskAssigneesServer(
         }
 
         return jsonResponse({ success: true, project_id: projectId, change_type: changeType, log_id: logId });
+      }
+
+      // 4.9 GET /api/projects/:id/worker-allocations
+      const getAllocsMatch = path.match(/^\/api\/projects\/([^/]+)\/worker-allocations$/);
+      if (method === 'GET' && getAllocsMatch) {
+        const projectId = getAllocsMatch[1];
+        const allocs = await getProjectAllocations(db, projectId);
+        return jsonResponse(allocs);
+      }
+
+      // 4.95 PUT /api/projects/:id/worker-allocations
+      if (method === 'PUT' && getAllocsMatch) {
+        const projectId = getAllocsMatch[1];
+        const body: any = await request.json().catch(() => ({}));
+        const editor = getEditorName(body, request);
+        const editCheck = await requireEditableWorker(db, editor);
+        if (!editCheck.allowed) {
+          return errorResponse(editCheck.errorMsg!, 403, editCheck.errorCode!);
+        }
+
+        const allocList = Array.isArray(body?.allocations) ? body.allocations : [];
+        try {
+          const updated = await updateProjectAllocations(db, projectId, allocList, editCheck.worker, 'MANUAL');
+          return jsonResponse(updated);
+        } catch (err: any) {
+          if (err.message === 'PROJECT_NOT_FOUND') {
+            return errorResponse('프로젝트를 찾을 수 없습니다.', 404);
+          }
+          return errorResponse(err.message || 'Worker allocations update failed.', 500);
+        }
       }
 
       // 5. GET /api/projects/:id

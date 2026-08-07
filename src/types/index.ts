@@ -91,6 +91,42 @@ export interface TaskAssigneeInput {
   assignment_role?: AssignmentRole;
 }
 
+export interface ProjectWorkerAllocation {
+  id: string;
+  project_id: string;
+  worker_id: string;
+  allocation_percent: number;
+  note?: string;
+  source?: 'MANUAL' | 'INTEGRATION';
+  worker_name?: string;
+  created_by_id?: string;
+  created_by_name?: string;
+  updated_by_id?: string;
+  updated_by_name?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export type CapacityState = 'NORMAL' | 'OVERALLOCATED' | 'UNKNOWN';
+
+export interface ProjectWorkforceSummary {
+  project_id: string;
+  allocations: ProjectWorkerAllocation[];
+  total_fte: number;
+  unset_participants: Worker[];
+}
+
+export function getPicAssignee(assignees?: TaskAssignee[]): TaskAssignee | null {
+  if (!assignees || assignees.length === 0) return null;
+  return assignees.find((a) => a.assignment_role === 'PRIMARY') || assignees[0];
+}
+
+export function getSupportAssignees(assignees?: TaskAssignee[]): TaskAssignee[] {
+  if (!assignees || assignees.length <= 1) return [];
+  const pic = getPicAssignee(assignees);
+  return assignees.filter((a) => a !== pic && a.assignment_role === 'CO_ASSIGNEE');
+}
+
 export interface ScheduleConflictDetail {
   worker_id?: string;
   worker_name: string;

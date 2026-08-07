@@ -1,0 +1,7 @@
+{
+  "audit_timestamp": "2026-08-07T21:45:30Z",
+  "legacy_capacity_model": "Task-based allocation percent accumulation per date range across projects",
+  "v2_capacity_model": "Project-based worker allocation percent (project_worker_allocations) accumulated per active working day",
+  "v2_overload_threshold": 100,
+  "v2_ack_policy_version": "project_capacity_v1"
+}

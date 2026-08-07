@@ -1,5 +1,5 @@
 // src/services/api.ts
-import { ApiResponse, Project, Task, TaskGroup, Worker, DailyStatusType, CountryHoliday, CalendarOverride } from '../types';
+import { ApiResponse, Project, Task, TaskGroup, Worker, DailyStatusType, CountryHoliday, CalendarOverride, ProjectWorkerAllocation } from '../types';
 
 const WORKER_ID_KEY = 'schedule_current_worker_id';
 const WORKER_NAME_KEY = 'schedule_current_worker_name';
@@ -114,6 +114,23 @@ export const api = {
   async getProjectDetail(id: string): Promise<{ project: Project; tasks: Task[]; task_groups: TaskGroup[] }> {
     const res = await fetch(`/api/projects/${id}/detail`);
     return handleResponse<{ project: Project; tasks: Task[]; task_groups: TaskGroup[] }>(res);
+  },
+
+  async getProjectWorkerAllocations(projectId: string): Promise<ProjectWorkerAllocation[]> {
+    const res = await fetch(`/api/projects/${projectId}/worker-allocations`);
+    return handleResponse<ProjectWorkerAllocation[]>(res);
+  },
+
+  async updateProjectWorkerAllocations(
+    projectId: string,
+    allocations: Array<{ worker_id: string; allocation_percent: number; note?: string }>
+  ): Promise<ProjectWorkerAllocation[]> {
+    const res = await fetch(`/api/projects/${projectId}/worker-allocations`, {
+      method: 'PUT',
+      headers: getWriteHeaders(),
+      body: JSON.stringify({ allocations }),
+    });
+    return handleResponse<ProjectWorkerAllocation[]>(res);
   },
 
   async createTaskGroup(projectId: string, data: Partial<TaskGroup>): Promise<TaskGroup> {

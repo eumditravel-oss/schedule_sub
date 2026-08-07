@@ -1,202 +1,262 @@
 // src/utils/capacityConflictDetector.ts
-import { Worker, CountryHoliday, CalendarOverride, Task, Project } from '../types';
+// Worker Over-allocation & Capacity Detector Engine V2
+import { Worker, CountryHoliday, CalendarOverride, Task, Project, ProjectWorkerAllocation } from '../types';
 import { resolveWorkDayStatus } from './workCalendar';
 
-export interface CapacityConflictTaskEntry {
+export interface ProjectAllocationEntry {
   project_id: string;
   project_name: string;
-  task_id: string;
-  task_name: string;
   allocation_percent: number;
+  is_known: boolean;
 }
 
-export interface CapacityConflictGroup {
+export interface WorkerCapacityOverloadGroup {
   id: string;
-  scope: 'WITHIN_PROJECT' | 'CROSS_PROJECT';
+  policy_version: 'project_capacity_v1';
   worker_id: string;
   worker_name: string;
   overlap_start_date: string;
   overlap_end_date: string;
-  max_total_allocation: number;
+  total_allocation_percent: number;
   excess_percent: number;
-  tasks: CapacityConflictTaskEntry[];
+  projects: ProjectAllocationEntry[];
+  missing_project_count: number;
+  fingerprint: string;
 }
 
-export function detectWorkerCapacityConflicts(
+export function generateCapacityFingerprint(
+  workerId: string,
+  projectAllocations: ProjectAllocationEntry[],
+  startDate: string,
+  endDate: string
+): string {
+  const sortedProjStr = projectAllocations
+    .slice()
+    .sort((a, b) => a.project_id.localeCompare(b.project_id))
+    .map((p) => `${p.project_id}:${p.allocation_percent}`)
+    .join('|');
+  return `project_capacity_v1::${workerId}::${sortedProjStr}::${startDate}::${endDate}`;
+}
+
+export function detectWorkerCapacityOverloads(
   allProjects: Project[],
   allTasks: Task[],
+  allocations: ProjectWorkerAllocation[] = [],
   workers: Worker[] = [],
   holidays: CountryHoliday[] = [],
   overrides: CalendarOverride[] = [],
   filterProjectId?: string
 ): {
-  project_id?: string;
-  conflict_count: number;
-  raw_entry_count: number;
-  groups: CapacityConflictGroup[];
+  overload_count: number;
+  groups: WorkerCapacityOverloadGroup[];
 } {
   const activeProjects = allProjects.filter((p) => p.status === 'ACTIVE');
   const activeProjectMap = new Map<string, Project>();
   activeProjects.forEach((p) => activeProjectMap.set(p.id, p));
 
-  const scheduledTasks = allTasks.filter(
-    (t) => t.schedule_status === 'SCHEDULED' && t.start_date && t.end_date && activeProjectMap.has(t.project_id)
-  );
-
-  const workerDailyAlloc = new Map<string, { worker: Worker; dateStr: string; entries: CapacityConflictTaskEntry[] }>();
-
-  for (const t of scheduledTasks) {
-    const prj = activeProjectMap.get(t.project_id);
-    if (!prj) continue;
-
-    let assignees: any[] = t.assignees || [];
-    if (assignees.length === 0 && t.worker_name) {
-      const ow = workers.find((w) => w.id === t.worker_name || w.name === t.worker_name);
-      if (ow) assignees = [{ worker_id: ow.id, name: ow.name, allocation_percent: 100 }];
+  // Map allocations by project_id -> worker_id -> allocation_percent
+  const projWorkerAllocMap = new Map<string, Map<string, ProjectWorkerAllocation>>();
+  for (const alloc of allocations) {
+    if (!projWorkerAllocMap.has(alloc.project_id)) {
+      projWorkerAllocMap.set(alloc.project_id, new Map());
     }
+    projWorkerAllocMap.get(alloc.project_id)!.set(alloc.worker_id, alloc);
+  }
 
-    for (const a of assignees) {
-      const w = workers.find((w) => w.id === a.worker_id || w.name === a.name);
-      if (!w || !w.country_code || !w.workweek_profile) continue;
+  // Determine worker project participation
+  // A worker participates in project P if:
+  // A. Has an allocation row in P OR B. Is PIC/Support on a task in P
+  const workerProjectParticipants = new Map<string, Set<string>>();
 
-      let cur = new Date(`${t.start_date}T00:00:00Z`);
-      const endObj = new Date(`${t.end_date}T00:00:00Z`);
-      while (cur <= endObj) {
-        const dStr = cur.toISOString().slice(0, 10);
-        const st = resolveWorkDayStatus(dStr, w, holidays, overrides);
-
-        if (st.is_working_day) {
-          const key = `${w.id}:${dStr}`;
-          if (!workerDailyAlloc.has(key)) {
-            workerDailyAlloc.set(key, { worker: w, dateStr: dStr, entries: [] });
-          }
-          const daily = workerDailyAlloc.get(key)!;
-          if (!daily.entries.some((e) => e.task_id === t.id)) {
-            daily.entries.push({
-              project_id: prj.id,
-              project_name: prj.name_ko || prj.name,
-              task_id: t.id,
-              task_name: t.task_name_ko || t.task_name,
-              allocation_percent: a.allocation_percent || 0,
-            });
-          }
-        }
-        cur.setUTCDate(cur.getUTCDate() + 1);
+  // From allocations:
+  for (const alloc of allocations) {
+    if (activeProjectMap.has(alloc.project_id)) {
+      if (!workerProjectParticipants.has(alloc.worker_id)) {
+        workerProjectParticipants.set(alloc.worker_id, new Set());
       }
+      workerProjectParticipants.get(alloc.worker_id)!.add(alloc.project_id);
     }
   }
 
-  interface ExcessDay {
+  // From tasks:
+  for (const t of allTasks) {
+    if (!activeProjectMap.has(t.project_id)) continue;
+    const assignees = t.assignees || [];
+    for (const a of assignees) {
+      if (a.worker_id) {
+        if (!workerProjectParticipants.has(a.worker_id)) {
+          workerProjectParticipants.set(a.worker_id, new Set());
+        }
+        workerProjectParticipants.get(a.worker_id)!.add(t.project_id);
+      }
+    }
+    if (t.primary_worker_id) {
+      if (!workerProjectParticipants.has(t.primary_worker_id)) {
+        workerProjectParticipants.set(t.primary_worker_id, new Set());
+      }
+      workerProjectParticipants.get(t.primary_worker_id)!.add(t.project_id);
+    }
+  }
+
+  interface OverloadDay {
     worker: Worker;
     dateStr: string;
     totalAlloc: number;
-    tasks: CapacityConflictTaskEntry[];
-    taskSetKey: string;
+    excessAlloc: number;
+    projects: ProjectAllocationEntry[];
+    missingCount: number;
+    projSetKey: string;
   }
 
-  const excessDays: ExcessDay[] = [];
-  workerDailyAlloc.forEach((val) => {
-    const totalAlloc = val.entries.reduce((sum, e) => sum + e.allocation_percent, 0);
-    if (totalAlloc > 100) {
-      const sortedTaskIds = val.entries.map((e) => e.task_id).sort().join(',');
-      excessDays.push({
-        worker: val.worker,
-        dateStr: val.dateStr,
-        totalAlloc,
-        tasks: val.entries,
-        taskSetKey: sortedTaskIds,
-      });
-    }
-  });
+  const overloadDays: OverloadDay[] = [];
 
-  excessDays.sort((a, b) => {
+  for (const w of workers) {
+    if (!w.is_active || w.name === 'CEO' || w.name === 'COO') continue;
+    const participatedProjIds = workerProjectParticipants.get(w.id);
+    if (!participatedProjIds || participatedProjIds.size === 0) continue;
+
+    const workerProjects = Array.from(participatedProjIds)
+      .map((pId) => activeProjectMap.get(pId))
+      .filter((p): p is Project => Boolean(p));
+
+    if (workerProjects.length === 0) continue;
+
+    // Find date range spanning all participant projects
+    let minDate = '9999-12-31';
+    let maxDate = '0000-01-01';
+    workerProjects.forEach((p) => {
+      if (p.start_date && p.start_date < minDate) minDate = p.start_date;
+      if (p.end_date && p.end_date > maxDate) maxDate = p.end_date;
+    });
+
+    if (minDate > maxDate) continue;
+
+    let cur = new Date(`${minDate}T00:00:00Z`);
+    const endObj = new Date(`${maxDate}T00:00:00Z`);
+
+    while (cur <= endObj) {
+      const dStr = cur.toISOString().slice(0, 10);
+      const st = resolveWorkDayStatus(dStr, w, holidays, overrides);
+
+      // Capacity alerts are generated ONLY on active working days for Worker W
+      if (st.is_working_day) {
+        let totalAlloc = 0;
+        let missingCount = 0;
+        const projEntries: ProjectAllocationEntry[] = [];
+
+        for (const prj of workerProjects) {
+          if (prj.start_date && prj.end_date && dStr >= prj.start_date && dStr <= prj.end_date) {
+            const alloc = projWorkerAllocMap.get(prj.id)?.get(w.id);
+            if (alloc !== undefined) {
+              const pct = Number(alloc.allocation_percent || 0);
+              totalAlloc += pct;
+              projEntries.push({
+                project_id: prj.id,
+                project_name: prj.name_ko || prj.name,
+                allocation_percent: pct,
+                is_known: true,
+              });
+            } else {
+              missingCount++;
+              projEntries.push({
+                project_id: prj.id,
+                project_name: prj.name_ko || prj.name,
+                allocation_percent: 0,
+                is_known: false,
+              });
+            }
+          }
+        }
+
+        // Over-allocation happens when total known allocation > 100%
+        if (totalAlloc > 100) {
+          if (!filterProjectId || projEntries.some((pe) => pe.project_id === filterProjectId)) {
+            const sortedProjKey = projEntries
+              .slice()
+              .sort((a, b) => a.project_id.localeCompare(b.project_id))
+              .map((p) => `${p.project_id}:${p.allocation_percent}`)
+              .join('|');
+
+            overloadDays.push({
+              worker: w,
+              dateStr: dStr,
+              totalAlloc,
+              excessAlloc: totalAlloc - 100,
+              projects: projEntries,
+              missingCount,
+              projSetKey: `${w.id}::${sortedProjKey}`,
+            });
+          }
+        }
+      }
+
+      cur.setUTCDate(cur.getUTCDate() + 1);
+    }
+  }
+
+  // Group consecutive dates with matching overload keys
+  overloadDays.sort((a, b) => {
     if (a.worker.id !== b.worker.id) return a.worker.id.localeCompare(b.worker.id);
-    if (a.taskSetKey !== b.taskSetKey) return a.taskSetKey.localeCompare(b.taskSetKey);
+    if (a.projSetKey !== b.projSetKey) return a.projSetKey.localeCompare(b.projSetKey);
     return a.dateStr.localeCompare(b.dateStr);
   });
 
-  const rawGroups: CapacityConflictGroup[] = [];
+  const groups: WorkerCapacityOverloadGroup[] = [];
 
-  let curGroup: {
-    worker: Worker;
-    taskSetKey: string;
-    startDate: string;
-    endDate: string;
-    maxTotalAlloc: number;
-    tasks: CapacityConflictTaskEntry[];
-  } | null = null;
+  for (const day of overloadDays) {
+    const lastGroup = groups[groups.length - 1];
 
-  for (const ed of excessDays) {
     if (
-      curGroup &&
-      curGroup.worker.id === ed.worker.id &&
-      curGroup.taskSetKey === ed.taskSetKey &&
-      isContiguousDay(curGroup.endDate, ed.dateStr)
+      lastGroup &&
+      lastGroup.worker_id === day.worker.id &&
+      lastGroup.fingerprint.includes(day.projSetKey)
     ) {
-      curGroup.endDate = ed.dateStr;
-      if (ed.totalAlloc > curGroup.maxTotalAlloc) {
-        curGroup.maxTotalAlloc = ed.totalAlloc;
-      }
-    } else {
-      if (curGroup) {
-        pushGroup(curGroup, rawGroups);
-      }
-      curGroup = {
-        worker: ed.worker,
-        taskSetKey: ed.taskSetKey,
-        startDate: ed.dateStr,
-        endDate: ed.dateStr,
-        maxTotalAlloc: ed.totalAlloc,
-        tasks: ed.tasks,
-      };
-    }
-  }
-  if (curGroup) {
-    pushGroup(curGroup, rawGroups);
-  }
+      // Check if day is consecutive (within 4 calendar days due to weekends/holidays)
+      const prevEnd = new Date(`${lastGroup.overlap_end_date}T00:00:00Z`);
+      const currDay = new Date(`${day.dateStr}T00:00:00Z`);
+      const diffDays = Math.round((currDay.getTime() - prevEnd.getTime()) / 86400000);
 
-  const finalGroups = filterProjectId
-    ? rawGroups.filter((g) => g.tasks.some((t) => t.project_id === filterProjectId))
-    : rawGroups;
+      if (diffDays >= 1 && diffDays <= 4) {
+        lastGroup.overlap_end_date = day.dateStr;
+        lastGroup.total_allocation_percent = Math.max(lastGroup.total_allocation_percent, day.totalAlloc);
+        lastGroup.excess_percent = Math.max(lastGroup.excess_percent, day.excessAlloc);
+        // Re-generate fingerprint for extended date range
+        lastGroup.fingerprint = generateCapacityFingerprint(
+          lastGroup.worker_id,
+          lastGroup.projects,
+          lastGroup.overlap_start_date,
+          lastGroup.overlap_end_date
+        );
+        continue;
+      }
+    }
+
+    const fp = generateCapacityFingerprint(
+      day.worker.id,
+      day.projects,
+      day.dateStr,
+      day.dateStr
+    );
+
+    groups.push({
+      id: `ovl_${day.worker.id}_${day.dateStr}`,
+      policy_version: 'project_capacity_v1',
+      worker_id: day.worker.id,
+      worker_name: day.worker.name,
+      overlap_start_date: day.dateStr,
+      overlap_end_date: day.dateStr,
+      total_allocation_percent: day.totalAlloc,
+      excess_percent: day.excessAlloc,
+      projects: day.projects,
+      missing_project_count: day.missingCount,
+      fingerprint: fp,
+    });
+  }
 
   return {
-    project_id: filterProjectId,
-    conflict_count: finalGroups.length,
-    raw_entry_count: excessDays.length,
-    groups: finalGroups,
+    overload_count: groups.length,
+    groups,
   };
 }
 
-function pushGroup(
-  g: {
-    worker: Worker;
-    taskSetKey: string;
-    startDate: string;
-    endDate: string;
-    maxTotalAlloc: number;
-    tasks: CapacityConflictTaskEntry[];
-  },
-  out: CapacityConflictGroup[]
-) {
-  const projectIds = new Set(g.tasks.map((t) => t.project_id));
-  const scope: 'WITHIN_PROJECT' | 'CROSS_PROJECT' = projectIds.size > 1 ? 'CROSS_PROJECT' : 'WITHIN_PROJECT';
-
-  out.push({
-    id: `cgrp_${g.worker.id}_${g.startDate.replace(/-/g, '')}_${g.endDate.replace(/-/g, '')}`,
-    scope,
-    worker_id: g.worker.id,
-    worker_name: g.worker.name,
-    overlap_start_date: g.startDate,
-    overlap_end_date: g.endDate,
-    max_total_allocation: g.maxTotalAlloc,
-    excess_percent: g.maxTotalAlloc - 100,
-    tasks: g.tasks,
-  });
-}
-
-function isContiguousDay(d1: string, d2: string): boolean {
-  const dt1 = new Date(`${d1}T00:00:00Z`);
-  const dt2 = new Date(`${d2}T00:00:00Z`);
-  const diffDays = Math.round((dt2.getTime() - dt1.getTime()) / (1000 * 3600 * 24));
-  return diffDays === 1;
-}
+export const detectWorkerCapacityConflicts = detectWorkerCapacityOverloads;

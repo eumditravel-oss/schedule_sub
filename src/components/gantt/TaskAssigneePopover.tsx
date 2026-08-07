@@ -98,7 +98,7 @@ export const TaskAssigneePopover: React.FC<TaskAssigneePopoverProps> = ({
       ref={popoverRef}
       role="dialog"
       aria-label={`${taskTitle} 작업 담당자 목록`}
-      data-testid={`task-assignee-popover-${taskId}`}
+      data-testid="task-role-popover"
       style={{
         position: 'fixed',
         left: `${left}px`,
@@ -115,7 +115,7 @@ export const TaskAssigneePopover: React.FC<TaskAssigneePopoverProps> = ({
         <div>
           <h4 className="font-bold text-sm text-slate-900 line-clamp-1">{taskTitle}</h4>
           <p className="text-[11px] text-slate-500 font-medium">
-            작업 담당자 {assignees.length}명 (오늘 기준: {dateStr})
+            주 담당 (PIC) 1명 · 지원 (Support) {Math.max(0, assignees.length - 1)}명
           </p>
         </div>
         <button
@@ -146,7 +146,7 @@ export const TaskAssigneePopover: React.FC<TaskAssigneePopoverProps> = ({
           if (status?.day_type === 'MANUAL_OFF') {
             statusBadge = (
               <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-purple-50 text-purple-700 border border-purple-200">
-                휴가 / 개인휴무
+                개인 휴가
               </span>
             );
           } else if (status?.day_type === 'PUBLIC_HOLIDAY') {
@@ -175,18 +175,16 @@ export const TaskAssigneePopover: React.FC<TaskAssigneePopoverProps> = ({
                   <span className="font-bold text-slate-900">{wObj.name || a.name}</span>
                   {a.assignment_role === 'PRIMARY' ? (
                     <span className="text-[10px] font-extrabold px-1.5 py-0.2 rounded bg-indigo-100 text-indigo-700">
-                      주 담당
+                      주 담당 (PIC)
                     </span>
                   ) : (
                     <span className="text-[10px] font-semibold px-1.5 py-0.2 rounded bg-slate-200 text-slate-700">
-                      추가 담당
+                      지원 (Support)
                     </span>
                   )}
                 </div>
                 <div className="flex items-center gap-2 text-[11px] text-slate-500">
                   <span>{flag}</span>
-                  <span>·</span>
-                  <span>비중 {a.allocation_percent ?? Math.round(100 / assignees.length)}%</span>
                 </div>
               </div>
               <div className="shrink-0">{statusBadge}</div>

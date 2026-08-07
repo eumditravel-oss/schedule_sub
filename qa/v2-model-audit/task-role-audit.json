@@ -1,0 +1,17 @@
+{
+  "audit_timestamp": "2026-08-07T21:45:30Z",
+  "environment": "production",
+  "summary": {
+    "total_tasks": 43,
+    "primary_exactly_1": 43,
+    "primary_missing": 0,
+    "multiple_primary": 0,
+    "unassigned": 0,
+    "legacy_assignment_mismatch": 0
+  },
+  "conversion_policy": {
+    "PRIMARY": "Domain/UI PIC (Person in Charge)",
+    "CO_ASSIGNEE": "Domain/UI SUPPORT (Support Worker)",
+    "task_allocation_percent": "Preserved in DB for legacy read, hidden from UI, excluded from Capacity Engine"
+  }
+}

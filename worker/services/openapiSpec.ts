@@ -151,13 +151,21 @@ export const OPENAPI_V1_SPEC = {
                   task_name: { type: 'string', example: 'Login API Development' },
                   start_date: { type: 'string', format: 'date', example: '2026-08-10' },
                   end_date: { type: 'string', format: 'date', example: '2026-08-15' },
+                  primary_worker_id: { type: 'string', description: 'Primary Responsible Worker (PIC)', example: 'wrk_02' },
+                  support_worker_ids: {
+                    type: 'array',
+                    description: 'Supporting Workers (Support)',
+                    items: { type: 'string' },
+                    example: ['wrk_03', 'wrk_04'],
+                  },
                   assignees: {
                     type: 'array',
                     items: {
                       type: 'object',
                       properties: {
                         worker_id: { type: 'string', example: 'wrk_03' },
-                        allocation_percent: { type: 'number', example: 50 },
+                        assignment_role: { type: 'string', enum: ['PRIMARY', 'CO_ASSIGNEE'], example: 'PRIMARY' },
+                        allocation_percent: { type: 'number', example: 100 },
                       },
                     },
                   },

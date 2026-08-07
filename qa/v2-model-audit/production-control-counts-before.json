@@ -1,0 +1,14 @@
+{
+  "audit_timestamp": "2026-08-07T21:45:30Z",
+  "environment": "production",
+  "counts": {
+    "projects": 3,
+    "task_groups": 18,
+    "tasks": 43,
+    "task_assignees": 114,
+    "workers": 7,
+    "calendar_overrides": 9,
+    "conflict_acknowledgements": 0,
+    "integration_entity_links": 0
+  }
+}
