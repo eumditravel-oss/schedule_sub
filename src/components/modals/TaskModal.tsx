@@ -613,7 +613,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
                 </label>
                 <input
                   type="date"
-                  data-testid="task-start-date"
+                  data-testid="task-start-date-input"
                   value={startDate}
                   onChange={(e) => setStartDate(e.target.value)}
                   required
@@ -626,7 +626,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
                 </label>
                 <input
                   type="date"
-                  data-testid="task-end-date"
+                  data-testid="task-end-date-input"
                   value={endDate}
                   onChange={(e) => setEndDate(e.target.value)}
                   required
@@ -656,7 +656,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
           <div className="flex items-center justify-end gap-3 pt-2 border-t border-slate-200">
             <button
               type="button"
-              data-testid="task-modal-cancel-btn"
+              data-testid="task-cancel-btn"
               onClick={onClose}
               className="px-4 py-2 text-xs font-bold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-lg transition"
             >
@@ -664,7 +664,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
             </button>
             <button
               type="submit"
-              data-testid="task-modal-save-btn"
+              data-testid="task-save-btn"
               disabled={saving}
               className="px-5 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded-lg transition flex items-center gap-1.5 shadow-xs"
             >

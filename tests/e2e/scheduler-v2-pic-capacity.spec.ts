@@ -58,7 +58,7 @@ test.describe('P0 Scheduler V2 PIC & Capacity Model Verification Suite', () => {
     await taskNameInput.fill('V2 PIC E2E Verification Task');
 
     // Click Save
-    const saveBtn = page.locator('[data-testid="task-modal-save-btn"]');
+    const saveBtn = page.locator('[data-testid="task-save-btn"]');
     await saveBtn.click();
 
     // Modal should close
@@ -99,7 +99,7 @@ test.describe('P0 Scheduler V2 PIC & Capacity Model Verification Suite', () => {
     await expect(picAlert).toBeVisible();
 
     // Cancel modal
-    const cancelBtn = page.locator('[data-testid="task-modal-cancel-btn"]');
+    const cancelBtn = page.locator('[data-testid="task-cancel-btn"]');
     await cancelBtn.click();
   });
 
