@@ -583,6 +583,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
                 <input
                   type="radio"
                   name="scheduleStatus"
+                  data-testid="task-schedule-status-scheduled"
                   value="SCHEDULED"
                   checked={scheduleStatus === 'SCHEDULED'}
                   onChange={() => setScheduleStatus('SCHEDULED')}
@@ -594,6 +595,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
                 <input
                   type="radio"
                   name="scheduleStatus"
+                  data-testid="task-schedule-status-unscheduled"
                   value="UNSCHEDULED"
                   checked={scheduleStatus === 'UNSCHEDULED'}
                   onChange={() => setScheduleStatus('UNSCHEDULED')}

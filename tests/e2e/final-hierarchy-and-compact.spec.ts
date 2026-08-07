@@ -38,6 +38,11 @@ test.describe('Task Hierarchy, Multi-Assignees, Auto Progress & Compact Gantt Ro
   });
 
   test('E2E Full Flow: Hierarchy, Compact UI, Translation Protection & Delete Modal', async ({ page }) => {
+    await page.addInitScript(() => {
+      localStorage.setItem('schedule_current_worker_id', 'wrk_01');
+      localStorage.setItem('schedule_current_worker_name', '유종욱 실장');
+    });
+
     await page.setViewportSize({ width: 1440, height: 900 });
 
     await page.goto(`${QA_BASE_URL}/projects/${createdProjectId}`);
