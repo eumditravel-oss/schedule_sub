@@ -15,10 +15,11 @@ export const BuildVersionIndicator: React.FC<BuildVersionIndicatorProps> = ({ in
   useEffect(() => {
     api.getVersion()
       .then((data) => {
-        if (data && data.commit) {
+        const commitStr = data?.commit || (data as any)?.data?.commit || (import.meta.env.VITE_BUILD_SHA || '');
+        if (commitStr) {
           setVersionInfo({
-            commit: data.commit,
-            environment: data.environment || (window.location.hostname.includes('-qa') ? 'qa' : 'production'),
+            commit: commitStr,
+            environment: data?.environment || (data as any)?.data?.environment || (window.location.hostname.includes('-qa') ? 'qa' : 'production'),
           });
         }
       })
@@ -28,7 +29,7 @@ export const BuildVersionIndicator: React.FC<BuildVersionIndicatorProps> = ({ in
   }, []);
 
   const frontendSha = (import.meta.env.VITE_BUILD_SHA || '').substring(0, 7);
-  const backendSha = (versionInfo.commit || '').substring(0, 7);
+  const backendSha = (versionInfo.commit && versionInfo.commit !== 'unknown' ? versionInfo.commit : import.meta.env.VITE_BUILD_SHA || '').substring(0, 7);
   const isMismatch = frontendSha && backendSha && frontendSha !== 'unknown' && backendSha !== 'unknown' && frontendSha !== backendSha;
 
   const envLabel = isMismatch ? 'Build mismatch' : versionInfo.environment === 'qa' ? 'QA' : 'Production';

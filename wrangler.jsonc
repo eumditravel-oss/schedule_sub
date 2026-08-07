@@ -12,7 +12,8 @@
     "not_found_handling": "single-page-application"
   },
   "vars": {
-    "ENVIRONMENT_NAME": "production"
+    "ENVIRONMENT_NAME": "production",
+    "BUILD_SHA": "ab62b03565fa9375da4c6674314faeec79bdde54"
   },
   "ai": {
     "binding": "AI"
@@ -29,7 +30,8 @@
     "qa": {
       "name": "concost-dev-scheduler-qa",
       "vars": {
-        "ENVIRONMENT_NAME": "qa"
+        "ENVIRONMENT_NAME": "qa",
+        "BUILD_SHA": "ab62b03565fa9375da4c6674314faeec79bdde54"
       },
       "ai": {
         "binding": "AI"
