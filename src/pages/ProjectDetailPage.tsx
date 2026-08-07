@@ -1873,7 +1873,20 @@ export const ProjectDetailPage: React.FC = () => {
               </button>
             </div>
 
-            <CalendarLegend isMobileView={true} />
+            <div className="flex items-center gap-2">
+              {!isViewer && !isCompleted && (
+                <button
+                  type="button"
+                  data-testid="add-task-btn"
+                  onClick={handleOpenAddTask}
+                  className="h-8 px-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-lg transition shrink-0 flex items-center gap-1 shadow-xs"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>+ {t('addTask')}</span>
+                </button>
+              )}
+              <CalendarLegend isMobileView={true} />
+            </div>
           </div>
         </div>
       ) : (

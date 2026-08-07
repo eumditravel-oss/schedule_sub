@@ -113,7 +113,7 @@ export const ProjectWorkforceModal: React.FC<ProjectWorkforceModalProps> = ({
         project_id: project.id,
         worker_id: workerId,
         worker_name: wObj.name,
-        allocation_percent: 50,
+        allocation_percent: undefined as any,
         note: '',
       },
     ]);
@@ -128,11 +128,26 @@ export const ProjectWorkforceModal: React.FC<ProjectWorkforceModalProps> = ({
     try {
       setSaving(true);
       setErrorMsg(null);
+
+      // Validate unset allocations
+      const unsetRows = allocations.filter(
+        (a) => a.allocation_percent === undefined || a.allocation_percent === null || (a.allocation_percent as any) === '' || isNaN(Number(a.allocation_percent))
+      );
+
+      if (unsetRows.length > 0) {
+        setErrorMsg(
+          lang === 'vi'
+            ? 'Có nhân sự chưa thiết lập tỷ lệ phân bổ. Vui lòng nhập tỷ lệ (0-100%) hoặc xóa dòng đó.'
+            : '투입률 미설정 상태인 인력이 있습니다. 비율(0~100%)을 입력해 주시거나 삭제해 주세요.'
+        );
+        return;
+      }
+
       await api.updateProjectWorkerAllocations(
         project.id,
         allocations.map((a) => ({
           worker_id: a.worker_id,
-          allocation_percent: Number(a.allocation_percent) || 0,
+          allocation_percent: Number(a.allocation_percent),
           note: a.note || '',
         }))
       );
@@ -239,6 +254,11 @@ export const ProjectWorkforceModal: React.FC<ProjectWorkforceModalProps> = ({
                               PIC {picCount} · 지원 {supportCount}
                             </span>
                           )}
+                          {(alloc.allocation_percent === undefined || alloc.allocation_percent === null || (alloc.allocation_percent as any) === '') && (
+                            <span className="text-[10px] bg-amber-100 text-amber-800 border border-amber-300 px-1.5 py-0.5 rounded font-bold animate-pulse">
+                              투입률 미설정
+                            </span>
+                          )}
                         </div>
 
                         <div className="flex items-center gap-2">
@@ -247,12 +267,19 @@ export const ProjectWorkforceModal: React.FC<ProjectWorkforceModalProps> = ({
                               type="number"
                               min="0"
                               max="100"
+                              placeholder="미설정"
                               data-testid={`project-allocation-input-${alloc.worker_id}`}
-                              value={alloc.allocation_percent}
-                              onChange={(e) =>
-                                handleAllocationPercentChange(alloc.worker_id, parseInt(e.target.value))
-                              }
-                              className="w-16 h-8 px-2 border border-slate-300 rounded-lg text-center font-bold text-slate-900 focus:outline-none focus:border-blue-500 bg-white"
+                              value={alloc.allocation_percent ?? ''}
+                              onChange={(e) => {
+                                const valStr = e.target.value;
+                                const parsed = valStr === '' ? (undefined as any) : parseInt(valStr);
+                                handleAllocationPercentChange(alloc.worker_id, parsed);
+                              }}
+                              className={`w-20 h-8 px-2 border rounded-lg text-center font-bold focus:outline-none focus:border-blue-500 bg-white ${
+                                alloc.allocation_percent === undefined || alloc.allocation_percent === null || (alloc.allocation_percent as any) === ''
+                                  ? 'border-amber-400 text-amber-800 placeholder-amber-500'
+                                  : 'border-slate-300 text-slate-900'
+                              }`}
                             />
                             <span className="font-bold text-slate-600">%</span>
                           </div>

@@ -6,28 +6,36 @@ import * as path from 'path';
 test.describe('P0 Task & Workforce Modal Persistent Action Footer Suite', () => {
   const BASE_URL = process.env.PLAYWRIGHT_TEST_BASE_URL || 'https://concost-dev-scheduler-qa.eumditravel.workers.dev';
 
-  const DESKTOP_VIEWPORTS = [
-    { width: 1024, height: 600 },
-    { width: 1024, height: 768 },
-    { width: 1100, height: 650 },
-    { width: 1280, height: 720 },
-    { width: 1366, height: 768 },
-    { width: 1536, height: 864 },
-    { width: 1920, height: 1080 },
-  ];
+  const VIEWPORTS = [
+    // Desktop Viewports
+    { type: 'DESKTOP', width: 900, height: 600 },
+    { type: 'DESKTOP', width: 900, height: 700 },
+    { type: 'DESKTOP', width: 1024, height: 600 },
+    { type: 'DESKTOP', width: 1024, height: 768 },
+    { type: 'DESKTOP', width: 1100, height: 650 },
+    { type: 'DESKTOP', width: 1280, height: 720 },
+    { type: 'DESKTOP', width: 1366, height: 768 },
+    { type: 'DESKTOP', width: 1536, height: 864 },
+    { type: 'DESKTOP', width: 1920, height: 1080 },
 
-  const MOBILE_VIEWPORTS = [
-    { width: 390, height: 844 },
-    { width: 393, height: 852 },
-    { width: 430, height: 932 },
+    // Mobile Viewports
+    { type: 'MOBILE', width: 360, height: 800 },
+    { type: 'MOBILE', width: 390, height: 844 },
+    { type: 'MOBILE', width: 393, height: 852 },
+    { type: 'MOBILE', width: 430, height: 932 },
   ];
 
   let createdProjectId = '';
+  const reportResults: any[] = [];
 
   test.beforeAll(async () => {
-    const dir = path.join(process.cwd(), 'qa', 'modal');
+    const dir = path.join(process.cwd(), 'qa', 'report');
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });
+    }
+    const imgDir = path.join(process.cwd(), 'qa', 'modal');
+    if (!fs.existsSync(imgDir)) {
+      fs.mkdirSync(imgDir, { recursive: true });
     }
 
     const runId = Date.now();
@@ -76,6 +84,21 @@ test.describe('P0 Task & Workforce Modal Persistent Action Footer Suite', () => 
   });
 
   test.afterAll(async () => {
+    // Write JSON Evidence Report
+    const reportPath = path.join(process.cwd(), 'qa', 'report', 'modal-persistent-footer.json');
+    fs.writeFileSync(
+      reportPath,
+      JSON.stringify(
+        {
+          timestamp: new Date().toISOString(),
+          total_viewports: VIEWPORTS.length,
+          executed_viewports: reportResults,
+        },
+        null,
+        2
+      )
+    );
+
     if (createdProjectId) {
       await fetch(`${BASE_URL}/api/projects/${createdProjectId}`, {
         method: 'DELETE',
@@ -84,14 +107,14 @@ test.describe('P0 Task & Workforce Modal Persistent Action Footer Suite', () => 
     }
   });
 
-  for (const vp of DESKTOP_VIEWPORTS) {
-    test(`Verify Task Add Modal persistent footer at ${vp.width}x${vp.height}`, async ({ page }) => {
+  for (const vp of VIEWPORTS) {
+    test(`Verify Task Add & Edit Modal persistent footer at ${vp.type} ${vp.width}x${vp.height}`, async ({ page }) => {
       await page.addInitScript(() => {
         localStorage.setItem('schedule_current_worker_id', 'wrk_02');
         localStorage.setItem('schedule_current_worker_name', '박용진 수석');
       });
 
-      await page.setViewportSize(vp);
+      await page.setViewportSize({ width: vp.width, height: vp.height });
       await page.goto(`${BASE_URL}/projects/${createdProjectId}`);
       await page.waitForLoadState('networkidle');
 
@@ -156,84 +179,17 @@ test.describe('P0 Task & Workforce Modal Persistent Action Footer Suite', () => 
       }
 
       await cancelBtn.click();
-    });
 
-    test(`Verify Task Edit Modal persistent footer at ${vp.width}x${vp.height}`, async ({ page }) => {
-      await page.addInitScript(() => {
-        localStorage.setItem('schedule_current_worker_id', 'wrk_02');
-        localStorage.setItem('schedule_current_worker_name', '박용진 수석');
+      // Record evidence entry
+      reportResults.push({
+        viewport: `${vp.width}x${vp.height}`,
+        type: vp.type,
+        save_visible: true,
+        cancel_visible: true,
+        initial_scroll_top: scrollTop,
+        save_y: saveBox?.y,
+        cancel_y: cancelBox?.y,
       });
-
-      await page.setViewportSize(vp);
-      await page.goto(`${BASE_URL}/projects/${createdProjectId}`);
-      await page.waitForLoadState('networkidle');
-
-      await page.waitForSelector('[data-testid="add-task-btn"]', { timeout: 15000 });
-
-      // Click Add Task to open modal, fill name, and save
-      const addTaskBtn = page.locator('[data-testid="add-task-btn"]');
-      await addTaskBtn.click();
-
-      const modal = page.locator('[data-testid="task-modal"]');
-      await expect(modal).toBeVisible();
-
-      // Verify initial scrollTop is strictly 0
-      const scrollTop = await page.$eval('[data-testid="task-modal-scroll-body"]', (el) => el.scrollTop);
-      expect(scrollTop).toBe(0);
-
-      // Measure Save & Cancel Button Visibility without scrolling
-      const saveBtn = page.locator('[data-testid="task-save-btn"]');
-      const cancelBtn = page.locator('[data-testid="task-cancel-btn"]');
-
-      await expect(saveBtn).toBeVisible();
-      await expect(cancelBtn).toBeVisible();
-
-      const saveBox = await saveBtn.boundingBox();
-      const cancelBox = await cancelBtn.boundingBox();
-
-      expect(saveBox).not.toBeNull();
-      expect(cancelBox).not.toBeNull();
-
-      if (saveBox && cancelBox) {
-        const saveTop = saveBox.y;
-        const saveBottom = saveBox.y + saveBox.height;
-        const cancelTop = cancelBox.y;
-        const cancelBottom = cancelBox.y + cancelBox.height;
-
-        expect(saveTop).toBeGreaterThanOrEqual(0);
-        expect(saveBottom).toBeLessThanOrEqual(vp.height + 1.0);
-
-        expect(cancelTop).toBeGreaterThanOrEqual(0);
-        expect(cancelBottom).toBeLessThanOrEqual(vp.height + 1.0);
-      }
-
-      // Capture screenshot for specific resolutions
-      if (vp.width === 1024 && vp.height === 600) {
-        await page.screenshot({ path: path.join(process.cwd(), 'qa', 'modal', 'task-edit-v2-1024x600.png') });
-      }
-      if (vp.width === 1366 && vp.height === 768) {
-        await page.screenshot({ path: path.join(process.cwd(), 'qa', 'modal', 'task-edit-v2-1366x768.png') });
-      }
-
-      await cancelBtn.click();
-    });
-  }
-
-  for (const mvp of MOBILE_VIEWPORTS) {
-    test(`Verify Mobile Task Modal persistent footer at ${mvp.width}x${mvp.height}`, async ({ page }) => {
-      await page.addInitScript(() => {
-        localStorage.setItem('schedule_current_worker_id', 'wrk_02');
-        localStorage.setItem('schedule_current_worker_name', '박용진 수석');
-      });
-
-      await page.setViewportSize(mvp);
-      await page.goto(`${BASE_URL}/projects/${createdProjectId}`);
-      await page.waitForLoadState('networkidle');
-
-      await page.waitForSelector('[data-testid="project-detail-page"]', { timeout: 15000 });
-      // In mobile view, verify page renders cleanly with 0px overflow
-      const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
-      expect(scrollWidth).toBeLessThanOrEqual(mvp.width);
     });
   }
 

@@ -1,5 +1,6 @@
 import React from 'react';
 import { useI18n } from '../../hooks/useI18n';
+import { getPicAssignee, getSupportAssignees } from '../../types';
 
 export interface MobileAgendaCardProps {
   type: 'PROJECT' | 'TASK';
@@ -49,8 +50,10 @@ export const MobileAgendaCard: React.FC<MobileAgendaCardProps> = ({
     statusText = lang === 'ko' ? '예정' : 'Dự kiến';
   }
 
-  const primaryName = assignees[0]?.name || assignees[0]?.worker_name || '';
-  const supportCount = Math.max(0, assignees.length - 1);
+  const pic = getPicAssignee(assignees as any);
+  const supports = getSupportAssignees(assignees as any);
+  const primaryName = pic?.name || (pic as any)?.worker_name || assignees?.[0]?.name || (assignees?.[0] as any)?.worker_name || '';
+  const supportCount = supports.length;
   const assigneeDisplay = primaryName
     ? supportCount > 0
       ? `주담당 ${primaryName} (지원 +${supportCount})`

@@ -116,14 +116,45 @@ export interface ProjectWorkforceSummary {
   unset_participants: Worker[];
 }
 
-export function getPicAssignee(assignees?: TaskAssignee[]): TaskAssignee | null {
-  if (!assignees || assignees.length === 0) return null;
-  return assignees.find((a) => a.assignment_role === 'PRIMARY') || assignees[0];
+export function getPicAssignee(taskOrAssignees?: Task | TaskAssignee[] | null): TaskAssignee | null {
+  if (!taskOrAssignees) return null;
+  const assignees: TaskAssignee[] = Array.isArray(taskOrAssignees)
+    ? taskOrAssignees
+    : taskOrAssignees.assignees || [];
+
+  if (assignees.length === 0) {
+    if (!Array.isArray(taskOrAssignees) && (taskOrAssignees.primary_worker_id || taskOrAssignees.worker_name)) {
+      return {
+        worker_id: taskOrAssignees.primary_worker_id || '',
+        name: taskOrAssignees.worker_name || '',
+        assignment_role: 'PRIMARY',
+        allocation_percent: 100,
+      };
+    }
+    return null;
+  }
+
+  // Strictly prioritize assignment_role === 'PRIMARY'
+  const primaryRole = assignees.find((a) => a.assignment_role === 'PRIMARY');
+  if (primaryRole) return primaryRole;
+
+  // Next check matching primary_worker_id if passed task object
+  if (!Array.isArray(taskOrAssignees) && taskOrAssignees.primary_worker_id) {
+    const matchId = assignees.find((a) => a.worker_id === taskOrAssignees.primary_worker_id);
+    if (matchId) return matchId;
+  }
+
+  return assignees[0] || null;
 }
 
-export function getSupportAssignees(assignees?: TaskAssignee[]): TaskAssignee[] {
-  if (!assignees || assignees.length <= 1) return [];
-  const pic = getPicAssignee(assignees);
+export function getSupportAssignees(taskOrAssignees?: Task | TaskAssignee[] | null): TaskAssignee[] {
+  if (!taskOrAssignees) return [];
+  const assignees: TaskAssignee[] = Array.isArray(taskOrAssignees)
+    ? taskOrAssignees
+    : taskOrAssignees.assignees || [];
+
+  if (assignees.length === 0) return [];
+  const pic = getPicAssignee(taskOrAssignees);
   return assignees.filter((a) => a !== pic && a.assignment_role === 'CO_ASSIGNEE');
 }
 
