@@ -11,7 +11,14 @@ export interface ScheduleBarProps {
   calendarSpanDays: number;
   plannedWorkingDays: number;
   plannedProgress: number; // 0 ~ 100
-  actualProgress: number;  // 0 ~ 100
+  actualProgress: number;  // 0 ~ 100  (Progress Metric — KPI 표시용)
+  /**
+   * [선택] Calendar Geometry 기반 Visual Fill % (0~100).
+   * 전달되면 actualProgress 대신 이 값으로 Bar Fill Width를 결정한다.
+   * AUTO_TIME 모드에서 오늘 날짜 Column Left Boundary 기반으로 계산하여 전달.
+   * 미전달 시 actualProgress fallback 사용 → 기존 화면 회귀 없음.
+   */
+  visualFillPercent?: number;
   status: ScheduleBarStatus;
   hasConflict?: boolean;
   isMobile?: boolean;
@@ -29,6 +36,7 @@ export const ScheduleBar: React.FC<ScheduleBarProps> = ({
   plannedWorkingDays: _plannedWorkingDays,
   plannedProgress,
   actualProgress,
+  visualFillPercent,
   status,
   hasConflict = false,
   isMobile = false,
@@ -94,6 +102,11 @@ export const ScheduleBar: React.FC<ScheduleBarProps> = ({
 
   const clampedActual = Math.min(100, Math.max(0, actualProgress));
   const clampedPlanned = Math.min(100, Math.max(0, plannedProgress));
+  // Visual Fill: visualFillPercent가 전달되면 Calendar Geometry 기반 값을 사용,
+  // 아니면 actualProgress fallback (기존 동작 유지)
+  const fillPercent = visualFillPercent !== undefined
+    ? Math.min(100, Math.max(0, visualFillPercent))
+    : clampedActual;
 
   const statusText = lang === 'vi' ? statusLabelVi : statusLabelKo;
   const ariaLabel = `${title}, ${startDate} ~ ${endDate}, ${lang === 'vi' ? 'KH' : '예정'} ${clampedPlanned}%, ${lang === 'vi' ? 'TT' : '실제'} ${clampedActual}%, ${statusText}`;
@@ -132,10 +145,12 @@ export const ScheduleBar: React.FC<ScheduleBarProps> = ({
         className={`w-full min-w-0 ${trackHeightClass} rounded-md border text-xs font-bold relative overflow-hidden transition-all duration-150 shadow-none flex items-center select-none ${baseColorClass} ${isPassThrough ? 'pointer-events-none' : 'hover:brightness-95'}`}
       >
         {/* Actual Progress Overlay Fill */}
-        {clampedActual > 0 && (
+        {/* fillPercent: AUTO_TIME 모드에서는 Today Column Left Boundary 기반, 그 외엔 actualProgress */}
+        {fillPercent > 0 && (
           <div
             data-testid="gantt-bar-actual-overlay"
-            style={{ width: `${clampedActual}%` }}
+            data-fill-source={visualFillPercent !== undefined ? 'auto-time-calendar' : 'actual-progress'}
+            style={{ width: `${fillPercent}%` }}
             className={`absolute top-0 bottom-0 left-0 z-1 transition-all duration-300 ${progressFillClass}`}
           />
         )}

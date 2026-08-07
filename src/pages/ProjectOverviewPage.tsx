@@ -5,6 +5,7 @@ import { Project, Worker, CountryHoliday, CalendarOverride, isExecutiveViewer, i
 import { api, getCurrentWorkerId, setCurrentWorker as setCurrentWorkerApi } from '../services/api';
 import { calculateVisibleGanttSpan } from '../utils/dateUtils';
 import { getCountryOffState } from '../utils/workCalendar';
+import { calcAutoTimeFillPercent } from '../utils/ganttVisualFill';
 import { getCalendarVisualStyle, CalendarVisualState, buildCalendarHatchPattern } from '../utils/calendarVisualTokens';
 import { useGanttDateRange } from '../hooks/useGanttDateRange';
 import { useGanttGeometry } from '../hooks/useGanttGeometry';
@@ -468,6 +469,56 @@ export const ProjectOverviewPage: React.FC = () => {
         </div>
       )}
 
+      {/* Desktop Project Status Filter Row (Active vs Completed & Year Select) */}
+      {/* DOM 위치: Legend 바로 아래, main 컨테이너 바깥에 배치하여 Legend → Status → Summary 순서 보장 */}
+      {!isMobileView && (
+        <div
+          data-testid="overview-project-status-row"
+          className="bg-white border-b border-slate-200 px-4 md:px-5 py-2 flex items-center gap-2 shrink-0"
+        >
+          <div className="flex p-0.5 bg-slate-100 rounded-lg border border-slate-200 text-xs font-semibold">
+            <button
+              type="button"
+              data-testid="active-tab-btn"
+              onClick={() => setActiveTab('ACTIVE')}
+              className={`px-3 py-1.5 rounded-md transition font-bold ${
+                activeTab === 'ACTIVE'
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              {t('activeProjects')}
+            </button>
+            <button
+              type="button"
+              data-testid="completed-tab-btn"
+              onClick={() => setActiveTab('COMPLETED')}
+              className={`px-3 py-1.5 rounded-md transition font-bold ${
+                activeTab === 'COMPLETED'
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              {t('completedProjects')}
+            </button>
+          </div>
+
+          {activeTab === 'COMPLETED' && (
+            <select
+              value={selectedYear}
+              onChange={(e) => setSelectedYear(e.target.value)}
+              className="h-8 text-xs font-bold bg-white border border-slate-200 rounded-lg px-2 text-slate-700 shadow-2xs focus:ring-1 focus:ring-blue-500"
+            >
+              {completedYears.map((yr) => (
+                <option key={yr} value={yr}>
+                  {yr}{lang === 'vi' ? '' : '년'}
+                </option>
+              ))}
+            </select>
+          )}
+        </div>
+      )}
+
       {/* Main Content Area */}
       <main className="flex-1 p-3 md:p-5 overflow-x-hidden flex flex-col">
         {isMobileView ? (
@@ -504,53 +555,6 @@ export const ProjectOverviewPage: React.FC = () => {
         ) : (
           /* Desktop Table View */
           <div className="space-y-3 flex-1 flex flex-col">
-            {/* Desktop Project Status Filter Row (Active vs Completed & Year Select) */}
-            <div
-              data-testid="overview-project-status-row"
-              className="flex items-center justify-start px-1 pt-1 pb-1 gap-2 shrink-0"
-            >
-              <div className="flex p-0.5 bg-slate-100 rounded-lg border border-slate-200 text-xs font-semibold">
-                <button
-                  type="button"
-                  data-testid="active-tab-btn"
-                  onClick={() => setActiveTab('ACTIVE')}
-                  className={`px-3 py-1.5 rounded-md transition font-bold ${
-                    activeTab === 'ACTIVE'
-                      ? 'bg-blue-600 text-white shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  {t('activeProjects')}
-                </button>
-                <button
-                  type="button"
-                  data-testid="completed-tab-btn"
-                  onClick={() => setActiveTab('COMPLETED')}
-                  className={`px-3 py-1.5 rounded-md transition font-bold ${
-                    activeTab === 'COMPLETED'
-                      ? 'bg-blue-600 text-white shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  {t('completedProjects')}
-                </button>
-              </div>
-
-              {activeTab === 'COMPLETED' && (
-                <select
-                  value={selectedYear}
-                  onChange={(e) => setSelectedYear(e.target.value)}
-                  className="h-8 text-xs font-bold bg-white border border-slate-200 rounded-lg px-2 text-slate-700 shadow-2xs focus:ring-1 focus:ring-blue-500"
-                >
-                  {completedYears.map((yr) => (
-                    <option key={yr} value={yr}>
-                      {yr}{lang === 'vi' ? '' : '년'}
-                    </option>
-                  ))}
-                </select>
-              )}
-            </div>
-
             {/* Today Summary Card */}
             <TodaySummaryCard
               currentWorker={currentWorker}
@@ -1024,6 +1028,12 @@ export const ProjectOverviewPage: React.FC = () => {
                                       plannedProgress={project.planned_progress ?? project.progress ?? 0}
                                       actualProgress={project.actual_progress ?? project.progress ?? 0}
                                       status={project.schedule_state || 'UPCOMING'}
+                                      visualFillPercent={calcAutoTimeFillPercent(
+                                        project.start_date,
+                                        project.end_date,
+                                        new Date().toISOString().slice(0, 10),
+                                        dateColumns
+                                      )}
                                     />
                                   </div>
                                 </div>

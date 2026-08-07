@@ -63,11 +63,35 @@ test.describe('P1 Project Overview Desktop UI Restructuring & Layout Precision S
       const controlBox = (await ganttControlRow.boundingBox())!;
       const ganttBox = (await ganttScroll.boundingBox())!;
 
-      // Assert Vertical Sequence: Legend -> Status Row -> Today Summary -> Gantt Control -> Gantt Table
-      expect(legendBox.y).toBeLessThan(statusBox.y);
-      expect(statusBox.y).toBeLessThan(summaryBox.y);
-      expect(summaryBox.y + summaryBox.height).toBeLessThanOrEqual(controlBox.y + 16);
-      expect(controlBox.y).toBeLessThan(ganttBox.y);
+      console.log(`[${vp.width}px] Legend bottom: ${(legendBox.y + legendBox.height).toFixed(2)}, Status top: ${statusBox.y.toFixed(2)}`);
+      console.log(`[${vp.width}px] Status bottom: ${(statusBox.y + statusBox.height).toFixed(2)}, Summary top: ${summaryBox.y.toFixed(2)}`);
+      console.log(`[${vp.width}px] Summary bottom: ${(summaryBox.y + summaryBox.height).toFixed(2)}, Controls top: ${controlBox.y.toFixed(2)}`);
+      console.log(`[${vp.width}px] Controls bottom: ${(controlBox.y + controlBox.height).toFixed(2)}, Gantt top: ${ganttBox.y.toFixed(2)}`);
+
+      // DOM 순서 엄격 검증: Legend → Status → Summary → Controls → Gantt
+      // legend.bottom <= status.top + 0.5
+      expect(
+        legendBox.y + legendBox.height,
+        `[${vp.width}px] Legend bottom must be <= Status top + 0.5`
+      ).toBeLessThanOrEqual(statusBox.y + 0.5);
+
+      // status.bottom <= summary.top + 0.5
+      expect(
+        statusBox.y + statusBox.height,
+        `[${vp.width}px] Status bottom must be <= Summary top + 0.5`
+      ).toBeLessThanOrEqual(summaryBox.y + 0.5);
+
+      // summary.bottom < controls.top
+      expect(
+        summaryBox.y + summaryBox.height,
+        `[${vp.width}px] Summary bottom must be < Controls top`
+      ).toBeLessThan(controlBox.y + 4);
+
+      // controls.bottom <= gantt.top
+      expect(
+        controlBox.y + controlBox.height,
+        `[${vp.width}px] Controls bottom must be <= Gantt top`
+      ).toBeLessThanOrEqual(ganttBox.y + 1);
 
       // 3. Verify Exact Center Alignment of View Controls (±8px tolerance)
       const controlsBox = (await ganttViewControls.boundingBox())!;
