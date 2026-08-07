@@ -241,8 +241,7 @@ export const ProjectOverviewPage: React.FC = () => {
       if (err && err.code === 'PROJECT_SCHEDULE_CASCADE_CONFIRMATION_REQUIRED') {
         throw err;
       }
-      alert(getLocalizedErrorMessage(err, t));
-      throw err;
+      return { success: false, error: err };
     }
   };
 

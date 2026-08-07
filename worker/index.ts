@@ -1278,7 +1278,12 @@ function addPureCalendarDays(dateStr: string, deltaDays: number): string {
         let trans_status = existing.translation_status;
         let trans_error = existing.translation_error;
 
-        if (validated.name && validated.name !== existing.name) {
+        const isManual = body.translation_status === 'MANUAL' || (existing.translation_status === 'MANUAL' && !body.translation_status);
+        const hasManualTarget =
+          (body.name_ko !== undefined && body.name_ko.trim() !== '') ||
+          (body.name_vi !== undefined && body.name_vi.trim() !== '');
+
+        if (validated.name && validated.name !== existing.name && !isManual && !hasManualTarget) {
           const transResult = await translateProjectOrTaskName(env.AI, validated.name);
           name_ko = transResult.name_ko;
           name_vi = transResult.name_vi;
@@ -1286,6 +1291,11 @@ function addPureCalendarDays(dateStr: string, deltaDays: number): string {
           trans_status = transResult.translation_status;
           trans_error = transResult.translation_error;
         }
+
+        if (body.name_ko !== undefined) name_ko = body.name_ko;
+        if (body.name_vi !== undefined) name_vi = body.name_vi;
+        if (body.source_language !== undefined) source_lang = body.source_language;
+        if (body.translation_status !== undefined) trans_status = body.translation_status;
 
         const oldStart = existing.start_date;
         const oldEnd = existing.end_date;

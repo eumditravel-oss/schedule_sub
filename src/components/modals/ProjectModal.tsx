@@ -53,6 +53,8 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
   const [cascadeDetails, setCascadeDetails] = useState<CascadeConfirmDetails | null>(null);
   const [pendingPayload, setPendingPayload] = useState<Partial<Project> | null>(null);
 
+  const [saveError, setSaveError] = useState<{ code?: string; message: string } | null>(null);
+
   const targetLang = inputLang === 'ko' ? 'vi' : 'ko';
 
   const {
@@ -79,6 +81,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
     setInputLang(src);
     setCascadeDetails(null);
     setPendingPayload(null);
+    setSaveError(null);
 
     if (project) {
       const initialSourceText = src === 'vi' ? (project.name_vi || project.name) : (project.name_ko || project.name);
@@ -107,16 +110,19 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
 
   const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setNameInput(e.target.value);
+    setSaveError(null);
   };
 
   const handleTargetTextChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
     setTargetText(val);
     setManualText(val);
+    setSaveError(null);
   };
 
   const handleStartDateChange = (val: string) => {
     setStartDate(val);
+    setSaveError(null);
     if (project && project.start_date && val !== project.start_date) {
       const delta = differenceInPureCalendarDays(val, project.start_date);
       const autoEnd = addPureCalendarDays(project.end_date, delta);
@@ -126,12 +132,17 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setSaveError(null);
+
     if (!nameInput.trim()) {
-      alert(t('projectSaveFailed'));
+      setSaveError({ code: 'NAME_REQUIRED', message: t('projectSaveFailed') });
       return;
     }
     if (startDate && endDate && endDate < startDate) {
-      alert(lang === 'vi' ? 'Ngày kết thúc phải sau ngày bắt đầu.' : '종료일은 시작일 이후여야 합니다.');
+      setSaveError({
+        code: 'INVALID_DATE_RANGE',
+        message: lang === 'vi' ? 'Ngày kết thúc phải sau ngày bắt đầu.' : '종료일은 시작일 이후여야 합니다.',
+      });
       return;
     }
 
@@ -162,7 +173,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
         return;
       }
       if (res && res.error) {
-        alert(res.error.message);
+        setSaveError({ code: res.error.code || 'PROJECT_UPDATE_FAILED', message: res.error.message || '저장하지 못했습니다.' });
         return;
       }
 
@@ -172,6 +183,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
         setCascadeDetails(err.details);
       } else {
         console.error(err);
+        setSaveError({ code: err.code || 'PROJECT_UPDATE_FAILED', message: err.message || '저장하지 못했습니다.' });
       }
     } finally {
       setSaving(false);
@@ -340,6 +352,21 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
           </div>
 
           <form onSubmit={handleSubmit} className="p-5 space-y-4 text-xs">
+            {saveError && (
+              <div
+                data-testid="project-save-error"
+                className="p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-xs font-semibold space-y-1 animate-in fade-in duration-150"
+              >
+                <div className="font-bold flex items-center justify-between">
+                  <span>{lang === 'vi' ? 'Lưu thất bại' : '저장하지 못했습니다.'}</span>
+                  {saveError.code && (
+                    <span className="text-[10px] font-mono font-normal opacity-80">Error Code: {saveError.code}</span>
+                  )}
+                </div>
+                <div>{saveError.message}</div>
+              </div>
+            )}
+
             {/* Read-only Input Language Label */}
             <div className="bg-slate-50 border border-slate-200 p-2.5 rounded-lg text-slate-700 font-bold text-xs flex items-center justify-between">
               <span>{inputLang === 'ko' ? '입력 언어: 한국어' : 'Ngôn ngữ nhập: Tiếng Việt'}</span>
