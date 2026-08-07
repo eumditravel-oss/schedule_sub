@@ -35,8 +35,15 @@ test.describe('Existing Task Edit & schedule_revision Schema Regression Suite', 
   });
 
   test('1. Task Name-only Edit succeeds via API without D1 schedule_revision SQLITE_ERROR', async ({ request }) => {
-    // 1. Get project detail to obtain a valid task_group_id
-    const detailRes = await request.get(`${BASE_URL}/api/projects/${ES_PROJECT_ID}/detail`);
+    // 1. Get projects list and find active project
+    const projectsRes = await request.get(`${BASE_URL}/api/projects`);
+    expect(projectsRes.ok()).toBe(true);
+    const projectsJson = await projectsRes.json();
+    const targetProject = (projectsJson.data || []).find((p: any) => p.name === 'ES 프로그램 개발' && p.task_count > 0) || projectsJson.data[0];
+    expect(targetProject).toBeDefined();
+    const projectId = targetProject.id;
+
+    const detailRes = await request.get(`${BASE_URL}/api/projects/${projectId}/detail`);
     expect(detailRes.ok()).toBe(true);
     const detailJson = await detailRes.json();
     const taskGroups = detailJson.data?.task_groups || [];
@@ -46,7 +53,7 @@ test.describe('Existing Task Edit & schedule_revision Schema Regression Suite', 
     // 2. Create a test task
     const createRes = await request.post(`${BASE_URL}/api/tasks`, {
       data: {
-        project_id: ES_PROJECT_ID,
+        project_id: projectId,
         task_group_id: groupId,
         worker_name: '박용진 수석',
         primary_worker_id: 'wrk_02',
@@ -99,8 +106,15 @@ test.describe('Existing Task Edit & schedule_revision Schema Regression Suite', 
   });
 
   test('2. Task Edit Modal UI inline error & F5 persistence test', async ({ request, page }) => {
-    // 1. Get project detail to obtain a valid task_group_id
-    const detailRes = await request.get(`${BASE_URL}/api/projects/${ES_PROJECT_ID}/detail`);
+    // 1. Get projects list and find active project
+    const projectsRes = await request.get(`${BASE_URL}/api/projects`);
+    expect(projectsRes.ok()).toBe(true);
+    const projectsJson = await projectsRes.json();
+    const targetProject = (projectsJson.data || []).find((p: any) => p.name === 'ES 프로그램 개발' && p.task_count > 0) || projectsJson.data[0];
+    expect(targetProject).toBeDefined();
+    const projectId = targetProject.id;
+
+    const detailRes = await request.get(`${BASE_URL}/api/projects/${projectId}/detail`);
     expect(detailRes.ok()).toBe(true);
     const detailJson = await detailRes.json();
     const taskGroups = detailJson.data?.task_groups || [];
@@ -109,7 +123,7 @@ test.describe('Existing Task Edit & schedule_revision Schema Regression Suite', 
     // 2. Create test task with manual translation
     const createRes = await request.post(`${BASE_URL}/api/tasks`, {
       data: {
-        project_id: ES_PROJECT_ID,
+        project_id: projectId,
         task_group_id: groupId,
         worker_name: '박용진 수석',
         primary_worker_id: 'wrk_02',
@@ -131,7 +145,7 @@ test.describe('Existing Task Edit & schedule_revision Schema Regression Suite', 
 
     // 3. Verify via UI
     await dismissWorkerPromptModal(page);
-    await page.goto(`${BASE_URL}/projects/${ES_PROJECT_ID}`, { waitUntil: 'domcontentloaded' });
+    await page.goto(`${BASE_URL}/projects/${projectId}`, { waitUntil: 'domcontentloaded' });
     await page.waitForTimeout(1000);
 
     // Assert zero page errors
