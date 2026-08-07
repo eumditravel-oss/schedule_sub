@@ -404,8 +404,8 @@ export const ProjectOverviewPage: React.FC = () => {
         </header>
       )}
 
-      {/* Desktop Toolbar & Navigation Controls */}
-      {isMobileView ? (
+      {/* Mobile Toolbar Controls */}
+      {isMobileView && (
         <div className="bg-white border-b border-slate-200 p-3 flex flex-col gap-2 w-full shadow-2xs">
           <div className="flex items-center justify-between">
             <div role="tablist" aria-label="Mobile View Modes" className="flex items-center p-0.5 bg-slate-200/80 rounded-lg text-xs font-semibold flex-1 mr-2">
@@ -456,12 +456,59 @@ export const ProjectOverviewPage: React.FC = () => {
             <CalendarLegend isMobileView={true} />
           </div>
         </div>
-      ) : (
-        <section data-testid="desktop-schedule-toolbar" className="bg-white border-b border-slate-200 px-4 md:px-6 py-2.5 space-y-2 text-slate-900 shadow-2xs">
-          {/* Toolbar Main Row */}
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            {/* Left: Active vs Completed Tabs */}
-            <div className="flex items-center gap-2 shrink-0">
+      )}
+
+      {/* Desktop Calendar Legend Row */}
+      {!isMobileView && (
+        <div
+          data-testid="overview-legend-row"
+          className="bg-white border-b border-slate-200 px-4 md:px-6 py-2"
+        >
+          <CalendarLegend isMobileView={false} />
+        </div>
+      )}
+
+      {/* Main Content Area */}
+      <main className="flex-1 p-3 md:p-5 overflow-x-hidden flex flex-col">
+        {isMobileView ? (
+          /* Dedicated Mutually Exclusive Mobile & Fold Views */
+          <div className="w-full flex-1 flex flex-col">
+            {mobileViewMode === 'SUMMARY' && (
+              <MobileSummaryView
+                mode="OVERVIEW"
+                projects={projects}
+                isCompletedTab={activeTab === 'COMPLETED'}
+                onProjectClick={(p) => navigate(`/projects/${p.id}`)}
+                onEditProject={handleEditProject}
+                onCompleteProject={handleCompleteProject}
+                onDeleteProject={handleOpenDeleteModal}
+                isReadOnly={isExecutiveViewer(currentWorker)}
+              />
+            )}
+            {mobileViewMode === 'WEEK' && (
+              <MobileWeekView
+                mode="OVERVIEW"
+                projects={projects}
+                onProjectClick={(p) => navigate(`/projects/${p.id}`)}
+              />
+            )}
+            {mobileViewMode === 'GANTT' && (
+              <MobileThirtyDayGanttView
+                mode="OVERVIEW"
+                projects={projects}
+                dateColumns={dateColumns}
+                onProjectClick={(p) => navigate(`/projects/${p.id}`)}
+              />
+            )}
+          </div>
+        ) : (
+          /* Desktop Table View */
+          <div className="space-y-3 flex-1 flex flex-col">
+            {/* Desktop Project Status Filter Row (Active vs Completed & Year Select) */}
+            <div
+              data-testid="overview-project-status-row"
+              className="flex items-center justify-start px-1 pt-1 pb-1 gap-2 shrink-0"
+            >
               <div className="flex p-0.5 bg-slate-100 rounded-lg border border-slate-200 text-xs font-semibold">
                 <button
                   type="button"
@@ -504,123 +551,7 @@ export const ProjectOverviewPage: React.FC = () => {
               )}
             </div>
 
-            {/* Center: View Mode Toggle & Date Range Badge */}
-            <div className="flex items-center gap-2 shrink-0">
-              <div className="flex items-center p-0.5 bg-slate-100 rounded-lg border border-slate-200 text-xs font-semibold">
-                <button
-                  type="button"
-                  data-testid="view-30days-btn"
-                  data-state={viewMode === 'THIRTY_DAYS' ? 'active' : 'inactive'}
-                  aria-pressed={viewMode === 'THIRTY_DAYS'}
-                  onClick={() => changeViewMode('THIRTY_DAYS')}
-                  className={`px-3 py-1.5 rounded-md transition font-bold ${
-                    viewMode === 'THIRTY_DAYS'
-                      ? 'bg-white text-blue-700 shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  {t('gantt30View')}
-                </button>
-                <button
-                  type="button"
-                  data-testid="view-month-btn"
-                  data-state={viewMode === 'MONTH' ? 'active' : 'inactive'}
-                  aria-pressed={viewMode === 'MONTH'}
-                  onClick={() => changeViewMode('MONTH')}
-                  className={`px-3 py-1.5 rounded-md transition font-bold ${
-                    viewMode === 'MONTH'
-                      ? 'bg-white text-blue-700 shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  {t('viewMonth')}
-                </button>
-              </div>
-
-              <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-extrabold text-slate-800 shrink-0">
-                <Calendar className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-                <span>{rangeTitle}</span>
-              </div>
-            </div>
-
-            {/* Right: Navigation Controls (Prev / Today / Next) */}
-            <div className="flex items-center gap-1 bg-white border border-slate-300 p-0.5 rounded-lg shadow-2xs shrink-0">
-              <button
-                type="button"
-                data-testid="nav-prev-btn"
-                onClick={goPrevious}
-                className="h-7 px-2.5 rounded hover:bg-slate-100 text-slate-700 font-bold text-xs transition flex items-center gap-1"
-                aria-label={t('prev')}
-              >
-                <ChevronLeft className="w-4 h-4 text-slate-500" />
-                <span>{t('prev')}</span>
-              </button>
-
-              <button
-                type="button"
-                data-testid="nav-today-btn"
-                onClick={goToday}
-                className="h-7 px-3 bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold rounded text-xs transition border border-blue-200"
-              >
-                {t('today')}
-              </button>
-
-              <button
-                type="button"
-                data-testid="nav-next-btn"
-                onClick={goNext}
-                className="h-7 px-2.5 rounded hover:bg-slate-100 text-slate-700 font-bold text-xs transition flex items-center gap-1"
-                aria-label={t('next')}
-              >
-                <span>{t('next')}</span>
-                <ChevronRight className="w-4 h-4 text-slate-500" />
-              </button>
-            </div>
-          </div>
-
-          {/* Legend Row */}
-          <div className="pt-1.5 border-t border-slate-100">
-            <CalendarLegend isMobileView={false} />
-          </div>
-        </section>
-      )}
-
-      {/* Main Content Area */}
-      <main className="flex-1 p-3 md:p-5 overflow-x-hidden flex flex-col">
-        {isMobileView ? (
-          /* Dedicated Mutually Exclusive Mobile & Fold Views */
-          <div className="w-full flex-1 flex flex-col">
-            {mobileViewMode === 'SUMMARY' && (
-              <MobileSummaryView
-                mode="OVERVIEW"
-                projects={projects}
-                isCompletedTab={activeTab === 'COMPLETED'}
-                onProjectClick={(p) => navigate(`/projects/${p.id}`)}
-                onEditProject={handleEditProject}
-                onCompleteProject={handleCompleteProject}
-                onDeleteProject={handleOpenDeleteModal}
-                isReadOnly={isExecutiveViewer(currentWorker)}
-              />
-            )}
-            {mobileViewMode === 'WEEK' && (
-              <MobileWeekView
-                mode="OVERVIEW"
-                projects={projects}
-                onProjectClick={(p) => navigate(`/projects/${p.id}`)}
-              />
-            )}
-            {mobileViewMode === 'GANTT' && (
-              <MobileThirtyDayGanttView
-                mode="OVERVIEW"
-                projects={projects}
-                dateColumns={dateColumns}
-                onProjectClick={(p) => navigate(`/projects/${p.id}`)}
-              />
-            )}
-          </div>
-        ) : (
-          /* Desktop Table View */
-          <div className="space-y-3 flex-1 flex flex-col">
+            {/* Today Summary Card */}
             <TodaySummaryCard
               currentWorker={currentWorker}
               tasks={projects.flatMap((p: any) => p.tasks || [])}
@@ -628,6 +559,99 @@ export const ProjectOverviewPage: React.FC = () => {
               holidays={[...krHolidays, ...vnHolidays]}
               overrides={calendarOverrides}
             />
+
+            {/* Desktop Dedicated Gantt Control Row (Grid Centered Controls & Right Navigation) */}
+            <div
+              data-testid="overview-gantt-control-row"
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'minmax(0, 1fr) auto minmax(0, 1fr)',
+                alignItems: 'center',
+              }}
+              className="w-full px-1 py-1 text-slate-900 h-9 shrink-0"
+            >
+              {/* Left Empty Expansion Space */}
+              <div className="min-w-0" />
+
+              {/* Center View Controls & Date Range Badge */}
+              <div
+                data-testid="overview-gantt-view-controls"
+                className="flex items-center gap-2 justify-center shrink-0"
+              >
+                <div className="flex items-center p-0.5 bg-slate-100 rounded-lg border border-slate-200 text-xs font-semibold">
+                  <button
+                    type="button"
+                    data-testid="view-30days-btn"
+                    data-state={viewMode === 'THIRTY_DAYS' ? 'active' : 'inactive'}
+                    aria-pressed={viewMode === 'THIRTY_DAYS'}
+                    onClick={() => changeViewMode('THIRTY_DAYS')}
+                    className={`px-3 py-1.5 rounded-md transition font-bold ${
+                      viewMode === 'THIRTY_DAYS'
+                        ? 'bg-white text-blue-700 shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    {t('gantt30View')}
+                  </button>
+                  <button
+                    type="button"
+                    data-testid="view-month-btn"
+                    data-state={viewMode === 'MONTH' ? 'active' : 'inactive'}
+                    aria-pressed={viewMode === 'MONTH'}
+                    onClick={() => changeViewMode('MONTH')}
+                    className={`px-3 py-1.5 rounded-md transition font-bold ${
+                      viewMode === 'MONTH'
+                        ? 'bg-white text-blue-700 shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    {t('viewMonth')}
+                  </button>
+                </div>
+
+                <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-extrabold text-slate-800 shrink-0 whitespace-nowrap">
+                  <Calendar className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                  <span>{rangeTitle}</span>
+                </div>
+              </div>
+
+              {/* Right Navigation Controls */}
+              <div
+                data-testid="overview-gantt-navigation"
+                className="justify-self-end flex items-center gap-1 bg-white border border-slate-300 p-0.5 rounded-lg shadow-2xs shrink-0"
+              >
+                <button
+                  type="button"
+                  data-testid="nav-prev-btn"
+                  onClick={goPrevious}
+                  className="h-7 px-2.5 rounded hover:bg-slate-100 text-slate-700 font-bold text-xs transition flex items-center gap-1"
+                  aria-label={t('prev')}
+                >
+                  <ChevronLeft className="w-4 h-4 text-slate-500" />
+                  <span>{t('prev')}</span>
+                </button>
+
+                <button
+                  type="button"
+                  data-testid="nav-today-btn"
+                  onClick={goToday}
+                  className="h-7 px-3 bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold rounded text-xs transition border border-blue-200"
+                >
+                  {t('today')}
+                </button>
+
+                <button
+                  type="button"
+                  data-testid="nav-next-btn"
+                  onClick={goNext}
+                  className="h-7 px-2.5 rounded hover:bg-slate-100 text-slate-700 font-bold text-xs transition flex items-center gap-1"
+                  aria-label={t('next')}
+                >
+                  <span>{t('next')}</span>
+                  <ChevronRight className="w-4 h-4 text-slate-500" />
+                </button>
+              </div>
+            </div>
 
             {/* Outer Gantt Scroll Container */}
             <div
