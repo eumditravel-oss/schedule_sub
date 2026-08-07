@@ -1,46 +1,98 @@
 // src/components/common/TodaySummaryCard.tsx
-import React from 'react';
-import { Task, Worker, Project, CountryHoliday, CalendarOverride, isExecutiveViewer } from '../../types';
+import React, { useEffect, useState } from 'react';
+import { Worker, CountryHoliday, CalendarOverride } from '../../types';
 import { useI18n } from '../../hooks/useI18n';
-import { CheckCircle2, Clock, AlertTriangle, Calendar, UserCheck, Flame } from 'lucide-react';
+import { CheckCircle2, Clock, AlertTriangle, Calendar, Flame, RefreshCw } from 'lucide-react';
 import { resolveWorkDayStatus } from '../../utils/workCalendar';
+import { getKoreaDateString } from '../../utils/dateUtils';
+import { api } from '../../services/api';
 
 interface TodaySummaryCardProps {
   currentWorker: Worker | null;
-  tasks: Task[];
-  projects: Project[];
   holidays?: CountryHoliday[];
   overrides?: CalendarOverride[];
+  refreshTrigger?: number;
+}
+
+export interface TodaySummaryData {
+  date: string;
+  scheduled_today: { count: number; task_ids: string[] };
+  in_progress: { count: number; task_ids: string[] };
+  completed_today: { count: number; task_ids: string[] };
+  overdue: { count: number; task_ids: string[] };
 }
 
 export const TodaySummaryCard: React.FC<TodaySummaryCardProps> = ({
   currentWorker,
-  tasks,
-  projects,
   holidays = [],
   overrides = [],
+  refreshTrigger = 0,
 }) => {
   const { lang } = useI18n();
-  const todayStr = new Date().toISOString().slice(0, 10);
-  const isViewer = isExecutiveViewer(currentWorker);
+  const todayStr = getKoreaDateString();
 
-  // Filter tasks based on role
-  const relevantTasks = isViewer
-    ? tasks
-    : currentWorker
-    ? tasks.filter((t) => t.worker_name === currentWorker.id || t.worker_name === currentWorker.name)
-    : tasks;
+  const [data, setData] = useState<TodaySummaryData | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // Active today tasks
-  const todayTasks = relevantTasks.filter((t) => t.start_date && t.end_date && t.start_date <= todayStr && t.end_date >= todayStr);
-  const inProgressTasks = relevantTasks.filter((t) => t.start_date && t.end_date && t.start_date <= todayStr && t.end_date >= todayStr && t.progress < 100);
-  const completedTodayTasks = relevantTasks.filter((t) => t.daily_statuses && t.daily_statuses[todayStr] === 'COMPLETED');
-  const delayedTasks = relevantTasks.filter((t) => t.end_date && t.end_date < todayStr && t.progress < 100);
+  const fetchSummary = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const res = await api.getTodaySummary(todayStr);
+      setData(res || null);
+    } catch (err: any) {
+      console.error('Failed to fetch today summary:', err);
+      setError(err?.message || 'Error fetching summary');
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  // Worker leave/off today
+  useEffect(() => {
+    fetchSummary();
+  }, [todayStr, refreshTrigger]);
+
   const workerStatus = currentWorker
     ? resolveWorkDayStatus(todayStr, currentWorker, holidays, overrides)
     : null;
+
+  if (error) {
+    return (
+      <div
+        data-testid="today-summary-card"
+        className="bg-white border border-slate-200 rounded-2xl p-3.5 shadow-2xs text-xs space-y-2.5"
+      >
+        <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+          <div className="flex items-center gap-2">
+            <Calendar className="w-4 h-4 text-blue-600 shrink-0" />
+            <h4 className="font-extrabold text-slate-900 text-xs">
+              {lang === 'vi' ? 'Công việc hôm nay' : '오늘의 업무 현황'}
+            </h4>
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-blue-50 text-blue-700 border border-blue-200">
+              {todayStr}
+            </span>
+          </div>
+        </div>
+        <div data-testid="today-summary-error" className="py-3 text-center text-rose-600 font-bold flex items-center justify-center gap-2">
+          <span>{lang === 'vi' ? 'Không thể tải công việc hôm nay.' : '오늘 업무 현황을 불러오지 못했습니다.'}</span>
+          <button
+            type="button"
+            onClick={fetchSummary}
+            className="px-2 py-1 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 rounded-md font-bold text-xs flex items-center gap-1 transition"
+          >
+            <RefreshCw className="w-3 h-3" />
+            <span>{lang === 'vi' ? 'Thử lại' : '재시도'}</span>
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const scheduledTodayCount = data?.scheduled_today?.count ?? 0;
+  const inProgressCount = data?.in_progress?.count ?? 0;
+  const completedTodayCount = data?.completed_today?.count ?? 0;
+  const overdueCount = data?.overdue?.count ?? 0;
 
   return (
     <div
@@ -71,7 +123,9 @@ export const TodaySummaryCard: React.FC<TodaySummaryCardProps> = ({
             <Clock className="w-3 h-3 text-slate-500" />
             <span>{lang === 'vi' ? 'Lịch hôm nay' : '오늘 예정'}</span>
           </div>
-          <div className="text-sm font-black text-slate-800">{todayTasks.length}건</div>
+          <div className="text-sm font-black text-slate-800">
+            {loading ? <span className="animate-pulse">...</span> : `${scheduledTodayCount}건`}
+          </div>
         </div>
 
         {/* In Progress */}
@@ -80,7 +134,9 @@ export const TodaySummaryCard: React.FC<TodaySummaryCardProps> = ({
             <Flame className="w-3 h-3 text-blue-600" />
             <span>{lang === 'vi' ? 'Đang làm' : '진행 중'}</span>
           </div>
-          <div className="text-sm font-black text-blue-900">{inProgressTasks.length}건</div>
+          <div className="text-sm font-black text-blue-900">
+            {loading ? <span className="animate-pulse">...</span> : `${inProgressCount}건`}
+          </div>
         </div>
 
         {/* Completed Today */}
@@ -89,17 +145,19 @@ export const TodaySummaryCard: React.FC<TodaySummaryCardProps> = ({
             <CheckCircle2 className="w-3 h-3 text-emerald-600" />
             <span>{lang === 'vi' ? 'Hoàn thành' : '오늘 완료'}</span>
           </div>
-          <div className="text-sm font-black text-emerald-900">{completedTodayTasks.length}건</div>
+          <div className="text-sm font-black text-emerald-900">
+            {loading ? <span className="animate-pulse">...</span> : `${completedTodayCount}건`}
+          </div>
         </div>
 
-        {/* Delayed */}
+        {/* Overdue */}
         <div className="p-2 rounded-xl bg-rose-50/70 border border-rose-200 space-y-0.5">
           <div className="text-[10px] text-rose-700 font-bold flex items-center justify-center gap-1">
             <AlertTriangle className="w-3 h-3 text-rose-600" />
             <span>{lang === 'vi' ? 'Trễ hạn' : '기한 경과'}</span>
           </div>
-          <div className={`text-sm font-black ${delayedTasks.length > 0 ? 'text-rose-700' : 'text-slate-700'}`}>
-            {delayedTasks.length}건
+          <div className={`text-sm font-black ${overdueCount > 0 ? 'text-rose-700' : 'text-slate-700'}`}>
+            {loading ? <span className="animate-pulse">...</span> : `${overdueCount}건`}
           </div>
         </div>
       </div>

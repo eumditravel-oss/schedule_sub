@@ -293,6 +293,105 @@ export default {
         });
       }
 
+      // 0.05 GET /api/dashboard/today-summary
+      if (method === 'GET' && path === '/api/dashboard/today-summary') {
+        const targetDate = url.searchParams.get('date') || getTodayStrForWorkerServer(null);
+
+        // Fetch active projects
+        const activePrjRes = await db.prepare(`SELECT id, status, schedule_state FROM projects WHERE status = 'ACTIVE'`).all();
+        const activeProjects: any[] = activePrjRes.results || [];
+        const activeProjectIds = new Set(activeProjects.map((p) => p.id));
+        const activeProjectMap = new Map<string, any>();
+        activeProjects.forEach((p) => activeProjectMap.set(p.id, p));
+
+        if (activeProjects.length === 0) {
+          return jsonResponse({
+            date: targetDate,
+            scheduled_today: { count: 0, task_ids: [] },
+            in_progress: { count: 0, task_ids: [] },
+            completed_today: { count: 0, task_ids: [] },
+            overdue: { count: 0, task_ids: [] },
+          });
+        }
+
+        // Fetch all active scheduled tasks
+        const tasksRes = await db
+          .prepare(
+            `SELECT t.id, t.project_id, t.task_name, t.start_date, t.end_date, t.progress, t.actual_progress,
+                    t.completion_confirmed, t.schedule_status, t.schedule_state, t.progress_mode
+             FROM tasks t
+             JOIN projects p ON t.project_id = p.id
+             WHERE p.status = 'ACTIVE'
+               AND t.schedule_status = 'SCHEDULED'
+               AND t.start_date IS NOT NULL
+               AND t.end_date IS NOT NULL`
+          )
+          .all();
+        const activeTasks: any[] = tasksRes.results || [];
+
+        // Fetch daily status for targetDate
+        const dailyRes = await db
+          .prepare(`SELECT task_id, status FROM task_daily_status WHERE work_date = ?`)
+          .bind(targetDate)
+          .all();
+        const dailyStatusMap = new Map<string, string>();
+        (dailyRes.results || []).forEach((row: any) => {
+          dailyStatusMap.set(row.task_id, row.status);
+        });
+
+        const scheduledTodayIds: string[] = [];
+        const inProgressIds: string[] = [];
+        const completedTodayIds: string[] = [];
+        const overdueIds: string[] = [];
+
+        activeTasks.forEach((t) => {
+          const isScheduledToday = t.start_date <= targetDate && targetDate <= t.end_date;
+          const prj = activeProjectMap.get(t.project_id);
+
+          // 1. Scheduled Today
+          if (isScheduledToday) {
+            scheduledTodayIds.push(t.id);
+          }
+
+          // 2. In Progress
+          const ds = dailyStatusMap.get(t.id);
+          const actProg = t.actual_progress ?? t.progress ?? 0;
+          const isInProgressState =
+            ds === 'IN_PROGRESS' ||
+            (actProg > 0 && actProg < 100) ||
+            t.schedule_state === 'IN_PROGRESS' ||
+            (prj && prj.schedule_state === 'IN_PROGRESS' && isScheduledToday && actProg < 100);
+
+          if (isScheduledToday && isInProgressState && Number(t.completion_confirmed) !== 1) {
+            if (!inProgressIds.includes(t.id)) {
+              inProgressIds.push(t.id);
+            }
+          }
+
+          // 3. Completed Today
+          if (ds === 'COMPLETED') {
+            if (!completedTodayIds.includes(t.id)) {
+              completedTodayIds.push(t.id);
+            }
+          }
+
+          // 4. Overdue (end_date < targetDate AND completion_confirmed != 1 AND Project status = ACTIVE)
+          if (t.end_date < targetDate && Number(t.completion_confirmed) !== 1) {
+            if (!overdueIds.includes(t.id)) {
+              overdueIds.push(t.id);
+            }
+          }
+        });
+
+        return jsonResponse({
+          date: targetDate,
+          scheduled_today: { count: scheduledTodayIds.length, task_ids: scheduledTodayIds },
+          in_progress: { count: inProgressIds.length, task_ids: inProgressIds },
+          completed_today: { count: completedTodayIds.length, task_ids: completedTodayIds },
+          overdue: { count: overdueIds.length, task_ids: overdueIds },
+        });
+      }
+
       // 0.1 GET /api/projects/:id/shift-logs
       const getShiftLogsMatch = path.match(/^\/api\/projects\/([^/]+)\/shift-logs$/);
       if (method === 'GET' && getShiftLogsMatch) {

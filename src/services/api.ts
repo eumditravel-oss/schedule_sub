@@ -430,4 +430,10 @@ export const api = {
     });
     return handleResponse<any>(res);
   },
+
+  async getTodaySummary(dateStr?: string): Promise<any> {
+    const query = dateStr ? `?date=${encodeURIComponent(dateStr)}` : '';
+    const res = await fetch(`/api/dashboard/today-summary${query}`);
+    return handleResponse<any>(res);
+  },
 };

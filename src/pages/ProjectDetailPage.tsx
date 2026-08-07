@@ -1,7 +1,7 @@
 // src/pages/ProjectDetailPage.tsx
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Project, Task, TaskGroup, TaskGroupColorKey, Worker, CountryHoliday, CalendarOverride, DailyStatusType, WorkDayStatus, CountryCode, WorkweekProfile, ScheduleConflictDetail, isExecutiveViewer, isEditableWorker } from '../types';
+import { Project, Task, TaskGroup, TaskGroupColorKey, Worker, CountryHoliday, CalendarOverride, DailyStatusType, WorkDayStatus, CountryCode, WorkweekProfile, ScheduleConflictDetail, isExecutiveViewer, isEditableWorker, GanttDateColumn, DateColumn } from '../types';
 import { WorkerConflictModal } from '../components/modals/WorkerConflictModal';
 import { TaskGroupModal } from '../components/modals/TaskGroupModal';
 import { TaskGroupDeleteModal } from '../components/modals/TaskGroupDeleteModal';
@@ -28,6 +28,7 @@ import {
 import { GANTT_Z } from '../constants/ganttLayers';
 import { TaskModal } from '../components/modals/TaskModal';
 import { GlobalCountryCalendarOverlay } from '../components/gantt/GlobalCountryCalendarOverlay';
+import { isMonthStartColumn, GANTT_MONTH_BOUNDARY_STYLE } from '../utils/GanttMonthBoundary';
 import { WorkerConflictSummaryModal } from '../components/modals/WorkerConflictSummaryModal';
 import { StatusPopover } from '../components/modals/StatusPopover';
 import { WorkerSelector } from '../components/common/WorkerSelector';
@@ -341,12 +342,14 @@ const SortableTaskRow: React.FC<SortableTaskRowProps> = ({
               const isInRange = !isUnscheduled && col.dateStr >= tItem.start_date! && col.dateStr <= tItem.end_date!;
               const workerObj = workers.find((w) => w.name === tItem.worker_name) || null;
               const dayStatus = resolveWorkDayStatus(col.dateStr, (workerObj || { id: tItem.worker_name, name: tItem.worker_name }) as any, countryHolidays, calendarOverrides);
+              const isMonthStart = isMonthStartColumn(dateColumns, cIdx);
               return (
                 <div
                   key={cIdx}
                   data-testid={`gantt-task-cell-${tItem.id}-${col.dateStr}`}
+                  data-month-boundary={isMonthStart ? 'true' : undefined}
                   onClick={() => onCellClick(tItem, col.dateStr, dayStatus, workerObj)}
-                  style={{ boxSizing: 'border-box' }}
+                  style={{ boxSizing: 'border-box', ...(isMonthStart ? GANTT_MONTH_BOUNDARY_STYLE : {}) }}
                   className={`border-r border-slate-200 cursor-pointer h-full ${isInRange ? 'bg-blue-50/30' : ''}`}
                 />
               );
@@ -428,6 +431,8 @@ interface DroppableTaskGroupRowProps {
   lang: string;
   leftPanelWidth: number;
   timelineWidth: number;
+  dateColumns?: DateColumn[];
+  dateGridTemplate?: string;
   onToggleCollapse: (groupId: string) => void;
   onOpenEditGroup: (group: TaskGroup) => void;
   onOpenDeleteGroup: (group: TaskGroup, taskCount: number) => void;
@@ -446,6 +451,8 @@ const DroppableTaskGroupRow: React.FC<DroppableTaskGroupRowProps> = ({
   lang,
   leftPanelWidth,
   timelineWidth,
+  dateColumns,
+  dateGridTemplate,
   onToggleCollapse,
   onOpenEditGroup,
   onOpenDeleteGroup,
@@ -608,7 +615,27 @@ const DroppableTaskGroupRow: React.FC<DroppableTaskGroupRowProps> = ({
         </div>
       </div>
 
-      <div role="cell" style={{ width: `${timelineWidth}px`, minWidth: `${timelineWidth}px`, height: `${TASK_GROUP_ROW_HEIGHT_PX}px` }} className={`shrink-0 ${isOver ? 'bg-blue-50/50' : ''}`} />
+      <div
+        role="cell"
+        style={{ width: `${timelineWidth}px`, minWidth: `${timelineWidth}px`, height: `${TASK_GROUP_ROW_HEIGHT_PX}px` }}
+        className={`relative shrink-0 ${isOver ? 'bg-blue-50/50' : ''}`}
+      >
+        {dateGridTemplate && dateColumns && (
+          <div className="absolute inset-0 z-0 grid h-full w-full pointer-events-none" style={{ gridTemplateColumns: dateGridTemplate }}>
+            {dateColumns.map((col, cIdx) => {
+              const isMonthStart = isMonthStartColumn(dateColumns, cIdx);
+              return (
+                <div
+                  key={cIdx}
+                  data-month-boundary={isMonthStart ? 'true' : undefined}
+                  style={{ boxSizing: 'border-box', ...(isMonthStart ? GANTT_MONTH_BOUNDARY_STYLE : {}) }}
+                  className="border-r border-slate-200 h-full"
+                />
+              );
+            })}
+          </div>
+        )}
+      </div>
     </div>
   );
 };
@@ -619,7 +646,9 @@ const EmptyGroupDropZoneCard: React.FC<{
   timelineWidth: number;
   lang: string;
   isOver: boolean;
-}> = ({ groupId, leftPanelWidth, timelineWidth, lang, isOver }) => {
+  dateColumns?: DateColumn[];
+  dateGridTemplate?: string;
+}> = ({ groupId, leftPanelWidth, timelineWidth, lang, isOver, dateColumns, dateGridTemplate }) => {
   const { setNodeRef } = useDroppable({
     id: `drop-group-${groupId}`,
   });
@@ -665,7 +694,23 @@ const EmptyGroupDropZoneCard: React.FC<{
           }}
         />
       </div>
-      <div role="cell" style={{ width: `${timelineWidth}px`, minWidth: `${timelineWidth}px` }} className="h-full shrink-0" />
+      <div role="cell" style={{ width: `${timelineWidth}px`, minWidth: `${timelineWidth}px` }} className="h-full shrink-0 relative">
+        {dateGridTemplate && dateColumns && (
+          <div className="absolute inset-0 z-0 grid h-full w-full pointer-events-none" style={{ gridTemplateColumns: dateGridTemplate }}>
+            {dateColumns.map((col, cIdx) => {
+              const isMonthStart = isMonthStartColumn(dateColumns, cIdx);
+              return (
+                <div
+                  key={cIdx}
+                  data-month-boundary={isMonthStart ? 'true' : undefined}
+                  style={{ boxSizing: 'border-box', ...(isMonthStart ? GANTT_MONTH_BOUNDARY_STYLE : {}) }}
+                  className="border-r border-slate-200 h-full"
+                />
+              );
+            })}
+          </div>
+        )}
+      </div>
     </div>
   );
 };
@@ -2037,7 +2082,12 @@ export const ProjectDetailPage: React.FC = () => {
                   {monthGroups.map((mg, idx) => (
                     <div
                       key={idx}
-                      style={{ gridColumn: `${mg.startIndex + 1} / span ${mg.span}` }}
+                      data-month-group={mg.monthStr}
+                      style={{
+                        gridColumn: `${mg.startIndex + 1} / span ${mg.span}`,
+                        boxSizing: 'border-box',
+                        ...(idx > 0 ? GANTT_MONTH_BOUNDARY_STYLE : {}),
+                      }}
                       className="border-r border-slate-200 truncate px-1 flex items-center justify-center h-full"
                     >
                       {mg.monthStr}
@@ -2064,6 +2114,7 @@ export const ProjectDetailPage: React.FC = () => {
                       const token = getCalendarVisualStyle(offInfo.state === 'BOTH_WORK' ? 'WORKDAY' : (offInfo.state as CalendarVisualState));
                       const pattern = buildCalendarHatchPattern(token, 0.60);
                       const headerHatchStyle: React.CSSProperties = pattern ? { backgroundImage: pattern } : {};
+                      const isMonthStart = isMonthStartColumn(dateColumns, idx);
 
                       const todayStyle = col.isToday ? 'shadow-[inset_0_2px_0_rgba(59,130,246,0.9)] text-blue-700 font-extrabold' : '';
 
@@ -2080,6 +2131,7 @@ export const ProjectDetailPage: React.FC = () => {
                           role="columnheader"
                           data-testid={`gantt-date-header-${col.dateStr}`}
                           data-date={col.dateStr}
+                          data-month-boundary={isMonthStart ? 'true' : undefined}
                           data-country-off-state={offInfo.state}
                           data-calendar-surface="HEADER"
                           data-calendar-visual-state={token.visualState}
@@ -2087,7 +2139,7 @@ export const ProjectDetailPage: React.FC = () => {
                           data-calendar-hatch-angle={token.hatch.angle}
                           aria-label={ariaText}
                           onClick={() => setHeaderInfoState({ isOpen: true, dateStr: col.dateStr, dayName: col.dayName })}
-                          style={{ boxSizing: 'border-box' }}
+                          style={{ boxSizing: 'border-box', ...(isMonthStart ? GANTT_MONTH_BOUNDARY_STYLE : {}) }}
                           className={`relative text-center p-0 border-r text-[11px] font-medium cursor-pointer transition select-none flex flex-col items-center justify-center h-full overflow-hidden ${token.headerClass} ${todayStyle}`}
                         >
                           {pattern && (
@@ -2180,6 +2232,8 @@ export const ProjectDetailPage: React.FC = () => {
                                   lang={lang}
                                   leftPanelWidth={DETAIL_LEFT_WIDTH}
                                   timelineWidth={timelineWidth}
+                                  dateColumns={dateColumns}
+                                  dateGridTemplate={dateGridTemplate}
                                   onToggleCollapse={toggleGroupCollapse}
                                   onOpenEditGroup={handleOpenEditGroup}
                                   onOpenDeleteGroup={(grp: TaskGroup, count: number) => setDeleteGroupModalState({ isOpen: true, group: grp, taskCount: count })}
@@ -2222,6 +2276,8 @@ export const ProjectDetailPage: React.FC = () => {
                                         timelineWidth={timelineWidth}
                                         lang={lang}
                                         isOver={overGroupId === group.id}
+                                        dateColumns={dateColumns}
+                                        dateGridTemplate={dateGridTemplate}
                                       />
                                     )}
                                   </SortableContext>

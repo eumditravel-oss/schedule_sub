@@ -35,6 +35,8 @@ import { MobileThirtyDayGanttView } from '../components/mobile/MobileThirtyDayGa
 import { CalendarLegend } from '../components/common/CalendarLegend';
 import { DateHeaderInfoPanel } from '../components/modals/DateHeaderInfoPanel';
 import { TodaySummaryCard } from '../components/common/TodaySummaryCard';
+import { IntegrationManagerModal } from '../components/modals/IntegrationManagerModal';
+import { KeyRound } from 'lucide-react';
 import { BuildVersionIndicator } from '../components/common/BuildVersionIndicator';
 import { ScheduleBar } from '../components/gantt/ScheduleBar';
 import { ProjectCalendarHatchOverlay } from '../components/gantt/ProjectCalendarHatchOverlay';
@@ -85,6 +87,7 @@ export const ProjectOverviewPage: React.FC = () => {
   const [isWorkerPromptOpen, setIsWorkerPromptOpen] = useState(false);
   const [isMobileWorkerSheetOpen, setIsMobileWorkerSheetOpen] = useState(false);
   const [isCalendarModalOpen, setIsCalendarModalOpen] = useState(false);
+  const [isIntegrationModalOpen, setIsIntegrationModalOpen] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
 
@@ -519,13 +522,24 @@ export const ProjectOverviewPage: React.FC = () => {
         </div>
       )}
 
-      {/* Desktop Calendar Legend Row (overview-project-status-row 제거 — Status Tabs가 Header로 이동) */}
+      {/* Desktop Calendar Legend & Open API Button Row */}
       {!isMobileView && (
         <div
           data-testid="overview-legend-row"
-          className="bg-white border-b border-slate-200 px-4 md:px-6 py-2"
+          className="bg-white border-b border-slate-200 px-4 md:px-5 py-2 flex items-center justify-between gap-3 overflow-x-hidden"
         >
           <CalendarLegend isMobileView={false} />
+
+          <button
+            type="button"
+            data-testid="open-integration-api-btn"
+            onClick={() => setIsIntegrationModalOpen(true)}
+            title={lang === 'vi' ? 'Kết nối lịch trình với công cụ phát triển bên ngoài' : '외부 개발도구 일정 연동'}
+            className="h-8 px-3 rounded-lg border border-slate-200 bg-slate-50 hover:bg-blue-50 hover:border-blue-300 text-slate-700 hover:text-blue-700 font-bold text-xs flex items-center gap-1.5 transition shadow-2xs shrink-0 whitespace-nowrap"
+          >
+            <KeyRound className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+            <span>Open API</span>
+          </button>
         </div>
       )}
 
@@ -568,8 +582,6 @@ export const ProjectOverviewPage: React.FC = () => {
             {/* Today Summary Card */}
             <TodaySummaryCard
               currentWorker={currentWorker}
-              tasks={projects.flatMap((p: any) => p.tasks || [])}
-              projects={projects}
               holidays={[...krHolidays, ...vnHolidays]}
               overrides={calendarOverrides}
             />
@@ -1168,6 +1180,12 @@ export const ProjectOverviewPage: React.FC = () => {
           setDeletingProject(null);
         }}
         onConfirm={handleConfirmDeleteProject}
+      />
+
+      <IntegrationManagerModal
+        isOpen={isIntegrationModalOpen}
+        onClose={() => setIsIntegrationModalOpen(false)}
+        currentWorker={currentWorker}
       />
 
       {/* Build Version Indicator */}

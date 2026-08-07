@@ -161,63 +161,61 @@ export const IntegrationManagerModal: React.FC<IntegrationManagerModalProps> = (
           </button>
         </header>
 
-        {/* Access Restriction Check */}
-        {!hasPermission ? (
-          <div className="p-8 text-center space-y-3">
-            <Shield className="w-12 h-12 text-rose-500 mx-auto" />
-            <h4 className="font-bold text-slate-800 text-base">
-              {isVi ? 'Không có quyền truy cập' : '접근 권한 없음'}
-            </h4>
-            <p className="text-xs text-slate-500 max-w-md mx-auto">
-              {isVi
-                ? 'Tài khoản của bạn chưa được cấp quyền `can_manage_integrations`. Vui lòng liên hệ quản trị viên.'
-                : '현재 계정에는 Integration API Key 관리 권한(`can_manage_integrations`)이 부여되어 있지 않습니다.'}
-            </p>
-          </div>
-        ) : (
-          <>
-            {/* Tabs */}
-            <div className="shrink-0 flex border-b border-slate-200 px-6 bg-slate-50/50 gap-2">
-              <button
-                type="button"
-                onClick={() => setActiveTab('KEYS')}
-                className={`py-3 px-4 text-xs font-bold border-b-2 flex items-center gap-2 transition ${
-                  activeTab === 'KEYS'
-                    ? 'border-blue-600 text-blue-600'
-                    : 'border-transparent text-slate-500 hover:text-slate-800'
-                }`}
-              >
-                <Key className="w-4 h-4" />
-                <span>API Keys ({keys.length})</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveTab('LOGS')}
-                className={`py-3 px-4 text-xs font-bold border-b-2 flex items-center gap-2 transition ${
-                  activeTab === 'LOGS'
-                    ? 'border-blue-600 text-blue-600'
-                    : 'border-transparent text-slate-500 hover:text-slate-800'
-                }`}
-              >
-                <Activity className="w-4 h-4" />
-                <span>Audit Logs ({logs.length})</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveTab('DOCS')}
-                className={`py-3 px-4 text-xs font-bold border-b-2 flex items-center gap-2 transition ${
-                  activeTab === 'DOCS'
-                    ? 'border-blue-600 text-blue-600'
-                    : 'border-transparent text-slate-500 hover:text-slate-800'
-                }`}
-              >
-                <FileText className="w-4 h-4" />
-                <span>OpenAPI & CLI</span>
-              </button>
-            </div>
+        {/* Tabs */}
+        <div className="shrink-0 flex border-b border-slate-200 px-6 bg-slate-50/50 gap-2">
+          <button
+            type="button"
+            data-testid="integration-tab-keys"
+            onClick={() => setActiveTab('KEYS')}
+            className={`py-3 px-4 text-xs font-bold border-b-2 flex items-center gap-2 transition ${
+              activeTab === 'KEYS'
+                ? 'border-blue-600 text-blue-600'
+                : 'border-transparent text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <Key className="w-4 h-4" />
+            <span>API Keys ({keys.length})</span>
+          </button>
+          <button
+            type="button"
+            data-testid="integration-tab-logs"
+            onClick={() => setActiveTab('LOGS')}
+            className={`py-3 px-4 text-xs font-bold border-b-2 flex items-center gap-2 transition ${
+              activeTab === 'LOGS'
+                ? 'border-blue-600 text-blue-600'
+                : 'border-transparent text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <Activity className="w-4 h-4" />
+            <span>Audit Logs ({logs.length})</span>
+          </button>
+          <button
+            type="button"
+            data-testid="integration-tab-docs"
+            onClick={() => setActiveTab('DOCS')}
+            className={`py-3 px-4 text-xs font-bold border-b-2 flex items-center gap-2 transition ${
+              activeTab === 'DOCS'
+                ? 'border-blue-600 text-blue-600'
+                : 'border-transparent text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <FileText className="w-4 h-4" />
+            <span>OpenAPI & CLI</span>
+          </button>
+        </div>
 
-            {/* Body */}
-            <div className="flex-1 overflow-y-auto p-6 space-y-6">
+        {/* Body */}
+        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+          {!hasPermission && activeTab !== 'DOCS' && (
+            <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-xl text-amber-900 text-xs font-bold flex items-center gap-2.5 shadow-2xs">
+              <Shield className="w-4 h-4 text-amber-600 shrink-0" />
+              <span>
+                {isVi
+                  ? 'Tài khoản chưa được cấp quyền quản lý API Key. Bạn có thể xem tài liệu OpenAPI & CLI.'
+                  : 'API Key 발급 및 관리 권한이 없습니다. (조회/발급은 팀 관리자 권한이 필요하지만 OpenAPI/CLI 문서는 조회 가능합니다.)'}
+              </span>
+            </div>
+          )}
               {/* Generated Secret Alert */}
               {generatedToken && (
                 <div className="p-4 rounded-xl border border-emerald-300 bg-emerald-50 text-emerald-950 space-y-3 animate-in fade-in">
@@ -259,7 +257,7 @@ export const IntegrationManagerModal: React.FC<IntegrationManagerModalProps> = (
                         ? 'Quản lý khóa API cấp quyền cho Codex, CLI, GitHub Actions.'
                         : '외부 개발도구(Codex, CLI, GitHub Actions) 연동용 API Key 목록입니다.'}
                     </span>
-                    {!isCreating && (
+                    {!isCreating && hasPermission && (
                       <button
                         type="button"
                         data-testid="create-api-key-btn"
@@ -454,8 +452,6 @@ export const IntegrationManagerModal: React.FC<IntegrationManagerModalProps> = (
                 </div>
               )}
             </div>
-          </>
-        )}
 
         {/* Footer */}
         <footer className="shrink-0 px-6 py-3 border-t border-slate-100 bg-slate-50 text-right">

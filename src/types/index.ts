@@ -356,6 +356,8 @@ export interface GanttDateColumn {
   monthStr: string;
 }
 
+export type DateColumn = GanttDateColumn;
+
 export interface TaskWorkdayBreakdown {
   calendar_span_days: number;
   planned_working_days: number;
