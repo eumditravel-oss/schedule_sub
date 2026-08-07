@@ -20,7 +20,7 @@ test.describe('P1 Project Overview Desktop UI Restructuring & Layout Precision S
   });
 
   for (const vp of viewports) {
-    test(`Verify Desktop Vertical Layout & Precision Centering at ${vp.width}x${vp.height}`, async ({ page }) => {
+    test(`Verify Desktop Vertical Layout & Header Status Tabs Placement at ${vp.width}x${vp.height}`, async ({ page }) => {
       await page.addInitScript(() => {
         localStorage.setItem(
           'selected_worker_profile',
@@ -39,9 +39,29 @@ test.describe('P1 Project Overview Desktop UI Restructuring & Layout Precision S
         await page.waitForTimeout(300);
       }
 
-      // 1. Verify Elements Exist
-      const legendRow = page.getByTestId('overview-legend-row');
+      // 1. Verify Header & Status Tabs Placement
+      const header = page.getByTestId('desktop-app-header');
+      const statusTabs = page.getByTestId('overview-project-status-tabs');
+      const calendarManagerBtn = page.getByTestId('desktop-manage-calendar-btn');
       const statusRow = page.getByTestId('overview-project-status-row');
+
+      await expect(header).toBeVisible();
+      await expect(statusTabs).toBeVisible();
+      await expect(calendarManagerBtn).toBeVisible();
+
+      // Zero main status rows in DOM
+      expect(await statusRow.count()).toBe(0);
+
+      // Verify Status Tabs is child of Header Actions and to the left of Calendar Manager
+      const statusTabsBox = (await statusTabs.boundingBox())!;
+      const calendarBtnBox = (await calendarManagerBtn.boundingBox())!;
+      expect(
+        statusTabsBox.x + statusTabsBox.width,
+        `[${vp.width}px] Status tabs right must be <= Calendar Manager left`
+      ).toBeLessThanOrEqual(calendarBtnBox.x + 1);
+
+      // 2. Verify Remaining Layout Elements
+      const legendRow = page.getByTestId('overview-legend-row');
       const todayCard = page.getByTestId('today-summary-card');
       const ganttControlRow = page.getByTestId('overview-gantt-control-row');
       const ganttViewControls = page.getByTestId('overview-gantt-view-controls');
@@ -49,69 +69,44 @@ test.describe('P1 Project Overview Desktop UI Restructuring & Layout Precision S
       const ganttScroll = page.getByTestId('desktop-gantt-scroll');
 
       await expect(legendRow).toBeVisible();
-      await expect(statusRow).toBeVisible();
       await expect(todayCard).toBeVisible();
       await expect(ganttControlRow).toBeVisible();
       await expect(ganttViewControls).toBeVisible();
       await expect(ganttNav).toBeVisible();
       await expect(ganttScroll).toBeVisible();
 
-      // 2. Get Bounding Boxes for Vertical Order Verification
+      // 3. Vertical Order Verification: Header -> Legend -> Today Summary -> Gantt Control -> Gantt Table
+      const headerBox = (await header.boundingBox())!;
       const legendBox = (await legendRow.boundingBox())!;
-      const statusBox = (await statusRow.boundingBox())!;
       const summaryBox = (await todayCard.boundingBox())!;
       const controlBox = (await ganttControlRow.boundingBox())!;
       const ganttBox = (await ganttScroll.boundingBox())!;
 
-      console.log(`[${vp.width}px] Legend bottom: ${(legendBox.y + legendBox.height).toFixed(2)}, Status top: ${statusBox.y.toFixed(2)}`);
-      console.log(`[${vp.width}px] Status bottom: ${(statusBox.y + statusBox.height).toFixed(2)}, Summary top: ${summaryBox.y.toFixed(2)}`);
-      console.log(`[${vp.width}px] Summary bottom: ${(summaryBox.y + summaryBox.height).toFixed(2)}, Controls top: ${controlBox.y.toFixed(2)}`);
-      console.log(`[${vp.width}px] Controls bottom: ${(controlBox.y + controlBox.height).toFixed(2)}, Gantt top: ${ganttBox.y.toFixed(2)}`);
+      console.log(`[${vp.width}px] Header bottom: ${(headerBox.y + headerBox.height).toFixed(2)}, Legend top: ${legendBox.y.toFixed(2)}`);
+      console.log(`[${vp.width}px] Legend bottom: ${(legendBox.y + legendBox.height).toFixed(2)}, Summary top: ${summaryBox.y.toFixed(2)}`);
 
-      // DOM 순서 엄격 검증: Legend → Status → Summary → Controls → Gantt
-      // legend.bottom <= status.top + 0.5
-      expect(
-        legendBox.y + legendBox.height,
-        `[${vp.width}px] Legend bottom must be <= Status top + 0.5`
-      ).toBeLessThanOrEqual(statusBox.y + 0.5);
+      expect(headerBox.y + headerBox.height).toBeLessThanOrEqual(legendBox.y + 0.5);
+      expect(legendBox.y + legendBox.height).toBeLessThanOrEqual(summaryBox.y + 0.5);
+      expect(summaryBox.y + summaryBox.height).toBeLessThan(controlBox.y + 4);
+      expect(controlBox.y + controlBox.height).toBeLessThanOrEqual(ganttBox.y + 1);
 
-      // status.bottom <= summary.top + 0.5
-      expect(
-        statusBox.y + statusBox.height,
-        `[${vp.width}px] Status bottom must be <= Summary top + 0.5`
-      ).toBeLessThanOrEqual(summaryBox.y + 0.5);
-
-      // summary.bottom < controls.top
-      expect(
-        summaryBox.y + summaryBox.height,
-        `[${vp.width}px] Summary bottom must be < Controls top`
-      ).toBeLessThan(controlBox.y + 4);
-
-      // controls.bottom <= gantt.top
-      expect(
-        controlBox.y + controlBox.height,
-        `[${vp.width}px] Controls bottom must be <= Gantt top`
-      ).toBeLessThanOrEqual(ganttBox.y + 1);
-
-      // 3. Verify Exact Center Alignment of View Controls (±8px tolerance)
+      // 4. Center Alignment of View Controls (±8px tolerance)
       const controlsBox = (await ganttViewControls.boundingBox())!;
       const viewportCenter = vp.width / 2;
       const controlsCenter = controlsBox.x + controlsBox.width / 2;
       const centerOffset = Math.abs(controlsCenter - viewportCenter);
 
-      console.log(`Viewport ${vp.width}px - Center Offset: ${centerOffset.toFixed(2)}px`);
       expect(centerOffset).toBeLessThanOrEqual(8);
 
-      // 4. Verify Right Alignment of Navigation (±8px tolerance)
+      // 5. Right Alignment of Navigation (±8px tolerance)
       const navBox = (await ganttNav.boundingBox())!;
       const navRight = navBox.x + navBox.width;
       const controlRowRight = controlBox.x + controlBox.width;
       const rightOffset = Math.abs(controlRowRight - navRight);
 
-      console.log(`Viewport ${vp.width}px - Navigation Right Offset: ${rightOffset.toFixed(2)}px`);
       expect(rightOffset).toBeLessThanOrEqual(8);
 
-      // 5. Capture Screenshot for QA Audit
+      // 6. Capture Screenshot for QA Audit
       if (['1024', '1366', '1536', '1920'].includes(vp.name)) {
         await page.screenshot({
           path: path.join(process.cwd(), 'qa', 'layout', `overview-${vp.name}.png`),
@@ -140,27 +135,22 @@ test.describe('P1 Project Overview Desktop UI Restructuring & Layout Precision S
       await page.waitForTimeout(300);
     }
 
-    const statusRow = page.getByTestId('overview-project-status-row');
     const activeBtn = page.getByTestId('active-tab-btn');
     const completedBtn = page.getByTestId('completed-tab-btn');
 
-    // Default: Active Tab
     await expect(activeBtn).toBeVisible();
     await expect(completedBtn).toBeVisible();
 
-    // Click Completed Projects Tab
+    // Click Completed tab
     await completedBtn.click();
     await page.waitForTimeout(300);
 
-    // Verify Year Selector is visible immediately inside statusRow (left side)
-    const yearSelect = statusRow.locator('select');
+    const yearSelect = page.locator('[data-testid="overview-project-status-tabs"] select');
     await expect(yearSelect).toBeVisible();
 
-    const yearSelectBox = (await yearSelect.boundingBox())!;
-    const completedBtnBox = (await completedBtn.boundingBox())!;
-
-    // Year select must be placed immediately right of Completed Projects button
-    expect(yearSelectBox.x).toBeGreaterThan(completedBtnBox.x);
-    expect(yearSelectBox.x).toBeLessThan(completedBtnBox.x + completedBtnBox.width + 40);
+    // Switch back to Active tab
+    await activeBtn.click();
+    await page.waitForTimeout(300);
+    await expect(yearSelect).toHaveCount(0);
   });
 });

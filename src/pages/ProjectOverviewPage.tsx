@@ -5,7 +5,7 @@ import { Project, Worker, CountryHoliday, CalendarOverride, isExecutiveViewer, i
 import { api, getCurrentWorkerId, setCurrentWorker as setCurrentWorkerApi } from '../services/api';
 import { calculateVisibleGanttSpan } from '../utils/dateUtils';
 import { getCountryOffState } from '../utils/workCalendar';
-import { calcAutoTimeFillPercent } from '../utils/ganttVisualFill';
+import { calcVisibleTrackAutoTimeFillPercent } from '../utils/ganttVisualFill';
 import { getCalendarVisualStyle, CalendarVisualState, buildCalendarHatchPattern } from '../utils/calendarVisualTokens';
 import { useGanttDateRange } from '../hooks/useGanttDateRange';
 import { useGanttGeometry } from '../hooks/useGanttGeometry';
@@ -346,59 +346,119 @@ export const ProjectOverviewPage: React.FC = () => {
           onOpenWorkerSheet={() => setIsMobileWorkerSheetOpen(true)}
         />
       ) : (
-        /* Desktop App Header */
-        <header className="bg-white border-b border-slate-200 px-4 md:px-6 py-3 flex items-center justify-between shadow-2xs">
-          <div className="flex items-center gap-3">
+        /* Desktop App Header — Status Tabs가 Header 우측에 통합됨 */
+        <header
+          data-testid="desktop-app-header"
+          className="bg-white border-b border-slate-200 px-4 md:px-5 py-2 flex items-center justify-between shadow-2xs gap-2"
+        >
+          {/* Brand Area */}
+          <div data-testid="overview-brand-area" className="flex items-center gap-2.5 shrink-0">
             <img
               src="/logo3-mobile-cropped.png"
               alt="Logo"
               className="h-8 object-contain"
             />
             <div>
-              <h1 className="font-extrabold text-base md:text-lg text-slate-900 tracking-tight leading-none">
+              <h1 className="font-extrabold text-sm md:text-base text-slate-900 tracking-tight leading-none">
                 {t('appTitle')}
               </h1>
-              <p className="text-[11px] text-slate-500 font-medium mt-0.5">
+              <p className="text-[10px] text-slate-500 font-medium mt-0.5 hidden md:block">
                 {t('appSubtitle')}
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          {/* Flexible Spacer */}
+          <div className="flex-1" />
+
+          {/* Header Actions: Status Tabs | Calendar | Worker | Add */}
+          <div
+            data-testid="overview-header-actions"
+            className="flex items-center gap-1.5 shrink-0"
+          >
+            {/* [1] Project Status Tabs — 휴일·휴가 관리 바로 왼쪽 */}
+            <div
+              data-testid="overview-project-status-tabs"
+              className="flex items-center gap-1"
+            >
+              <div className="flex p-0.5 bg-slate-100 rounded-lg border border-slate-200 text-xs font-semibold shrink-0">
+                <button
+                  type="button"
+                  data-testid="active-tab-btn"
+                  onClick={() => setActiveTab('ACTIVE')}
+                  className={`px-2.5 py-1 rounded-md transition font-bold whitespace-nowrap ${
+                    activeTab === 'ACTIVE'
+                      ? 'bg-blue-600 text-white shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  {t('activeProjects')}
+                </button>
+                <button
+                  type="button"
+                  data-testid="completed-tab-btn"
+                  onClick={() => setActiveTab('COMPLETED')}
+                  className={`px-2.5 py-1 rounded-md transition font-bold whitespace-nowrap ${
+                    activeTab === 'COMPLETED'
+                      ? 'bg-blue-600 text-white shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  {t('completedProjects')}
+                </button>
+              </div>
+              {activeTab === 'COMPLETED' && (
+                <select
+                  value={selectedYear}
+                  onChange={(e) => setSelectedYear(e.target.value)}
+                  className="h-7 text-xs font-bold bg-white border border-slate-200 rounded-lg px-1.5 text-slate-700 shadow-2xs focus:ring-1 focus:ring-blue-500 shrink-0"
+                >
+                  {completedYears.map((yr) => (
+                    <option key={yr} value={yr}>
+                      {yr}{lang === 'vi' ? '' : '년'}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+
+            {/* [2] Calendar Manager / Readonly Badge */}
             {isExecutiveViewer(currentWorker) ? (
               <div
                 data-testid="viewer-readonly-badge"
-                className="h-9 px-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-xs font-extrabold flex items-center gap-1.5 shrink-0 shadow-xs"
+                className="h-8 px-2.5 bg-red-50 border border-red-200 text-red-700 rounded-lg text-xs font-extrabold flex items-center gap-1.5 shrink-0 shadow-xs"
               >
-                <Lock className="w-4 h-4 text-red-600" />
-                <span>{lang === 'vi' ? 'Chỉ xem' : '보기 전용'}</span>
+                <Lock className="w-3.5 h-3.5 text-red-600" />
+                <span className="hidden sm:inline">{lang === 'vi' ? 'Chỉ xem' : '보기 전용'}</span>
               </div>
             ) : (
               <button
                 type="button"
                 data-testid="desktop-manage-calendar-btn"
                 onClick={() => setIsCalendarModalOpen(true)}
-                className="h-9 px-3 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-xs font-bold text-slate-700 flex items-center gap-1.5 transition shadow-xs"
+                className="h-8 px-2.5 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-xs font-bold text-slate-700 flex items-center gap-1.5 transition shadow-xs shrink-0"
               >
-                <Calendar className="w-4 h-4 text-blue-600" />
-                <span>{t('manageHolidays')}</span>
+                <Calendar className="w-3.5 h-3.5 text-blue-600" />
+                <span className="hidden sm:inline">{t('manageHolidays')}</span>
               </button>
             )}
 
+            {/* [3] Worker Selector */}
             <WorkerSelector
               currentWorker={currentWorker}
               onWorkerChange={handleSelectWorkerProfile}
             />
 
+            {/* [4] Add Project */}
             {!isExecutiveViewer(currentWorker) && (
               <button
                 type="button"
                 data-testid="add-project-btn"
                 onClick={handleOpenAddModal}
-                className={PRIMARY_BUTTON_H36_CLASS}
+                className="h-8 px-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold flex items-center gap-1 transition shadow-xs shrink-0"
               >
-                <Plus className="w-4 h-4" />
-                <span>{t('addProject')}</span>
+                <Plus className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">{t('addProject')}</span>
               </button>
             )}
           </div>
@@ -459,63 +519,13 @@ export const ProjectOverviewPage: React.FC = () => {
         </div>
       )}
 
-      {/* Desktop Calendar Legend Row */}
+      {/* Desktop Calendar Legend Row (overview-project-status-row 제거 — Status Tabs가 Header로 이동) */}
       {!isMobileView && (
         <div
           data-testid="overview-legend-row"
           className="bg-white border-b border-slate-200 px-4 md:px-6 py-2"
         >
           <CalendarLegend isMobileView={false} />
-        </div>
-      )}
-
-      {/* Desktop Project Status Filter Row (Active vs Completed & Year Select) */}
-      {/* DOM 위치: Legend 바로 아래, main 컨테이너 바깥에 배치하여 Legend → Status → Summary 순서 보장 */}
-      {!isMobileView && (
-        <div
-          data-testid="overview-project-status-row"
-          className="bg-white border-b border-slate-200 px-4 md:px-5 py-2 flex items-center gap-2 shrink-0"
-        >
-          <div className="flex p-0.5 bg-slate-100 rounded-lg border border-slate-200 text-xs font-semibold">
-            <button
-              type="button"
-              data-testid="active-tab-btn"
-              onClick={() => setActiveTab('ACTIVE')}
-              className={`px-3 py-1.5 rounded-md transition font-bold ${
-                activeTab === 'ACTIVE'
-                  ? 'bg-blue-600 text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              {t('activeProjects')}
-            </button>
-            <button
-              type="button"
-              data-testid="completed-tab-btn"
-              onClick={() => setActiveTab('COMPLETED')}
-              className={`px-3 py-1.5 rounded-md transition font-bold ${
-                activeTab === 'COMPLETED'
-                  ? 'bg-blue-600 text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              {t('completedProjects')}
-            </button>
-          </div>
-
-          {activeTab === 'COMPLETED' && (
-            <select
-              value={selectedYear}
-              onChange={(e) => setSelectedYear(e.target.value)}
-              className="h-8 text-xs font-bold bg-white border border-slate-200 rounded-lg px-2 text-slate-700 shadow-2xs focus:ring-1 focus:ring-blue-500"
-            >
-              {completedYears.map((yr) => (
-                <option key={yr} value={yr}>
-                  {yr}{lang === 'vi' ? '' : '년'}
-                </option>
-              ))}
-            </select>
-          )}
         </div>
       )}
 
@@ -734,7 +744,8 @@ export const ProjectOverviewPage: React.FC = () => {
                     />
                   </div>
 
-                  {/* Month Header Row (Row 1, 28px) */}
+                  {/* Month Header Row (Row 1, 28px)
+                      idx > 0인 Month Group에 2px Slate Separator 적용 (box-sizing:border-box 유지로 Width 무변) */}
                   <div
                     data-testid="overview-month-header"
                     style={{
@@ -751,7 +762,13 @@ export const ProjectOverviewPage: React.FC = () => {
                     {monthGroups.map((mg, idx) => (
                       <div
                         key={idx}
-                        style={{ gridColumn: `${mg.startIndex + 1} / span ${mg.span}` }}
+                        data-month-group={mg.monthStr}
+                        style={{
+                          gridColumn: `${mg.startIndex + 1} / span ${mg.span}`,
+                          boxSizing: 'border-box',
+                          // 첫 번째 Month Group 제외: idx > 0이면 2px Slate Separator
+                          borderLeft: idx > 0 ? '2px solid rgba(100,116,139,0.32)' : undefined,
+                        }}
                         className="border-r border-slate-200 truncate px-1 flex items-center justify-center h-full"
                       >
                         {mg.monthStr}
@@ -788,6 +805,9 @@ export const ProjectOverviewPage: React.FC = () => {
 
                       const hasHoliday = !!offInfo.krHolidayName || !!offInfo.vnHolidayName;
 
+                      // Month Boundary: idx > 0이고 이전 col과 월(YYYY-MM)이 다를 때
+                      const isMonthStart = idx > 0 && col.dateStr.slice(0, 7) !== dateColumns[idx - 1].dateStr.slice(0, 7);
+
                       return (
                         <div
                           key={idx}
@@ -799,9 +819,14 @@ export const ProjectOverviewPage: React.FC = () => {
                           data-calendar-visual-state={token.visualState}
                           data-calendar-hatch-type={token.hatch.type}
                           data-calendar-hatch-angle={token.hatch.angle}
+                          data-month-boundary={isMonthStart ? 'true' : undefined}
                           aria-label={ariaText}
                           onClick={() => setHeaderInfoState({ isOpen: true, dateStr: col.dateStr, dayName: col.dayName })}
-                          style={{ boxSizing: 'border-box' }}
+                          style={{
+                            boxSizing: 'border-box',
+                            // Month Start: 2px Slate Separator (box-sizing:border-box → Column Width 변화 없음)
+                            borderLeft: isMonthStart ? '2px solid rgba(100,116,139,0.32)' : undefined,
+                          }}
                           className={`relative text-center p-0 border-r text-[11px] font-medium cursor-pointer transition select-none flex flex-col items-center justify-center h-full overflow-hidden ${token.headerClass} ${todayStyle}`}
                         >
                           {pattern && (
@@ -981,22 +1006,32 @@ export const ProjectOverviewPage: React.FC = () => {
 
                           {/* Right Timeline Cell */}
                           <div role="cell" data-testid={`project-timeline-${project.id}`} style={{ width: `${timelineWidth}px`, minWidth: `${timelineWidth}px` }} className="relative h-full shrink-0">
-                            {/* Layer 0: Day Grid */}
+                            {/* Layer 0: Day Grid — Month Start에 2px Slate Separator (box-sizing:border-box 유지) */}
                             <div className="grid w-full h-full" style={{ gridTemplateColumns: dateGridTemplate }}>
-                              {dateColumns.map((col, cIdx) => (
-                                <div
-                                  key={cIdx}
-                                  data-testid={`gantt-task-cell-overview-${project.id}-${col.dateStr}`}
-                                  style={{ boxSizing: 'border-box' }}
-                                  className={`h-full border-r border-slate-200 ${col.isWeekend ? 'bg-slate-50/70' : 'bg-white'}`}
-                                />
-                              ))}
+                              {dateColumns.map((col, cIdx) => {
+                                const isMonthStartBody = cIdx > 0 && col.dateStr.slice(0, 7) !== dateColumns[cIdx - 1].dateStr.slice(0, 7);
+                                return (
+                                  <div
+                                    key={cIdx}
+                                    data-testid={`gantt-task-cell-overview-${project.id}-${col.dateStr}`}
+                                    data-month-boundary={isMonthStartBody ? 'true' : undefined}
+                                    style={{
+                                      boxSizing: 'border-box',
+                                      borderLeft: isMonthStartBody ? '2px solid rgba(100,116,139,0.32)' : undefined,
+                                    }}
+                                    className={`h-full border-r border-slate-200 ${col.isWeekend ? 'bg-slate-50/70' : 'bg-white'}`}
+                                  />
+                                );
+                              })}
                             </div>
 
                             {/* Layer 5: Today Overlay */}
                             <TodayColumnOverlay dateColumns={dateColumns} dayWidthPx={timelineWidth / dateColumns.length} />
 
-                            {/* Layer 10: ScheduleBar */}
+                            {/* Layer 10: ScheduleBar
+                                visualFillPercent: Full Project Span이 아닌 Visible Track(spanInfo) 기준으로 계산
+                                이유: Clipped Track에 Full % 적용하면 오늘 날짜 Cell 내부로 Fill 침범 (Case: CONCOST-HUB 07-06~08-07, today=08-07)
+                                showPlannedMarker=false: AUTO_TIME Overview에서 Planned Marker가 날짜 경계로 오인되는 것 방지 */}
                             {(() => {
                               const spanInfo = getGanttSpanColumns(project.start_date, project.end_date, dateColumns);
                               if (!spanInfo) return null;
@@ -1008,6 +1043,8 @@ export const ProjectOverviewPage: React.FC = () => {
                                 [...krHolidays, ...vnHolidays],
                                 calendarOverrides
                               );
+
+                              const todayStr = new Date().toISOString().slice(0, 10);
 
                               return (
                                 <div
@@ -1028,12 +1065,14 @@ export const ProjectOverviewPage: React.FC = () => {
                                       plannedProgress={project.planned_progress ?? project.progress ?? 0}
                                       actualProgress={project.actual_progress ?? project.progress ?? 0}
                                       status={project.schedule_state || 'UPCOMING'}
-                                      visualFillPercent={calcAutoTimeFillPercent(
-                                        project.start_date,
-                                        project.end_date,
-                                        new Date().toISOString().slice(0, 10),
-                                        dateColumns
-                                      )}
+                                      visualFillPercent={calcVisibleTrackAutoTimeFillPercent({
+                                        projectStartDate: project.start_date,
+                                        projectEndDate: project.end_date,
+                                        todayStr,
+                                        dateColumns,
+                                        spanInfo,
+                                      })}
+                                      showPlannedMarker={false}
                                     />
                                   </div>
                                 </div>
