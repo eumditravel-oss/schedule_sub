@@ -3,7 +3,8 @@ import React from 'react';
 import { Project, Task, Worker } from '../../types';
 import { MobileProjectCard } from './MobileProjectCard';
 import { useI18n } from '../../hooks/useI18n';
-import { CheckCircle2, Clock, AlertTriangle, Users, Calendar, ArrowRight } from 'lucide-react';
+import { getActualProgress } from '../../utils/progressDisplay';
+import { Users, Calendar, Folder } from 'lucide-react';
 
 interface MobileSummaryViewProps {
   mode: 'OVERVIEW' | 'DETAIL';
@@ -76,18 +77,18 @@ export const MobileSummaryView: React.FC<MobileSummaryViewProps> = ({
     );
   }
 
-  // DETAIL Mode
-  const tasksByWorker = tasks.reduce((acc, tItem) => {
-    const w = tItem.worker_name || t('worker');
-    if (!acc[w]) acc[w] = [];
-    acc[w].push(tItem);
+  // DETAIL Mode: Group tasks by Task Group or Process Category
+  const tasksByGroup = tasks.reduce((acc, tItem) => {
+    const groupName = (tItem as any).task_group_name || tItem.worker_name || (lang === 'vi' ? 'Công đoạn' : '공정');
+    if (!acc[groupName]) acc[groupName] = [];
+    acc[groupName].push(tItem);
     return acc;
   }, {} as Record<string, Task[]>);
 
-  const totalTasks = tasks.length;
-  const completedTasks = tasks.filter((tItem) => tItem.progress === 100).length;
-  const inProgressTasks = tasks.filter((tItem) => tItem.progress > 0 && tItem.progress < 100).length;
-  const pendingTasks = tasks.filter((tItem) => tItem.progress === 0).length;
+  const prjActual = project ? getActualProgress(project) : 0;
+  const completedTasks = tasks.filter((tItem) => getActualProgress(tItem) >= 100 || Number(tItem.completion_confirmed) === 1).length;
+  const inProgressTasks = tasks.filter((tItem) => getActualProgress(tItem) > 0 && getActualProgress(tItem) < 100 && Number(tItem.completion_confirmed) !== 1).length;
+  const pendingTasks = tasks.filter((tItem) => getActualProgress(tItem) <= 0 && Number(tItem.completion_confirmed) !== 1).length;
 
   return (
     <div
@@ -99,7 +100,11 @@ export const MobileSummaryView: React.FC<MobileSummaryViewProps> = ({
     >
       {/* Project Overview Stats Card */}
       {project && (
-        <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-xs space-y-3">
+        <div
+          className="bg-white border border-slate-200 rounded-xl p-4 shadow-xs space-y-3"
+          data-progress-source="actual_progress"
+          data-actual-progress={prjActual}
+        >
           <div className="flex items-start justify-between gap-2">
             <div>
               <span className="text-[10px] font-bold tracking-wider uppercase text-blue-600 bg-blue-50 px-2 py-0.5 rounded border border-blue-100">
@@ -110,17 +115,17 @@ export const MobileSummaryView: React.FC<MobileSummaryViewProps> = ({
               </h2>
             </div>
             <span className={`text-xs font-extrabold px-2.5 py-1 rounded-full border ${
-              project.status === 'COMPLETED'
+              project.status === 'COMPLETED' || prjActual >= 100
                 ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                 : 'bg-blue-50 text-blue-700 border-blue-200'
             }`}>
-              {project.progress}%
+              {prjActual}%
             </span>
           </div>
 
           <div className="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden border border-slate-200">
             <div
-              style={{ width: `${project.progress}%` }}
+              style={{ width: `${prjActual}%` }}
               className="h-full bg-gradient-to-r from-blue-600 to-cyan-500 transition-all duration-300"
             />
           </div>
@@ -142,50 +147,60 @@ export const MobileSummaryView: React.FC<MobileSummaryViewProps> = ({
         </div>
       )}
 
-      {/* Task Summary Cards Grouped by Worker */}
-      {Object.entries(tasksByWorker).map(([workerName, wTasks]) => (
-        <div key={workerName} className="space-y-2">
+      {/* Task Summary Cards Grouped by Task Group / Process */}
+      {Object.entries(tasksByGroup).map(([groupName, gTasks]) => (
+        <div key={groupName} className="space-y-2">
           <div className="flex items-center justify-between px-1 text-xs font-bold text-slate-700">
             <div className="flex items-center gap-1.5">
-              <Users className="w-4 h-4 text-blue-600" />
-              <span>{workerName}</span>
+              <Folder className="w-4 h-4 text-blue-600" />
+              <span>{groupName}</span>
             </div>
             <span className="text-[11px] font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full border border-slate-200">
-              {t('tasksCount', { count: String(wTasks.length) })}
+              {t('tasksCount', { count: String(gTasks.length) })}
             </span>
           </div>
 
           <div className="space-y-2">
-            {wTasks.map((tItem) => (
-              <div
-                key={tItem.id}
-                data-testid={`mobile-summary-task-card-${tItem.id}`}
-                onClick={() => onTaskClick?.(tItem)}
-                className="bg-white border border-slate-200 rounded-xl p-3.5 shadow-xs space-y-2 hover:border-blue-300 transition active:scale-[0.99] cursor-pointer"
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0 flex-1">
-                    <h4 className="font-bold text-slate-900 text-xs truncate">
-                      {getTaskDisplayName(tItem)}
-                    </h4>
-                    <div className="text-[11px] text-slate-500 flex items-center gap-1 mt-0.5">
-                      <Calendar className="w-3 h-3 text-slate-400" />
-                      <span>{tItem.start_date} ~ {tItem.end_date}</span>
+            {gTasks.map((tItem) => {
+              const taskActual = getActualProgress(tItem);
+              return (
+                <div
+                  key={tItem.id}
+                  data-testid={`mobile-summary-task-card-${tItem.id}`}
+                  data-progress-source="actual_progress"
+                  data-actual-progress={taskActual}
+                  onClick={() => onTaskClick?.(tItem)}
+                  className="bg-white border border-slate-200 rounded-xl p-3.5 shadow-xs space-y-2 hover:border-blue-300 transition active:scale-[0.99] cursor-pointer"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5 mb-1">
+                        <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                          {tItem.worker_name}
+                        </span>
+                      </div>
+                      <h4 className="font-bold text-slate-900 text-xs truncate">
+                        {getTaskDisplayName(tItem)}
+                      </h4>
+                      <div className="text-[11px] text-slate-500 flex items-center gap-1 mt-0.5">
+                        <Calendar className="w-3 h-3 text-slate-400" />
+                        <span>{tItem.start_date} ~ {tItem.end_date}</span>
+                      </div>
                     </div>
+                    <span className="text-[11px] font-extrabold px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-100 shrink-0">
+                      {taskActual}%
+                    </span>
                   </div>
-                  <span className="text-[11px] font-extrabold px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-100 shrink-0">
-                    {tItem.progress}%
-                  </span>
-                </div>
 
-                <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                  <div
-                    style={{ width: `${tItem.progress}%` }}
-                    className="h-full bg-blue-600 transition-all"
-                  />
+                  <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                    <div
+                      style={{ width: `${taskActual}%` }}
+                      className="h-full bg-blue-600 transition-all"
+                    />
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       ))}

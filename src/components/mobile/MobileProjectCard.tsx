@@ -1,4 +1,4 @@
-// src/components/mobile/MobileProjectCard.tsx
+import { getActualProgress } from '../../utils/progressDisplay';
 import React, { useState } from 'react';
 import { Project } from '../../types';
 import { useI18n } from '../../hooks/useI18n';
@@ -27,9 +27,13 @@ export const MobileProjectCard: React.FC<MobileProjectCardProps> = ({
   const displayName = lang === 'vi' ? (project.name_vi || project.name) : (project.name_ko || project.name);
   const isFallback = lang === 'vi' ? !project.name_vi : !project.name_ko;
 
+  const actual = getActualProgress(project);
+
   return (
     <div
       data-testid={`project-card-${project.id}`}
+      data-progress-source="actual_progress"
+      data-actual-progress={actual}
       onClick={onClick}
       className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm hover:shadow-md transition active:scale-[0.99] cursor-pointer relative text-slate-900 overflow-hidden"
     >
@@ -58,7 +62,7 @@ export const MobileProjectCard: React.FC<MobileProjectCardProps> = ({
               ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
               : 'bg-blue-50 text-blue-700 border-blue-200'
           }`}>
-            {project.progress}%
+            {actual}%
           </span>
 
           {!isCompletedTab && (onEdit || onComplete || onDelete) && (
@@ -133,7 +137,7 @@ export const MobileProjectCard: React.FC<MobileProjectCardProps> = ({
       <div className="mt-3">
         <div className="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden border border-slate-200/80">
           <div
-            style={{ width: `${project.progress}%` }}
+            style={{ width: `${actual}%` }}
             className={`h-full transition-all duration-300 ${
               isCompletedTab ? 'bg-emerald-500' : 'bg-gradient-to-r from-blue-600 to-cyan-500'
             }`}

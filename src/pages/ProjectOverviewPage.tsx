@@ -564,6 +564,8 @@ export const ProjectOverviewPage: React.FC = () => {
               <MobileWeekView
                 mode="OVERVIEW"
                 projects={projects}
+                holidays={[...krHolidays, ...vnHolidays]}
+                overrides={calendarOverrides}
                 onProjectClick={(p) => navigate(`/projects/${p.id}`)}
               />
             )}
@@ -572,6 +574,8 @@ export const ProjectOverviewPage: React.FC = () => {
                 mode="OVERVIEW"
                 projects={projects}
                 dateColumns={dateColumns}
+                holidays={[...krHolidays, ...vnHolidays]}
+                overrides={calendarOverrides}
                 onProjectClick={(p) => navigate(`/projects/${p.id}`)}
               />
             )}

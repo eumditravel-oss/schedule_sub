@@ -1,4 +1,4 @@
-// src/components/mobile/MobileTaskCard.tsx
+import { getActualProgress } from '../../utils/progressDisplay';
 import React, { useState } from 'react';
 import { Task, DailyStatusType, WorkDayStatus } from '../../types';
 import { useI18n } from '../../hooks/useI18n';
@@ -26,9 +26,15 @@ export const MobileTaskCard: React.FC<MobileTaskCardProps> = ({
   const [showMenu, setShowMenu] = useState(false);
 
   const displayName = lang === 'vi' ? (task.task_name_vi || task.task_name) : (task.task_name_ko || task.task_name);
+  const actual = getActualProgress(task);
 
   return (
-    <div data-testid={`task-card-${task.id}`} className="bg-white border border-slate-200 rounded-xl p-3.5 shadow-xs text-slate-900 overflow-hidden space-y-2">
+    <div
+      data-testid={`task-card-${task.id}`}
+      data-progress-source="actual_progress"
+      data-actual-progress={actual}
+      className="bg-white border border-slate-200 rounded-xl p-3.5 shadow-xs text-slate-900 overflow-hidden space-y-2"
+    >
       {/* Task Header */}
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
@@ -37,7 +43,7 @@ export const MobileTaskCard: React.FC<MobileTaskCardProps> = ({
               {task.worker_name}
             </span>
             <span className="text-xs font-bold text-blue-700 bg-slate-50 px-1.5 py-0.5 rounded border border-slate-200">
-              {task.progress}%
+              {actual}%
             </span>
           </div>
 

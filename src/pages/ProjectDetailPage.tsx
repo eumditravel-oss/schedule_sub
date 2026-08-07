@@ -1960,6 +1960,7 @@ export const ProjectDetailPage: React.FC = () => {
                 currentWorker={currentWorker}
                 holidays={countryHolidays}
                 overrides={calendarOverrides}
+                onTaskClick={(tItem) => setInfoSheetState({ isOpen: true, task: tItem })}
                 onTaskCellClick={(tItem, dateStr) => {
                   const workerObj = workers.find((w) => w.name === tItem.worker_name) || null;
                   const dayStatus = resolveWorkDayStatus(dateStr, (workerObj || { id: tItem.worker_name, name: tItem.worker_name }) as any, countryHolidays, calendarOverrides);
@@ -1976,6 +1977,7 @@ export const ProjectDetailPage: React.FC = () => {
                 dateColumns={dateColumns}
                 holidays={countryHolidays}
                 overrides={calendarOverrides}
+                onTaskClick={(tItem) => setInfoSheetState({ isOpen: true, task: tItem })}
                 onTaskCellClick={(tItem, dateStr) => {
                   const workerObj = workers.find((w) => w.name === tItem.worker_name) || null;
                   const dayStatus = resolveWorkDayStatus(dateStr, (workerObj || { id: tItem.worker_name, name: tItem.worker_name }) as any, countryHolidays, calendarOverrides);
