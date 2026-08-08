@@ -95,7 +95,7 @@ export async function completeProjectService(
   statements.push(
     db
       .prepare(
-        'UPDATE projects SET status = \'COMPLETED\', progress = 100, actual_progress = 100, completed_at = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
+        'UPDATE projects SET status = \'COMPLETED\', progress = 100, completed_at = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
       )
       .bind(nowStr, projectId)
   );
