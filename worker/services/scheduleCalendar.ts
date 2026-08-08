@@ -987,31 +987,35 @@ export async function fetchTaskAssigneesMapServer(db: any, taskIds: string[]): P
   const result: Record<string, any[]> = {};
   if (!taskIds || taskIds.length === 0) return result;
 
-  const placeholders = taskIds.map(() => '?').join(',');
-  const rows = await db
-    .prepare(
-      `SELECT ta.task_id, ta.worker_id, ta.assignment_role, ta.allocation_percent, ta.sort_order, w.name, w.country_code
-       FROM task_assignees ta
-       JOIN workers w ON ta.worker_id = w.id
-       WHERE ta.task_id IN (${placeholders}) AND ta.deleted_at IS NULL
-       ORDER BY ta.sort_order ASC, ta.assignment_role DESC`
-    )
-    .bind(...taskIds)
-    .all();
+  const CHUNK_SIZE = 50;
+  for (let i = 0; i < taskIds.length; i += CHUNK_SIZE) {
+    const chunk = taskIds.slice(i, i + CHUNK_SIZE);
+    const placeholders = chunk.map(() => '?').join(',');
+    const rows = await db
+      .prepare(
+        `SELECT ta.task_id, ta.worker_id, ta.assignment_role, ta.allocation_percent, ta.sort_order, w.name, w.country_code
+         FROM task_assignees ta
+         JOIN workers w ON ta.worker_id = w.id
+         WHERE ta.task_id IN (${placeholders}) AND ta.deleted_at IS NULL
+         ORDER BY ta.sort_order ASC, ta.assignment_role DESC`
+      )
+      .bind(...chunk)
+      .all();
 
-  const list: any[] = rows.results || [];
-  for (const row of list) {
-    if (!result[row.task_id]) {
-      result[row.task_id] = [];
+    const list: any[] = rows.results || [];
+    for (const row of list) {
+      if (!result[row.task_id]) {
+        result[row.task_id] = [];
+      }
+      result[row.task_id].push({
+        worker_id: row.worker_id,
+        name: row.name,
+        country_code: row.country_code,
+        assignment_role: row.assignment_role,
+        allocation_percent: Number(row.allocation_percent) || 100,
+        sort_order: Number(row.sort_order) || 0,
+      });
     }
-    result[row.task_id].push({
-      worker_id: row.worker_id,
-      name: row.name,
-      country_code: row.country_code,
-      assignment_role: row.assignment_role,
-      allocation_percent: Number(row.allocation_percent) || 100,
-      sort_order: Number(row.sort_order) || 0,
-    });
   }
 
   return result;

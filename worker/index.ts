@@ -311,13 +311,18 @@ export default {
         const details: any[] = [];
 
         if (prjIds.length > 0) {
-          const placeholders = prjIds.map(() => '?').join(',');
-          const { results: tasks } = await db
-            .prepare(`SELECT id, task_name, project_id, progress, completion_confirmed FROM tasks WHERE project_id IN (${placeholders})`)
-            .bind(...prjIds)
-            .all();
+          const taskList: any[] = [];
+          const CHUNK_SIZE = 50;
+          for (let i = 0; i < prjIds.length; i += CHUNK_SIZE) {
+            const chunk = prjIds.slice(i, i + CHUNK_SIZE);
+            const placeholders = chunk.map(() => '?').join(',');
+            const { results: tasks } = await db
+              .prepare(`SELECT id, task_name, project_id, progress, completion_confirmed FROM tasks WHERE project_id IN (${placeholders})`)
+              .bind(...chunk)
+              .all();
+            if (tasks) taskList.push(...tasks);
+          }
 
-          const taskList = (tasks || []) as any[];
           const tasksByPrj = new Map<string, any[]>();
           for (const t of taskList) {
             if (!tasksByPrj.has(t.project_id)) tasksByPrj.set(t.project_id, []);
@@ -369,15 +374,21 @@ export default {
         let inconsistentProjectsCount = 0;
 
         if (compPrjIds.length > 0) {
-          const placeholders = compPrjIds.map(() => '?').join(',');
           try {
-            const { results: tasksInComp } = await db
-              .prepare(`SELECT project_id, progress, completion_confirmed FROM tasks WHERE project_id IN (${placeholders})`)
-              .bind(...compPrjIds)
-              .all();
+            const tasksInComp: any[] = [];
+            const CHUNK_SIZE = 50;
+            for (let i = 0; i < compPrjIds.length; i += CHUNK_SIZE) {
+              const chunk = compPrjIds.slice(i, i + CHUNK_SIZE);
+              const placeholders = chunk.map(() => '?').join(',');
+              const { results: tasks } = await db
+                .prepare(`SELECT project_id, progress, completion_confirmed FROM tasks WHERE project_id IN (${placeholders})`)
+                .bind(...chunk)
+                .all();
+              if (tasks) tasksInComp.push(...tasks);
+            }
 
             const tasksByPrj = new Map<string, any[]>();
-            for (const t of (tasksInComp || []) as any[]) {
+            for (const t of tasksInComp) {
               if (!tasksByPrj.has(t.project_id)) tasksByPrj.set(t.project_id, []);
               tasksByPrj.get(t.project_id)!.push(t);
             }
@@ -484,14 +495,20 @@ export default {
           const activeList = (activePrjs || []) as any[];
           if (activeList.length > 0) {
             const activeIds = activeList.map((p) => p.id);
-            const placeholders = activeIds.map(() => '?').join(',');
-            const { results: activeTasks } = await db
-              .prepare(`SELECT project_id, progress, completion_confirmed FROM tasks WHERE project_id IN (${placeholders})`)
-              .bind(...activeIds)
-              .all();
+            const activeTasks: any[] = [];
+            const CHUNK_SIZE = 50;
+            for (let i = 0; i < activeIds.length; i += CHUNK_SIZE) {
+              const chunk = activeIds.slice(i, i + CHUNK_SIZE);
+              const placeholders = chunk.map(() => '?').join(',');
+              const { results: tasks } = await db
+                .prepare(`SELECT project_id, progress, completion_confirmed FROM tasks WHERE project_id IN (${placeholders})`)
+                .bind(...chunk)
+                .all();
+              if (tasks) activeTasks.push(...tasks);
+            }
 
             const tasksByPrj = new Map<string, any[]>();
-            for (const t of (activeTasks || []) as any[]) {
+            for (const t of activeTasks) {
               if (!tasksByPrj.has(t.project_id)) tasksByPrj.set(t.project_id, []);
               tasksByPrj.get(t.project_id)!.push(t);
             }

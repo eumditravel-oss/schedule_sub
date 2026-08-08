@@ -56,6 +56,9 @@ test.describe('P1 Project Overview Name Readability & Hardened Assertions Suite'
   test.setTimeout(60000);
 
   test.beforeEach(async ({ page }) => {
+    page.on('console', (msg) => console.log('[BROWSER CONSOLE]', msg.type(), msg.text()));
+    page.on('pageerror', (err) => console.log('[BROWSER PAGEERROR]', err.message));
+
     await page.addInitScript(() => {
       localStorage.setItem('schedule_current_worker_id', 'wrk_00_ceo');
       localStorage.setItem('schedule_current_worker_name', 'CEO');
