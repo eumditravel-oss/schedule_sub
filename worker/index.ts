@@ -476,10 +476,49 @@ export default {
           orphanIntegrationCount = (results || []).length;
         } catch {}
 
+        // 6. Project Lifecycle Domain
+        let activeScheduleCompletedCount = 0;
+        let completedMissingTimestampCount = 0;
+        try {
+          const { results: activePrjs } = await db.prepare("SELECT id FROM projects WHERE status = 'ACTIVE'").all();
+          const activeList = (activePrjs || []) as any[];
+          if (activeList.length > 0) {
+            const activeIds = activeList.map((p) => p.id);
+            const placeholders = activeIds.map(() => '?').join(',');
+            const { results: activeTasks } = await db
+              .prepare(`SELECT project_id, progress, completion_confirmed FROM tasks WHERE project_id IN (${placeholders})`)
+              .bind(...activeIds)
+              .all();
+
+            const tasksByPrj = new Map<string, any[]>();
+            for (const t of (activeTasks || []) as any[]) {
+              if (!tasksByPrj.has(t.project_id)) tasksByPrj.set(t.project_id, []);
+              tasksByPrj.get(t.project_id)!.push(t);
+            }
+
+            for (const prjId of activeIds) {
+              const pTasks = tasksByPrj.get(prjId) || [];
+              if (pTasks.length > 0) {
+                const allDone = pTasks.every((t) => Number(t.completion_confirmed) === 1 && Number(t.progress) >= 100);
+                if (allDone) activeScheduleCompletedCount++;
+              }
+            }
+          }
+        } catch {}
+
+        try {
+          const nullRes = await db.prepare("SELECT COUNT(*) as count FROM projects WHERE status = 'COMPLETED' AND completed_at IS NULL").first();
+          completedMissingTimestampCount = Number(nullRes?.count || 0);
+        } catch {}
+
         return jsonResponse({
           completion: {
             status: inconsistentProjectsCount === 0 ? 'PASS' : 'FAIL',
             inconsistent_projects: inconsistentProjectsCount,
+          },
+          project_lifecycle: {
+            active_schedule_completed: activeScheduleCompletedCount,
+            completed_missing_completed_at: completedMissingTimestampCount,
           },
           tasks: {
             missing_pic: missingPicCount,
@@ -2262,9 +2301,11 @@ function addPureCalendarDays(dateStr: string, deltaDays: number): string {
         }
 
         const mode = body.mode === 'STRICT' ? 'STRICT' : 'COMPLETE_ALL';
+        const completedDate = body.completed_date || body.completedDate || undefined;
         const result = await completeProjectService(db, {
           projectId,
           mode,
+          completedDate,
           editor: editCheck.worker ? { id: editCheck.worker.id, name: editCheck.worker.name } : { name: editorName },
         });
 

@@ -1,0 +1,32 @@
+{
+  "id": "prj_1785986741604_ppqz",
+  "name": "CONCOST-HUB 개발",
+  "start_date": "2026-07-06",
+  "end_date": "2026-08-07",
+  "progress": 100,
+  "created_at": "2026-08-06 03:25:43",
+  "updated_at": "2026-08-08 07:40:33",
+  "status": "ACTIVE",
+  "completed_at": null,
+  "completed_by_name": null,
+  "name_ko": "CONCOST-HUB 개발",
+  "name_vi": "",
+  "source_language": "ko",
+  "translation_status": "COMPLETED",
+  "translation_error": null,
+  "baseline_start_date": null,
+  "baseline_end_date": null,
+  "task_count": 22,
+  "planned_working_days": 44,
+  "completed_working_days": 0,
+  "planned_progress": 100,
+  "actual_progress": 100,
+  "progress_gap": 0,
+  "schedule_state": "COMPLETED",
+  "auto_progress_task_count": 22,
+  "status_progress_task_count": 0,
+  "conflict_count": 0,
+  "participating_workers": [
+    "Thanh Phuong(탄 프엉)"
+  ]
+}

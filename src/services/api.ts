@@ -218,11 +218,15 @@ export const api = {
     return handleResponse<{ id: string }>(res);
   },
 
-  async completeProject(id: string, mode: 'STRICT' | 'COMPLETE_ALL' = 'COMPLETE_ALL'): Promise<any> {
+  async completeProject(
+    id: string,
+    mode: 'STRICT' | 'COMPLETE_ALL' = 'COMPLETE_ALL',
+    completedDate?: string
+  ): Promise<any> {
     const res = await fetch(`/api/projects/${id}/complete`, {
       method: 'POST',
       headers: getWriteHeaders(),
-      body: JSON.stringify({ mode }),
+      body: JSON.stringify({ mode, completed_date: completedDate }),
     });
     return handleResponse<any>(res);
   },

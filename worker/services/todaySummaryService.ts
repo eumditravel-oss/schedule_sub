@@ -42,8 +42,9 @@ export async function getTodayDashboardSummaryServer(
       .bind(monthStart, nextMonthStart)
       .all();
     completedThisMonthProjectIds = (completedPrjsRes.results || []).map((p: any) => p.id);
-  } catch (e) {
-    completedThisMonthProjectIds = [];
+  } catch (e: any) {
+    console.error('[TodaySummary] MONTHLY_COMPLETION_QUERY_FAILED:', e?.message || e);
+    throw new Error(`MONTHLY_COMPLETION_QUERY_FAILED: ${e?.message || 'Database query error'}`);
   }
 
   // Fetch active projects (column is 'status')

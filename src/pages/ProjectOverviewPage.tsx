@@ -365,23 +365,11 @@ export const ProjectOverviewPage: React.FC = () => {
       (t) => t.project_id === project.id && (t.actual_progress ?? t.progress ?? 0) < 100 && Number(t.completion_confirmed) !== 1
     );
 
-    if (incomplete.length > 0) {
-      setCompleteModalState({
-        isOpen: true,
-        project,
-        incompleteTasks: incomplete,
-      });
-      return;
-    }
-
-    if (!confirm(t('completeConfirmText'))) return;
-    try {
-      await api.completeProject(project.id);
-      await fetchProjects();
-      await fetchCompletedYears();
-    } catch (err: any) {
-      alert(getLocalizedErrorMessage(err, t));
-    }
+    setCompleteModalState({
+      isOpen: true,
+      project,
+      incompleteTasks: incomplete,
+    });
   };
 
   const refreshOverviewData = async () => {
@@ -392,10 +380,10 @@ export const ProjectOverviewPage: React.FC = () => {
     ]);
   };
 
-  const handleConfirmBatchCompleteProject = async () => {
+  const handleConfirmBatchCompleteProject = async (completedDate: string) => {
     if (!completeModalState.project) return;
     const pId = completeModalState.project.id;
-    await api.completeProject(pId, 'COMPLETE_ALL');
+    await api.completeProject(pId, 'COMPLETE_ALL', completedDate);
     await refreshOverviewData();
   };
 
@@ -1114,27 +1102,52 @@ export const ProjectOverviewPage: React.FC = () => {
                                       </button>
                                     </>
                                   )}
-                                  <span
-                                    data-testid={`project-status-badge-${project.id}`}
-                                    className={`text-[9px] font-bold px-1.5 py-0.5 rounded border cursor-default select-none whitespace-nowrap ${
-                                      project.schedule_state === 'DELAYED'
-                                        ? 'bg-rose-100 text-rose-800 border-rose-200'
-                                        : project.schedule_state === 'COMPLETED'
-                                        ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
-                                        : project.schedule_state === 'IN_PROGRESS'
-                                        ? 'bg-blue-100 text-blue-800 border-blue-200'
-                                        : 'bg-slate-100 text-slate-700 border-slate-200'
-                                    }`}
-                                    onClick={(e) => e.stopPropagation()}
-                                  >
-                                    {project.schedule_state === 'DELAYED'
-                                      ? (lang === 'vi' ? 'Chậm' : '지연')
-                                      : project.schedule_state === 'COMPLETED'
-                                      ? (lang === 'vi' ? 'Xong' : '완료')
-                                      : project.schedule_state === 'IN_PROGRESS'
-                                      ? (lang === 'vi' ? '진행' : '진행 중')
-                                      : (lang === 'vi' ? 'Sắp' : '예정')}
-                                  </span>
+                                  {(() => {
+                                    const isLifecycleCompleted = project.status === 'COMPLETED';
+                                    const isPendingCompletion = project.status === 'ACTIVE' && project.schedule_state === 'COMPLETED';
+                                    const isDelayed = project.status === 'ACTIVE' && project.schedule_state === 'DELAYED';
+                                    const isInProgress = project.status === 'ACTIVE' && project.schedule_state === 'IN_PROGRESS';
+
+                                    return (
+                                      <span
+                                        data-testid={`project-status-badge-${project.id}`}
+                                        title={
+                                          isPendingCompletion
+                                            ? (lang === 'vi'
+                                                ? 'Tiến độ đã đạt 100% nhưng dự án chưa được xác nhận hoàn thành.'
+                                                : '예정된 일정과 세부 작업은 100% 완료되었지만, 프로젝트 완료 확정이 아직 처리되지 않았습니다.')
+                                            : undefined
+                                        }
+                                        className={`text-[9px] font-bold px-1.5 py-0.5 rounded border select-none whitespace-nowrap ${
+                                          isLifecycleCompleted
+                                            ? 'bg-emerald-100 text-emerald-800 border-emerald-200 cursor-default'
+                                            : isPendingCompletion
+                                            ? 'bg-amber-100 text-amber-900 border-amber-300 font-extrabold cursor-pointer hover:bg-amber-200'
+                                            : isDelayed
+                                            ? 'bg-rose-100 text-rose-800 border-rose-200 cursor-default'
+                                            : isInProgress
+                                            ? 'bg-blue-100 text-blue-800 border-blue-200 cursor-default'
+                                            : 'bg-slate-100 text-slate-700 border-slate-200 cursor-default'
+                                        }`}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          if (isPendingCompletion && !isExecutiveViewer(currentWorker)) {
+                                            handleCompleteProject(project);
+                                          }
+                                        }}
+                                      >
+                                        {isLifecycleCompleted
+                                          ? (lang === 'vi' ? 'Hoàn thành' : '완료')
+                                          : isPendingCompletion
+                                          ? (lang === 'vi' ? 'Cần xác nhận' : '완료 확인 필요')
+                                          : isDelayed
+                                          ? (lang === 'vi' ? 'Chậm' : '지연')
+                                          : isInProgress
+                                          ? (lang === 'vi' ? '진행' : '진행 중')
+                                          : (lang === 'vi' ? 'Sắp' : '예정')}
+                                      </span>
+                                    );
+                                  })()}
                                 </div>
 
                                 <div

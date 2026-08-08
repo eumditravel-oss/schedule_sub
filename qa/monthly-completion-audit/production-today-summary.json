@@ -1,0 +1,27 @@
+{
+  "success": true,
+  "data": {
+    "date": "2026-08-08",
+    "scheduled_today": {
+      "count": 0,
+      "task_ids": []
+    },
+    "in_progress": {
+      "count": 0,
+      "task_ids": []
+    },
+    "completed_today": {
+      "count": 0,
+      "task_ids": []
+    },
+    "completed_this_month": {
+      "count": 0,
+      "project_ids": []
+    },
+    "overdue": {
+      "count": 0,
+      "task_ids": []
+    },
+    "blocked_count": 0
+  }
+}

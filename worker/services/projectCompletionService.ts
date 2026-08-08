@@ -2,6 +2,7 @@
 export interface CompleteProjectOptions {
   projectId: string;
   mode: 'STRICT' | 'COMPLETE_ALL' | 'REPAIR';
+  completedDate?: string; // YYYY-MM-DD (Explicit completion date)
   editor?: {
     id?: string;
     name?: string;
@@ -26,12 +27,26 @@ export interface CompleteProjectResult {
   }>;
 }
 
+function getKoreaDateStringServer(): string {
+  try {
+    const formatter = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Seoul',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    });
+    return formatter.format(new Date());
+  } catch {
+    return new Date().toISOString().slice(0, 10);
+  }
+}
+
 export async function completeProjectService(
   db: any,
   options: CompleteProjectOptions
 ): Promise<CompleteProjectResult> {
-  const { projectId, mode, editor } = options;
-  const nowStr = new Date().toISOString().slice(0, 10);
+  const { projectId, mode, completedDate, editor } = options;
+  const todayStr = getKoreaDateStringServer();
   const logId = `log_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
 
   // 1. Fetch Project from DB
@@ -44,6 +59,54 @@ export async function completeProjectService(
       message: '프로젝트를 찾을 수 없습니다.',
       project_id: projectId,
     };
+  }
+
+  // 1.1 REPAIR Mode Validation: Target project MUST be COMPLETED
+  if (mode === 'REPAIR' && project.status !== 'COMPLETED') {
+    return {
+      success: false,
+      status: 409,
+      code: 'PROJECT_REPAIR_REQUIRES_COMPLETED_STATUS',
+      message: 'REPAIR 모드는 이미 COMPLETED 상태인 프로젝트만 수행할 수 있습니다.',
+      project_id: projectId,
+    };
+  }
+
+  // 1.2 Validate completedDate if provided
+  let effectiveCompletedDate = todayStr;
+  if (mode !== 'REPAIR' && completedDate) {
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+    if (!dateRegex.test(completedDate)) {
+      return {
+        success: false,
+        status: 400,
+        code: 'INVALID_COMPLETED_DATE_FORMAT',
+        message: '완료일 형식이 올바르지 않습니다. (YYYY-MM-DD)',
+        project_id: projectId,
+      };
+    }
+    if (project.start_date && completedDate < project.start_date) {
+      return {
+        success: false,
+        status: 400,
+        code: 'COMPLETED_DATE_BEFORE_START_DATE',
+        message: `완료일(${completedDate})은 프로젝트 시작일(${project.start_date})보다 이전일 수 없습니다.`,
+        project_id: projectId,
+      };
+    }
+    if (completedDate > todayStr) {
+      return {
+        success: false,
+        status: 400,
+        code: 'COMPLETED_DATE_IN_FUTURE',
+        message: `완료일(${completedDate})은 미래 날짜일 수 없습니다.`,
+        project_id: projectId,
+      };
+    }
+    effectiveCompletedDate = completedDate;
+  } else if (mode !== 'REPAIR' && project.completed_at) {
+    // Keep existing completed_at if present and no new date passed, otherwise use todayStr
+    effectiveCompletedDate = project.completed_at;
   }
 
   // 2. Fetch All Child Tasks from DB (Server DB is Single Source of Truth)
@@ -91,14 +154,16 @@ export async function completeProjectService(
     );
   }
 
-  // Statement B: Update project status to COMPLETED
-  statements.push(
-    db
-      .prepare(
-        'UPDATE projects SET status = \'COMPLETED\', progress = 100, completed_at = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
-      )
-      .bind(nowStr, projectId)
-  );
+  // Statement B: Update project status & completed_at (ONLY for STRICT and COMPLETE_ALL, NEVER for REPAIR)
+  if (mode !== 'REPAIR') {
+    statements.push(
+      db
+        .prepare(
+          "UPDATE projects SET status = 'COMPLETED', progress = 100, completed_at = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
+        )
+        .bind(effectiveCompletedDate, projectId)
+    );
+  }
 
   // Statement C: Log completion audit trail
   statements.push(
