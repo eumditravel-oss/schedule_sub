@@ -86,7 +86,7 @@ test.describe('P1 Project Overview Name Readability & Geometry Suite', () => {
 
     if (cornerBox && panelBox) {
       expect(Math.abs(cornerBox.width - panelBox.width)).toBeLessThanOrEqual(0.5);
-      expect(Math.abs(cornerBox.left - panelBox.left)).toBeLessThanOrEqual(0.5);
+      expect(Math.abs(cornerBox.x - panelBox.x)).toBeLessThanOrEqual(0.5);
     }
   });
 });
