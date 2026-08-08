@@ -500,7 +500,7 @@ export default {
         try {
           const { results } = await db.prepare(`
             SELECT o.id 
-            FROM country_holidays_overrides o 
+            FROM calendar_overrides o 
             LEFT JOIN workers w ON o.worker_id = w.id 
             WHERE o.worker_id IS NOT NULL AND w.id IS NULL
           `).all();
@@ -520,7 +520,7 @@ export default {
         try {
           const { results } = await db.prepare(`
             SELECT l.id 
-            FROM integration_api_key_usage_logs l 
+            FROM integration_api_logs l 
             LEFT JOIN integration_api_keys k ON l.api_key_id = k.id 
             WHERE k.id IS NULL
           `).all();
