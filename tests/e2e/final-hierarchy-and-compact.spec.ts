@@ -77,6 +77,13 @@ test.describe('Task Hierarchy, Multi-Assignees, Auto Progress & Compact Gantt Ro
     await page.fill('[data-testid="task-start-date-input"]', '2026-08-03');
     await page.fill('[data-testid="task-end-date-input"]', '2026-08-07');
     await page.click('[data-testid="task-save-btn"]');
+    const conflictModal = page.locator('[data-testid="cross-project-conflict-modal"]');
+    if (await conflictModal.isVisible({ timeout: 2000 }).catch(() => false)) {
+      const confirmBtn = page.locator('[data-testid="confirm-cross-project-conflicts-btn"]');
+      if (await confirmBtn.isVisible()) {
+        await confirmBtn.click();
+      }
+    }
     await page.waitForSelector('[data-testid="task-modal"]', { state: 'detached' });
 
     // 3. Verify Task Row & Compact Height (<= 46px)

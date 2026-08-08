@@ -27,7 +27,7 @@ test.describe('P0 Project Lifecycle Semantics & Monthly Completed Projects KPI S
     const projectId = seedJson.data.id;
 
     // Create a task with non-VIEWER worker
-    const taskRes = await request.post('/api/tasks', {
+    let taskRes = await request.post('/api/tasks', {
       headers: {
         'Content-Type': 'application/json',
         'x-editor-name': encodeURIComponent('박용진 수석'),
@@ -43,6 +43,29 @@ test.describe('P0 Project Lifecycle Semantics & Monthly Completed Projects KPI S
         completion_confirmed: 1,
       },
     });
+
+    if (taskRes.status() === 409) {
+      const errJson = await taskRes.json();
+      const fps = errJson.error?.details?.fingerprints || [];
+      taskRes = await request.post('/api/tasks', {
+        headers: {
+          'Content-Type': 'application/json',
+          'x-editor-name': encodeURIComponent('박용진 수석'),
+        },
+        data: {
+          project_id: projectId,
+          worker_name: worker.name,
+          primary_worker_id: worker.id,
+          task_name: '완료 검증 세부 작업',
+          start_date: '2026-08-01',
+          end_date: '2026-08-07',
+          progress: 100,
+          completion_confirmed: 1,
+          confirm_cross_project_conflicts: fps,
+        },
+      });
+    }
+
     expect(taskRes.status()).toBe(201);
     const taskJson = await taskRes.json();
     const taskId = taskJson.data.id;
