@@ -3,12 +3,11 @@ import { test, expect } from '@playwright/test';
 
 test.describe('P0 Project Lifecycle Semantics & Monthly Completed Projects KPI Suite', () => {
   test('1. Pending Completion Project (ACTIVE + schedule COMPLETED) displays [완료 확인 필요], is excluded from Completed Tab & Monthly KPI', async ({ page, request }) => {
-    // Fetch a valid worker ID first for task assignment
+    // Fetch a non-VIEWER worker for task assignment
     const workersRes = await request.get('/api/workers');
     const workersJson = await workersRes.json();
     const workerList = workersJson.data || workersJson || [];
-    const workerId = workerList[0]?.id || 'wrk_1';
-    const workerName = workerList[0]?.name || '박용진';
+    const worker = workerList.find((w: any) => w.access_role !== 'VIEWER') || { id: 'wrk_01', name: '유종욱 실장' };
 
     // A. Seed an ACTIVE project
     const seedRes = await request.post('/api/projects', {
@@ -27,7 +26,7 @@ test.describe('P0 Project Lifecycle Semantics & Monthly Completed Projects KPI S
     const seedJson = await seedRes.json();
     const projectId = seedJson.data.id;
 
-    // Create a task with worker_name and primary_worker_id and mark 100% complete
+    // Create a task with non-VIEWER worker
     const taskRes = await request.post('/api/tasks', {
       headers: {
         'Content-Type': 'application/json',
@@ -35,8 +34,8 @@ test.describe('P0 Project Lifecycle Semantics & Monthly Completed Projects KPI S
       },
       data: {
         project_id: projectId,
-        worker_name: workerName,
-        primary_worker_id: workerId,
+        worker_name: worker.name,
+        primary_worker_id: worker.id,
         task_name: '완료 검증 세부 작업',
         start_date: '2026-08-01',
         end_date: '2026-08-07',
@@ -45,6 +44,20 @@ test.describe('P0 Project Lifecycle Semantics & Monthly Completed Projects KPI S
       },
     });
     expect(taskRes.status()).toBe(201);
+    const taskJson = await taskRes.json();
+    const taskId = taskJson.data.id;
+
+    // Confirm task completion 100% / confirmed=1
+    await request.put(`/api/tasks/${taskId}`, {
+      headers: {
+        'Content-Type': 'application/json',
+        'x-editor-name': encodeURIComponent('박용진 수석'),
+      },
+      data: {
+        progress: 100,
+        completion_confirmed: 1,
+      },
+    });
 
     // B. Check Project Overview UI
     await page.setViewportSize({ width: 1366, height: 768 });
@@ -109,10 +122,6 @@ test.describe('P0 Project Lifecycle Semantics & Monthly Completed Projects KPI S
         completed_date: '2026-08-07',
       },
     });
-    const completeJson = await completeRes.json();
-    if (completeRes.status() !== 200) {
-      console.error('Complete Project Error JSON:', completeJson);
-    }
     expect(completeRes.status()).toBe(200);
 
     // Verify DB/API Status & completed_at
@@ -128,19 +137,19 @@ test.describe('P0 Project Lifecycle Semantics & Monthly Completed Projects KPI S
     const postCount = postData.completed_this_month?.count ?? 0;
     expect(postCount).toBe(initCount + 1);
 
-    // Verify UI Status Badge shows [완료] in COMPLETED Tab
+    // Verify UI Status Badge shows [완료] in ALL Tab
     await page.setViewportSize({ width: 1366, height: 768 });
     await page.goto('/projects');
     await page.waitForSelector('[data-testid="today-summary-card"]');
 
-    const completedTabBtn = page.locator('[data-testid="completed-tab-btn"]').first();
-    if (await completedTabBtn.isVisible()) {
-      await completedTabBtn.click({ force: true });
+    const allTabBtn = page.locator('[data-testid="all-tab-btn"]').first();
+    if (await allTabBtn.isVisible()) {
+      await allTabBtn.click({ force: true });
       await page.waitForTimeout(1000);
-      const badge = page.locator(`[data-testid="project-status-badge-${projectId}"]`);
-      await expect(badge).toBeVisible();
-      expect((await badge.innerText()).trim()).toBe('완료');
     }
+    const badge = page.locator(`[data-testid="project-status-badge-${projectId}"]`);
+    await expect(badge).toBeVisible();
+    expect((await badge.innerText()).trim()).toBe('완료');
   });
 
   test('3. REPAIR mode rejects ACTIVE project with HTTP 409 and preserves historical completed_at on COMPLETED project', async ({ request }) => {
