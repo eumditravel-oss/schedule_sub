@@ -73,14 +73,19 @@ test.describe('Task Hierarchy, Multi-Assignees, Auto Progress & Compact Gantt Ro
     await page.click('[data-testid="add-task-btn"]');
     await page.waitForSelector('[data-testid="task-modal"]');
 
+    const workerSelect = page.locator('[data-testid="task-primary-worker-select"]');
+    if (await workerSelect.isVisible().catch(() => false)) {
+      await workerSelect.selectOption({ index: 1 }).catch(() => {});
+    }
+
     await page.fill('[data-testid="task-name-input"]', '요구사항 정의');
     await page.fill('[data-testid="task-start-date-input"]', '2026-08-03');
     await page.fill('[data-testid="task-end-date-input"]', '2026-08-07');
     await page.click('[data-testid="task-save-btn"]');
-    const conflictModal = page.locator('[data-testid="cross-project-conflict-modal"]');
+    const conflictModal = page.locator('[data-testid="worker-conflict-summary-modal"]');
     try {
       await conflictModal.waitFor({ state: 'visible', timeout: 3000 });
-      const confirmBtn = page.locator('[data-testid="confirm-cross-project-conflicts-btn"]');
+      const confirmBtn = page.locator('[data-testid="conflict-modal-confirm-btn"]');
       if (await confirmBtn.isVisible()) {
         await confirmBtn.click();
       }

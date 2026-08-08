@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-08-07T23:57:46.246Z",
+  "timestamp": "2026-08-08T10:22:37.893Z",
   "total_viewports": 13,
   "executed_viewports": [
     {
@@ -80,8 +80,8 @@
       "save_visible": true,
       "cancel_visible": true,
       "initial_scroll_top": 0,
-      "save_y": 1000,
-      "cancel_y": 1000
+      "save_y": 1021,
+      "cancel_y": 1021
     },
     {
       "viewport": "360x800",

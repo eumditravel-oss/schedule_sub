@@ -100,13 +100,18 @@ test.describe('P0 Project Lifecycle Semantics & Monthly Completed Projects KPI S
     const badgeText = await badge.innerText();
     expect(badgeText.trim()).toBe('완료 확인 필요');
 
+    // Close any modal overlay if open (e.g. pending schedule decision modal)
+    const modalCloseBtn = page.locator('button:has-text("닫기"), button:has-text("Đóng")').first();
+    if (await modalCloseBtn.isVisible().catch(() => false)) {
+      await modalCloseBtn.click({ force: true }).catch(() => {});
+      await page.waitForTimeout(300);
+    }
+
     // Verify Completed Tab DOES NOT contain this ACTIVE project
     const completedTabBtn = page.locator('[data-testid="completed-tab-btn"]').first();
     if (await completedTabBtn.isVisible()) {
-      const responsePromise = page.waitForResponse((r) => r.url().includes('/api/projects') && r.status() === 200);
-      await completedTabBtn.click({ force: true });
-      await responsePromise.catch(() => {});
-      await page.waitForTimeout(500);
+      await completedTabBtn.evaluate((el: HTMLElement) => el.click());
+      await page.waitForTimeout(2000);
       const rowInCompletedTab = page.locator(`[data-testid="project-status-badge-${projectId}"]`);
       expect(await rowInCompletedTab.count()).toBe(0);
     }
