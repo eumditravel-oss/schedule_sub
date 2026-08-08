@@ -3,7 +3,7 @@ import { test, expect } from '@playwright/test';
 
 test.describe('P0 Project Lifecycle Semantics & Monthly Completed Projects KPI Suite', () => {
   test('1. Pending Completion Project (ACTIVE + schedule COMPLETED) displays [완료 확인 필요], is excluded from Completed Tab & Monthly KPI', async ({ page, request }) => {
-    // A. Seed an ACTIVE project with 100% completed tasks (Pending Completion)
+    // A. Seed an ACTIVE project
     const seedRes = await request.post('/api/projects', {
       headers: {
         'Content-Type': 'application/json',
@@ -16,16 +16,18 @@ test.describe('P0 Project Lifecycle Semantics & Monthly Completed Projects KPI S
         end_date: '2026-08-07',
       },
     });
+    expect(seedRes.status()).toBe(201);
     const seedJson = await seedRes.json();
     const projectId = seedJson.data.id;
 
-    // Create a task and mark 100% complete
-    const taskRes = await request.post(`/api/projects/${projectId}/tasks`, {
+    // Create a task and mark 100% complete via POST /api/tasks
+    const taskRes = await request.post('/api/tasks', {
       headers: {
         'Content-Type': 'application/json',
         'x-editor-name': encodeURIComponent('박용진 수석'),
       },
       data: {
+        project_id: projectId,
         task_name: '완료 검증 세부 작업',
         start_date: '2026-08-01',
         end_date: '2026-08-07',
@@ -77,10 +79,11 @@ test.describe('P0 Project Lifecycle Semantics & Monthly Completed Projects KPI S
         end_date: '2026-08-07',
       },
     });
+    expect(seedRes.status()).toBe(201);
     const seedJson = await seedRes.json();
     const projectId = seedJson.data.id;
 
-    // Fetch initial Monthly KPI
+    // Fetch initial Monthly KPI for 2026-08
     const initSummaryRes = await request.get('/api/dashboard/today-summary?date=2026-08-08');
     const initSummary = await initSummaryRes.json();
     const initCount = initSummary.completed_this_month?.count ?? 0;
@@ -126,7 +129,7 @@ test.describe('P0 Project Lifecycle Semantics & Monthly Completed Projects KPI S
   });
 
   test('3. REPAIR mode rejects ACTIVE project with HTTP 409 and preserves historical completed_at on COMPLETED project', async ({ request }) => {
-    // Seed ACTIVE project
+    // Seed ACTIVE project with start_date = 2026-07-01
     const activeRes = await request.post('/api/projects', {
       headers: {
         'Content-Type': 'application/json',
@@ -135,10 +138,11 @@ test.describe('P0 Project Lifecycle Semantics & Monthly Completed Projects KPI S
       data: {
         name: '[QA-REPAIR-ACTIVE-TEST] ACTIVE 프로젝트 REPAIR 테스트',
         name_ko: '[QA-REPAIR-ACTIVE-TEST] ACTIVE 프로젝트 REPAIR 테스트',
-        start_date: '2026-08-01',
-        end_date: '2026-08-07',
+        start_date: '2026-07-01',
+        end_date: '2026-07-31',
       },
     });
+    expect(activeRes.status()).toBe(201);
     const activeJson = await activeRes.json();
     const activePrjId = activeJson.data.id;
 
@@ -153,8 +157,8 @@ test.describe('P0 Project Lifecycle Semantics & Monthly Completed Projects KPI S
     const repairActiveJson = await repairActiveRes.json();
     expect(repairActiveJson.error?.code || repairActiveJson.code).toBe('PROJECT_REPAIR_REQUIRES_COMPLETED_STATUS');
 
-    // Complete ACTIVE project with July date '2026-07-15'
-    await request.post(`/api/projects/${activePrjId}/complete`, {
+    // Complete ACTIVE project with July date '2026-07-15' (since start_date is '2026-07-01')
+    const completeJulyRes = await request.post(`/api/projects/${activePrjId}/complete`, {
       headers: {
         'Content-Type': 'application/json',
         'x-editor-name': encodeURIComponent('박용진 수석'),
@@ -164,6 +168,7 @@ test.describe('P0 Project Lifecycle Semantics & Monthly Completed Projects KPI S
         completed_date: '2026-07-15',
       },
     });
+    expect(completeJulyRes.status()).toBe(200);
 
     // REPAIR on COMPLETED project MUST succeed and preserve completed_at '2026-07-15'
     const repairCompletedRes = await request.post(`/api/projects/${activePrjId}/completion-repair`, {
