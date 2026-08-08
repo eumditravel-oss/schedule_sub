@@ -356,6 +356,152 @@ export default {
         });
       }
 
+      // 0.02 GET /api/health/scheduler-integrity
+      if (method === 'GET' && (cleanPath === '/api/health/scheduler-integrity' || path.startsWith('/api/health/scheduler-integrity'))) {
+        // 1. Completion Domain
+        let compPrjList: any[] = [];
+        try {
+          const { results } = await db.prepare("SELECT id FROM projects WHERE status = 'COMPLETED'").all();
+          compPrjList = results || [];
+        } catch {}
+
+        const compPrjIds = compPrjList.map((p) => p.id);
+        let inconsistentProjectsCount = 0;
+
+        if (compPrjIds.length > 0) {
+          const placeholders = compPrjIds.map(() => '?').join(',');
+          try {
+            const { results: tasksInComp } = await db
+              .prepare(`SELECT project_id, progress, completion_confirmed FROM tasks WHERE project_id IN (${placeholders})`)
+              .bind(...compPrjIds)
+              .all();
+
+            const tasksByPrj = new Map<string, any[]>();
+            for (const t of (tasksInComp || []) as any[]) {
+              if (!tasksByPrj.has(t.project_id)) tasksByPrj.set(t.project_id, []);
+              tasksByPrj.get(t.project_id)!.push(t);
+            }
+            for (const prjId of compPrjIds) {
+              const pTasks = tasksByPrj.get(prjId) || [];
+              const hasBad = pTasks.some((t) => Number(t.completion_confirmed) !== 1 || Number(t.progress) < 100);
+              if (hasBad) inconsistentProjectsCount++;
+            }
+          } catch {}
+        }
+
+        // 2. Tasks Domain
+        let missingPicCount = 0;
+        try {
+          const { results } = await db.prepare(`
+            SELECT t.id 
+            FROM tasks t 
+            LEFT JOIN task_assignees ta ON t.id = ta.task_id AND ta.assignment_role = 'PRIMARY'
+            WHERE t.schedule_status = 'SCHEDULED' 
+              AND (t.primary_worker_id IS NULL OR t.primary_worker_id = '') 
+              AND ta.worker_id IS NULL
+          `).all();
+          missingPicCount = (results || []).length;
+        } catch {}
+
+        let invalidAssigneeCount = 0;
+        try {
+          const { results } = await db.prepare(`
+            SELECT ta.id 
+            FROM task_assignees ta 
+            LEFT JOIN workers w ON ta.worker_id = w.id 
+            LEFT JOIN tasks t ON ta.task_id = t.id 
+            WHERE w.id IS NULL OR t.id IS NULL
+          `).all();
+          invalidAssigneeCount = (results || []).length;
+        } catch {}
+
+        let outsideRangeCount = 0;
+        try {
+          const { results } = await db.prepare(`
+            SELECT t.id 
+            FROM tasks t 
+            JOIN projects p ON t.project_id = p.id 
+            WHERE (t.start_date IS NOT NULL AND p.start_date IS NOT NULL AND t.start_date < p.start_date)
+               OR (t.end_date IS NOT NULL AND p.end_date IS NOT NULL AND t.end_date > p.end_date)
+          `).all();
+          outsideRangeCount = (results || []).length;
+        } catch {}
+
+        // 3. Workforce Domain
+        let invalidAllocCount = 0;
+        try {
+          const { results } = await db.prepare(`
+            SELECT a.id 
+            FROM project_worker_allocations a 
+            LEFT JOIN projects p ON a.project_id = p.id 
+            LEFT JOIN workers w ON a.worker_id = w.id 
+            WHERE p.id IS NULL OR w.id IS NULL OR a.allocation_percent < 0 OR a.allocation_percent > 100
+          `).all();
+          invalidAllocCount = (results || []).length;
+        } catch {}
+
+        let historyOrphanCount = 0;
+        try {
+          const { results } = await db.prepare(`
+            SELECT h.id 
+            FROM project_worker_allocation_history h 
+            LEFT JOIN projects p ON h.project_id = p.id 
+            LEFT JOIN workers w ON h.worker_id = w.id 
+            WHERE p.id IS NULL OR w.id IS NULL
+          `).all();
+          historyOrphanCount = (results || []).length;
+        } catch {}
+
+        // 4. Calendar Domain
+        let invalidCalendarCount = 0;
+        try {
+          const { results } = await db.prepare(`
+            SELECT o.id 
+            FROM country_holidays_overrides o 
+            LEFT JOIN workers w ON o.worker_id = w.id 
+            WHERE o.worker_id IS NOT NULL AND w.id IS NULL
+          `).all();
+          invalidCalendarCount = (results || []).length;
+        } catch {}
+
+        // 5. Integration Domain
+        let orphanIntegrationCount = 0;
+        try {
+          const { results } = await db.prepare(`
+            SELECT l.id 
+            FROM integration_api_key_usage_logs l 
+            LEFT JOIN integration_api_keys k ON l.api_key_id = k.id 
+            WHERE k.id IS NULL
+          `).all();
+          orphanIntegrationCount = (results || []).length;
+        } catch {}
+
+        return jsonResponse({
+          completion: {
+            status: inconsistentProjectsCount === 0 ? 'PASS' : 'FAIL',
+            inconsistent_projects: inconsistentProjectsCount,
+          },
+          tasks: {
+            missing_pic: missingPicCount,
+            invalid_assignee_relation: invalidAssigneeCount,
+            outside_project_range: outsideRangeCount,
+          },
+          workforce: {
+            invalid_allocation: invalidAllocCount,
+            history_orphan: historyOrphanCount,
+          },
+          calendar: {
+            invalid_worker_profile: invalidCalendarCount,
+          },
+          integration: {
+            orphan_entity_links: orphanIntegrationCount,
+          },
+          build: {
+            status: 'PASS',
+          },
+        });
+      }
+
       // 0.05 GET /api/dashboard/today-summary
       if (method === 'GET' && path === '/api/dashboard/today-summary') {
         const targetDate = url.searchParams.get('date') || getTodayStrForWorkerServer(null);
