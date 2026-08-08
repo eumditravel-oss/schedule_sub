@@ -30,30 +30,69 @@ const evidenceData = {
   timestamp: new Date().toISOString(),
 };
 
-test.describe('P1 Project Overview Name Readability & Hardened Assertions Suite', () => {
-  test.beforeAll(async ({ request }) => {
-    // Ensure all 3 target projects exist in the test environment before running assertions
-    const prjRes = await request.get('/api/projects');
-    const prjJson = await prjRes.json();
-    const list = prjJson.data || prjJson || [];
-
-    for (const name of TARGET_PROJECT_NAMES) {
-      const exists = list.some((p: any) => (p.name_ko || p.name) === name);
-      if (!exists) {
-        await request.post('/api/projects', {
-          headers: {
-            'Content-Type': 'application/json',
-            'x-editor-name': encodeURIComponent('박용진 수석'),
-          },
-          data: {
-            name,
-            name_ko: name,
-            start_date: '2026-08-01',
-            end_date: '2026-08-31',
-          },
-        });
-      }
+async function dismissBlockingModals(page: any) {
+  const workerModal = page.locator('[data-testid="worker-prompt-modal"]');
+  if (await workerModal.isVisible({ timeout: 1000 }).catch(() => false)) {
+    const btn = page.locator('[data-testid^="worker-prompt-option-"]').first();
+    if (await btn.isVisible().catch(() => false)) {
+      await btn.click({ force: true }).catch(() => {});
+      await page.waitForTimeout(300);
     }
+  }
+
+  for (let i = 0; i < 3; i++) {
+    const backdrop = page.locator('.fixed.inset-0.z-50').first();
+    if (await backdrop.isVisible({ timeout: 500 }).catch(() => false)) {
+      const confirmBtn = page.locator('button:has-text("유지"), button:has-text("확인"), button:has-text("닫기")').first();
+      if (await confirmBtn.isVisible().catch(() => false)) {
+        await confirmBtn.click({ force: true }).catch(() => {});
+      } else {
+        await page.keyboard.press('Escape');
+      }
+      await page.waitForTimeout(300);
+    } else {
+      break;
+    }
+  }
+}
+
+test.describe('P1 Project Overview Name Readability & Hardened Assertions Suite', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.addInitScript(() => {
+      localStorage.setItem('schedule_current_worker_id', 'wrk_02');
+      localStorage.setItem('schedule_current_worker_name', '박용진 수석');
+    });
+  });
+
+  test.beforeAll(async ({ request }) => {
+    try {
+      const prjRes = await request.get('/api/projects?status=ALL', {
+        headers: {
+          'Accept': 'application/json',
+          'x-editor-name': encodeURIComponent('박용진 수석'),
+        },
+      });
+      const prjJson = await prjRes.json().catch(() => ({}));
+      const list = prjJson.data || prjJson || [];
+
+      for (const name of TARGET_PROJECT_NAMES) {
+        const exists = Array.isArray(list) && list.some((p: any) => (p.name_ko || p.name) === name);
+        if (!exists) {
+          await request.post('/api/projects', {
+            headers: {
+              'Content-Type': 'application/json',
+              'x-editor-name': encodeURIComponent('박용진 수석'),
+            },
+            data: {
+              name,
+              name_ko: name,
+              start_date: '2026-08-01',
+              end_date: '2026-08-31',
+            },
+          }).catch(() => {});
+        }
+      }
+    } catch {}
   });
 
   test.afterAll(async () => {
@@ -71,19 +110,23 @@ test.describe('P1 Project Overview Name Readability & Hardened Assertions Suite'
     test(`1. Project Names legibility & zero READY badges at ${vp.width}x${vp.height}`, async ({ page }) => {
       await page.setViewportSize(vp);
       await page.goto('/projects');
-      await page.waitForSelector('[data-testid="desktop-gantt-canvas"]', { timeout: 10000 });
+      await dismissBlockingModals(page);
 
-      // Click ALL tab to view all 3 completed projects
+      // Click ALL tab to view all projects
       const allTabBtn = page.locator('[data-testid="all-tab-btn"]').first();
-      if (await allTabBtn.isVisible()) {
-        await allTabBtn.click({ force: true });
+      if (await allTabBtn.isVisible().catch(() => false)) {
+        await allTabBtn.evaluate((el: any) => el.click());
         await page.waitForTimeout(1000);
       }
+      await dismissBlockingModals(page);
+      await page.waitForSelector('[data-testid^="project-name-row-"]', { timeout: 30000 });
 
       // A. Mandatory 3/3 Projects Check with Strict Assertions
       let foundCount = 0;
       for (const expectedName of TARGET_PROJECT_NAMES) {
         const nameRow = page.locator('[data-testid^="project-name-row-"]').filter({ hasText: expectedName }).first();
+        await nameRow.evaluate((el: any) => el.scrollIntoView({ block: 'center' })).catch(() => {});
+        await page.waitForTimeout(200);
         await expect(nameRow).toBeVisible({ timeout: 5000 });
 
         const nameSpan = nameRow.locator('span').first();
@@ -161,6 +204,13 @@ test.describe('P1 Project Overview Name Readability & Hardened Assertions Suite'
   test('2. Verify Gantt Header vs Body Grid Geometry Error <= 0.5px', async ({ page }) => {
     await page.setViewportSize({ width: 1366, height: 768 });
     await page.goto('/projects');
+    await dismissBlockingModals(page);
+    const allTabBtn = page.locator('[data-testid="all-tab-btn"]').first();
+    if (await allTabBtn.isVisible().catch(() => false)) {
+      await allTabBtn.click({ force: true }).catch(() => {});
+      await page.waitForTimeout(500);
+    }
+    await dismissBlockingModals(page);
     await page.waitForSelector('[data-testid="desktop-gantt-canvas"]');
 
     const headerGrid = page.locator('[data-testid="overview-gantt-header-grid"]');
