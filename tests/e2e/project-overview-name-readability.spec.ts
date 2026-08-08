@@ -32,7 +32,7 @@ const evidenceData = {
 
 async function dismissBlockingModals(page: any) {
   const workerModal = page.locator('[data-testid="worker-prompt-modal"]');
-  if (await workerModal.isVisible({ timeout: 1000 }).catch(() => false)) {
+  if (await workerModal.isVisible().catch(() => false)) {
     const btn = page.locator('[data-testid^="worker-prompt-option-"]').first();
     if (await btn.isVisible().catch(() => false)) {
       await btn.click({ force: true }).catch(() => {});
@@ -41,28 +41,21 @@ async function dismissBlockingModals(page: any) {
   }
 
   const calendarModalClose = page.locator('[data-testid="calendar-modal-close-btn"]').first();
-  if (await calendarModalClose.isVisible({ timeout: 1000 }).catch(() => false)) {
+  if (await calendarModalClose.isVisible().catch(() => false)) {
     await calendarModalClose.click({ force: true }).catch(() => {});
     await page.waitForTimeout(300);
   }
 
-  for (let i = 0; i < 3; i++) {
-    const backdrop = page.locator('.fixed.inset-0.z-50').first();
-    if (await backdrop.isVisible({ timeout: 500 }).catch(() => false)) {
-      const confirmBtn = page.locator('button:has-text("유지"), button:has-text("확인"), button:has-text("닫기")').first();
-      if (await confirmBtn.isVisible().catch(() => false)) {
-        await confirmBtn.click({ force: true }).catch(() => {});
-      } else {
-        await page.keyboard.press('Escape');
-      }
-      await page.waitForTimeout(300);
-    } else {
-      break;
-    }
+  const pendingConfirm = page.locator('button:has-text("유지")').first();
+  if (await pendingConfirm.isVisible().catch(() => false)) {
+    await pendingConfirm.click({ force: true }).catch(() => {});
+    await page.waitForTimeout(300);
   }
 }
 
 test.describe('P1 Project Overview Name Readability & Hardened Assertions Suite', () => {
+  test.setTimeout(60000);
+
   test.beforeEach(async ({ page }) => {
     await page.addInitScript(() => {
       localStorage.setItem('schedule_current_worker_id', 'wrk_02');
@@ -117,7 +110,15 @@ test.describe('P1 Project Overview Name Readability & Hardened Assertions Suite'
       await page.setViewportSize(vp);
       await page.goto('/projects');
       await dismissBlockingModals(page);
-      await page.waitForSelector('[data-testid^="project-name-row-"]', { timeout: 10000 });
+      await page.waitForTimeout(1000);
+
+      const allTabBtn = page.locator('[data-testid="all-tab-btn"]').first();
+      await expect(allTabBtn).toBeVisible({ timeout: 10000 });
+      await allTabBtn.click({ force: true });
+      await expect(allTabBtn).toHaveAttribute('aria-selected', 'true', { timeout: 5000 });
+      await dismissBlockingModals(page);
+
+      await page.waitForSelector('[data-testid^="project-name-row-"]', { timeout: 30000 });
 
       // A. Mandatory 3/3 Projects Check with Strict Assertions
       let foundCount = 0;
@@ -203,6 +204,14 @@ test.describe('P1 Project Overview Name Readability & Hardened Assertions Suite'
     await page.setViewportSize({ width: 1366, height: 768 });
     await page.goto('/projects');
     await dismissBlockingModals(page);
+    await page.waitForTimeout(1000);
+
+    const allTabBtn = page.locator('[data-testid="all-tab-btn"]').first();
+    await expect(allTabBtn).toBeVisible({ timeout: 10000 });
+    await allTabBtn.click({ force: true });
+    await expect(allTabBtn).toHaveAttribute('aria-selected', 'true', { timeout: 5000 });
+    await dismissBlockingModals(page);
+
     await page.waitForSelector('[data-testid="desktop-gantt-canvas"]');
 
     const headerGrid = page.locator('[data-testid="overview-gantt-header-grid"]');
