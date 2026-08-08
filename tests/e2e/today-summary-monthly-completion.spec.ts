@@ -6,7 +6,9 @@ test.describe('P0 Project Lifecycle Semantics & Monthly Completed Projects KPI S
     // Fetch a valid worker ID first for task assignment
     const workersRes = await request.get('/api/workers');
     const workersJson = await workersRes.json();
-    const workerId = (workersJson.data || workersJson || [])[0]?.id || 'wrk_1';
+    const workerList = workersJson.data || workersJson || [];
+    const workerId = workerList[0]?.id || 'wrk_1';
+    const workerName = workerList[0]?.name || '박용진';
 
     // A. Seed an ACTIVE project
     const seedRes = await request.post('/api/projects', {
@@ -25,7 +27,7 @@ test.describe('P0 Project Lifecycle Semantics & Monthly Completed Projects KPI S
     const seedJson = await seedRes.json();
     const projectId = seedJson.data.id;
 
-    // Create a task with valid primary_worker_id and mark 100% complete
+    // Create a task with worker_name and primary_worker_id and mark 100% complete
     const taskRes = await request.post('/api/tasks', {
       headers: {
         'Content-Type': 'application/json',
@@ -33,12 +35,13 @@ test.describe('P0 Project Lifecycle Semantics & Monthly Completed Projects KPI S
       },
       data: {
         project_id: projectId,
+        worker_name: workerName,
+        primary_worker_id: workerId,
         task_name: '완료 검증 세부 작업',
         start_date: '2026-08-01',
         end_date: '2026-08-07',
         progress: 100,
         completion_confirmed: 1,
-        primary_worker_id: workerId,
       },
     });
     expect(taskRes.status()).toBe(201);
@@ -92,7 +95,8 @@ test.describe('P0 Project Lifecycle Semantics & Monthly Completed Projects KPI S
     // Fetch initial Monthly KPI for 2026-08
     const initSummaryRes = await request.get('/api/dashboard/today-summary?date=2026-08-08');
     const initSummary = await initSummaryRes.json();
-    const initCount = initSummary.completed_this_month?.count ?? 0;
+    const initData = initSummary.data || initSummary;
+    const initCount = initData.completed_this_month?.count ?? 0;
 
     // Complete Project with explicit completed_date = '2026-08-07'
     const completeRes = await request.post(`/api/projects/${projectId}/complete`, {
@@ -105,6 +109,10 @@ test.describe('P0 Project Lifecycle Semantics & Monthly Completed Projects KPI S
         completed_date: '2026-08-07',
       },
     });
+    const completeJson = await completeRes.json();
+    if (completeRes.status() !== 200) {
+      console.error('Complete Project Error JSON:', completeJson);
+    }
     expect(completeRes.status()).toBe(200);
 
     // Verify DB/API Status & completed_at
@@ -116,7 +124,8 @@ test.describe('P0 Project Lifecycle Semantics & Monthly Completed Projects KPI S
     // Verify Monthly KPI Incremented by +1
     const postSummaryRes = await request.get('/api/dashboard/today-summary?date=2026-08-08');
     const postSummary = await postSummaryRes.json();
-    const postCount = postSummary.completed_this_month?.count ?? 0;
+    const postData = postSummary.data || postSummary;
+    const postCount = postData.completed_this_month?.count ?? 0;
     expect(postCount).toBe(initCount + 1);
 
     // Verify UI Status Badge shows [완료] in COMPLETED Tab
