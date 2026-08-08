@@ -97,10 +97,15 @@ export async function getTodayDashboardSummaryServer(
     }
   });
 
-  const blockedRes = await db
-    .prepare(`SELECT COUNT(*) as count FROM tasks t JOIN projects p ON t.project_id = p.id WHERE p.status = 'ACTIVE' AND t.is_blocked = 1`)
-    .first();
-  const blockedCount = Number(blockedRes?.count || 0);
+  let blockedCount = 0;
+  try {
+    const blockedRes = await db
+      .prepare(`SELECT COUNT(*) as count FROM tasks t JOIN projects p ON t.project_id = p.id WHERE p.status = 'ACTIVE' AND t.is_blocked = 1`)
+      .first();
+    blockedCount = Number(blockedRes?.count || 0);
+  } catch (e) {
+    blockedCount = 0;
+  }
 
   return {
     date: businessDate,
