@@ -227,20 +227,27 @@ export const ProjectOverviewPage: React.FC = () => {
     }
   };
 
+  const fetchRequestIdRef = useRef(0);
+
   const fetchProjects = async () => {
+    const requestId = ++fetchRequestIdRef.current;
     try {
       setLoading(true);
       const [data, tasksData] = await Promise.all([
         api.getProjects(activeTab, activeTab === 'COMPLETED' ? selectedYear : undefined),
         api.getTasks(),
       ]);
+      if (requestId !== fetchRequestIdRef.current) return;
+
       const projectList = data || [];
       setProjects(projectList);
       setAllTasks(tasksData || []);
 
+      // Load allocations asynchronously in background without blocking table rendering
       const allocMap: Record<string, any[]> = {};
-      await Promise.all(
-        projectList.map(async (p) => {
+      const activeOnly = projectList.filter((p) => p.status === 'ACTIVE');
+      Promise.all(
+        activeOnly.map(async (p) => {
           try {
             const pAlloc = await api.getProjectWorkerAllocations(p.id);
             allocMap[p.id] = pAlloc || [];
@@ -248,12 +255,17 @@ export const ProjectOverviewPage: React.FC = () => {
             allocMap[p.id] = [];
           }
         })
-      );
-      setAllocationsMap(allocMap);
+      ).then(() => {
+        if (requestId === fetchRequestIdRef.current) {
+          setAllocationsMap(allocMap);
+        }
+      }).catch(() => {});
     } catch (err: any) {
       console.error(err);
     } finally {
-      setLoading(false);
+      if (requestId === fetchRequestIdRef.current) {
+        setLoading(false);
+      }
     }
   };
 

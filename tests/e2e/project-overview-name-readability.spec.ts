@@ -59,8 +59,8 @@ async function dismissBlockingModals(page: any) {
 test.describe('P1 Project Overview Name Readability & Hardened Assertions Suite', () => {
   test.beforeEach(async ({ page }) => {
     await page.addInitScript(() => {
-      localStorage.setItem('schedule_current_worker_id', 'wrk_02');
-      localStorage.setItem('schedule_current_worker_name', '박용진 수석');
+      localStorage.setItem('schedule_current_worker_id', 'wrk_00_ceo');
+      localStorage.setItem('schedule_current_worker_name', 'CEO');
     });
   });
 
@@ -112,13 +112,11 @@ test.describe('P1 Project Overview Name Readability & Hardened Assertions Suite'
       await page.goto('/projects');
       await dismissBlockingModals(page);
 
-      // Click ALL tab to view all projects
       const allTabBtn = page.locator('[data-testid="all-tab-btn"]').first();
-      if (await allTabBtn.isVisible().catch(() => false)) {
-        await allTabBtn.evaluate((el: any) => el.click());
-        await page.waitForTimeout(1000);
-      }
-      await dismissBlockingModals(page);
+      await allTabBtn.waitFor({ state: 'visible', timeout: 10000 });
+      await allTabBtn.evaluate((el: any) => el.click());
+      await page.waitForTimeout(500);
+
       await page.waitForSelector('[data-testid^="project-name-row-"]', { timeout: 30000 });
 
       // A. Mandatory 3/3 Projects Check with Strict Assertions
@@ -206,11 +204,9 @@ test.describe('P1 Project Overview Name Readability & Hardened Assertions Suite'
     await page.goto('/projects');
     await dismissBlockingModals(page);
     const allTabBtn = page.locator('[data-testid="all-tab-btn"]').first();
-    if (await allTabBtn.isVisible().catch(() => false)) {
-      await allTabBtn.click({ force: true }).catch(() => {});
-      await page.waitForTimeout(500);
-    }
-    await dismissBlockingModals(page);
+    await allTabBtn.waitFor({ state: 'visible', timeout: 10000 });
+    await allTabBtn.evaluate((el: any) => el.click());
+    await page.waitForTimeout(500);
     await page.waitForSelector('[data-testid="desktop-gantt-canvas"]');
 
     const headerGrid = page.locator('[data-testid="overview-gantt-header-grid"]');
