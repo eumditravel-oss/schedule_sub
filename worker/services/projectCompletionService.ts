@@ -85,7 +85,7 @@ export async function completeProjectService(
     statements.push(
       db
         .prepare(
-          'UPDATE tasks SET completion_confirmed = 1, progress = 100, actual_progress = 100, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
+          'UPDATE tasks SET completion_confirmed = 1, progress = 100, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
         )
         .bind(t.id)
     );
@@ -138,7 +138,7 @@ export async function completeProjectService(
   const postPrj = await db.prepare('SELECT status FROM projects WHERE id = ?').bind(projectId).first();
   const { results: postIncomplete } = await db
     .prepare(
-      'SELECT id FROM tasks WHERE project_id = ? AND (completion_confirmed != 1 OR COALESCE(actual_progress, progress, 0) < 100)'
+      'SELECT id FROM tasks WHERE project_id = ? AND (completion_confirmed != 1 OR COALESCE(progress, 0) < 100)'
     )
     .bind(projectId)
     .all();
