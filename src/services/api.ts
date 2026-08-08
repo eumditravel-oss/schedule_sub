@@ -218,13 +218,22 @@ export const api = {
     return handleResponse<{ id: string }>(res);
   },
 
-  async completeProject(id: string): Promise<Project> {
+  async completeProject(id: string, mode: 'STRICT' | 'COMPLETE_ALL' = 'COMPLETE_ALL'): Promise<any> {
     const res = await fetch(`/api/projects/${id}/complete`, {
+      method: 'POST',
+      headers: getWriteHeaders(),
+      body: JSON.stringify({ mode }),
+    });
+    return handleResponse<any>(res);
+  },
+
+  async repairProjectCompletion(id: string): Promise<any> {
+    const res = await fetch(`/api/projects/${id}/completion-repair`, {
       method: 'POST',
       headers: getWriteHeaders(),
       body: JSON.stringify({}),
     });
-    return handleResponse<Project>(res);
+    return handleResponse<any>(res);
   },
 
   async reopenProject(id: string): Promise<Project> {

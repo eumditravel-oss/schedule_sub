@@ -365,17 +365,19 @@ export const ProjectOverviewPage: React.FC = () => {
     }
   };
 
+  const refreshOverviewData = async () => {
+    await Promise.all([
+      fetchProjects(),
+      fetchCompletedYears(),
+      fetchCalendarData(),
+    ]);
+  };
+
   const handleConfirmBatchCompleteProject = async () => {
     if (!completeModalState.project) return;
     const pId = completeModalState.project.id;
-    const tasksToComplete = completeModalState.incompleteTasks;
-
-    await Promise.all(
-      tasksToComplete.map((t) => api.updateTask(t.id, { progress: 100, completion_confirmed: 1 }))
-    );
-    await api.completeProject(pId);
-    await fetchProjects();
-    await fetchCompletedYears();
+    await api.completeProject(pId, 'COMPLETE_ALL');
+    await refreshOverviewData();
   };
 
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
@@ -1301,6 +1303,11 @@ export const ProjectOverviewPage: React.FC = () => {
           project={completeModalState.project}
           incompleteTasks={completeModalState.incompleteTasks}
           onClose={() => setCompleteModalState({ isOpen: false, project: null, incompleteTasks: [] })}
+          onViewIncompleteTasks={() => {
+            if (completeModalState.project) {
+              navigate(`/projects/${completeModalState.project.id}?filter=incomplete`);
+            }
+          }}
           onConfirmBatchComplete={handleConfirmBatchCompleteProject}
         />
       )}

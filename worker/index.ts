@@ -38,6 +38,7 @@ import {
 import { OPENAPI_V1_SPEC } from './services/openapiSpec';
 import { getTodayDashboardSummaryServer } from './services/todaySummaryService';
 import { getProjectAllocations, updateProjectAllocations } from './services/projectAllocationService';
+import { completeProjectService } from './services/projectCompletionService';
 
 export interface Env {
   DB: any;
@@ -2047,28 +2048,57 @@ function addPureCalendarDays(dateStr: string, deltaDays: number): string {
       const completeMatch = path.match(/^\/api\/projects\/([^/]+)\/complete$/);
       if (method === 'POST' && completeMatch) {
         const projectId = completeMatch[1];
-        const body: any = await request.json();
-        const editor = getEditorName(body, request);
-        const editCheck = await requireEditableWorker(db, editor);
+        const body: any = await request.json().catch(() => ({}));
+        const editorName = getEditorName(body, request);
+        const editCheck = await requireEditableWorker(db, editorName);
         if (!editCheck.allowed) {
           return errorResponse(editCheck.errorMsg!, 403, editCheck.errorCode!);
         }
 
-        const todayStr = getKoreaDateString();
+        const mode = body.mode === 'STRICT' ? 'STRICT' : 'COMPLETE_ALL';
+        const result = await completeProjectService(db, {
+          projectId,
+          mode,
+          editor: editCheck.worker ? { id: editCheck.worker.id, name: editCheck.worker.name } : { name: editorName },
+        });
 
-        await db
-          .prepare(
-            `UPDATE projects SET
-              status = 'COMPLETED', progress = 100,
-              completed_at = ?, completed_by_name = ?,
-              updated_at = CURRENT_TIMESTAMP
-            WHERE id = ?`
-          )
-          .bind(todayStr, editor, projectId)
-          .run();
+        if (!result.success) {
+          return errorResponse(result.message!, result.status, result.code, result);
+        }
 
         const updated = await db.prepare(`SELECT * FROM projects WHERE id = ?`).bind(projectId).first();
-        return jsonResponse(updated);
+        return jsonResponse({
+          ...result,
+          project: updated,
+        });
+      }
+
+      // 8-1. POST /api/projects/:id/completion-repair
+      const repairMatch = path.match(/^\/api\/projects\/([^/]+)\/completion-repair$/);
+      if (method === 'POST' && repairMatch) {
+        const projectId = repairMatch[1];
+        const body: any = await request.json().catch(() => ({}));
+        const editorName = getEditorName(body, request);
+        const editCheck = await requireEditableWorker(db, editorName);
+        if (!editCheck.allowed) {
+          return errorResponse(editCheck.errorMsg!, 403, editCheck.errorCode!);
+        }
+
+        const result = await completeProjectService(db, {
+          projectId,
+          mode: 'REPAIR',
+          editor: editCheck.worker ? { id: editCheck.worker.id, name: editCheck.worker.name } : { name: editorName },
+        });
+
+        if (!result.success) {
+          return errorResponse(result.message!, result.status, result.code, result);
+        }
+
+        const updated = await db.prepare(`SELECT * FROM projects WHERE id = ?`).bind(projectId).first();
+        return jsonResponse({
+          ...result,
+          project: updated,
+        });
       }
 
       // 9. POST /api/projects/:id/reopen
