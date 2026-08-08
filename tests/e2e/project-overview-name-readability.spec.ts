@@ -31,25 +31,24 @@ const evidenceData = {
 };
 
 async function dismissBlockingModals(page: any) {
-  const workerModal = page.locator('[data-testid="worker-prompt-modal"]');
-  if (await workerModal.isVisible().catch(() => false)) {
-    const btn = page.locator('[data-testid^="worker-prompt-option-"]').first();
-    if (await btn.isVisible().catch(() => false)) {
-      await btn.click({ force: true }).catch(() => {});
+  for (let i = 0; i < 4; i++) {
+    const workerModalBtn = page.locator('[data-testid^="worker-prompt-option-"]').first();
+    if (await workerModalBtn.isVisible().catch(() => false)) {
+      await workerModalBtn.click({ force: true }).catch(() => {});
       await page.waitForTimeout(300);
     }
-  }
 
-  const calendarModalClose = page.locator('[data-testid="calendar-modal-close-btn"]').first();
-  if (await calendarModalClose.isVisible().catch(() => false)) {
-    await calendarModalClose.click({ force: true }).catch(() => {});
-    await page.waitForTimeout(300);
-  }
+    const calendarModalClose = page.locator('[data-testid="calendar-modal-close-btn"]').first();
+    if (await calendarModalClose.isVisible().catch(() => false)) {
+      await calendarModalClose.click({ force: true }).catch(() => {});
+      await page.waitForTimeout(300);
+    }
 
-  const pendingConfirm = page.locator('button:has-text("유지")').first();
-  if (await pendingConfirm.isVisible().catch(() => false)) {
-    await pendingConfirm.click({ force: true }).catch(() => {});
-    await page.waitForTimeout(300);
+    const keepBtn = page.locator('button').filter({ hasText: /현재 변경된 작업 일정 유지|유지|확인|닫기/ }).first();
+    if (await keepBtn.isVisible().catch(() => false)) {
+      await keepBtn.click({ force: true }).catch(() => {});
+      await page.waitForTimeout(300);
+    }
   }
 }
 
@@ -58,8 +57,8 @@ test.describe('P1 Project Overview Name Readability & Hardened Assertions Suite'
 
   test.beforeEach(async ({ page }) => {
     await page.addInitScript(() => {
-      localStorage.setItem('schedule_current_worker_id', 'wrk_02');
-      localStorage.setItem('schedule_current_worker_name', '박용진 수석');
+      localStorage.setItem('schedule_current_worker_id', 'wrk_00_ceo');
+      localStorage.setItem('schedule_current_worker_name', 'CEO');
     });
   });
 
