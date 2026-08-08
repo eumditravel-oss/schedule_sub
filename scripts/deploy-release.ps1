@@ -40,7 +40,7 @@ if ($prodSchemaCheck -notmatch "schedule_revision") {
 
 # 4. Deploy QA Worker
 Write-Host "Deploying QA Worker..." -ForegroundColor Yellow
-cmd /c "npx wrangler deploy -e qa --var BUILD_SHA:$sha --var ENVIRONMENT_NAME:qa --var DEPLOYED_AT:$deployedAt"
+cmd /c "npx wrangler deploy -e qa --var BUILD_SHA:$sha --var ENVIRONMENT_NAME:qa"
 if ($LASTEXITCODE -ne 0) {
   Write-Error "QA Worker deployment failed."
   exit 1
@@ -95,7 +95,7 @@ foreach ($testFile in $criticalReleaseSpecs) {
 
 # 6. Deploy Production Worker
 Write-Host "Deploying Production Worker..." -ForegroundColor Yellow
-cmd /c "npx wrangler deploy --var BUILD_SHA:$sha --var ENVIRONMENT_NAME:production --var DEPLOYED_AT:$deployedAt"
+cmd /c "npx wrangler deploy --var BUILD_SHA:$sha --var ENVIRONMENT_NAME:production"
 if ($LASTEXITCODE -ne 0) {
   Write-Error "Production Worker deployment failed."
   exit 1
@@ -119,8 +119,21 @@ try {
 
 # 7. Perform 5-Way SHA Verification
 Write-Host "Performing 5-Way SHA Verification..." -ForegroundColor Yellow
-$qaVer = (Invoke-RestMethod -Uri "https://concost-dev-scheduler-qa.eumditravel.workers.dev/api/version").data.commit
-$prodVer = (Invoke-RestMethod -Uri "https://concost-dev-scheduler.eumditravel.workers.dev/api/version").data.commit
+$qaVer = ""
+$prodVer = ""
+$retry = 0
+
+while ($retry -lt 5) {
+  try {
+    $qaVer = (Invoke-RestMethod -Uri "https://concost-dev-scheduler-qa.eumditravel.workers.dev/api/version").data.commit
+    $prodVer = (Invoke-RestMethod -Uri "https://concost-dev-scheduler.eumditravel.workers.dev/api/version").data.commit
+    if ($qaVer -eq $sha -and $prodVer -eq $sha) {
+      break
+    }
+  } catch {}
+  $retry++
+  Start-Sleep -Seconds 2
+}
 
 if ($sha -ne $qaVer -or $sha -ne $prodVer) {
   Write-Error "BUILD_SHA_MISMATCH: Git HEAD ($sha) does not match QA ($qaVer) or Production ($prodVer)."
