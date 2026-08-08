@@ -80,7 +80,7 @@ describe('Project Readiness Audit Engine (Updated V2.2)', () => {
     expect(readiness.issue_groups['OVERDUE_TASK']).toBeUndefined();
     // Generates single PROJECT_COMPLETION_INCONSISTENCY risk
     expect(readiness.status).toBe('RISK');
-    expect(readiness.badge_text_ko).toBe('완료 불일치');
+    expect(readiness.badge_text_ko).toBe('완료 불일치 1');
     expect(readiness.issue_groups['PROJECT_COMPLETION_INCONSISTENCY']).toBeDefined();
     expect(readiness.issue_groups['PROJECT_COMPLETION_INCONSISTENCY'].count).toBe(1);
   });

@@ -6,9 +6,11 @@ import { useI18n } from '../hooks/useI18n';
 import { Users, AlertTriangle, CheckCircle2, HelpCircle, Calendar, RefreshCw, ArrowLeft, Grid, LayoutList } from 'lucide-react';
 import { ProjectWorkforceModal } from '../components/modals/ProjectWorkforceModal';
 import { AllocationMatrix } from '../components/workforce/AllocationMatrix';
+import { AllocationHistoryView } from '../components/workforce/AllocationHistoryView';
 import { useNavigate } from 'react-router-dom';
 import { calculateWorkerCapacityForRange, WorkerRangeCapacityResult } from '../utils/capacityEngine';
 import { getKoreaDateString } from '../utils/dateUtils';
+import { History } from 'lucide-react';
 
 export const WorkforceCapacityPage: React.FC = () => {
   const { lang } = useI18n();
@@ -22,7 +24,7 @@ export const WorkforceCapacityPage: React.FC = () => {
   const [holidays, setHolidays] = useState<CountryHoliday[]>([]);
   const [overrides, setOverrides] = useState<CalendarOverride[]>([]);
 
-  const [viewMode, setViewMode] = useState<'BOARD' | 'MATRIX'>('BOARD');
+  const [viewMode, setViewMode] = useState<'BOARD' | 'MATRIX' | 'HISTORY'>('BOARD');
   const [filterMode, setFilterMode] = useState<'TODAY' | 'WEEK' | 'MONTH' | 'CUSTOM'>('TODAY');
 
   const todayStr = getKoreaDateString();
@@ -191,6 +193,17 @@ export const WorkforceCapacityPage: React.FC = () => {
                 <Grid className="w-4 h-4" />
                 <span>{lang === 'vi' ? 'Ma trận (Matrix)' : '투입률 편집 Matrix'}</span>
               </button>
+              <button
+                type="button"
+                data-testid="view-mode-history-btn"
+                onClick={() => setViewMode('HISTORY')}
+                className={`px-3 py-1.5 rounded-md transition font-bold flex items-center gap-1.5 cursor-pointer ${
+                  viewMode === 'HISTORY' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                <History className="w-4 h-4" />
+                <span>{lang === 'vi' ? 'Lịch sử' : '변경 이력 (History)'}</span>
+              </button>
             </div>
 
             {/* Filter Mode Switcher */}
@@ -318,6 +331,8 @@ export const WorkforceCapacityPage: React.FC = () => {
             <RefreshCw className="w-5 h-5 animate-spin text-blue-600" />
             <span>{lang === 'vi' ? 'Đang tải dữ liệu...' : '인력 투입 현황 데이터를 분석하는 중...'}</span>
           </div>
+        ) : viewMode === 'HISTORY' ? (
+          <AllocationHistoryView workers={workers} projects={projects} />
         ) : viewMode === 'MATRIX' ? (
           <AllocationMatrix
             workers={workers}

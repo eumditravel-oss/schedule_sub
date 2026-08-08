@@ -37,7 +37,7 @@ import {
 } from './services/integrationAuthServer';
 import { OPENAPI_V1_SPEC } from './services/openapiSpec';
 import { getTodayDashboardSummaryServer } from './services/todaySummaryService';
-import { getProjectAllocations, updateProjectAllocations } from './services/projectAllocationService';
+import { getProjectAllocations, updateProjectAllocations, getAllocationHistory, getProjectAllocationHistory } from './services/projectAllocationService';
 import { completeProjectService } from './services/projectCompletionService';
 
 export interface Env {
@@ -2127,6 +2127,39 @@ function addPureCalendarDays(dateStr: string, deltaDays: number): string {
 
         const updated = await db.prepare(`SELECT * FROM projects WHERE id = ?`).bind(projectId).first();
         return jsonResponse(updated);
+      }
+
+      // 9-1. GET /api/workforce/allocation-history
+      if (method === 'GET' && path === '/api/workforce/allocation-history') {
+        const dateFrom = url.searchParams.get('date_from') || undefined;
+        const dateTo = url.searchParams.get('date_to') || undefined;
+        const workerId = url.searchParams.get('worker_id') || undefined;
+        const projectId = url.searchParams.get('project_id') || undefined;
+        const changedBy = url.searchParams.get('changed_by') || undefined;
+        const changeType = url.searchParams.get('change_type') || undefined;
+        const limitStr = url.searchParams.get('limit');
+        const offsetStr = url.searchParams.get('offset');
+
+        const history = await getAllocationHistory(db, {
+          dateFrom,
+          dateTo,
+          workerId,
+          projectId,
+          changedBy,
+          changeType,
+          limit: limitStr ? parseInt(limitStr, 10) : undefined,
+          offset: offsetStr ? parseInt(offsetStr, 10) : undefined,
+        });
+
+        return jsonResponse(history);
+      }
+
+      // 9-2. GET /api/projects/:id/worker-allocation-history
+      const prjHistMatch = path.match(/^\/api\/projects\/([^/]+)\/worker-allocation-history$/);
+      if (method === 'GET' && prjHistMatch) {
+        const projectId = prjHistMatch[1];
+        const history = await getProjectAllocationHistory(db, projectId);
+        return jsonResponse(history);
       }
 
       // 10. GET /api/calendar/holidays

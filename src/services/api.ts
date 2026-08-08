@@ -371,6 +371,35 @@ export const api = {
     }
   },
 
+  async getAllocationHistory(params?: {
+    date_from?: string;
+    date_to?: string;
+    worker_id?: string;
+    project_id?: string;
+    changed_by?: string;
+    change_type?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<any[]> {
+    const query = new URLSearchParams();
+    if (params?.date_from) query.set('date_from', params.date_from);
+    if (params?.date_to) query.set('date_to', params.date_to);
+    if (params?.worker_id) query.set('worker_id', params.worker_id);
+    if (params?.project_id) query.set('project_id', params.project_id);
+    if (params?.changed_by) query.set('changed_by', params.changed_by);
+    if (params?.change_type) query.set('change_type', params.change_type);
+    if (params?.limit) query.set('limit', String(params.limit));
+    if (params?.offset) query.set('offset', String(params.offset));
+
+    const res = await fetch(`/api/workforce/allocation-history?${query.toString()}`);
+    return handleResponse<any[]>(res);
+  },
+
+  async getProjectAllocationHistory(projectId: string): Promise<any[]> {
+    const res = await fetch(`/api/projects/${projectId}/worker-allocation-history`);
+    return handleResponse<any[]>(res);
+  },
+
   async createOverride(data: any): Promise<CalendarOverride[]> {
     const res = await fetch('/api/calendar/overrides', {
       method: 'POST',

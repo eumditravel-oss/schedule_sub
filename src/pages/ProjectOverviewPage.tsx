@@ -204,6 +204,14 @@ export const ProjectOverviewPage: React.FC = () => {
       if (found) {
         setCurrentWorker(found);
         setLanguage(found.ui_language || (found.country_code === 'VN' ? 'vi' : 'ko'));
+        if (!hasAppliedRoleDefaultRef.current) {
+          hasAppliedRoleDefaultRef.current = true;
+          if (isExecutiveViewer(found)) {
+            setActiveTab('ALL');
+          } else {
+            setActiveTab('ACTIVE');
+          }
+        }
         if (!isExecutiveViewer(found)) {
           api.getPendingScheduleDecisions().then((pds) => {
             if (pds && pds.length > 0) {
@@ -249,6 +257,8 @@ export const ProjectOverviewPage: React.FC = () => {
     }
   };
 
+  const hasAppliedRoleDefaultRef = useRef(false);
+
   useEffect(() => {
     fetchCompletedYears();
     fetchCalendarData();
@@ -259,10 +269,19 @@ export const ProjectOverviewPage: React.FC = () => {
   }, [activeTab, selectedYear]);
 
   const handleSelectWorkerProfile = (w: Worker) => {
+    const isPrevExecutive = currentWorker ? isExecutiveViewer(currentWorker) : false;
+    const isNextExecutive = isExecutiveViewer(w);
+
     setCurrentWorker(w);
     setCurrentWorkerApi(w);
     const targetLang = w.ui_language || (w.country_code === 'VN' ? 'vi' : 'ko');
     setLanguage(targetLang);
+
+    if (isNextExecutive) {
+      setActiveTab('ALL');
+    } else if (isPrevExecutive && !isNextExecutive) {
+      setActiveTab('ACTIVE');
+    }
   };
 
   const requireWorkerSelection = (): boolean => {

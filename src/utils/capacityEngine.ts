@@ -44,6 +44,35 @@ export interface WorkerRangeCapacityResult {
 }
 
 /**
+ * Reconstructs worker allocation percentage as of a specific date from history ledger.
+ */
+export function getAllocationAsOf(
+  projectId: string,
+  workerId: string,
+  dateStr: string,
+  currentAllocations: ProjectWorkerAllocation[],
+  historyLogs: any[] = []
+): number | null {
+  const targetEnd = `${dateStr} 23:59:59`;
+  const matchingLogs = historyLogs.filter(
+    (h) => h.project_id === projectId && h.worker_id === workerId && h.changed_at <= targetEnd
+  );
+
+  if (matchingLogs.length > 0) {
+    matchingLogs.sort((a, b) => (a.changed_at < b.changed_at ? 1 : -1));
+    const lastLog = matchingLogs[0];
+    return lastLog.new_allocation_percent !== null && lastLog.new_allocation_percent !== undefined
+      ? Number(lastLog.new_allocation_percent)
+      : null;
+  }
+
+  const cur = currentAllocations.find((a) => a.project_id === projectId && a.worker_id === workerId);
+  return cur && cur.allocation_percent !== undefined && cur.allocation_percent !== null
+    ? Number(cur.allocation_percent)
+    : null;
+}
+
+/**
  * Calculates daily capacity for a worker on a specific date.
  */
 export function getDailyWorkerCapacity(

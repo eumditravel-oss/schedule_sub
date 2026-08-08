@@ -269,9 +269,11 @@ export function calculateProjectReadiness(
 
   if (isCompletedProject) {
     if (riskCount > 0) {
+      const group = groupsMap['PROJECT_COMPLETION_INCONSISTENCY'];
+      const unconfCount = group ? group.count : riskCount;
       status = 'RISK';
-      badge_text_ko = '완료 불일치';
-      badge_text_vi = 'Không đồng bộ';
+      badge_text_ko = `완료 불일치 ${unconfCount}`;
+      badge_text_vi = `Không đồng bộ ${unconfCount}`;
       badge_color_class = 'bg-amber-100 text-amber-900 border-amber-300 font-extrabold';
     } else {
       status = 'READY';

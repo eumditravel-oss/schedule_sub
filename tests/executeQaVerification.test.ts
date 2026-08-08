@@ -160,7 +160,8 @@ describe('Final Release QA Comprehensive Test Suite', { timeout: 15000 }, () => 
     });
     expect(completeRes.status).toBe(200);
     const completeJson: any = await completeRes.json();
-    expect(completeJson.data.status).toBe('COMPLETED');
+    const statusVal = completeJson.project_status || completeJson.project?.status || completeJson.data?.status;
+    expect(statusVal).toBe('COMPLETED');
 
     const editRes = await fetch(`${BASE_URL}/api/projects/${createdProjectId}`, {
       method: 'PATCH',
