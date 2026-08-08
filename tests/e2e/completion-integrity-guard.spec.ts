@@ -22,6 +22,7 @@ test.describe('Completion Integrity Guard & Health Check Suite', () => {
     const prjRes = await fetch(`${BASE_URL}/api/projects`, {
       method: 'POST',
       headers: {
+        'Accept': 'application/json',
         'Content-Type': 'application/json',
         'x-editor-name': encodeURIComponent(EDITOR_NAME),
       },
@@ -42,6 +43,7 @@ test.describe('Completion Integrity Guard & Health Check Suite', () => {
         const taskRes = await fetch(`${BASE_URL}/api/tasks`, {
           method: 'POST',
           headers: {
+            'Accept': 'application/json',
             'Content-Type': 'application/json',
             'x-editor-name': encodeURIComponent(EDITOR_NAME),
           },
@@ -54,6 +56,7 @@ test.describe('Completion Integrity Guard & Health Check Suite', () => {
             progress_mode: 'AUTO_TIME',
             progress: 30,
             completion_confirmed: 0,
+            confirm_worker_schedule_conflict: true,
           }),
         });
         expect(taskRes.status).toBe(201);
@@ -63,6 +66,7 @@ test.describe('Completion Integrity Guard & Health Check Suite', () => {
       const strictRes = await fetch(`${BASE_URL}/api/projects/${projectId}/complete`, {
         method: 'POST',
         headers: {
+          'Accept': 'application/json',
           'Content-Type': 'application/json',
           'x-editor-name': encodeURIComponent(EDITOR_NAME),
         },
@@ -74,7 +78,9 @@ test.describe('Completion Integrity Guard & Health Check Suite', () => {
       expect(errCode).toBe('PROJECT_HAS_INCOMPLETE_TASKS');
 
       // Verify project status remains ACTIVE
-      const activePrjRes = await fetch(`${BASE_URL}/api/projects/${projectId}/detail`).then((r) => r.json());
+      const activePrjRes = await fetch(`${BASE_URL}/api/projects/${projectId}/detail`, {
+        headers: { 'Accept': 'application/json' },
+      }).then((r) => r.json());
       const activeStatus = activePrjRes.data?.project?.status || activePrjRes.project?.status;
       expect(activeStatus).toBe('ACTIVE');
 
@@ -82,6 +88,7 @@ test.describe('Completion Integrity Guard & Health Check Suite', () => {
       const atomicRes = await fetch(`${BASE_URL}/api/projects/${projectId}/complete`, {
         method: 'POST',
         headers: {
+          'Accept': 'application/json',
           'Content-Type': 'application/json',
           'x-editor-name': encodeURIComponent(EDITOR_NAME),
         },
@@ -90,7 +97,9 @@ test.describe('Completion Integrity Guard & Health Check Suite', () => {
       expect(atomicRes.status).toBe(200);
 
       // Verify completed status and child task confirmation
-      const completedDetailRes = await fetch(`${BASE_URL}/api/projects/${projectId}/detail`).then((r) => r.json());
+      const completedDetailRes = await fetch(`${BASE_URL}/api/projects/${projectId}/detail`, {
+        headers: { 'Accept': 'application/json' },
+      }).then((r) => r.json());
       const completedStatus = completedDetailRes.data?.project?.status || completedDetailRes.project?.status;
       const tasks = completedDetailRes.data?.tasks || completedDetailRes.tasks || [];
 
@@ -101,18 +110,24 @@ test.describe('Completion Integrity Guard & Health Check Suite', () => {
         expect(Number(t.progress)).toBe(100);
       });
 
-      // E. Re-verify Health Check endpoint maintains 0 inconsistencies
-      const healthRes = await fetch(`${BASE_URL}/api/health/completion-integrity`).then((r) => r.json());
-      const healthData = healthRes.data || healthRes;
-      expect(healthData.inconsistent_projects).toBe(0);
-      expect(healthData.inconsistent_tasks).toBe(0);
+      // E. Health Check after atomic completion: inconsistent count === 0
+      const postHealthRes = await fetch(`${BASE_URL}/api/health/completion-integrity`, {
+        headers: { 'Accept': 'application/json' },
+      });
+      const postHealthJson = await postHealthRes.json();
+      const postHealthData = postHealthJson.data || postHealthJson;
+      expect(postHealthData.inconsistent_projects).toBe(0);
+      expect(postHealthData.inconsistent_tasks).toBe(0);
 
     } finally {
-      // F. Clean up test project
+      // Clean up test project
       await fetch(`${BASE_URL}/api/projects/${projectId}`, {
         method: 'DELETE',
-        headers: { 'x-editor-name': encodeURIComponent(EDITOR_NAME) },
-      });
+        headers: {
+          'Accept': 'application/json',
+          'x-editor-name': encodeURIComponent(EDITOR_NAME),
+        },
+      }).catch(() => {});
     }
   });
 });
