@@ -31,7 +31,7 @@ test.describe('Completion Integrity Guard & Health Check Suite', () => {
         end_date: '2026-08-31',
       }),
     });
-    expect(prjRes.status).toBe(200);
+    expect(prjRes.status).toBe(201);
     const prjJson = await prjRes.json();
     const projectId = prjJson.data?.id || prjJson.id;
     expect(projectId).toBeDefined();
@@ -56,7 +56,7 @@ test.describe('Completion Integrity Guard & Health Check Suite', () => {
             completion_confirmed: 0,
           }),
         });
-        expect(taskRes.status).toBe(200);
+        expect(taskRes.status).toBe(201);
       }
 
       // C. STRICT mode: complete project with incomplete tasks -> HTTP 409
