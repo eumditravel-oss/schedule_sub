@@ -117,17 +117,20 @@ test.describe('P1 Project Overview Name Readability & Hardened Assertions Suite'
         }
       }
 
-      // C. READY Badge Count MUST be 0 on normal projects
-      let readyCountOnNormal = 0;
+      // C. READY Badge ("정상" / "Bình thường") MUST be 0 on project rows
+      let totalReadyBadgeCount = 0;
       for (const expectedName of TARGET_PROJECT_NAMES) {
         const projectRow = page.locator('[role="row"]').filter({ hasText: expectedName }).first();
         await expect(projectRow).toBeVisible();
-        const readinessBadge = projectRow.locator('[data-testid="project-readiness-badge"]');
-        const badgeCount = await readinessBadge.count();
-        readyCountOnNormal += badgeCount;
+
+        // Check no READY text badge exists
+        const readyTextBadges = projectRow.locator('[data-testid="project-readiness-badge"]').filter({ hasText: /정상|Bình thường/ });
+        const readyBadgeCount = await readyTextBadges.count();
+        expect(readyBadgeCount).toBe(0);
+        totalReadyBadgeCount += readyBadgeCount;
       }
-      expect(readyCountOnNormal).toBe(0);
-      evidenceData.ready_badge_count_on_normal_projects = readyCountOnNormal;
+      expect(totalReadyBadgeCount).toBe(0);
+      evidenceData.ready_badge_count_on_normal_projects = totalReadyBadgeCount;
 
       // D. Warning Badge & Project Name Overlap Check (Must be 0px)
       const rowsWithWarning = page.locator('[role="row"]').filter({
