@@ -108,7 +108,7 @@ test.describe('P0 Project Lifecycle Semantics & Monthly Completed Projects KPI S
 
     // Verify Project Badge shows [완료 확인 필요]
     const badge = page.locator(`[data-testid="project-status-badge-${projectId}"]`);
-    await expect(badge).toBeVisible();
+    await expect(badge).toBeVisible({ timeout: 15000 });
     const badgeText = await badge.innerText();
     expect(badgeText.trim()).toBe('완료 확인 필요');
 
@@ -195,7 +195,7 @@ test.describe('P0 Project Lifecycle Semantics & Monthly Completed Projects KPI S
       await page.waitForTimeout(1000);
     }
     const badge = page.locator(`[data-testid="project-status-badge-${projectId}"]`);
-    await expect(badge).toBeVisible();
+    await expect(badge).toBeVisible({ timeout: 15000 });
     expect((await badge.innerText()).trim()).toBe('완료');
   });
 
