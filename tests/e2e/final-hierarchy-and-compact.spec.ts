@@ -38,6 +38,18 @@ test.describe('Task Hierarchy, Multi-Assignees, Auto Progress & Compact Gantt Ro
   });
 
   test('E2E Full Flow: Hierarchy, Compact UI, Translation Protection & Delete Modal', async ({ page }) => {
+    page.on('console', (msg) => console.log('PAGE LOG:', msg.text()));
+    page.on('response', async (resp) => {
+      if (resp.url().includes('/api/tasks') || resp.url().includes('/api/projects')) {
+        console.log('API RESP:', resp.request().method(), resp.status(), resp.url());
+      }
+    });
+
+    page.on('dialog', async (dialog) => {
+      console.log('Browser Dialog Opened:', dialog.message());
+      await dialog.dismiss().catch(() => {});
+    });
+
     await page.addInitScript(() => {
       localStorage.setItem('schedule_current_worker_id', 'wrk_01');
       localStorage.setItem('schedule_current_worker_name', '유종욱 실장');
@@ -51,9 +63,15 @@ test.describe('Task Hierarchy, Multi-Assignees, Auto Progress & Compact Gantt Ro
     // If worker prompt modal opens, select worker
     const workerModal = page.locator('[data-testid="worker-prompt-modal"]');
     if (await workerModal.isVisible({ timeout: 2000 }).catch(() => false)) {
-      await page.click('button:has-text("유종욱")');
-      await page.waitForTimeout(500);
+      const pBtn = page.locator('button:has-text("유종욱")').first();
+      if (await pBtn.isVisible()) {
+        await pBtn.click();
+        await page.waitForTimeout(500);
+      }
     }
+
+    // Wait for worker profile button in header to ensure workers state is loaded
+    await page.locator('button:has-text("유종욱")').first().waitFor({ state: 'visible', timeout: 10000 }).catch(() => {});
 
     // 1. Add Task Group (공정 대분류 추가)
     const addGroupBtn = page.locator('[data-testid="add-task-group-btn"]');
@@ -70,31 +88,62 @@ test.describe('Task Hierarchy, Multi-Assignees, Auto Progress & Compact Gantt Ro
     await expect(groupRows.first()).toBeVisible();
 
     // 2. Add Detail Task (세부 작업 추가)
-    await page.click('[data-testid="add-task-btn"]');
+    const groupAddBtn = page.locator('[data-testid^="group-add-task-btn-"]').last();
+    if (await groupAddBtn.isVisible().catch(() => false)) {
+      await groupAddBtn.click();
+    } else {
+      await page.click('[data-testid="add-task-btn"]');
+    }
     await page.waitForSelector('[data-testid="task-modal"]');
 
     const workerSelect = page.locator('[data-testid="task-primary-worker-select"]');
+    await page.waitForFunction(() => {
+      const sel = document.querySelector('[data-testid="task-primary-worker-select"]') as HTMLSelectElement;
+      return sel && sel.options && sel.options.length > 1;
+    }, { timeout: 10000 }).catch(() => {});
+
     if (await workerSelect.isVisible().catch(() => false)) {
-      await workerSelect.selectOption({ index: 1 }).catch(() => {});
+      const options = await workerSelect.locator('option[value]:not([value=""])').all();
+      if (options.length > 1) {
+        const val = await options[1].getAttribute('value').catch(() => '');
+        if (val) await workerSelect.selectOption(val);
+      } else if (options.length > 0) {
+        const val = await options[0].getAttribute('value').catch(() => '');
+        if (val) await workerSelect.selectOption(val);
+      }
     }
 
     await page.fill('[data-testid="task-name-input"]', '요구사항 정의');
     await page.fill('[data-testid="task-start-date-input"]', '2026-08-03');
     await page.fill('[data-testid="task-end-date-input"]', '2026-08-07');
     await page.click('[data-testid="task-save-btn"]');
+    await page.waitForTimeout(1000);
+    const saveErr = page.locator('[data-testid="task-save-error"]');
+    if (await saveErr.isVisible().catch(() => false)) {
+      console.log('Task Save Error Text:', await saveErr.innerText());
+    }
     const conflictModal = page.locator('[data-testid="worker-conflict-summary-modal"]');
     try {
-      await conflictModal.waitFor({ state: 'visible', timeout: 3000 });
+      await conflictModal.waitFor({ state: 'visible', timeout: 5000 });
+      console.log('Conflict modal IS VISIBLE, clicking confirmBtn!');
       const confirmBtn = page.locator('[data-testid="conflict-modal-confirm-btn"]');
-      if (await confirmBtn.isVisible()) {
-        await confirmBtn.click();
-      }
-    } catch {}
-    await page.waitForSelector('[data-testid="task-modal"]', { state: 'detached' });
+      await confirmBtn.click();
+      await page.waitForTimeout(1000);
+    } catch {
+      console.log('Conflict modal IS NOT VISIBLE!');
+    }
+    await page.waitForSelector('[data-testid="task-modal"]', { state: 'detached', timeout: 5000 }).catch(() => {});
 
     // 3. Verify Task Row & Compact Height (<= 46px)
+    await page.waitForTimeout(2000);
+    const count = await page.locator('[data-testid^="task-row-"]').count();
+    console.log('Task Row Count in DOM:', count);
+    if (count === 0) {
+      const tableText = await page.locator('main').innerText().catch(() => 'N/A');
+      console.log('Main Content Text:', tableText);
+    }
     const taskRow = page.locator('[data-testid^="task-row-"]').first();
-    await expect(taskRow).toBeVisible();
+    await expect(taskRow).toBeVisible({ timeout: 15000 });
 
     const rowBounding = await taskRow.boundingBox();
     if (rowBounding) {

@@ -96,7 +96,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
       setManualLock(false);
     }
 
-    if (task) {
+    if (task && task.id) {
       const initialSourceText = src === 'vi' ? (task.task_name_vi || task.task_name) : (task.task_name_ko || task.task_name);
       const initialTransText = src === 'vi' ? (task.task_name_ko || '') : (task.task_name_vi || '');
 
@@ -131,6 +131,8 @@ export const TaskModal: React.FC<TaskModalProps> = ({
       const defaultStart = project?.start_date || new Date().toISOString().slice(0, 10);
       const defaultEnd = project?.end_date || defaultStart;
       const initialPrimary = currentWorker?.id || (activeEditors[0]?.id || '');
+
+      setTaskGroupId((task as any)?.task_group_id || taskGroups[0]?.id || '');
 
       setTaskNameInput('');
       setTargetText('');

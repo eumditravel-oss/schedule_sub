@@ -904,7 +904,7 @@ export const ProjectDetailPage: React.FC = () => {
 
   const [conflictModalState, setConflictModalState] = useState<{
     isOpen: boolean;
-    conflicts: ScheduleConflictDetail[];
+    conflicts: any[];
     pendingTaskData: (Partial<Task> & Record<string, any>) | null;
   }>({
     isOpen: false,
@@ -1589,8 +1589,10 @@ export const ProjectDetailPage: React.FC = () => {
       await fetchProjectDetail();
       setConflictModalState({ isOpen: false, conflicts: [], pendingTaskData: null });
     } catch (err: any) {
+      console.log('handleSaveTask caught error:', err);
       const errCode = err?.code || err?.error?.code;
       const errDetails = err?.details || err?.error?.details;
+      console.log('errCode:', errCode, 'errDetails:', errDetails);
       if (
         err &&
         (errCode === 'CROSS_PROJECT_CONFLICT_CONFIRMATION_REQUIRED' ||
@@ -2563,6 +2565,18 @@ export const ProjectDetailPage: React.FC = () => {
           anchorRect={popoverAnchorRect}
           isOpen={!!popoverTask}
           onClose={() => setPopoverTask(null)}
+        />
+      )}
+
+      {/* Worker Conflict Summary Modal */}
+      {conflictModalState.isOpen && (
+        <WorkerConflictSummaryModal
+          isOpen={conflictModalState.isOpen}
+          conflicts={conflictModalState.conflicts}
+          onClose={() => setConflictModalState({ isOpen: false, conflicts: [], pendingTaskData: null })}
+          onAcknowledgeGroup={async () => {
+            await handleConfirmTaskConflictSave();
+          }}
         />
       )}
 

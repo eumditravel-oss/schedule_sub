@@ -48,7 +48,7 @@ export const WorkerConflictSummaryModal: React.FC<WorkerConflictSummaryModalProp
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 overflow-hidden">
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 overflow-hidden">
       <div
         data-testid="worker-conflict-summary-modal"
         className="w-full max-w-2xl max-h-[85vh] flex flex-col bg-white rounded-2xl shadow-2xl border border-slate-200 text-slate-900 animate-in fade-in zoom-in-95 duration-150 my-auto overflow-hidden"
