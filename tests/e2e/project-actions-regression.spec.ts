@@ -406,12 +406,11 @@ test.describe('P0 Project Actions & Complete CRUD Regression Suite', () => {
     });
     expect(reopenRes.status).toBe(200);
 
-    // Switch back to Active tab
-    const activeTabBtn = page.locator('[data-testid="active-tab-btn"]').first();
-    await activeTabBtn.click();
-    await page.waitForTimeout(300);
+    // Reload page to refresh project list from server
+    await page.reload();
+    await dismissBlockingModals(page);
 
-    // Verify Edit & Delete buttons REAPPEAR
+    // Verify Edit & Delete buttons REAPPEAR on Active tab
     const activeEditBtn = page.locator(`[data-testid="project-edit-btn-${createdProjectId}"]`);
     await expect(activeEditBtn).toBeVisible({ timeout: 10000 });
   });
