@@ -64,10 +64,33 @@ try {
 
 # 5. Run QA E2E Test Suite
 Write-Host "Running QA E2E Verification..." -ForegroundColor Yellow
-cmd /c "npx playwright test --workers=1 tests/e2e/gantt-inline-content.spec.ts tests/e2e/project-actions-regression.spec.ts tests/e2e/task-modal-runtime.spec.ts tests/e2e/mobile-logo-header.spec.ts tests/e2e/vietnam-saturday-calendar.spec.ts tests/e2e/final-hierarchy-and-compact.spec.ts tests/e2e/task-group-drag-drop.spec.ts tests/e2e/mobile-progress-contract.spec.ts tests/e2e/mobile-week-agenda.spec.ts tests/e2e/mobile-thirty-day-calendar.spec.ts tests/e2e/project-all-status-tab.spec.ts tests/e2e/open-api-production-entry.spec.ts tests/e2e/integration-key-management-ui.spec.ts tests/e2e/header-all-tab-api-responsive.spec.ts tests/e2e/completion-integrity-guard.spec.ts tests/e2e/project-overview-name-readability.spec.ts tests/e2e/today-summary-monthly-completion.spec.ts"
-if ($LASTEXITCODE -ne 0) {
-  Write-Error "QA E2E verification failed."
-  exit 1
+$e2eTests = @(
+  "tests/e2e/gantt-inline-content.spec.ts",
+  "tests/e2e/task-modal-runtime.spec.ts",
+  "tests/e2e/mobile-logo-header.spec.ts",
+  "tests/e2e/vietnam-saturday-calendar.spec.ts",
+  "tests/e2e/final-hierarchy-and-compact.spec.ts",
+  "tests/e2e/mobile-progress-contract.spec.ts",
+  "tests/e2e/mobile-week-agenda.spec.ts",
+  "tests/e2e/mobile-thirty-day-calendar.spec.ts",
+  "tests/e2e/open-api-production-entry.spec.ts",
+  "tests/e2e/integration-key-management-ui.spec.ts",
+  "tests/e2e/header-all-tab-api-responsive.spec.ts",
+  "tests/e2e/project-all-status-tab.spec.ts",
+  "tests/e2e/project-overview-name-readability.spec.ts",
+  "tests/e2e/today-summary-monthly-completion.spec.ts",
+  "tests/e2e/task-group-drag-drop.spec.ts",
+  "tests/e2e/completion-integrity-guard.spec.ts",
+  "tests/e2e/project-actions-regression.spec.ts"
+)
+
+foreach ($testFile in $e2eTests) {
+  Write-Host "Running E2E Spec: $testFile" -ForegroundColor Cyan
+  cmd /c "npx playwright test --workers=1 --project=chromium $testFile"
+  if ($LASTEXITCODE -ne 0) {
+    Write-Error "QA E2E verification failed on $testFile."
+    exit 1
+  }
 }
 
 # 6. Deploy Production Worker
