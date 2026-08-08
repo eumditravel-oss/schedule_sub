@@ -123,10 +123,11 @@ $qaVer = ""
 $prodVer = ""
 $retry = 0
 
-while ($retry -lt 5) {
+while ($retry -lt 8) {
   try {
-    $qaVer = (Invoke-RestMethod -Uri "https://concost-dev-scheduler-qa.eumditravel.workers.dev/api/version").data.commit
-    $prodVer = (Invoke-RestMethod -Uri "https://concost-dev-scheduler.eumditravel.workers.dev/api/version").data.commit
+    $nowTicks = [DateTimeOffset]::Now.ToUnixTimeMilliseconds()
+    $qaVer = (Invoke-RestMethod -Uri "https://concost-dev-scheduler-qa.eumditravel.workers.dev/api/version?t=$nowTicks" -Headers @{ "Cache-Control" = "no-cache" }).data.commit
+    $prodVer = (Invoke-RestMethod -Uri "https://concost-dev-scheduler.eumditravel.workers.dev/api/version?t=$nowTicks" -Headers @{ "Cache-Control" = "no-cache" }).data.commit
     if ($qaVer -eq $sha -and $prodVer -eq $sha) {
       break
     }
