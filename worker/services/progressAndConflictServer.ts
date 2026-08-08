@@ -173,6 +173,11 @@ export interface ProjectProgressMetricsServer {
   unscheduled_task_count: number;
 }
 
+/**
+ * Calculates project progress metrics server-side.
+ * Note: For COMPLETED projects (status === 'COMPLETED'), performs a Calendar day-matrix calculation bypass
+ * returning 100% display progress immediately without day-by-day calendar loops.
+ */
 export function calculateProjectProgressServer(
   project: any,
   tasks: any[] = [],

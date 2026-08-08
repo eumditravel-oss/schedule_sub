@@ -1012,7 +1012,7 @@ export async function fetchTaskAssigneesMapServer(db: any, taskIds: string[]): P
         name: row.name,
         country_code: row.country_code,
         assignment_role: row.assignment_role,
-        allocation_percent: Number(row.allocation_percent) || 100,
+        allocation_percent: row.allocation_percent == null ? 100 : Number(row.allocation_percent),
         sort_order: Number(row.sort_order) || 0,
       });
     }

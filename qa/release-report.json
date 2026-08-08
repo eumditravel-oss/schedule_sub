@@ -1,0 +1,17 @@
+{
+  "release_tag": "v2.4-stabilization",
+  "git_sha": "0509046049d287693ef84c1712dae0987c638b92",
+  "qa_sha": "0509046049d287693ef84c1712dae0987c638b92",
+  "prod_sha": "0509046049d287693ef84c1712dae0987c638b92",
+  "sha_match": true,
+  "critical_release_gate_specs": 17,
+  "total_repository_specs": 58,
+  "excluded_specs": 41,
+  "health_status": "PASS",
+  "integrity_verification": {
+    "completion_inconsistent_projects": 0,
+    "completion_inconsistent_tasks": 0
+  },
+  "browser": "chromium",
+  "generated_at": "2026-08-08T14:05:11.570Z"
+}

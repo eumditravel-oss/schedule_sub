@@ -335,7 +335,7 @@ export async function upsertTaskService(
       return {
         worker_id: w ? w.id : a.worker_id,
         name: w ? w.name : (a.name || a.worker_id),
-        allocation_percent: Number(a.allocation_percent) || 100,
+        allocation_percent: a.allocation_percent == null ? 100 : Number(a.allocation_percent),
       };
     })
   );

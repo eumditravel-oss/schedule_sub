@@ -62,9 +62,9 @@ try {
   exit 1
 }
 
-# 5. Run QA E2E Test Suite
-Write-Host "Running QA E2E Verification..." -ForegroundColor Yellow
-$e2eTests = @(
+# 5. Run QA Critical Release Gate Spec Suite (17 Specs)
+Write-Host "Running QA Critical Release Gate Verification (17 Specs)..." -ForegroundColor Yellow
+$criticalReleaseSpecs = @(
   "tests/e2e/gantt-inline-content.spec.ts",
   "tests/e2e/task-modal-runtime.spec.ts",
   "tests/e2e/mobile-logo-header.spec.ts",
@@ -84,11 +84,11 @@ $e2eTests = @(
   "tests/e2e/project-actions-regression.spec.ts"
 )
 
-foreach ($testFile in $e2eTests) {
-  Write-Host "Running E2E Spec: $testFile" -ForegroundColor Cyan
+foreach ($testFile in $criticalReleaseSpecs) {
+  Write-Host "Running Critical Release Gate Spec: $testFile" -ForegroundColor Cyan
   cmd /c "npx playwright test --workers=1 --project=chromium $testFile"
   if ($LASTEXITCODE -ne 0) {
-    Write-Error "QA E2E verification failed on $testFile."
+    Write-Error "QA Critical Release Gate verification failed on $testFile."
     exit 1
   }
 }

@@ -363,18 +363,19 @@ export default {
 
       // 0.02 GET /api/health/scheduler-integrity
       if (method === 'GET' && (cleanPath === '/api/health/scheduler-integrity' || path.startsWith('/api/health/scheduler-integrity'))) {
+        const domainErrors: Array<{ domain: string; code: string }> = [];
+
         // 1. Completion Domain
-        let compPrjList: any[] = [];
+        let compStatus: 'PASS' | 'FAIL' | 'ERROR' = 'PASS';
+        let inconsistentProjectsCount: number | null = 0;
+
         try {
           const { results } = await db.prepare("SELECT id FROM projects WHERE status = 'COMPLETED'").all();
-          compPrjList = results || [];
-        } catch {}
+          const compPrjList = results || [];
+          const compPrjIds = compPrjList.map((p: any) => p.id);
+          let badCount = 0;
 
-        const compPrjIds = compPrjList.map((p) => p.id);
-        let inconsistentProjectsCount = 0;
-
-        if (compPrjIds.length > 0) {
-          try {
+          if (compPrjIds.length > 0) {
             const tasksInComp: any[] = [];
             const CHUNK_SIZE = 50;
             for (let i = 0; i < compPrjIds.length; i += CHUNK_SIZE) {
@@ -395,76 +396,107 @@ export default {
             for (const prjId of compPrjIds) {
               const pTasks = tasksByPrj.get(prjId) || [];
               const hasBad = pTasks.some((t) => Number(t.completion_confirmed) !== 1 || Number(t.progress) < 100);
-              if (hasBad) inconsistentProjectsCount++;
+              if (hasBad) badCount++;
             }
-          } catch {}
+          }
+          inconsistentProjectsCount = badCount;
+          compStatus = badCount === 0 ? 'PASS' : 'FAIL';
+        } catch (err: any) {
+          console.error('[Health] COMPLETION_INTEGRITY_QUERY_FAILED:', err);
+          compStatus = 'ERROR';
+          inconsistentProjectsCount = null;
+          domainErrors.push({ domain: 'completion', code: 'COMPLETION_INTEGRITY_QUERY_FAILED' });
         }
 
         // 2. Tasks Domain
-        let missingPicCount = 0;
-        try {
-          const { results } = await db.prepare(`
-            SELECT t.id 
-            FROM tasks t 
-            LEFT JOIN task_assignees ta ON t.id = ta.task_id AND ta.assignment_role = 'PRIMARY'
-            WHERE t.schedule_status = 'SCHEDULED' 
-              AND (t.primary_worker_id IS NULL OR t.primary_worker_id = '') 
-              AND ta.worker_id IS NULL
-          `).all();
-          missingPicCount = (results || []).length;
-        } catch {}
+        let tasksStatus: 'PASS' | 'FAIL' | 'ERROR' = 'PASS';
+        let missingPicCount: number | null = 0;
+        let invalidAssigneeCount: number | null = 0;
+        let outsideRangeCount: number | null = 0;
 
-        let invalidAssigneeCount = 0;
         try {
-          const { results } = await db.prepare(`
-            SELECT ta.id 
-            FROM task_assignees ta 
-            LEFT JOIN workers w ON ta.worker_id = w.id 
-            LEFT JOIN tasks t ON ta.task_id = t.id 
-            WHERE w.id IS NULL OR t.id IS NULL
-          `).all();
-          invalidAssigneeCount = (results || []).length;
-        } catch {}
+          const [picRes, assigneeRes, rangeRes] = await Promise.all([
+            db.prepare(`
+              SELECT t.id 
+              FROM tasks t 
+              LEFT JOIN task_assignees ta ON t.id = ta.task_id AND ta.assignment_role = 'PRIMARY'
+              WHERE t.schedule_status = 'SCHEDULED' 
+                AND (t.primary_worker_id IS NULL OR t.primary_worker_id = '') 
+                AND ta.worker_id IS NULL
+            `).all(),
+            db.prepare(`
+              SELECT ta.id 
+              FROM task_assignees ta 
+              LEFT JOIN workers w ON ta.worker_id = w.id 
+              LEFT JOIN tasks t ON ta.task_id = t.id 
+              WHERE w.id IS NULL OR t.id IS NULL
+            `).all(),
+            db.prepare(`
+              SELECT t.id 
+              FROM tasks t 
+              JOIN projects p ON t.project_id = p.id 
+              WHERE (t.start_date IS NOT NULL AND p.start_date IS NOT NULL AND t.start_date < p.start_date)
+                 OR (t.end_date IS NOT NULL AND p.end_date IS NOT NULL AND t.end_date > p.end_date)
+            `).all(),
+          ]);
 
-        let outsideRangeCount = 0;
-        try {
-          const { results } = await db.prepare(`
-            SELECT t.id 
-            FROM tasks t 
-            JOIN projects p ON t.project_id = p.id 
-            WHERE (t.start_date IS NOT NULL AND p.start_date IS NOT NULL AND t.start_date < p.start_date)
-               OR (t.end_date IS NOT NULL AND p.end_date IS NOT NULL AND t.end_date > p.end_date)
-          `).all();
-          outsideRangeCount = (results || []).length;
-        } catch {}
+          missingPicCount = (picRes.results || []).length;
+          invalidAssigneeCount = (assigneeRes.results || []).length;
+          outsideRangeCount = (rangeRes.results || []).length;
+
+          if ((missingPicCount || 0) > 0 || (invalidAssigneeCount || 0) > 0 || (outsideRangeCount || 0) > 0) {
+            tasksStatus = 'FAIL';
+          }
+        } catch (err: any) {
+          console.error('[Health] TASKS_INTEGRITY_QUERY_FAILED:', err);
+          tasksStatus = 'ERROR';
+          missingPicCount = null;
+          invalidAssigneeCount = null;
+          outsideRangeCount = null;
+          domainErrors.push({ domain: 'tasks', code: 'TASKS_INTEGRITY_QUERY_FAILED' });
+        }
 
         // 3. Workforce Domain
-        let invalidAllocCount = 0;
-        try {
-          const { results } = await db.prepare(`
-            SELECT a.id 
-            FROM project_worker_allocations a 
-            LEFT JOIN projects p ON a.project_id = p.id 
-            LEFT JOIN workers w ON a.worker_id = w.id 
-            WHERE p.id IS NULL OR w.id IS NULL OR a.allocation_percent < 0 OR a.allocation_percent > 100
-          `).all();
-          invalidAllocCount = (results || []).length;
-        } catch {}
+        let workforceStatus: 'PASS' | 'FAIL' | 'ERROR' = 'PASS';
+        let invalidAllocCount: number | null = 0;
+        let historyOrphanCount: number | null = 0;
 
-        let historyOrphanCount = 0;
         try {
-          const { results } = await db.prepare(`
-            SELECT h.id 
-            FROM project_worker_allocation_history h 
-            LEFT JOIN projects p ON h.project_id = p.id 
-            LEFT JOIN workers w ON h.worker_id = w.id 
-            WHERE p.id IS NULL OR w.id IS NULL
-          `).all();
-          historyOrphanCount = (results || []).length;
-        } catch {}
+          const [allocRes, histRes] = await Promise.all([
+            db.prepare(`
+              SELECT a.id 
+              FROM project_worker_allocations a 
+              LEFT JOIN projects p ON a.project_id = p.id 
+              LEFT JOIN workers w ON a.worker_id = w.id 
+              WHERE p.id IS NULL OR w.id IS NULL OR a.allocation_percent < 0 OR a.allocation_percent > 100
+            `).all(),
+            db.prepare(`
+              SELECT h.id 
+              FROM project_worker_allocation_history h 
+              LEFT JOIN projects p ON h.project_id = p.id 
+              LEFT JOIN workers w ON h.worker_id = w.id 
+              WHERE p.id IS NULL OR w.id IS NULL
+            `).all(),
+          ]);
+
+          invalidAllocCount = (allocRes.results || []).length;
+          historyOrphanCount = (histRes.results || []).length;
+
+          if ((invalidAllocCount || 0) > 0 || (historyOrphanCount || 0) > 0) {
+            workforceStatus = 'FAIL';
+          }
+        } catch (err: any) {
+          console.error('[Health] WORKFORCE_INTEGRITY_QUERY_FAILED:', err);
+          workforceStatus = 'ERROR';
+          invalidAllocCount = null;
+          historyOrphanCount = null;
+          domainErrors.push({ domain: 'workforce', code: 'WORKFORCE_INTEGRITY_QUERY_FAILED' });
+        }
 
         // 4. Calendar Domain
-        let invalidCalendarCount = 0;
+        let calendarStatus: 'PASS' | 'FAIL' | 'ERROR' = 'PASS';
+        let invalidCalendarCount: number | null = 0;
+
         try {
           const { results } = await db.prepare(`
             SELECT o.id 
@@ -473,10 +505,18 @@ export default {
             WHERE o.worker_id IS NOT NULL AND w.id IS NULL
           `).all();
           invalidCalendarCount = (results || []).length;
-        } catch {}
+          if ((invalidCalendarCount || 0) > 0) calendarStatus = 'FAIL';
+        } catch (err: any) {
+          console.error('[Health] CALENDAR_INTEGRITY_QUERY_FAILED:', err);
+          calendarStatus = 'ERROR';
+          invalidCalendarCount = null;
+          domainErrors.push({ domain: 'calendar', code: 'CALENDAR_INTEGRITY_QUERY_FAILED' });
+        }
 
         // 5. Integration Domain
-        let orphanIntegrationCount = 0;
+        let integrationStatus: 'PASS' | 'FAIL' | 'ERROR' = 'PASS';
+        let orphanIntegrationCount: number | null = 0;
+
         try {
           const { results } = await db.prepare(`
             SELECT l.id 
@@ -485,14 +525,28 @@ export default {
             WHERE k.id IS NULL
           `).all();
           orphanIntegrationCount = (results || []).length;
-        } catch {}
+          if ((orphanIntegrationCount || 0) > 0) integrationStatus = 'FAIL';
+        } catch (err: any) {
+          console.error('[Health] INTEGRATION_INTEGRITY_QUERY_FAILED:', err);
+          integrationStatus = 'ERROR';
+          orphanIntegrationCount = null;
+          domainErrors.push({ domain: 'integration', code: 'INTEGRATION_INTEGRITY_QUERY_FAILED' });
+        }
 
         // 6. Project Lifecycle Domain
-        let activeScheduleCompletedCount = 0;
-        let completedMissingTimestampCount = 0;
+        let lifecycleStatus: 'PASS' | 'FAIL' | 'ERROR' = 'PASS';
+        let activeScheduleCompletedCount: number | null = 0;
+        let completedMissingTimestampCount: number | null = 0;
+
         try {
-          const { results: activePrjs } = await db.prepare("SELECT id FROM projects WHERE status = 'ACTIVE'").all();
-          const activeList = (activePrjs || []) as any[];
+          const [activePrjsRes, nullRes] = await Promise.all([
+            db.prepare("SELECT id FROM projects WHERE status = 'ACTIVE'").all(),
+            db.prepare("SELECT COUNT(*) as count FROM projects WHERE status = 'COMPLETED' AND completed_at IS NULL").first(),
+          ]);
+
+          completedMissingTimestampCount = Number(nullRes?.count || 0);
+
+          const activeList = (activePrjsRes.results || []) as any[];
           if (activeList.length > 0) {
             const activeIds = activeList.map((p) => p.id);
             const activeTasks: any[] = [];
@@ -513,47 +567,70 @@ export default {
               tasksByPrj.get(t.project_id)!.push(t);
             }
 
+            let doneCount = 0;
             for (const prjId of activeIds) {
               const pTasks = tasksByPrj.get(prjId) || [];
               if (pTasks.length > 0) {
                 const allDone = pTasks.every((t) => Number(t.completion_confirmed) === 1 && Number(t.progress) >= 100);
-                if (allDone) activeScheduleCompletedCount++;
+                if (allDone) doneCount++;
               }
             }
+            activeScheduleCompletedCount = doneCount;
           }
-        } catch {}
 
-        try {
-          const nullRes = await db.prepare("SELECT COUNT(*) as count FROM projects WHERE status = 'COMPLETED' AND completed_at IS NULL").first();
-          completedMissingTimestampCount = Number(nullRes?.count || 0);
-        } catch {}
+          if (completedMissingTimestampCount > 0) {
+            lifecycleStatus = 'FAIL';
+          }
+        } catch (err: any) {
+          console.error('[Health] PROJECT_LIFECYCLE_INTEGRITY_QUERY_FAILED:', err);
+          lifecycleStatus = 'ERROR';
+          activeScheduleCompletedCount = null;
+          completedMissingTimestampCount = null;
+          domainErrors.push({ domain: 'project_lifecycle', code: 'PROJECT_LIFECYCLE_INTEGRITY_QUERY_FAILED' });
+        }
+
+        const domainStatuses = [compStatus, tasksStatus, workforceStatus, calendarStatus, integrationStatus, lifecycleStatus];
+        const globalStatus: 'PASS' | 'FAIL' | 'ERROR' =
+          domainErrors.length > 0
+            ? 'ERROR'
+            : domainStatuses.includes('FAIL')
+            ? 'FAIL'
+            : 'PASS';
 
         return jsonResponse({
+          status: globalStatus,
+          errors: domainErrors,
           completion: {
-            status: inconsistentProjectsCount === 0 ? 'PASS' : 'FAIL',
+            status: compStatus,
             inconsistent_projects: inconsistentProjectsCount,
           },
           project_lifecycle: {
+            status: lifecycleStatus,
             active_schedule_completed: activeScheduleCompletedCount,
             completed_missing_completed_at: completedMissingTimestampCount,
           },
           tasks: {
+            status: tasksStatus,
             missing_pic: missingPicCount,
             invalid_assignee_relation: invalidAssigneeCount,
             outside_project_range: outsideRangeCount,
           },
           workforce: {
+            status: workforceStatus,
             invalid_allocation: invalidAllocCount,
             history_orphan: historyOrphanCount,
           },
           calendar: {
+            status: calendarStatus,
             invalid_worker_profile: invalidCalendarCount,
           },
           integration: {
+            status: integrationStatus,
             orphan_entity_links: orphanIntegrationCount,
           },
           build: {
-            status: 'PASS',
+            backend_sha: env.BUILD_SHA || 'unknown',
+            status: 'BACKEND_ONLY',
           },
         });
       }

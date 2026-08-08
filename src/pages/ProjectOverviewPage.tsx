@@ -68,6 +68,7 @@ export const ProjectOverviewPage: React.FC = () => {
   const [vnHolidays, setVnHolidays] = useState<CountryHoliday[]>([]);
   const [calendarOverrides, setCalendarOverrides] = useState<CalendarOverride[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isAllocationsLoading, setIsAllocationsLoading] = useState(false);
 
   // Mobile View Mode state
   const [mobileViewMode, setMobileViewMode] = useState<MobileViewMode>(() => {
@@ -97,6 +98,14 @@ export const ProjectOverviewPage: React.FC = () => {
   const [allocationsMap, setAllocationsMap] = useState<Record<string, any[]>>({});
   const [isWorkforceModalOpen, setIsWorkforceModalOpen] = useState(false);
   const [selectedWorkforceProject, setSelectedWorkforceProject] = useState<Project | null>(null);
+
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => {
+      setToastMessage((prev) => (prev === msg ? null : prev));
+    }, 3000);
+  };
 
   const handleOpenWorkforceModal = (p: Project) => {
     setSelectedWorkforceProject(p);
@@ -233,6 +242,8 @@ export const ProjectOverviewPage: React.FC = () => {
     const requestId = ++fetchRequestIdRef.current;
     try {
       setLoading(true);
+      setAllocationsMap({});
+      setIsAllocationsLoading(true);
       const [data, tasksData] = await Promise.all([
         api.getProjects(activeTab, activeTab === 'COMPLETED' ? selectedYear : undefined),
         api.getTasks(),
@@ -258,8 +269,13 @@ export const ProjectOverviewPage: React.FC = () => {
       ).then(() => {
         if (requestId === fetchRequestIdRef.current) {
           setAllocationsMap(allocMap);
+          setIsAllocationsLoading(false);
         }
-      }).catch(() => {});
+      }).catch(() => {
+        if (requestId === fetchRequestIdRef.current) {
+          setIsAllocationsLoading(false);
+        }
+      });
     } catch (err: any) {
       console.error(err);
     } finally {
@@ -310,7 +326,7 @@ export const ProjectOverviewPage: React.FC = () => {
 
   const handleOpenAddModal = () => {
     if (isExecutiveViewer(currentWorker)) {
-      alert(lang === 'vi' ? 'Tài khoản quản lý chỉ có quyền xem lịch trình.' : '경영진 계정은 일정을 조회할 수만 있습니다.');
+      showToast(lang === 'vi' ? 'Tài khoản quản lý chỉ có quyền xem lịch trình.' : '경영진 계정은 일정을 조회할 수만 있습니다.');
       return;
     }
     if (!requireWorkerSelection()) return;
@@ -320,7 +336,7 @@ export const ProjectOverviewPage: React.FC = () => {
 
   const handleSaveProject = async (data: Partial<Project>) => {
     if (isExecutiveViewer(currentWorker)) {
-      alert(lang === 'vi' ? 'Tài khoản quản lý chỉ có quyền xem lịch trình.' : '경영진 계정은 일정을 조회할 수만 있습니다.');
+      showToast(lang === 'vi' ? 'Tài khoản quản lý chỉ có quyền xem lịch trình.' : '경영진 계정은 일정을 조회할 수만 있습니다.');
       return;
     }
     if (!requireWorkerSelection()) return;
@@ -368,7 +384,7 @@ export const ProjectOverviewPage: React.FC = () => {
 
   const handleCompleteProject = async (project: Project) => {
     if (isExecutiveViewer(currentWorker)) {
-      alert(lang === 'vi' ? 'Tài khoản quản lý chỉ có quyền xem lịch trình.' : '경영진 계정은 일정을 조회할 수만 있습니다.');
+      showToast(lang === 'vi' ? 'Tài khoản quản lý chỉ có quyền xem lịch trình.' : '경영진 계정은 일정을 조회할 수만 있습니다.');
       return;
     }
     if (!requireWorkerSelection()) return;
@@ -404,7 +420,7 @@ export const ProjectOverviewPage: React.FC = () => {
 
   const handleEditProject = (project: Project) => {
     if (isExecutiveViewer(currentWorker)) {
-      alert(lang === 'vi' ? 'Tài khoản quản lý chỉ có quyền xem lịch trình.' : '경영진 계정은 일정을 조회할 수만 있습니다.');
+      showToast(lang === 'vi' ? 'Tài khoản quản lý chỉ có quyền xem lịch trình.' : '경영진 계정은 일정을 조회할 수만 있습니다.');
       return;
     }
     if (!requireWorkerSelection()) return;
@@ -414,7 +430,7 @@ export const ProjectOverviewPage: React.FC = () => {
 
   const handleOpenDeleteModal = (project: Project) => {
     if (isExecutiveViewer(currentWorker)) {
-      alert(lang === 'vi' ? 'Tài khoản quản lý chỉ có quyền xem lịch trình.' : '경영진 계정은 일정을 조회할 수만 있습니다.');
+      showToast(lang === 'vi' ? 'Tài khoản quản lý chỉ có quyền xem lịch trình.' : '경영진 계정은 일정을 조회할 수만 있습니다.');
       return;
     }
     if (!requireWorkerSelection()) return;
@@ -1069,12 +1085,18 @@ export const ProjectOverviewPage: React.FC = () => {
                                       {lang === 'vi' ? `Trùng ${project.conflict_count}` : `⚠ 충돌 ${project.conflict_count}건`}
                                     </button>
                                   ) : null}
-                                  <ProjectReadinessPopover
-                                    readiness={calculateProjectReadiness(project, allTasks, allocationsMap[project.id] || [], workers)}
-                                    projectName={displayName}
-                                    hideIfReady={true}
-                                    onOpenWorkforceModal={() => handleOpenWorkforceModal(project)}
-                                  />
+                                  {!isAllocationsLoading ? (
+                                    <ProjectReadinessPopover
+                                      readiness={calculateProjectReadiness(project, allTasks, allocationsMap[project.id] || [], workers)}
+                                      projectName={displayName}
+                                      hideIfReady={true}
+                                      onOpenWorkforceModal={() => handleOpenWorkforceModal(project)}
+                                    />
+                                  ) : (
+                                    <span className="text-[9px] text-slate-400 animate-pulse px-1 py-0.5 rounded border border-slate-100 bg-slate-50 select-none">
+                                      ...
+                                    </span>
+                                  )}
                                 </div>
                               </div>
 
@@ -1385,6 +1407,16 @@ export const ProjectOverviewPage: React.FC = () => {
           }}
           onSaved={fetchProjects}
         />
+      )}
+
+      {/* Toast Notification */}
+      {toastMessage && (
+        <div
+          data-testid="overview-toast"
+          className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow-xl border border-slate-800 flex items-center gap-2 animate-in fade-in slide-in-from-bottom-2 duration-200"
+        >
+          <span>{toastMessage}</span>
+        </div>
       )}
 
       {/* Build Version Indicator */}
