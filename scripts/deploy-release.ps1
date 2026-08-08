@@ -46,9 +46,24 @@ if ($LASTEXITCODE -ne 0) {
   exit 1
 }
 
+# 4.5 Verify QA Completion Integrity Health Check
+Write-Host "Verifying QA Completion Integrity Health Check..." -ForegroundColor Yellow
+try {
+  $qaHealthRes = Invoke-RestMethod -Uri "https://concost-dev-scheduler-qa.eumditravel.workers.dev/api/health/completion-integrity" -Method Get
+  $qaData = $qaHealthRes.data
+  if ($qaData.inconsistent_projects -gt 0 -or $qaData.inconsistent_tasks -gt 0) {
+    Write-Error "COMPLETION_INTEGRITY_REGRESSION: QA environment has $($qaData.inconsistent_projects) inconsistent projects and $($qaData.inconsistent_tasks) inconsistent tasks."
+    exit 1
+  }
+  Write-Host "QA Completion Integrity Verification Passed (Completed Projects: $($qaData.completed_projects), Inconsistent Projects: $($qaData.inconsistent_projects), Inconsistent Tasks: $($qaData.inconsistent_tasks))" -ForegroundColor Green
+} catch {
+  Write-Error "QA Completion Integrity Health Check request failed: $_"
+  exit 1
+}
+
 # 5. Run QA E2E Test Suite
 Write-Host "Running QA E2E Verification..." -ForegroundColor Yellow
-cmd /c "npx playwright test tests/e2e/gantt-inline-content.spec.ts tests/e2e/project-actions-regression.spec.ts tests/e2e/task-modal-runtime.spec.ts tests/e2e/mobile-logo-header.spec.ts tests/e2e/vietnam-saturday-calendar.spec.ts tests/e2e/final-hierarchy-and-compact.spec.ts tests/e2e/task-group-drag-drop.spec.ts tests/e2e/mobile-progress-contract.spec.ts tests/e2e/mobile-week-agenda.spec.ts tests/e2e/mobile-thirty-day-calendar.spec.ts tests/e2e/project-all-status-tab.spec.ts tests/e2e/open-api-production-entry.spec.ts tests/e2e/integration-key-management-ui.spec.ts tests/e2e/header-all-tab-api-responsive.spec.ts"
+cmd /c "npx playwright test tests/e2e/gantt-inline-content.spec.ts tests/e2e/project-actions-regression.spec.ts tests/e2e/task-modal-runtime.spec.ts tests/e2e/mobile-logo-header.spec.ts tests/e2e/vietnam-saturday-calendar.spec.ts tests/e2e/final-hierarchy-and-compact.spec.ts tests/e2e/task-group-drag-drop.spec.ts tests/e2e/mobile-progress-contract.spec.ts tests/e2e/mobile-week-agenda.spec.ts tests/e2e/mobile-thirty-day-calendar.spec.ts tests/e2e/project-all-status-tab.spec.ts tests/e2e/open-api-production-entry.spec.ts tests/e2e/integration-key-management-ui.spec.ts tests/e2e/header-all-tab-api-responsive.spec.ts tests/e2e/completion-integrity-guard.spec.ts"
 if ($LASTEXITCODE -ne 0) {
   Write-Error "QA E2E verification failed."
   exit 1
@@ -59,6 +74,21 @@ Write-Host "Deploying Production Worker..." -ForegroundColor Yellow
 cmd /c "npx wrangler deploy --var BUILD_SHA:$sha --var ENVIRONMENT_NAME:production --var DEPLOYED_AT:$deployedAt"
 if ($LASTEXITCODE -ne 0) {
   Write-Error "Production Worker deployment failed."
+  exit 1
+}
+
+# 6.5 Verify Production Completion Integrity Health Check
+Write-Host "Verifying Production Completion Integrity Health Check..." -ForegroundColor Yellow
+try {
+  $prodHealthRes = Invoke-RestMethod -Uri "https://concost-dev-scheduler.eumditravel.workers.dev/api/health/completion-integrity" -Method Get
+  $prodData = $prodHealthRes.data
+  if ($prodData.inconsistent_projects -gt 0 -or $prodData.inconsistent_tasks -gt 0) {
+    Write-Error "COMPLETION_INTEGRITY_REGRESSION: Production environment has $($prodData.inconsistent_projects) inconsistent projects and $($prodData.inconsistent_tasks) inconsistent tasks."
+    exit 1
+  }
+  Write-Host "Production Completion Integrity Verification Passed (Completed Projects: $($prodData.completed_projects), Inconsistent Projects: $($prodData.inconsistent_projects), Inconsistent Tasks: $($prodData.inconsistent_tasks))" -ForegroundColor Green
+} catch {
+  Write-Error "Production Completion Integrity Health Check request failed: $_"
   exit 1
 }
 

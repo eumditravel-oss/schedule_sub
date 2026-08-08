@@ -400,6 +400,11 @@ export const api = {
     return handleResponse<any[]>(res);
   },
 
+  async getCompletionIntegrityHealth(): Promise<{ completed_projects: number; inconsistent_projects: number; inconsistent_tasks: number; details: any[] }> {
+    const res = await fetch('/api/health/completion-integrity');
+    return handleResponse<any>(res);
+  },
+
   async createOverride(data: any): Promise<CalendarOverride[]> {
     const res = await fetch('/api/calendar/overrides', {
       method: 'POST',

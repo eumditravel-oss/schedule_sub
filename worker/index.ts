@@ -296,6 +296,65 @@ export default {
         });
       }
 
+      // 0.01 GET /api/health/completion-integrity
+      if (method === 'GET' && path === '/api/health/completion-integrity') {
+        const { results: completedProjects } = await db
+          .prepare("SELECT id, name, name_ko, status FROM projects WHERE status = 'COMPLETED'")
+          .all();
+
+        const prjList = (completedProjects || []) as any[];
+        const prjIds = prjList.map((p) => p.id);
+
+        let inconsistentProjectsCount = 0;
+        let inconsistentTasksCount = 0;
+        const details: any[] = [];
+
+        if (prjIds.length > 0) {
+          const placeholders = prjIds.map(() => '?').join(',');
+          const { results: tasks } = await db
+            .prepare(`SELECT id, task_name, project_id, progress, completion_confirmed FROM tasks WHERE project_id IN (${placeholders})`)
+            .bind(...prjIds)
+            .all();
+
+          const taskList = (tasks || []) as any[];
+          const tasksByPrj = new Map<string, any[]>();
+          for (const t of taskList) {
+            if (!tasksByPrj.has(t.project_id)) tasksByPrj.set(t.project_id, []);
+            tasksByPrj.get(t.project_id)!.push(t);
+          }
+
+          for (const prj of prjList) {
+            const pTasks = tasksByPrj.get(prj.id) || [];
+            const badTasks = pTasks.filter(
+              (t) => Number(t.completion_confirmed) !== 1 || Number(t.progress) < 100
+            );
+
+            if (badTasks.length > 0) {
+              inconsistentProjectsCount++;
+              inconsistentTasksCount += badTasks.length;
+              details.push({
+                project_id: prj.id,
+                project_name: prj.name_ko || prj.name,
+                inconsistent_task_count: badTasks.length,
+                inconsistent_tasks: badTasks.map((t) => ({
+                  task_id: t.id,
+                  task_name: t.task_name,
+                  progress: t.progress,
+                  completion_confirmed: t.completion_confirmed,
+                })),
+              });
+            }
+          }
+        }
+
+        return jsonResponse({
+          completed_projects: prjList.length,
+          inconsistent_projects: inconsistentProjectsCount,
+          inconsistent_tasks: inconsistentTasksCount,
+          details,
+        });
+      }
+
       // 0.05 GET /api/dashboard/today-summary
       if (method === 'GET' && path === '/api/dashboard/today-summary') {
         const targetDate = url.searchParams.get('date') || getTodayStrForWorkerServer(null);

@@ -1,0 +1,12 @@
+{
+  "expected_changed_tasks": 43,
+  "actual_changed_tasks": 43,
+  "allowed_fields": [
+    "completion_confirmed",
+    "progress",
+    "updated_at"
+  ],
+  "unexpected_field_changes": 0,
+  "schedule_revision_changes": 0,
+  "timestamp": "2026-08-08T05:41:56.250Z"
+}
