@@ -2,6 +2,13 @@
 import { test, expect } from '@playwright/test';
 
 test.describe('P0 Project Lifecycle Semantics & Monthly Completed Projects KPI Suite', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.addInitScript(() => {
+      localStorage.setItem('schedule_current_worker_id', 'wrk_02');
+      localStorage.setItem('schedule_current_worker_name', '박용진 수석');
+    });
+  });
+
   test('1. Pending Completion Project (ACTIVE + schedule COMPLETED) displays [완료 확인 필요], is excluded from Completed Tab & Monthly KPI', async ({ page, request }) => {
     // Fetch a non-VIEWER worker for task assignment
     const workersRes = await request.get('/api/workers');
@@ -85,6 +92,11 @@ test.describe('P0 Project Lifecycle Semantics & Monthly Completed Projects KPI S
     // B. Check Project Overview UI
     await page.setViewportSize({ width: 1366, height: 768 });
     await page.goto('/projects');
+    const workerModal = page.locator('[data-testid="worker-prompt-modal"]');
+    if (await workerModal.isVisible({ timeout: 2000 }).catch(() => false)) {
+      await page.click('button:has-text("박용진")').catch(() => {});
+      await page.waitForTimeout(500);
+    }
     await page.waitForSelector('[data-testid="today-summary-card"]', { timeout: 10000 });
 
     // Click ALL tab
@@ -170,6 +182,11 @@ test.describe('P0 Project Lifecycle Semantics & Monthly Completed Projects KPI S
     // Verify UI Status Badge shows [완료] in ALL Tab
     await page.setViewportSize({ width: 1366, height: 768 });
     await page.goto('/projects');
+    const workerModal = page.locator('[data-testid="worker-prompt-modal"]');
+    if (await workerModal.isVisible({ timeout: 2000 }).catch(() => false)) {
+      await page.click('button:has-text("박용진")').catch(() => {});
+      await page.waitForTimeout(500);
+    }
     await page.waitForSelector('[data-testid="today-summary-card"]');
 
     const allTabBtn = page.locator('[data-testid="all-tab-btn"]').first();
