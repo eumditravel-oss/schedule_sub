@@ -117,4 +117,27 @@ try {
   exit 1
 }
 
+# 7. Perform 5-Way SHA Verification
+Write-Host "Performing 5-Way SHA Verification..." -ForegroundColor Yellow
+$qaVer = (Invoke-RestMethod -Uri "https://concost-dev-scheduler-qa.eumditravel.workers.dev/api/version").data.commit
+$prodVer = (Invoke-RestMethod -Uri "https://concost-dev-scheduler.eumditravel.workers.dev/api/version").data.commit
+
+if ($sha -ne $qaVer -or $sha -ne $prodVer) {
+  Write-Error "BUILD_SHA_MISMATCH: Git HEAD ($sha) does not match QA ($qaVer) or Production ($prodVer)."
+  exit 1
+}
+Write-Host "5-Way SHA Verification Passed: $sha" -ForegroundColor Green
+
+# 8. Generate untracked QA Release Evidence Artifacts
+Write-Host "Generating Release Evidence Reports..." -ForegroundColor Yellow
+cmd /c "node scripts/generate-test-inventory.mjs"
+cmd /c "node scripts/generate-release-report.mjs"
+
+# 9. Ensure Git working directory remains clean (No Self-Mutating Commit)
+$postStatus = (git status --porcelain)
+if ($postStatus) {
+  Write-Error "GIT_DIRTY_AFTER_RELEASE: Release pipeline caused unexpected modifications to tracked git files."
+  exit 1
+}
+
 Write-Host "Release completed successfully for SHA $sha!" -ForegroundColor Green

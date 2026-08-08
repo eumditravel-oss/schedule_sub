@@ -12,6 +12,9 @@ test-results/
 qa/screenshots/
 qa/layout/
 qa/live-production/
+qa/release-report.json
+qa/test-inventory.json
+qa/generated/
 
 # Excel imports & Scratch files
 imports/
