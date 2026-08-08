@@ -4,6 +4,7 @@ export interface TodaySummaryResult {
   scheduled_today: { count: number; task_ids: string[] };
   in_progress: { count: number; task_ids: string[] };
   completed_today: { count: number; task_ids: string[] };
+  completed_this_month: { count: number; project_ids: string[] };
   overdue: { count: number; task_ids: string[] };
   blocked_count?: number;
 }
@@ -12,6 +13,39 @@ export async function getTodayDashboardSummaryServer(
   db: any,
   businessDate: string
 ): Promise<TodaySummaryResult> {
+  // 0. Compute Business Month Range
+  const [yearStr, monthStr] = businessDate.split('-');
+  const year = parseInt(yearStr, 10);
+  const month = parseInt(monthStr, 10);
+
+  const monthStart = `${yearStr}-${monthStr.padStart(2, '0')}-01`;
+  let nextYear = year;
+  let nextMonth = month + 1;
+  if (nextMonth > 12) {
+    nextMonth = 1;
+    nextYear += 1;
+  }
+  const nextMonthStart = `${nextYear}-${String(nextMonth).padStart(2, '0')}-01`;
+
+  // Fetch Monthly Completed Projects (Single Source of Truth: project.completed_at)
+  let completedThisMonthProjectIds: string[] = [];
+  try {
+    const completedPrjsRes = await db
+      .prepare(
+        `SELECT id
+         FROM projects
+         WHERE status = 'COMPLETED'
+           AND completed_at IS NOT NULL
+           AND completed_at >= ?
+           AND completed_at < ?`
+      )
+      .bind(monthStart, nextMonthStart)
+      .all();
+    completedThisMonthProjectIds = (completedPrjsRes.results || []).map((p: any) => p.id);
+  } catch (e) {
+    completedThisMonthProjectIds = [];
+  }
+
   // Fetch active projects (column is 'status')
   const activePrjRes = await db
     .prepare(`SELECT id, status FROM projects WHERE status = 'ACTIVE'`)
@@ -26,6 +60,10 @@ export async function getTodayDashboardSummaryServer(
       scheduled_today: { count: 0, task_ids: [] },
       in_progress: { count: 0, task_ids: [] },
       completed_today: { count: 0, task_ids: [] },
+      completed_this_month: {
+        count: completedThisMonthProjectIds.length,
+        project_ids: completedThisMonthProjectIds,
+      },
       overdue: { count: 0, task_ids: [] },
     };
   }
@@ -112,6 +150,10 @@ export async function getTodayDashboardSummaryServer(
     scheduled_today: { count: scheduledTodayIds.length, task_ids: scheduledTodayIds },
     in_progress: { count: inProgressIds.length, task_ids: inProgressIds },
     completed_today: { count: completedTodayIds.length, task_ids: completedTodayIds },
+    completed_this_month: {
+      count: completedThisMonthProjectIds.length,
+      project_ids: completedThisMonthProjectIds,
+    },
     overdue: { count: overdueIds.length, task_ids: overdueIds },
     blocked_count: blockedCount,
   };
