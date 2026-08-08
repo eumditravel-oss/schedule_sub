@@ -128,7 +128,7 @@ export const ProjectOverviewPage: React.FC = () => {
   } = useGanttDateRange();
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const OVERVIEW_LEFT_WIDTH = 300;
+  const OVERVIEW_LEFT_WIDTH = 350;
 
   const {
     timelineWidth,
@@ -1035,15 +1035,29 @@ export const ProjectOverviewPage: React.FC = () => {
                             }}
                             className="sticky left-0 bg-white group-hover:!bg-[#f8fafc] px-3 py-2 border-r border-slate-200 shrink-0 flex items-center h-full relative"
                           >
-                            <div className="flex items-center justify-between w-full">
-                              <div className="pr-1 overflow-hidden min-w-0 flex-1">
-                                <div className="font-bold text-slate-900 group-hover:text-blue-600 transition truncate flex items-center gap-1 text-xs" title={displayName}>
-                                  <span className="truncate">{displayName}</span>
+                            <div className="flex items-center justify-between w-full h-full gap-2">
+                              <div className="pr-1 overflow-hidden min-w-0 flex-1 flex flex-col justify-center gap-0.5">
+                                {/* Row 1: Dedicated Project Name Line */}
+                                <div
+                                  data-testid={`project-name-row-${project.id}`}
+                                  className="font-bold text-slate-900 group-hover:text-blue-600 transition flex items-center gap-1.5 text-xs min-w-0"
+                                  title={displayName}
+                                >
+                                  <span className="line-clamp-2 leading-tight min-w-0 shrink break-words">{displayName}</span>
                                   {isFallback && (
                                     <span className="text-[9px] text-slate-500 bg-slate-100 px-1 rounded shrink-0 border border-slate-200 font-normal">
                                       {t('originalTag')}
                                     </span>
                                   )}
+                                  <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                </div>
+
+                                {/* Row 2: Date + Warning Metadata (Conflict Badge & Readiness Warning) */}
+                                <div
+                                  data-testid={`project-meta-row-${project.id}`}
+                                  className="text-[10px] text-slate-500 flex items-center gap-1.5 flex-wrap min-w-0"
+                                >
+                                  <span className="shrink-0 font-medium">{project.start_date} ~ {project.end_date}</span>
                                   {project.conflict_count && project.conflict_count > 0 ? (
                                     <button
                                       type="button"
@@ -1058,18 +1072,15 @@ export const ProjectOverviewPage: React.FC = () => {
                                   <ProjectReadinessPopover
                                     readiness={calculateProjectReadiness(project, allTasks, allocationsMap[project.id] || [], workers)}
                                     projectName={displayName}
+                                    hideIfReady={true}
                                     onOpenWorkforceModal={() => handleOpenWorkforceModal(project)}
                                   />
-                                  <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                                </div>
-                                <div className="mt-0.5 text-[10px] text-slate-500 truncate">
-                                  {project.start_date} ~ {project.end_date}
                                 </div>
                               </div>
 
                               <div
                                 data-testid={`project-action-group-${project.id}`}
-                                className="w-[132px] shrink-0 flex flex-col items-end justify-center gap-0.5"
+                                className="w-[112px] shrink-0 flex flex-col items-end justify-center gap-0.5"
                               >
                                 <div
                                   data-testid={`project-action-top-row-${project.id}`}

@@ -8,6 +8,7 @@ interface ProjectReadinessPopoverProps {
   readiness: ProjectReadiness;
   projectName?: string;
   isExecutiveViewer?: boolean;
+  hideIfReady?: boolean;
   onOpenWorkforceModal?: () => void;
   onOpenTaskModal?: (taskId?: string) => void;
   onOpenCompletionRepairModal?: () => void;
@@ -17,6 +18,7 @@ export const ProjectReadinessPopover: React.FC<ProjectReadinessPopoverProps> = (
   readiness,
   projectName,
   isExecutiveViewer = false,
+  hideIfReady = false,
   onOpenWorkforceModal,
   onOpenTaskModal,
   onOpenCompletionRepairModal,
@@ -25,6 +27,10 @@ export const ProjectReadinessPopover: React.FC<ProjectReadinessPopoverProps> = (
   const [isOpen, setIsOpen] = useState(false);
   const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
   const popoverRef = useRef<HTMLDivElement>(null);
+
+  if (hideIfReady && readiness.status === 'READY') {
+    return null;
+  }
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
