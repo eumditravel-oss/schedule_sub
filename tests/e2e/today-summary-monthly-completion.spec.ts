@@ -25,7 +25,10 @@ test.describe('P1 Today Summary Monthly Completed Projects KPI Suite', () => {
     // Verify value matches API count and ends with "개"
     const monthlyKpiCard = card.locator('div.bg-violet-50\\/70');
     await expect(monthlyKpiCard).toBeVisible();
-    const valueText = await monthlyKpiCard.locator('div.text-sm').innerText();
+    const valueLocator = monthlyKpiCard.locator('div.text-sm');
+    await expect(valueLocator).not.toHaveText('...', { timeout: 5000 });
+
+    const valueText = await valueLocator.innerText();
     expect(valueText.trim()).toBe(`${expectedMonthlyCount}개`);
 
     // Verify 4 primary cards do NOT contain "기한 경과" in primary grid
@@ -47,6 +50,9 @@ test.describe('P1 Today Summary Monthly Completed Projects KPI Suite', () => {
     await page.waitForSelector('[data-testid="today-summary-card"]');
 
     const monthlyKpiCard = page.locator('[data-testid="today-summary-card"] div.bg-violet-50\\/70');
+    const valueLocator = monthlyKpiCard.locator('div.text-sm');
+    await expect(valueLocator).not.toHaveText('...', { timeout: 5000 });
+
     const initialText = await monthlyKpiCard.innerText();
 
     // Switch to COMPLETED tab
