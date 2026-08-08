@@ -24,10 +24,10 @@ export const WorkerConflictSummaryModal: React.FC<WorkerConflictSummaryModalProp
   const { lang } = useI18n();
   const [submitting, setSubmitting] = useState(false);
 
-  if (!isOpen) return null;
+  if (!isOpen || !Array.isArray(conflicts) || conflicts.length === 0) return null;
 
   const isVi = lang === 'vi';
-  const uniqueWorkers = Array.from(new Set(conflicts.map((c) => c.worker_name)));
+  const uniqueWorkers = Array.from(new Set(conflicts.map((c) => c?.worker_name || '')));
 
   const handleConfirmAndDismiss = async () => {
     if (onAcknowledgeGroup && conflicts.length > 0) {

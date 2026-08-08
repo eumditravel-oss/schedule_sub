@@ -1601,10 +1601,10 @@ export const ProjectDetailPage: React.FC = () => {
       ) {
         setConflictModalState({
           isOpen: true,
-          conflicts: errDetails.conflicts,
+          conflicts: Array.isArray(errDetails?.conflicts) ? errDetails.conflicts : [],
           pendingTaskData: {
             ...data,
-            confirm_cross_project_conflicts: errDetails.fingerprints || true,
+            confirm_cross_project_conflicts: Array.isArray(errDetails?.fingerprints) ? errDetails.fingerprints : true,
           },
         });
         return;

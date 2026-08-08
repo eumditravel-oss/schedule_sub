@@ -99,12 +99,15 @@ test.describe('Task Hierarchy, Multi-Assignees, Auto Progress & Compact Gantt Ro
     const workerSelect = page.locator('[data-testid="task-primary-worker-select"]');
     await page.waitForFunction(() => {
       const sel = document.querySelector('[data-testid="task-primary-worker-select"]') as HTMLSelectElement;
-      return sel && sel.options && sel.options.length > 1;
+      return sel && sel.options && sel.options.length > 2;
     }, { timeout: 10000 }).catch(() => {});
 
     if (await workerSelect.isVisible().catch(() => false)) {
       const options = await workerSelect.locator('option[value]:not([value=""])').all();
-      if (options.length > 1) {
+      if (options.length > 2) {
+        const val = await options[2].getAttribute('value').catch(() => '');
+        if (val) await workerSelect.selectOption(val);
+      } else if (options.length > 1) {
         const val = await options[1].getAttribute('value').catch(() => '');
         if (val) await workerSelect.selectOption(val);
       } else if (options.length > 0) {
