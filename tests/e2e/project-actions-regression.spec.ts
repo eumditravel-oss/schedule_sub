@@ -382,7 +382,7 @@ test.describe('P0 Project Actions & Complete CRUD Regression Suite', () => {
     await dismissBlockingModals(page);
 
     // Switch to Completed tab
-    const completedTabBtn = page.locator('button:has-text("완료"), button:has-text("Hoàn thành")').first();
+    const completedTabBtn = page.locator('[data-testid="completed-tab-btn"]').first();
     await completedTabBtn.click();
     await page.waitForTimeout(300);
 
@@ -407,7 +407,7 @@ test.describe('P0 Project Actions & Complete CRUD Regression Suite', () => {
     expect(reopenRes.status).toBe(200);
 
     // Switch back to Active tab
-    const activeTabBtn = page.locator('button:has-text("진행"), button:has-text("Đang làm")').first();
+    const activeTabBtn = page.locator('[data-testid="active-tab-btn"]').first();
     await activeTabBtn.click();
     await page.waitForTimeout(300);
 
