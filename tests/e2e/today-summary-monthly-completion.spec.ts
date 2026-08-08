@@ -185,36 +185,20 @@ test.describe('P0 Project Lifecycle Semantics & Monthly Completed Projects KPI S
     expect(postCount).toBe(initCount + 1);
 
     // Verify UI Status Badge shows [완료] in ALL Tab
+    await page.addInitScript(() => {
+      localStorage.setItem('schedule_current_worker_id', 'wrk_00_ceo');
+      localStorage.setItem('schedule_current_worker_name', 'CEO');
+    });
     await page.setViewportSize({ width: 1366, height: 768 });
     await page.goto('/projects');
-    
-    for (let i = 0; i < 4; i++) {
-      const workerModalBtn = page.locator('[data-testid^="worker-prompt-option-"], button:has-text("박용진")').first();
-      if (await workerModalBtn.isVisible().catch(() => false)) {
-        await workerModalBtn.click({ force: true }).catch(() => {});
-        await page.waitForTimeout(300);
-      }
-      const keepBtn = page.locator('button').filter({ hasText: /현재 변경된 작업 일정 유지|유지|확인|닫기/ }).first();
-      if (await keepBtn.isVisible().catch(() => false)) {
-        await keepBtn.click({ force: true }).catch(() => {});
-        await page.waitForTimeout(300);
-      }
-    }
-
     await page.waitForSelector('[data-testid="today-summary-card"]');
 
     const allTabBtn = page.locator('[data-testid="all-tab-btn"]').first();
     await expect(allTabBtn).toBeVisible({ timeout: 10000 });
-    await allTabBtn.click({ force: true });
-    await expect(allTabBtn).toHaveAttribute('aria-selected', 'true', { timeout: 5000 });
-
-    for (let i = 0; i < 2; i++) {
-      const keepBtn = page.locator('button').filter({ hasText: /현재 변경된 작업 일정 유지|유지|확인|닫기/ }).first();
-      if (await keepBtn.isVisible().catch(() => false)) {
-        await keepBtn.click({ force: true }).catch(() => {});
-        await page.waitForTimeout(300);
-      }
+    if (await allTabBtn.getAttribute('aria-selected') !== 'true') {
+      await allTabBtn.click({ force: true });
     }
+    await expect(allTabBtn).toHaveAttribute('aria-selected', 'true', { timeout: 5000 });
 
     const badge = page.locator(`[data-testid="project-status-badge-${projectId}"]`);
     await badge.waitFor({ state: 'visible', timeout: 30000 });
