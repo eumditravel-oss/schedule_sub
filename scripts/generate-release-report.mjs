@@ -30,7 +30,9 @@ try {
   prodSha = prodRes.data?.commit || prodRes.commit || 'unknown';
 } catch {}
 
-const gitSha = process.env.VITE_BUILD_SHA || process.env.RELEASE_SHA || '0509046049d287693ef84c1712dae0987c638b92';
+import { execSync } from 'child_process';
+
+const gitSha = execSync('git rev-parse HEAD').toString().trim();
 
 const report = {
   release_tag: 'v2.4-stabilization',
