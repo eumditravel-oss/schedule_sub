@@ -3,6 +3,11 @@ import { test, expect } from '@playwright/test';
 
 test.describe('P0 Project Lifecycle Semantics & Monthly Completed Projects KPI Suite', () => {
   test('1. Pending Completion Project (ACTIVE + schedule COMPLETED) displays [완료 확인 필요], is excluded from Completed Tab & Monthly KPI', async ({ page, request }) => {
+    // Fetch a valid worker ID first for task assignment
+    const workersRes = await request.get('/api/workers');
+    const workersJson = await workersRes.json();
+    const workerId = (workersJson.data || workersJson || [])[0]?.id || 'wrk_1';
+
     // A. Seed an ACTIVE project
     const seedRes = await request.post('/api/projects', {
       headers: {
@@ -20,7 +25,7 @@ test.describe('P0 Project Lifecycle Semantics & Monthly Completed Projects KPI S
     const seedJson = await seedRes.json();
     const projectId = seedJson.data.id;
 
-    // Create a task and mark 100% complete via POST /api/tasks
+    // Create a task with valid primary_worker_id and mark 100% complete
     const taskRes = await request.post('/api/tasks', {
       headers: {
         'Content-Type': 'application/json',
@@ -33,6 +38,7 @@ test.describe('P0 Project Lifecycle Semantics & Monthly Completed Projects KPI S
         end_date: '2026-08-07',
         progress: 100,
         completion_confirmed: 1,
+        primary_worker_id: workerId,
       },
     });
     expect(taskRes.status()).toBe(201);
@@ -88,7 +94,7 @@ test.describe('P0 Project Lifecycle Semantics & Monthly Completed Projects KPI S
     const initSummary = await initSummaryRes.json();
     const initCount = initSummary.completed_this_month?.count ?? 0;
 
-    // Complete Project with explicit completed_date = '2026-08-08'
+    // Complete Project with explicit completed_date = '2026-08-07'
     const completeRes = await request.post(`/api/projects/${projectId}/complete`, {
       headers: {
         'Content-Type': 'application/json',
@@ -96,7 +102,7 @@ test.describe('P0 Project Lifecycle Semantics & Monthly Completed Projects KPI S
       },
       data: {
         mode: 'COMPLETE_ALL',
-        completed_date: '2026-08-08',
+        completed_date: '2026-08-07',
       },
     });
     expect(completeRes.status()).toBe(200);
@@ -105,7 +111,7 @@ test.describe('P0 Project Lifecycle Semantics & Monthly Completed Projects KPI S
     const postPrjRes = await request.get(`/api/projects/${projectId}`);
     const postPrjJson = await postPrjRes.json();
     expect(postPrjJson.data.status).toBe('COMPLETED');
-    expect(postPrjJson.data.completed_at).toBe('2026-08-08');
+    expect(postPrjJson.data.completed_at).toBe('2026-08-07');
 
     // Verify Monthly KPI Incremented by +1
     const postSummaryRes = await request.get('/api/dashboard/today-summary?date=2026-08-08');
