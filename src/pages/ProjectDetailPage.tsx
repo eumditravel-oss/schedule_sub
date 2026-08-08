@@ -905,7 +905,7 @@ export const ProjectDetailPage: React.FC = () => {
   const [conflictModalState, setConflictModalState] = useState<{
     isOpen: boolean;
     conflicts: ScheduleConflictDetail[];
-    pendingTaskData: Partial<Task> | null;
+    pendingTaskData: (Partial<Task> & Record<string, any>) | null;
   }>({
     isOpen: false,
     conflicts: [],
@@ -1589,11 +1589,21 @@ export const ProjectDetailPage: React.FC = () => {
       await fetchProjectDetail();
       setConflictModalState({ isOpen: false, conflicts: [], pendingTaskData: null });
     } catch (err: any) {
-      if (err && err.code === 'WORKER_SCHEDULE_CONFLICT_CONFIRMATION_REQUIRED' && err.details?.conflicts) {
+      const errCode = err?.code || err?.error?.code;
+      const errDetails = err?.details || err?.error?.details;
+      if (
+        err &&
+        (errCode === 'CROSS_PROJECT_CONFLICT_CONFIRMATION_REQUIRED' ||
+          errCode === 'WORKER_SCHEDULE_CONFLICT_CONFIRMATION_REQUIRED') &&
+        errDetails?.conflicts
+      ) {
         setConflictModalState({
           isOpen: true,
-          conflicts: err.details.conflicts,
-          pendingTaskData: data,
+          conflicts: errDetails.conflicts,
+          pendingTaskData: {
+            ...data,
+            confirm_cross_project_conflicts: errDetails.fingerprints || true,
+          },
         });
         return;
       }
@@ -1607,6 +1617,8 @@ export const ProjectDetailPage: React.FC = () => {
       const payload = {
         ...conflictModalState.pendingTaskData,
         confirm_worker_schedule_conflict: true,
+        confirm_cross_project_conflicts:
+          conflictModalState.pendingTaskData.confirm_cross_project_conflicts || true,
       };
       if (selectedTask) {
         await api.updateTask(selectedTask.id, payload);

@@ -103,9 +103,12 @@ test.describe('P0 Project Lifecycle Semantics & Monthly Completed Projects KPI S
     // Verify Completed Tab DOES NOT contain this ACTIVE project
     const completedTabBtn = page.locator('[data-testid="completed-tab-btn"]').first();
     if (await completedTabBtn.isVisible()) {
+      const responsePromise = page.waitForResponse((r) => r.url().includes('/api/projects') && r.status() === 200);
       await completedTabBtn.click({ force: true });
+      await responsePromise.catch(() => {});
+      await page.waitForTimeout(500);
       const rowInCompletedTab = page.locator(`[data-testid="project-status-badge-${projectId}"]`);
-      await expect(rowInCompletedTab).toHaveCount(0);
+      expect(await rowInCompletedTab.count()).toBe(0);
     }
   });
 
