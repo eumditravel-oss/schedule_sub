@@ -97,6 +97,11 @@ test.describe('P0 Project Lifecycle Semantics & Monthly Completed Projects KPI S
       await page.click('button:has-text("박용진")').catch(() => {});
       await page.waitForTimeout(500);
     }
+    const pendingModal = page.locator('button:has-text("유지"), button:has-text("닫기"), button:has-text("Đóng")').first();
+    if (await pendingModal.isVisible({ timeout: 2000 }).catch(() => false)) {
+      await pendingModal.click({ force: true }).catch(() => {});
+      await page.waitForTimeout(500);
+    }
     await page.waitForSelector('[data-testid="today-summary-card"]', { timeout: 10000 });
 
     // Click ALL tab
@@ -185,6 +190,11 @@ test.describe('P0 Project Lifecycle Semantics & Monthly Completed Projects KPI S
     const workerModal = page.locator('[data-testid="worker-prompt-modal"]');
     if (await workerModal.isVisible({ timeout: 2000 }).catch(() => false)) {
       await page.click('button:has-text("박용진")').catch(() => {});
+      await page.waitForTimeout(500);
+    }
+    const pendingModal = page.locator('button:has-text("유지"), button:has-text("닫기"), button:has-text("Đóng")').first();
+    if (await pendingModal.isVisible({ timeout: 2000 }).catch(() => false)) {
+      await pendingModal.click({ force: true }).catch(() => {});
       await page.waitForTimeout(500);
     }
     await page.waitForSelector('[data-testid="today-summary-card"]');
