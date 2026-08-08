@@ -41,14 +41,14 @@ export async function generateReleaseReport(options = {}) {
   let buildIndicatorSha = 'unknown';
 
   try {
-    const qaRes = await fetch(`${qaBaseUrl}/api/version`).then((r) => r.json());
+    const qaRes = await fetch(`${qaBaseUrl}/api/version?t=${Date.now()}`, { cache: 'no-store' }).then((r) => r.json());
     qaSha = qaRes.data?.commit || qaRes.commit || 'unknown';
   } catch (err) {
     console.error('QA /api/version fetch failed:', err?.message || err);
   }
 
   try {
-    const prodRes = await fetch(`${prodBaseUrl}/api/version`).then((r) => r.json());
+    const prodRes = await fetch(`${prodBaseUrl}/api/version?t=${Date.now()}`, { cache: 'no-store' }).then((r) => r.json());
     prodSha = prodRes.data?.commit || prodRes.commit || 'unknown';
     buildIndicatorSha = prodSha; // Worker backend SHA is rendered as Build <sha> in BuildVersionIndicator
   } catch (err) {
@@ -61,15 +61,16 @@ export async function generateReleaseReport(options = {}) {
   let completionInconsistentTasks = 'UNKNOWN';
 
   try {
-    const schedRes = await fetch(`${prodBaseUrl}/api/health/scheduler-integrity`).then((r) => r.json());
-    schedulerHealthStatus = schedRes.status || 'ERROR';
+    const schedRes = await fetch(`${prodBaseUrl}/api/health/scheduler-integrity?t=${Date.now()}`, { cache: 'no-store' }).then((r) => r.json());
+    const schedData = schedRes.data || schedRes;
+    schedulerHealthStatus = schedData.status || 'ERROR';
   } catch (err) {
     console.error('Production /api/health/scheduler-integrity fetch failed:', err?.message || err);
     schedulerHealthStatus = 'ERROR';
   }
 
   try {
-    const compRes = await fetch(`${prodBaseUrl}/api/health/completion-integrity`).then((r) => r.json());
+    const compRes = await fetch(`${prodBaseUrl}/api/health/completion-integrity?t=${Date.now()}`, { cache: 'no-store' }).then((r) => r.json());
     const compData = compRes.data || compRes;
     completionInconsistentProjects = compData.inconsistent_projects ?? 'UNKNOWN';
     completionInconsistentTasks = compData.inconsistent_tasks ?? 'UNKNOWN';
