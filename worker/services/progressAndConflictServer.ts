@@ -161,15 +161,41 @@ export function calculateTaskProgressServer(
   };
 }
 
+export interface ProjectProgressMetricsServer {
+  planned_working_days: number;
+  completed_working_days: number;
+  planned_progress: number;
+  actual_progress: number;
+  progress_gap: number;
+  schedule_state: string;
+  auto_progress_task_count: number;
+  status_progress_task_count: number;
+  unscheduled_task_count: number;
+}
+
 export function calculateProjectProgressServer(
   project: any,
-  tasks: any[],
+  tasks: any[] = [],
   workers: any[] = [],
   holidays: any[] = [],
   overrides: any[] = [],
   allDailyStatuses: Record<string, Record<string, string>> = {},
   referenceTodayStr?: string
-): any {
+): ProjectProgressMetricsServer {
+  if (project.status === 'COMPLETED') {
+    return {
+      planned_working_days: 0,
+      completed_working_days: 0,
+      planned_progress: 100,
+      actual_progress: 100,
+      progress_gap: 0,
+      schedule_state: 'COMPLETED',
+      auto_progress_task_count: 0,
+      status_progress_task_count: 0,
+      unscheduled_task_count: 0,
+    };
+  }
+  
   if (!tasks || tasks.length === 0) {
     const todayStr = referenceTodayStr || getTodayStrForWorkerServer(null);
     let state = 'UPCOMING';
@@ -189,6 +215,7 @@ export function calculateProjectProgressServer(
       schedule_state: state,
       auto_progress_task_count: 0,
       status_progress_task_count: 0,
+      unscheduled_task_count: 0,
     };
   }
 
@@ -251,6 +278,7 @@ export function calculateProjectProgressServer(
     schedule_state,
     auto_progress_task_count,
     status_progress_task_count,
+    unscheduled_task_count,
   };
 }
 
