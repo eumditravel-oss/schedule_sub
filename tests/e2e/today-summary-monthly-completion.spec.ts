@@ -104,9 +104,8 @@ test.describe('P0 Project Lifecycle Semantics & Monthly Completed Projects KPI S
     const completedTabBtn = page.locator('[data-testid="completed-tab-btn"]').first();
     if (await completedTabBtn.isVisible()) {
       await completedTabBtn.click({ force: true });
-      await page.waitForTimeout(500);
       const rowInCompletedTab = page.locator(`[data-testid="project-status-badge-${projectId}"]`);
-      expect(await rowInCompletedTab.count()).toBe(0);
+      await expect(rowInCompletedTab).toHaveCount(0);
     }
   });
 
