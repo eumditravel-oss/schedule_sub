@@ -229,12 +229,27 @@ export const api = {
     return handleResponse<Project>(res);
   },
 
+  async saveProjectBaseline(id: string): Promise<any> {
+    const res = await fetch(`/api/projects/${id}/baseline`, {
+      method: 'POST',
+      headers: getWriteHeaders(),
+      body: JSON.stringify({}),
+    });
+    return handleResponse<any>(res);
+  },
+
   async getProjectConflicts(id: string): Promise<any> {
     const res = await fetch(`/api/projects/${id}/conflicts`);
     return handleResponse<any>(res);
   },
 
   // 2. Tasks
+  async getTasks(projectId?: string): Promise<Task[]> {
+    const url = projectId ? `/api/tasks?project_id=${projectId}` : '/api/tasks';
+    const res = await fetch(url);
+    return handleResponse<Task[]>(res);
+  },
+
   async createTask(data: Partial<Task>): Promise<Task> {
     const res = await fetch('/api/tasks', {
       method: 'POST',

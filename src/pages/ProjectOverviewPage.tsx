@@ -1,7 +1,7 @@
 // src/pages/ProjectOverviewPage.tsx
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Project, Worker, CountryHoliday, CalendarOverride, isExecutiveViewer, isEditableWorker } from '../types';
+import { Project, Task, Worker, CountryHoliday, CalendarOverride, isExecutiveViewer, isEditableWorker } from '../types';
 import { api, getCurrentWorkerId, setCurrentWorker as setCurrentWorkerApi } from '../services/api';
 import { calculateVisibleGanttSpan } from '../utils/dateUtils';
 import { getCountryOffState } from '../utils/workCalendar';
@@ -23,6 +23,9 @@ import { GANTT_Z } from '../constants/ganttLayers';
 import { detectCrossProjectWorkerConflicts, CrossProjectConflictGroup } from '../utils/crossProjectConflictDetector';
 import { WorkerConflictSummaryModal } from '../components/modals/WorkerConflictSummaryModal';
 import { ProjectModal } from '../components/modals/ProjectModal';
+import { ProjectWorkforceModal } from '../components/modals/ProjectWorkforceModal';
+import { ProjectReadinessPopover } from '../components/common/ProjectReadinessPopover';
+import { calculateProjectReadiness } from '../utils/projectReadiness';
 import { WorkerSelector } from '../components/common/WorkerSelector';
 import { WorkerPromptModal } from '../components/modals/WorkerPromptModal';
 import { GanttViewControls } from '../components/common/GanttViewControls';
@@ -36,7 +39,7 @@ import { CalendarLegend } from '../components/common/CalendarLegend';
 import { DateHeaderInfoPanel } from '../components/modals/DateHeaderInfoPanel';
 import { TodaySummaryCard } from '../components/common/TodaySummaryCard';
 import { IntegrationManagerModal } from '../components/modals/IntegrationManagerModal';
-import { KeyRound } from 'lucide-react';
+import { Plus, ChevronRight, ChevronLeft, Calendar, Lock, Pencil, Trash2, KeyRound, Users } from 'lucide-react';
 import { BuildVersionIndicator } from '../components/common/BuildVersionIndicator';
 import { ScheduleBar } from '../components/gantt/ScheduleBar';
 import { ProjectCalendarHatchOverlay } from '../components/gantt/ProjectCalendarHatchOverlay';
@@ -44,7 +47,6 @@ import { TodayColumnOverlay } from '../components/gantt/TodayColumnOverlay';
 import { getGanttSpanColumns } from '../utils/ganttOverlay';
 import { calculateTaskWorkdayBreakdown } from '../utils/workCalendar';
 import { ProjectDeleteConfirmModal } from '../components/modals/ProjectDeleteConfirmModal';
-import { Plus, ChevronRight, ChevronLeft, Calendar, Lock, Pencil, Trash2 } from 'lucide-react';
 
 export type MobileViewMode = 'SUMMARY' | 'WEEK' | 'GANTT';
 
@@ -90,6 +92,15 @@ export const ProjectOverviewPage: React.FC = () => {
   const [isIntegrationModalOpen, setIsIntegrationModalOpen] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
+  const [allTasks, setAllTasks] = useState<Task[]>([]);
+  const [allocationsMap, setAllocationsMap] = useState<Record<string, any[]>>({});
+  const [isWorkforceModalOpen, setIsWorkforceModalOpen] = useState(false);
+  const [selectedWorkforceProject, setSelectedWorkforceProject] = useState<Project | null>(null);
+
+  const handleOpenWorkforceModal = (p: Project) => {
+    setSelectedWorkforceProject(p);
+    setIsWorkforceModalOpen(true);
+  };
 
   const [headerInfoState, setHeaderInfoState] = useState<{
     isOpen: boolean;
@@ -210,8 +221,26 @@ export const ProjectOverviewPage: React.FC = () => {
   const fetchProjects = async () => {
     try {
       setLoading(true);
-      const data = await api.getProjects(activeTab, activeTab === 'COMPLETED' ? selectedYear : undefined);
-      setProjects(data || []);
+      const [data, tasksData] = await Promise.all([
+        api.getProjects(activeTab, activeTab === 'COMPLETED' ? selectedYear : undefined),
+        api.getTasks(),
+      ]);
+      const projectList = data || [];
+      setProjects(projectList);
+      setAllTasks(tasksData || []);
+
+      const allocMap: Record<string, any[]> = {};
+      await Promise.all(
+        projectList.map(async (p) => {
+          try {
+            const pAlloc = await api.getProjectWorkerAllocations(p.id);
+            allocMap[p.id] = pAlloc || [];
+          } catch {
+            allocMap[p.id] = [];
+          }
+        })
+      );
+      setAllocationsMap(allocMap);
     } catch (err: any) {
       console.error(err);
     } finally {
@@ -389,6 +418,18 @@ export const ProjectOverviewPage: React.FC = () => {
             >
               <KeyRound className="w-3.5 h-3.5 text-blue-600 shrink-0" />
               <span>Open API</span>
+            </button>
+
+            {/* [0.5] Workforce Capacity Board Button */}
+            <button
+              type="button"
+              data-testid="workforce-capacity-nav-btn"
+              onClick={() => navigate('/workforce-capacity')}
+              title={lang === 'vi' ? 'Xem công suất nhân lực' : '작업자 투입 현황 모니터링'}
+              className="h-8 px-2.5 rounded-lg border border-slate-200 bg-slate-50 hover:bg-blue-50 hover:border-blue-300 text-slate-700 hover:text-blue-700 font-bold text-xs flex items-center gap-1.5 transition shadow-2xs shrink-0 whitespace-nowrap"
+            >
+              <Users className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+              <span>{lang === 'vi' ? 'Công suất' : '인력 현황'}</span>
             </button>
 
             {/* [1] Project Status Tabs — Open API 바로 오른쪽 */}
@@ -955,6 +996,11 @@ export const ProjectOverviewPage: React.FC = () => {
                                       {lang === 'vi' ? `Trùng ${project.conflict_count}` : `⚠ 충돌 ${project.conflict_count}건`}
                                     </button>
                                   ) : null}
+                                  <ProjectReadinessPopover
+                                    readiness={calculateProjectReadiness(project, allTasks, allocationsMap[project.id] || [], workers)}
+                                    projectName={displayName}
+                                    onOpenWorkforceModal={() => handleOpenWorkforceModal(project)}
+                                  />
                                   <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                                 </div>
                                 <div className="mt-0.5 text-[10px] text-slate-500 truncate">
@@ -1216,6 +1262,20 @@ export const ProjectOverviewPage: React.FC = () => {
         onClose={() => setIsIntegrationModalOpen(false)}
         currentWorker={currentWorker}
       />
+
+      {selectedWorkforceProject && (
+        <ProjectWorkforceModal
+          isOpen={isWorkforceModalOpen}
+          project={selectedWorkforceProject}
+          workers={workers}
+          tasks={allTasks}
+          onClose={() => {
+            setIsWorkforceModalOpen(false);
+            setSelectedWorkforceProject(null);
+          }}
+          onSaved={fetchProjects}
+        />
+      )}
 
       {/* Build Version Indicator */}
       <BuildVersionIndicator />

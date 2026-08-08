@@ -56,6 +56,8 @@ export const TaskModal: React.FC<TaskModalProps> = ({
   const [supportWorkerIds, setSupportWorkerIds] = useState<string[]>([]);
   const [progressMode, setProgressMode] = useState<ProgressMode>('AUTO_TIME');
   const [selectedSupportToAdd, setSelectedSupportToAdd] = useState<string>('');
+  const [isBlocked, setIsBlocked] = useState<boolean>(false);
+  const [blockedReason, setBlockedReason] = useState<string>('');
 
   const [saveError, setSaveError] = useState<{ code?: string; message: string } | null>(null);
 
@@ -105,6 +107,8 @@ export const TaskModal: React.FC<TaskModalProps> = ({
       setStartDate(task.start_date || '');
       setEndDate(task.end_date || '');
       setProgressMode(task.progress_mode || 'AUTO_TIME');
+      setIsBlocked(Boolean(task.is_blocked));
+      setBlockedReason(task.blocked_reason || '');
 
       // Initialize Assignees: PIC + Support
       let assigneesList: TaskAssignee[] = task.assignees || [];
@@ -277,6 +281,8 @@ export const TaskModal: React.FC<TaskModalProps> = ({
         schedule_status: scheduleStatus,
         start_date: scheduleStatus === 'UNSCHEDULED' ? null : startDate,
         end_date: scheduleStatus === 'UNSCHEDULED' ? null : endDate,
+        is_blocked: isBlocked ? 1 : 0,
+        blocked_reason: isBlocked ? blockedReason.trim() : '',
         source_language: inputLang,
         translation_status: manualLock ? 'MANUAL' : (autoStatus === 'MANUAL' ? 'MANUAL' : 'COMPLETED'),
       };
@@ -634,6 +640,40 @@ export const TaskModal: React.FC<TaskModalProps> = ({
                 </div>
               </div>
             )}
+
+            {/* Task Blocker Section */}
+            <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="flex items-center gap-2 font-bold text-slate-800 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    data-testid="task-is-blocked-checkbox"
+                    checked={isBlocked}
+                    onChange={(e) => setIsBlocked(e.target.checked)}
+                    className="w-4 h-4 text-rose-600 rounded border-slate-300 focus:ring-rose-500"
+                  />
+                  <span className="text-rose-700 font-extrabold text-xs">
+                    {lang === 'vi' ? 'Công việc bị tắc nghẽn (Blocked)' : '작업 진행 막힘 (Blocked)'}
+                  </span>
+                </label>
+              </div>
+
+              {isBlocked && (
+                <div className="space-y-1 pt-1">
+                  <label className="block text-[11px] font-bold text-slate-600">
+                    {lang === 'vi' ? 'Lý do tắc nghẽn' : '막힘 사유 (예: DB Migration 대기, 선행 API 미완료)'}
+                  </label>
+                  <input
+                    type="text"
+                    data-testid="task-blocked-reason-input"
+                    value={blockedReason}
+                    onChange={(e) => setBlockedReason(e.target.value)}
+                    placeholder={lang === 'vi' ? 'Nhập lý do tắc nghẽn...' : '사유를 입력해 주세요'}
+                    className="w-full h-9 px-3 rounded-lg border border-slate-300 font-medium text-slate-900 bg-white focus:outline-none focus:border-rose-500"
+                  />
+                </div>
+              )}
+            </div>
 
             {/* Working Days Summary */}
             {scheduleStatus === 'SCHEDULED' && startDate && endDate && (

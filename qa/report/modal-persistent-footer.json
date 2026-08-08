@@ -1,5 +1,123 @@
 {
-  "timestamp": "2026-08-07T23:54:36.954Z",
+  "timestamp": "2026-08-07T23:57:46.246Z",
   "total_viewports": 13,
-  "executed_viewports": []
+  "executed_viewports": [
+    {
+      "viewport": "900x600",
+      "type": "DESKTOP",
+      "save_visible": true,
+      "cancel_visible": true,
+      "initial_scroll_top": 0,
+      "save_y": 541,
+      "cancel_y": 541
+    },
+    {
+      "viewport": "900x700",
+      "type": "DESKTOP",
+      "save_visible": true,
+      "cancel_visible": true,
+      "initial_scroll_top": 0,
+      "save_y": 641,
+      "cancel_y": 641
+    },
+    {
+      "viewport": "1024x600",
+      "type": "DESKTOP",
+      "save_visible": true,
+      "cancel_visible": true,
+      "initial_scroll_top": 0,
+      "save_y": 541,
+      "cancel_y": 541
+    },
+    {
+      "viewport": "1024x768",
+      "type": "DESKTOP",
+      "save_visible": true,
+      "cancel_visible": true,
+      "initial_scroll_top": 0,
+      "save_y": 709,
+      "cancel_y": 709
+    },
+    {
+      "viewport": "1100x650",
+      "type": "DESKTOP",
+      "save_visible": true,
+      "cancel_visible": true,
+      "initial_scroll_top": 0,
+      "save_y": 591,
+      "cancel_y": 591
+    },
+    {
+      "viewport": "1280x720",
+      "type": "DESKTOP",
+      "save_visible": true,
+      "cancel_visible": true,
+      "initial_scroll_top": 0,
+      "save_y": 661,
+      "cancel_y": 661
+    },
+    {
+      "viewport": "1366x768",
+      "type": "DESKTOP",
+      "save_visible": true,
+      "cancel_visible": true,
+      "initial_scroll_top": 0,
+      "save_y": 709,
+      "cancel_y": 709
+    },
+    {
+      "viewport": "1536x864",
+      "type": "DESKTOP",
+      "save_visible": true,
+      "cancel_visible": true,
+      "initial_scroll_top": 0,
+      "save_y": 805,
+      "cancel_y": 805
+    },
+    {
+      "viewport": "1920x1080",
+      "type": "DESKTOP",
+      "save_visible": true,
+      "cancel_visible": true,
+      "initial_scroll_top": 0,
+      "save_y": 1000,
+      "cancel_y": 1000
+    },
+    {
+      "viewport": "360x800",
+      "type": "MOBILE",
+      "save_visible": true,
+      "cancel_visible": true,
+      "initial_scroll_top": 0,
+      "save_y": 741,
+      "cancel_y": 741
+    },
+    {
+      "viewport": "390x844",
+      "type": "MOBILE",
+      "save_visible": true,
+      "cancel_visible": true,
+      "initial_scroll_top": 0,
+      "save_y": 785,
+      "cancel_y": 785
+    },
+    {
+      "viewport": "393x852",
+      "type": "MOBILE",
+      "save_visible": true,
+      "cancel_visible": true,
+      "initial_scroll_top": 0,
+      "save_y": 793,
+      "cancel_y": 793
+    },
+    {
+      "viewport": "430x932",
+      "type": "MOBILE",
+      "save_visible": true,
+      "cancel_visible": true,
+      "initial_scroll_top": 0,
+      "save_y": 873,
+      "cancel_y": 873
+    }
+  ]
 }

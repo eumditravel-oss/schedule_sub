@@ -210,6 +210,10 @@ export interface Project {
   // Cascade confirmation
   confirm_schedule_cascade?: boolean;
   confirm_worker_schedule_conflict?: boolean;
+
+  // Baseline fields
+  baseline_start_date?: string | null;
+  baseline_end_date?: string | null;
 }
 
 export type TaskGroupColorKey = 'BLUE' | 'GREEN' | 'ORANGE' | 'VIOLET' | 'SLATE';
@@ -274,6 +278,15 @@ export interface Task {
   source_language?: string | null;
   translation_status?: TranslationStatus;
   translation_error?: string | null;
+
+  // Baseline fields
+  baseline_start_date?: string | null;
+  baseline_end_date?: string | null;
+
+  // Blocker fields
+  is_blocked?: number | boolean;
+  blocked_reason?: string | null;
+  blocked_by_task_ids?: string | null;
 
   // Revision tracking
   schedule_revision?: number;

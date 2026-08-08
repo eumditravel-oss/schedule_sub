@@ -2,6 +2,7 @@ import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { ProjectOverviewPage } from './pages/ProjectOverviewPage';
 import { ProjectDetailPage } from './pages/ProjectDetailPage';
+import { WorkforceCapacityPage } from './pages/WorkforceCapacityPage';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
 
 function BuggyTestComponent(): JSX.Element {
@@ -32,6 +33,14 @@ export function App() {
             element={
               <ErrorBoundary fallbackViewName="Project Detail Page">
                 <ProjectDetailPage />
+              </ErrorBoundary>
+            }
+          />
+          <Route
+            path="/workforce-capacity"
+            element={
+              <ErrorBoundary fallbackViewName="Workforce Capacity Page">
+                <WorkforceCapacityPage />
               </ErrorBoundary>
             }
           />

@@ -1,7 +1,7 @@
 // src/pages/ProjectDetailPage.tsx
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Project, Task, TaskGroup, TaskGroupColorKey, Worker, CountryHoliday, CalendarOverride, DailyStatusType, WorkDayStatus, CountryCode, WorkweekProfile, ScheduleConflictDetail, isExecutiveViewer, isEditableWorker, GanttDateColumn, DateColumn } from '../types';
+import { Project, Task, TaskGroup, TaskGroupColorKey, Worker, ProjectWorkerAllocation, CountryHoliday, CalendarOverride, DailyStatusType, WorkDayStatus, CountryCode, WorkweekProfile, ScheduleConflictDetail, isExecutiveViewer, isEditableWorker, GanttDateColumn, DateColumn } from '../types';
 import { WorkerConflictModal } from '../components/modals/WorkerConflictModal';
 import { TaskGroupModal } from '../components/modals/TaskGroupModal';
 import { TaskGroupDeleteModal } from '../components/modals/TaskGroupDeleteModal';
@@ -33,6 +33,10 @@ import { isMonthStartColumn, GANTT_MONTH_BOUNDARY_STYLE } from '../utils/GanttMo
 import { WorkerConflictSummaryModal } from '../components/modals/WorkerConflictSummaryModal';
 import { StatusPopover } from '../components/modals/StatusPopover';
 import { WorkerSelector } from '../components/common/WorkerSelector';
+import { ProjectReadinessPopover } from '../components/common/ProjectReadinessPopover';
+import { calculateProjectReadiness } from '../utils/projectReadiness';
+import { calculateDateVarianceDays, formatVarianceBadgeText } from '../utils/scheduleBaseline';
+import { AlertOctagon, BookmarkCheck } from 'lucide-react';
 import { WorkerPromptModal } from '../components/modals/WorkerPromptModal';
 import { WorkerDayCellBackground } from '../components/gantt/WorkerDayCellBackground';
 import { GanttViewControls } from '../components/common/GanttViewControls';
@@ -243,6 +247,26 @@ const SortableTaskRow: React.FC<SortableTaskRowProps> = ({
               className="px-1.5 py-0.5 rounded bg-amber-100 border border-amber-300 text-amber-800 font-extrabold text-[10px] shrink-0 ml-1"
             >
               {lang === 'vi' ? 'Chưa xác định' : '일정 미정'}
+            </span>
+          )}
+          {Boolean(tItem.is_blocked) && (
+            <span
+              data-testid={`task-blocked-badge-${tItem.id}`}
+              title={tItem.blocked_reason || (lang === 'vi' ? 'Công việc bị tắc nghẽn' : '작업 진행 막힘')}
+              className="px-1.5 py-0.5 rounded bg-rose-100 border border-rose-300 text-rose-800 font-extrabold text-[10px] shrink-0 ml-1 flex items-center gap-0.5"
+            >
+              <AlertOctagon className="w-3 h-3 text-rose-600 shrink-0" />
+              <span>{lang === 'vi' ? 'Tắc nghẽn' : '막힘'}</span>
+            </span>
+          )}
+          {tItem.baseline_end_date && tItem.end_date && tItem.baseline_end_date !== tItem.end_date && (
+            <span
+              data-testid={`task-baseline-badge-${tItem.id}`}
+              className={`px-1.5 py-0.5 rounded text-[10px] shrink-0 ml-1 border ${
+                formatVarianceBadgeText(calculateDateVarianceDays(tItem.baseline_end_date, tItem.end_date), lang === 'vi' ? 'vi' : 'ko').colorClass
+              }`}
+            >
+              {formatVarianceBadgeText(calculateDateVarianceDays(tItem.baseline_end_date, tItem.end_date), lang === 'vi' ? 'vi' : 'ko').text}
             </span>
           )}
         </div>
@@ -875,6 +899,7 @@ export const ProjectDetailPage: React.FC = () => {
 
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
   const [isWorkforceModalOpen, setIsWorkforceModalOpen] = useState(false);
+  const [allocations, setAllocations] = useState<ProjectWorkerAllocation[]>([]);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
 
   const [conflictModalState, setConflictModalState] = useState<{
@@ -1131,10 +1156,14 @@ export const ProjectDetailPage: React.FC = () => {
     if (!projectId) return;
     try {
       setLoading(true);
-      const data = await api.getProjectDetail(projectId);
+      const [data, allocData] = await Promise.all([
+        api.getProjectDetail(projectId),
+        api.getProjectWorkerAllocations(projectId),
+      ]);
       setProject(data.project);
       setTasks(data.tasks || []);
       setTaskGroups(data.task_groups || []);
+      setAllocations(allocData || []);
     } catch (err: any) {
       alert(getLocalizedErrorMessage(err, t));
       navigate('/projects');
@@ -1515,6 +1544,18 @@ export const ProjectDetailPage: React.FC = () => {
   const isCompleted = project?.status === 'COMPLETED';
   const isViewer = isExecutiveViewer(currentWorker);
 
+  const handleSaveBaseline = async () => {
+    if (!project || isViewer) return;
+    if (!confirm(lang === 'vi' ? 'Lưu lịch hiện tại làm lịch cơ sở (Baseline)?' : '현재 확정 일정을 기준 일정(Baseline)으로 저장하시겠습니까?')) return;
+    try {
+      await api.saveProjectBaseline(project.id);
+      await fetchProjectDetail();
+      alert(lang === 'vi' ? 'Đã lưu lịch cơ sở thành công.' : '기준 일정이 성공적으로 저장되었습니다.');
+    } catch (err: any) {
+      alert(getLocalizedErrorMessage(err, t));
+    }
+  };
+
   const handleOpenAddTask = () => {
     if (isViewer) {
       alert(lang === 'vi' ? 'Tài khoản quản lý chỉ có quyền xem lịch trình.' : '경영진 계정은 일정을 조회할 수만 있습니다.');
@@ -1730,6 +1771,13 @@ export const ProjectDetailPage: React.FC = () => {
                     {t('statusCompleted')}
                   </span>
                 )}
+                {project && (
+                  <ProjectReadinessPopover
+                    readiness={calculateProjectReadiness(project, tasks, allocations, workers)}
+                    projectName={getProjectDisplayName(project)}
+                    onOpenWorkforceModal={() => setIsWorkforceModalOpen(true)}
+                  />
+                )}
               </div>
             </div>
           </div>
@@ -1762,6 +1810,16 @@ export const ProjectDetailPage: React.FC = () => {
                 >
                   <Calendar className="w-4 h-4 text-blue-600" />
                   <span>{t('manageHolidays')}</span>
+                </button>
+                <button
+                  type="button"
+                  data-testid="save-baseline-btn"
+                  onClick={handleSaveBaseline}
+                  title={lang === 'vi' ? 'Lưu lịch cơ sở (Baseline)' : '현재 확정 일정을 기준 일정(Baseline)으로 저장'}
+                  className="h-9 px-3 rounded-lg border border-purple-200 bg-purple-50 hover:bg-purple-100 text-xs font-bold text-purple-700 flex items-center gap-1.5 transition shadow-xs"
+                >
+                  <BookmarkCheck className="w-4 h-4 text-purple-600" />
+                  <span>{lang === 'vi' ? 'Lưu lịch cơ sở' : '기준 일정 저장'}</span>
                 </button>
               </div>
             )}

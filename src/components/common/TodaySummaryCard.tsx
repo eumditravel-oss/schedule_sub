@@ -166,6 +166,18 @@ export const TodaySummaryCard: React.FC<TodaySummaryCardProps> = ({
           </div>
         </div>
       </div>
+
+      {Number((data as any)?.blocked_count || 0) > 0 && (
+        <div data-testid="today-summary-blocked-secondary-strip" className="mt-2 px-3 py-1 bg-rose-50 border border-rose-200 rounded-lg text-rose-900 text-[11px] font-extrabold flex items-center justify-between">
+          <span className="flex items-center gap-1">
+            <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />
+            <span>{lang === 'vi' ? 'Công việc bị tắc nghẽn (Blocked)' : '진행 막힘 (Blocked) 작업'}</span>
+          </span>
+          <span className="bg-rose-200 text-rose-900 px-2 py-0.5 rounded font-black text-xs">
+            {Number((data as any)?.blocked_count)}건
+          </span>
+        </div>
+      )}
     </div>
   );
 };

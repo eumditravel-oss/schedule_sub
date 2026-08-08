@@ -627,17 +627,92 @@ async function validateAndNormalizeTaskAssigneesServer(
           if (items.length > 100) {
             return errorResponse('Batch size exceeds maximum limit of 100 tasks per request.', 400, 'BATCH_LIMIT_EXCEEDED');
           }
+
+          const isDryRun = url.searchParams.get('dry_run') === 'true' || Boolean(body.dry_run);
+          const syncRunId = `sync_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+          const startTime = new Date().toISOString();
+
+          if (isDryRun) {
+            let wouldCreate = 0;
+            let wouldUpdate = 0;
+            let wouldSkip = 0;
+            const changes: any[] = [];
+            const warnings: string[] = [];
+
+            for (const item of items) {
+              const extId = item.external_id || item.id;
+              const link = extId ? await db.prepare(`SELECT internal_id FROM integration_entity_links WHERE external_id = ? AND entity_type = 'TASK'`).bind(extId).first() : null;
+              const existingTask = link ? await db.prepare(`SELECT * FROM tasks WHERE id = ?`).bind(link.internal_id).first() : null;
+
+              if (existingTask) {
+                wouldUpdate++;
+                changes.push({
+                  external_id: extId,
+                  action: 'UPDATE',
+                  task_name: item.task_name || existingTask.task_name,
+                  before: { start_date: existingTask.start_date, end_date: existingTask.end_date },
+                  after: { start_date: item.start_date || existingTask.start_date, end_date: item.end_date || existingTask.end_date },
+                });
+              } else {
+                wouldCreate++;
+                changes.push({
+                  external_id: extId,
+                  action: 'CREATE',
+                  task_name: item.task_name,
+                  start_date: item.start_date,
+                  end_date: item.end_date,
+                });
+              }
+            }
+
+            try {
+              await db.prepare(
+                `INSERT INTO integration_sync_runs (id, run_id, source, started_at, finished_at, dry_run, created_count, updated_count, failed_count, request_id, summary_json)
+                 VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, 1, ?, ?, 0, ?, ?)`
+              ).bind(`isr_${syncRunId}`, syncRunId, items[0]?.source || 'CLI_INTEGRATION', startTime, wouldCreate, wouldUpdate, reqId, JSON.stringify({ would_create: wouldCreate, would_update: wouldUpdate, would_skip: wouldSkip })).run();
+            } catch (e) {}
+
+            await logIntegrationApiRequest(db, reqId, apiKey.id, method, path, 200, items[0]?.source, undefined, 'TASK_BATCH_DRY_RUN', undefined, undefined, clientIp);
+
+            return jsonResponse({
+              dry_run: true,
+              run_id: syncRunId,
+              total_processed: items.length,
+              would_create: wouldCreate,
+              would_update: wouldUpdate,
+              would_skip: wouldSkip,
+              changes,
+              warnings,
+            });
+          }
+
+          // Execution Mode (isDryRun = false)
           const results: any[] = [];
+          let createdCount = 0;
+          let updatedCount = 0;
+          let failedCount = 0;
+
           for (const item of items) {
             try {
               const res = await upsertTaskService(db, env, apiKey.id, item, `api:${apiKey.name}`);
+              if (res.created) createdCount++;
+              else updatedCount++;
               results.push({ success: true, ...res });
             } catch (err: any) {
+              failedCount++;
               results.push({ success: false, external_id: item.external_id, error: err.message });
             }
           }
+
+          try {
+            await db.prepare(
+              `INSERT INTO integration_sync_runs (id, run_id, source, started_at, finished_at, dry_run, created_count, updated_count, failed_count, request_id, summary_json)
+               VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, 0, ?, ?, ?, ?, ?)`
+            ).bind(`isr_${syncRunId}`, syncRunId, items[0]?.source || 'CLI_INTEGRATION', startTime, createdCount, updatedCount, failedCount, reqId, JSON.stringify({ created: createdCount, updated: updatedCount, failed: failedCount })).run();
+          } catch (e) {}
+
           await logIntegrationApiRequest(db, reqId, apiKey.id, method, path, 200, items[0]?.source, undefined, 'TASK_BATCH', undefined, undefined, clientIp);
-          return jsonResponse({ total_processed: items.length, results });
+          return jsonResponse({ run_id: syncRunId, total_processed: items.length, created_count: createdCount, updated_count: updatedCount, failed_count: failedCount, results });
         }
 
         const taskMatch = path.match(/^\/api\/integrations\/v1\/tasks\/([^/]+)$/);
@@ -2919,7 +2994,6 @@ function addPureCalendarDays(dateStr: string, deltaDays: number): string {
           }
         }
 
-        // Section 14: Delegate group overrides to group deletion flow
         if (ovr.override_group_id) {
           const grp = await db.prepare(`SELECT * FROM calendar_override_groups WHERE id = ?`).bind(ovr.override_group_id).first();
           if (grp && grp.status === 'ACTIVE') {
@@ -2933,6 +3007,53 @@ function addPureCalendarDays(dateStr: string, deltaDays: number): string {
 
         await db.prepare(`DELETE FROM calendar_overrides WHERE id = ?`).bind(ovrId).run();
         return jsonResponse({ id: ovrId });
+      }
+
+      // 14.5 POST /api/projects/:id/baseline
+      const baselineMatch = path.match(/^\/api\/projects\/([^/]+)\/baseline$/);
+      if (method === 'POST' && baselineMatch) {
+        const pId = baselineMatch[1];
+        const editor = getEditorName({}, request);
+        const editCheck = await requireEditableWorker(db, editor);
+        if (!editCheck.allowed) {
+          return errorResponse(editCheck.errorMsg!, 403, editCheck.errorCode!);
+        }
+
+        const project = await db.prepare(`SELECT * FROM projects WHERE id = ?`).bind(pId).first();
+        if (!project) return errorResponse('프로젝트를 찾을 수 없습니다.', 404);
+
+        const versionRes = await db.prepare(`SELECT COALESCE(MAX(version), 0) as max_v FROM project_baselines WHERE project_id = ?`).bind(pId).first();
+        const nextVersion = Number(versionRes?.max_v || 0) + 1;
+        const baselineId = `pbl_${pId}_v${nextVersion}_${Date.now()}`;
+
+        // Get current tasks
+        const { results: taskResults } = await db.prepare(`SELECT * FROM tasks WHERE project_id = ?`).bind(pId).all();
+        const currentTasks = taskResults || [];
+
+        const batchStmts: any[] = [
+          db.prepare(`UPDATE projects SET baseline_start_date = start_date, baseline_end_date = end_date, updated_at = CURRENT_TIMESTAMP WHERE id = ?`).bind(pId),
+          db.prepare(`INSERT INTO project_baselines (id, project_id, version, baseline_start_date, baseline_end_date, created_by) VALUES (?, ?, ?, ?, ?, ?)`).bind(baselineId, pId, nextVersion, project.start_date, project.end_date, editCheck.worker?.name || editor),
+        ];
+
+        for (const t of currentTasks) {
+          if (t.start_date && t.end_date) {
+            batchStmts.push(
+              db.prepare(`UPDATE tasks SET baseline_start_date = start_date, baseline_end_date = end_date WHERE id = ?`).bind(t.id)
+            );
+            batchStmts.push(
+              db.prepare(`INSERT INTO task_baselines (id, baseline_id, task_id, baseline_start_date, baseline_end_date) VALUES (?, ?, ?, ?, ?)`).bind(`tbl_${t.id}_v${nextVersion}`, baselineId, t.id, t.start_date, t.end_date)
+            );
+          }
+        }
+
+        await db.batch(batchStmts);
+        return jsonResponse({
+          success: true,
+          baseline_id: baselineId,
+          version: nextVersion,
+          baseline_start_date: project.start_date,
+          baseline_end_date: project.end_date,
+        });
       }
 
       // 15. GET /api/calendar/workers/:workerId
@@ -2968,6 +3089,26 @@ function addPureCalendarDays(dateStr: string, deltaDays: number): string {
         }
 
         return jsonResponse(statuses);
+      }
+
+      // 15.5 GET /api/tasks
+      if (method === 'GET' && path === '/api/tasks') {
+        const projectId = url.searchParams.get('project_id');
+        let stmt;
+        if (projectId) {
+          stmt = db.prepare(`SELECT * FROM tasks WHERE project_id = ? ORDER BY created_at DESC`).bind(projectId);
+        } else {
+          stmt = db.prepare(`SELECT * FROM tasks ORDER BY created_at DESC`);
+        }
+        const { results } = await stmt.all();
+        const rawTasks = results || [];
+        const taskIds = rawTasks.map((t: any) => t.id);
+        const assigneesMap = await fetchTaskAssigneesMapServer(db, taskIds);
+        const tasks = rawTasks.map((t: any) => ({
+          ...t,
+          assignees: assigneesMap[t.id] || [],
+        }));
+        return jsonResponse(tasks);
       }
 
       // 16. POST /api/tasks

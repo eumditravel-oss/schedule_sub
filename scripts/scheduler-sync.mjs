@@ -11,9 +11,11 @@ if (args.length === 0 || args.includes('--help')) {
 CON-COST Dev Scheduler Sync CLI
 
 Usage:
-  node scripts/scheduler-sync.mjs <file.json> [--endpoint <URL>] [--key <TOKEN>]
+  node scripts/scheduler-sync.mjs <file.json> [--dry-run | --apply] [--endpoint <URL>] [--key <TOKEN>]
 
 Options:
+  --dry-run   Preview synchronization changes without mutating database (DEFAULT)
+  --apply     Execute actual database synchronization
   --endpoint  Worker API Base URL (Default: https://concost-dev-scheduler-qa.eumditravel.workers.dev)
   --key       API Key Token (or set SCHEDULER_API_KEY environment variable)
 `);
@@ -21,6 +23,9 @@ Options:
 }
 
 const jsonFilePath = args[0];
+const isApply = args.includes('--apply');
+const isDryRun = args.includes('--dry-run') || !isApply;
+
 const endpointIdx = args.indexOf('--endpoint');
 const keyIdx = args.indexOf('--key');
 
@@ -55,93 +60,73 @@ async function syncSchedule() {
 
   const source = payload.source || 'cli-sync';
 
-  console.log(`🚀 Starting Scheduler Sync from '${jsonFilePath}' to ${baseUrl}...`);
+  console.log(`🚀 Starting Scheduler Sync from '${jsonFilePath}' to ${baseUrl} [${isDryRun ? 'DRY-RUN PREVIEW' : 'ACTUAL APPLY'}]...`);
 
-  // Step 1: Project Upsert
-  let projectExternalId = payload.project?.external_id;
-  if (payload.project && payload.project.name) {
-    console.log(`📁 Synchronizing Project: ${payload.project.name}...`);
-    const prjRes = await fetch(`${baseUrl}/api/integrations/v1/projects/upsert`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({
-        source,
-        external_id: payload.project.external_id,
-        name: payload.project.name,
-        start_date: payload.project.start_date || '2026-08-01',
-        end_date: payload.project.end_date || '2026-08-31',
-      }),
-    });
-
-    if (!prjRes.ok) {
-      const err = await prjRes.json();
-      console.error('❌ Project Upsert Failed:', err);
-      process.exit(1);
-    }
-    const prjData = await prjRes.json();
-    console.log(`✅ Project Synced: ID=${prjData.project.id} (Created: ${prjData.created})`);
-  }
-
-  // Step 2: Task Group Upsert
-  let groupExternalId = payload.task_group?.external_id;
-  if (payload.task_group && payload.task_group.group_name) {
-    console.log(`📂 Synchronizing Task Group: ${payload.task_group.group_name}...`);
-    const grpRes = await fetch(`${baseUrl}/api/integrations/v1/task-groups/upsert`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({
-        source,
-        external_id: payload.task_group.external_id,
-        project_external_id: projectExternalId,
-        group_name: payload.task_group.group_name,
-      }),
-    });
-
-    if (!grpRes.ok) {
-      const err = await grpRes.json();
-      console.error('❌ Task Group Upsert Failed:', err);
-      process.exit(1);
-    }
-    const grpData = await grpRes.json();
-    console.log(`✅ Task Group Synced: ID=${grpData.group.id} (Created: ${grpData.created})`);
-  }
-
-  // Step 3: Tasks Upsert
   const tasks = payload.tasks || [];
-  if (tasks.length > 0) {
-    console.log(`📋 Synchronizing ${tasks.length} Tasks...`);
-
-    const formattedTasks = tasks.map((t) => ({
-      source,
-      external_id: t.external_id,
-      project_external_id: projectExternalId,
-      task_group_external_id: groupExternalId,
-      task_name: t.task_name,
-      start_date: t.start_date || null,
-      end_date: t.end_date || null,
-      assignees: t.assignees || [],
-    }));
-
-    const batchRes = await fetch(`${baseUrl}/api/integrations/v1/tasks/batch-upsert`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({ tasks: formattedTasks }),
-    });
-
-    if (!batchRes.ok) {
-      const err = await batchRes.json();
-      console.error('❌ Batch Tasks Upsert Failed:', err);
-      process.exit(1);
-    }
-
-    const batchData = await batchRes.json();
-    console.log(`🎉 Successfully Processed ${batchData.total_processed} Tasks!`);
+  if (tasks.length === 0) {
+    console.log('⚠️ No tasks found in payload file.');
+    return;
   }
 
-  console.log('✨ Sync Completed Cleanly!');
+  const formattedTasks = tasks.map((t) => ({
+    source,
+    external_id: t.external_id,
+    project_external_id: payload.project?.external_id,
+    task_group_external_id: payload.task_group?.external_id,
+    task_name: t.task_name,
+    start_date: t.start_date || null,
+    end_date: t.end_date || null,
+    primary_worker_name: t.primary_worker_name || t.worker_name,
+    support_worker_names: t.support_worker_names || [],
+    schedule_status: t.schedule_status || 'SCHEDULED',
+    progress_mode: t.progress_mode || 'AUTO_TIME',
+  }));
+
+  const url = `${baseUrl}/api/integrations/v1/tasks/batch-upsert${isDryRun ? '?dry_run=true' : ''}`;
+  const batchRes = await fetch(url, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      source,
+      dry_run: isDryRun,
+      tasks: formattedTasks,
+    }),
+  });
+
+  if (!batchRes.ok) {
+    const err = await batchRes.json();
+    console.error('❌ Batch Upsert Failed:', err);
+    process.exit(1);
+  }
+
+  const batchData = await batchRes.json();
+
+  if (isDryRun) {
+    console.log('\n🔍 [DRY-RUN PREVIEW SUMMARY]');
+    console.log(`• Run ID: ${batchData.run_id}`);
+    console.log(`• Total Processed: ${batchData.total_processed}`);
+    console.log(`• Would Create: ${batchData.would_create}`);
+    console.log(`• Would Update: ${batchData.would_update}`);
+    console.log(`• Would Skip: ${batchData.would_skip}`);
+    console.log('\n📋 Proposed Changes Preview:');
+    (batchData.changes || []).forEach((c, idx) => {
+      console.log(`  ${idx + 1}. [${c.action}] External ID: ${c.external_id} | Task: ${c.task_name}`);
+      if (c.action === 'UPDATE') {
+        console.log(`     Before: ${c.before?.start_date} ~ ${c.before?.end_date}`);
+        console.log(`     After:  ${c.after?.start_date} ~ ${c.after?.after_end_date || c.after?.end_date}`);
+      }
+    });
+    console.log('\n💡 Dry-run completed with ZERO database mutations. Execute with --apply to apply changes.');
+  } else {
+    console.log('\n✅ [SYNCHRONIZATION COMPLETE]');
+    console.log(`• Run ID: ${batchData.run_id}`);
+    console.log(`• Created Count: ${batchData.created_count}`);
+    console.log(`• Updated Count: ${batchData.updated_count}`);
+    console.log(`• Failed Count: ${batchData.failed_count}`);
+  }
 }
 
 syncSchedule().catch((err) => {
-  console.error('Fatal Sync Error:', err);
+  console.error('❌ CLI Execution Error:', err);
   process.exit(1);
 });

@@ -5,6 +5,7 @@ export interface TodaySummaryResult {
   in_progress: { count: number; task_ids: string[] };
   completed_today: { count: number; task_ids: string[] };
   overdue: { count: number; task_ids: string[] };
+  blocked_count?: number;
 }
 
 export async function getTodayDashboardSummaryServer(
@@ -96,11 +97,17 @@ export async function getTodayDashboardSummaryServer(
     }
   });
 
+  const blockedRes = await db
+    .prepare(`SELECT COUNT(*) as count FROM tasks t JOIN projects p ON t.project_id = p.id WHERE p.status = 'ACTIVE' AND t.is_blocked = 1`)
+    .first();
+  const blockedCount = Number(blockedRes?.count || 0);
+
   return {
     date: businessDate,
     scheduled_today: { count: scheduledTodayIds.length, task_ids: scheduledTodayIds },
     in_progress: { count: inProgressIds.length, task_ids: inProgressIds },
     completed_today: { count: completedTodayIds.length, task_ids: completedTodayIds },
     overdue: { count: overdueIds.length, task_ids: overdueIds },
+    blocked_count: blockedCount,
   };
 }
