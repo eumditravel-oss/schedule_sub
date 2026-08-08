@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { Project, Worker, ProjectWorkerAllocation, Task } from '../../types';
 import { useI18n } from '../../hooks/useI18n';
-import { X, Users, Plus, Trash2, Save, RefreshCw, AlertCircle, Info, CheckCircle2 } from 'lucide-react';
+import { X, Users, Plus, Trash2, Save, RefreshCw, AlertCircle, Info, CheckCircle2, History, ArrowRight } from 'lucide-react';
 import { api } from '../../services/api';
 import { getWorkerOverlappingCapacityForProject } from '../../utils/capacityEngine';
 
@@ -35,11 +35,30 @@ export const ProjectWorkforceModal: React.FC<ProjectWorkforceModalProps> = ({
   const [activeProjectsList, setActiveProjectsList] = useState<Project[]>(passedActiveProjects || []);
   const [allocationsMap, setAllocationsMap] = useState<Record<string, ProjectWorkerAllocation[]>>({});
 
+  const [showHistoryView, setShowHistoryView] = useState(false);
+  const [historyLogs, setHistoryLogs] = useState<any[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+
   useEffect(() => {
     if (isOpen && project) {
       fetchAllocations();
+      setShowHistoryView(false);
     }
   }, [isOpen, project]);
+
+  const fetchProjectHistory = async () => {
+    if (!project) return;
+    try {
+      setLoadingHistory(true);
+      const data = await api.getProjectAllocationHistory(project.id);
+      setHistoryLogs(data || []);
+      setShowHistoryView(true);
+    } catch (err) {
+      console.error('Failed to fetch project allocation history:', err);
+    } finally {
+      setLoadingHistory(false);
+    }
+  };
 
   const fetchAllocations = async () => {
     if (!project) return;
@@ -224,14 +243,35 @@ export const ProjectWorkforceModal: React.FC<ProjectWorkforceModalProps> = ({
               </p>
             </div>
           </div>
-          <button
-            type="button"
-            data-testid="project-workforce-close-btn"
-            onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            {!showHistoryView ? (
+              <button
+                type="button"
+                onClick={fetchProjectHistory}
+                className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 text-xs font-bold flex items-center gap-1.5 transition cursor-pointer"
+                title="프로젝트 투입률 변경 이력 보기"
+              >
+                <History className="w-3.5 h-3.5 text-blue-400" />
+                <span>{loadingHistory ? '...' : lang === 'vi' ? 'Lịch sử' : '변경 이력'}</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setShowHistoryView(false)}
+                className="px-2.5 py-1 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold flex items-center gap-1.5 transition cursor-pointer"
+              >
+                <span>{lang === 'vi' ? 'Quay lại' : '투입 설정으로 돌아가기'}</span>
+              </button>
+            )}
+            <button
+              type="button"
+              data-testid="project-workforce-close-btn"
+              onClick={onClose}
+              className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </header>
 
         {/* Scrollable Body Container */}
@@ -239,8 +279,43 @@ export const ProjectWorkforceModal: React.FC<ProjectWorkforceModalProps> = ({
           data-testid="project-workforce-scroll-body"
           className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-6 space-y-4 text-xs"
         >
-          {/* Top Explanatory Banner Notice */}
-          <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl text-blue-900 flex items-start gap-2.5">
+          {showHistoryView ? (
+            <div className="space-y-3">
+              <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl text-blue-900 text-xs flex items-center gap-2">
+                <Info className="w-4 h-4 text-blue-600 shrink-0" />
+                <span>본 프로젝트의 투입률 설정 변경 이력 원장입니다. (총 {historyLogs.length}건)</span>
+              </div>
+              {historyLogs.length === 0 ? (
+                <div className="py-12 text-center text-slate-400">기록된 투입률 변경 이력이 없습니다.</div>
+              ) : (
+                <div className="divide-y divide-slate-100 border border-slate-200 rounded-xl overflow-hidden bg-white">
+                  {historyLogs.map((log) => (
+                    <div key={log.id} className="p-3 hover:bg-slate-50 transition flex items-center justify-between text-xs gap-3">
+                      <div className="space-y-0.5">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-slate-900">{log.worker_name || log.worker_id}</span>
+                          <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-slate-100 text-slate-700 border border-slate-200">
+                            {log.change_type}
+                          </span>
+                        </div>
+                        <div className="text-[11px] text-slate-500 font-mono">
+                          {log.changed_at} · {log.changed_by_name || 'System'} ({log.source || 'MANUAL'})
+                        </div>
+                      </div>
+                      <div className="font-bold flex items-center gap-1.5 shrink-0">
+                        <span className="text-slate-500">{log.old_allocation_percent !== null ? `${log.old_allocation_percent}%` : '없음'}</span>
+                        <ArrowRight className="w-3 h-3 text-slate-400" />
+                        <span className="text-blue-700">{log.new_allocation_percent !== null ? `${log.new_allocation_percent}%` : '삭제'}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : (
+            <React.Fragment>
+              {/* Top Explanatory Banner Notice */}
+              <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl text-blue-900 flex items-start gap-2.5">
             <Info className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
             <div className="space-y-0.5">
               <p className="font-bold text-xs">
@@ -526,6 +601,8 @@ export const ProjectWorkforceModal: React.FC<ProjectWorkforceModalProps> = ({
               })
             )}
           </div>
+        </React.Fragment>
+      )}
         </div>
 
         {/* Persistent Error Banner */}
