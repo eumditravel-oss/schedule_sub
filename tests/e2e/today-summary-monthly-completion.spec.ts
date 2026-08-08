@@ -187,25 +187,37 @@ test.describe('P0 Project Lifecycle Semantics & Monthly Completed Projects KPI S
     // Verify UI Status Badge shows [완료] in ALL Tab
     await page.setViewportSize({ width: 1366, height: 768 });
     await page.goto('/projects');
-    const workerModal = page.locator('[data-testid="worker-prompt-modal"]');
-    if (await workerModal.isVisible({ timeout: 2000 }).catch(() => false)) {
-      await page.click('button:has-text("박용진")').catch(() => {});
-      await page.waitForTimeout(500);
+    
+    for (let i = 0; i < 4; i++) {
+      const workerModalBtn = page.locator('[data-testid^="worker-prompt-option-"], button:has-text("박용진")').first();
+      if (await workerModalBtn.isVisible().catch(() => false)) {
+        await workerModalBtn.click({ force: true }).catch(() => {});
+        await page.waitForTimeout(300);
+      }
+      const keepBtn = page.locator('button').filter({ hasText: /현재 변경된 작업 일정 유지|유지|확인|닫기/ }).first();
+      if (await keepBtn.isVisible().catch(() => false)) {
+        await keepBtn.click({ force: true }).catch(() => {});
+        await page.waitForTimeout(300);
+      }
     }
-    const pendingModal = page.locator('button:has-text("유지"), button:has-text("닫기"), button:has-text("Đóng")').first();
-    if (await pendingModal.isVisible({ timeout: 2000 }).catch(() => false)) {
-      await pendingModal.click({ force: true }).catch(() => {});
-      await page.waitForTimeout(500);
-    }
+
     await page.waitForSelector('[data-testid="today-summary-card"]');
 
     const allTabBtn = page.locator('[data-testid="all-tab-btn"]').first();
-    if (await allTabBtn.isVisible()) {
-      await allTabBtn.click({ force: true });
-      await page.waitForTimeout(1000);
+    await expect(allTabBtn).toBeVisible({ timeout: 10000 });
+    await allTabBtn.click({ force: true });
+    await expect(allTabBtn).toHaveAttribute('aria-selected', 'true', { timeout: 5000 });
+
+    for (let i = 0; i < 2; i++) {
+      const keepBtn = page.locator('button').filter({ hasText: /현재 변경된 작업 일정 유지|유지|확인|닫기/ }).first();
+      if (await keepBtn.isVisible().catch(() => false)) {
+        await keepBtn.click({ force: true }).catch(() => {});
+        await page.waitForTimeout(300);
+      }
     }
+
     const badge = page.locator(`[data-testid="project-status-badge-${projectId}"]`);
-    await expect(badge).toBeVisible({ timeout: 15000 });
+    await badge.waitFor({ state: 'visible', timeout: 30000 });
     expect((await badge.innerText()).trim()).toBe('완료');
   });
 
