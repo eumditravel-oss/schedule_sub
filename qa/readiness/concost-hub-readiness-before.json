@@ -1,0 +1,16 @@
+{
+  "project_id": "prj_1785986741604_ppqz",
+  "project_name": "CONCOST-HUB 개발",
+  "project_status": "ACTIVE",
+  "project_actual_progress": 100,
+  "issue_count": 22,
+  "issue_breakdown": {
+    "PIC_MISSING": 0,
+    "ALLOCATION_UNSET": 0,
+    "UNSCHEDULED_TASK": 0,
+    "OVERDUE_TASK": 22,
+    "TRANSLATION_ERROR": 0,
+    "TASK_OUTSIDE_RANGE": 0,
+    "INVALID_WORKER_PROFILE": 0
+  }
+}

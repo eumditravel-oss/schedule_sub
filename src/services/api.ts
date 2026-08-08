@@ -133,6 +133,13 @@ export const api = {
     return handleResponse<ProjectWorkerAllocation[]>(res);
   },
 
+  async saveProjectWorkerAllocations(
+    projectId: string,
+    allocations: Array<{ worker_id: string; allocation_percent: number; note?: string }>
+  ): Promise<ProjectWorkerAllocation[]> {
+    return this.updateProjectWorkerAllocations(projectId, allocations);
+  },
+
   async createTaskGroup(projectId: string, data: Partial<TaskGroup>): Promise<TaskGroup> {
     const res = await fetch(`/api/projects/${projectId}/task-groups`, {
       method: 'POST',
@@ -328,9 +335,31 @@ export const api = {
   },
 
   async getOverrides(params?: { worker_id?: string; country_code?: string; start?: string; end?: string }): Promise<CalendarOverride[]> {
-    const query = new URLSearchParams(params as any).toString();
-    const res = await fetch(`/api/calendar/overrides?${query}`);
+    const query = new URLSearchParams();
+    if (params?.worker_id) query.set('worker_id', params.worker_id);
+    if (params?.country_code) query.set('country_code', params.country_code);
+    if (params?.start) query.set('start', params.start);
+    if (params?.end) query.set('end', params.end);
+
+    const res = await fetch(`/api/calendar/overrides?${query.toString()}`);
     return handleResponse<CalendarOverride[]>(res);
+  },
+
+  async getCalendarOverrides(): Promise<CalendarOverride[]> {
+    return this.getOverrides();
+  },
+
+  async getManualCountryHolidays(): Promise<CountryHoliday[]> {
+    const currentYear = new Date().getFullYear();
+    try {
+      const [kr, vn] = await Promise.all([
+        this.getHolidays('KR', currentYear),
+        this.getHolidays('VN', currentYear),
+      ]);
+      return [...(kr || []), ...(vn || [])];
+    } catch {
+      return [];
+    }
   },
 
   async createOverride(data: any): Promise<CalendarOverride[]> {

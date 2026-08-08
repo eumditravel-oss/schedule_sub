@@ -1,0 +1,16 @@
+{
+  "project_id": "prj_1786079697997_1tnv",
+  "project_name": "웹개발작업",
+  "project_status": "ACTIVE",
+  "project_actual_progress": 100,
+  "issue_count": 7,
+  "issue_breakdown": {
+    "PIC_MISSING": 0,
+    "ALLOCATION_UNSET": 0,
+    "UNSCHEDULED_TASK": 0,
+    "OVERDUE_TASK": 7,
+    "TRANSLATION_ERROR": 0,
+    "TASK_OUTSIDE_RANGE": 0,
+    "INVALID_WORKER_PROFILE": 0
+  }
+}

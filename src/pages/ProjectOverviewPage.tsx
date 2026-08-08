@@ -47,6 +47,7 @@ import { TodayColumnOverlay } from '../components/gantt/TodayColumnOverlay';
 import { getGanttSpanColumns } from '../utils/ganttOverlay';
 import { calculateTaskWorkdayBreakdown } from '../utils/workCalendar';
 import { ProjectDeleteConfirmModal } from '../components/modals/ProjectDeleteConfirmModal';
+import { ProjectCompleteConfirmModal } from '../components/modals/ProjectCompleteConfirmModal';
 
 export type MobileViewMode = 'SUMMARY' | 'WEEK' | 'GANTT';
 
@@ -324,12 +325,36 @@ export const ProjectOverviewPage: React.FC = () => {
     return !project.name_ko;
   };
 
+  const [completeModalState, setCompleteModalState] = useState<{
+    isOpen: boolean;
+    project: Project | null;
+    incompleteTasks: Task[];
+  }>({
+    isOpen: false,
+    project: null,
+    incompleteTasks: [],
+  });
+
   const handleCompleteProject = async (project: Project) => {
     if (isExecutiveViewer(currentWorker)) {
       alert(lang === 'vi' ? 'Tài khoản quản lý chỉ có quyền xem lịch trình.' : '경영진 계정은 일정을 조회할 수만 있습니다.');
       return;
     }
     if (!requireWorkerSelection()) return;
+
+    const incomplete = allTasks.filter(
+      (t) => t.project_id === project.id && (t.actual_progress ?? t.progress ?? 0) < 100 && Number(t.completion_confirmed) !== 1
+    );
+
+    if (incomplete.length > 0) {
+      setCompleteModalState({
+        isOpen: true,
+        project,
+        incompleteTasks: incomplete,
+      });
+      return;
+    }
+
     if (!confirm(t('completeConfirmText'))) return;
     try {
       await api.completeProject(project.id);
@@ -338,6 +363,19 @@ export const ProjectOverviewPage: React.FC = () => {
     } catch (err: any) {
       alert(getLocalizedErrorMessage(err, t));
     }
+  };
+
+  const handleConfirmBatchCompleteProject = async () => {
+    if (!completeModalState.project) return;
+    const pId = completeModalState.project.id;
+    const tasksToComplete = completeModalState.incompleteTasks;
+
+    await Promise.all(
+      tasksToComplete.map((t) => api.updateTask(t.id, { progress: 100, completion_confirmed: 1 }))
+    );
+    await api.completeProject(pId);
+    await fetchProjects();
+    await fetchCompletedYears();
   };
 
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
@@ -1256,6 +1294,16 @@ export const ProjectOverviewPage: React.FC = () => {
         }}
         onConfirm={handleConfirmDeleteProject}
       />
+
+      {completeModalState.project && (
+        <ProjectCompleteConfirmModal
+          isOpen={completeModalState.isOpen}
+          project={completeModalState.project}
+          incompleteTasks={completeModalState.incompleteTasks}
+          onClose={() => setCompleteModalState({ isOpen: false, project: null, incompleteTasks: [] })}
+          onConfirmBatchComplete={handleConfirmBatchCompleteProject}
+        />
+      )}
 
       <IntegrationManagerModal
         isOpen={isIntegrationModalOpen}

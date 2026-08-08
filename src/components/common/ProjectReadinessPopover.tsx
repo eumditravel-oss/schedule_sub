@@ -1,11 +1,11 @@
 // src/components/common/ProjectReadinessPopover.tsx
 import React, { useState, useRef, useEffect } from 'react';
-import { ProjectReadinessResult } from '../../utils/projectReadiness';
+import { ProjectReadiness } from '../../utils/projectReadiness';
 import { useI18n } from '../../hooks/useI18n';
-import { CheckCircle2, AlertTriangle, HelpCircle, X, ChevronRight } from 'lucide-react';
+import { CheckCircle2, AlertTriangle, HelpCircle, X, ChevronRight, ChevronDown } from 'lucide-react';
 
 interface ProjectReadinessPopoverProps {
-  readiness: ProjectReadinessResult;
+  readiness: ProjectReadiness;
   projectName?: string;
   onOpenWorkforceModal?: () => void;
   onOpenTaskModal?: (taskId?: string) => void;
@@ -19,6 +19,7 @@ export const ProjectReadinessPopover: React.FC<ProjectReadinessPopoverProps> = (
 }) => {
   const { lang } = useI18n();
   const [isOpen, setIsOpen] = useState(false);
+  const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
   const popoverRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -35,19 +36,23 @@ export const ProjectReadinessPopover: React.FC<ProjectReadinessPopoverProps> = (
     };
   }, [isOpen]);
 
-  let badgeColor = 'bg-emerald-100 text-emerald-800 border-emerald-300';
-  let badgeIcon = <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />;
-  let badgeLabel = lang === 'vi' ? 'Sẵn sàng' : '정상';
+  const badgeColor = readiness.badge_color_class;
+  const badgeIcon =
+    readiness.status === 'RISK' ? (
+      <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />
+    ) : readiness.status === 'NEEDS_SETUP' ? (
+      <HelpCircle className="w-3.5 h-3.5 text-amber-600" />
+    ) : (
+      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+    );
 
-  if (readiness.status === 'RISK') {
-    badgeColor = 'bg-rose-100 text-rose-800 border-rose-300 animate-pulse';
-    badgeIcon = <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />;
-    badgeLabel = lang === 'vi' ? `Chú ý (${readiness.risk_count})` : `주의 ${readiness.risk_count}`;
-  } else if (readiness.status === 'NEEDS_SETUP') {
-    badgeColor = 'bg-amber-100 text-amber-900 border-amber-300';
-    badgeIcon = <HelpCircle className="w-3.5 h-3.5 text-amber-600" />;
-    badgeLabel = lang === 'vi' ? `Cần thiết lập (${readiness.setup_count})` : `설정 필요 ${readiness.setup_count}`;
-  }
+  const badgeLabel = lang === 'vi' ? readiness.badge_text_vi : readiness.badge_text_ko;
+
+  const toggleCategory = (catKey: string) => {
+    setExpandedCategories((prev) => ({ ...prev, [catKey]: !prev[catKey] }));
+  };
+
+  const groupKeys = Object.keys(readiness.issue_groups || {});
 
   return (
     <div className="relative inline-block" ref={popoverRef}>
@@ -76,47 +81,96 @@ export const ProjectReadinessPopover: React.FC<ProjectReadinessPopoverProps> = (
             <button
               type="button"
               onClick={() => setIsOpen(false)}
-              className="p-1 rounded text-slate-400 hover:text-slate-600 hover:bg-slate-100"
+              className="p-1 rounded text-slate-400 hover:text-slate-600 hover:bg-slate-100 cursor-pointer"
             >
               <X className="w-4 h-4" />
             </button>
           </div>
 
-          {readiness.issues.length === 0 ? (
+          {groupKeys.length === 0 ? (
             <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-emerald-800 text-xs font-semibold flex items-center gap-2">
               <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
               <span>{lang === 'vi' ? 'Tất cả cấu hình dự án đã hoàn tất.' : '모든 프로젝트 설정이 정상 완비되었습니다.'}</span>
             </div>
           ) : (
-            <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
-              {readiness.issues.map((issue, idx) => (
-                <div
-                  key={idx}
-                  className={`p-2.5 rounded-lg border text-[11px] font-medium flex items-start justify-between gap-2 ${
-                    issue.severity === 'RISK' ? 'bg-rose-50 border-rose-200 text-rose-900' : 'bg-amber-50 border-amber-200 text-amber-900'
-                  }`}
-                >
-                  <div className="space-y-0.5 min-w-0">
-                    <span className="font-bold block text-slate-900 truncate">
-                      {lang === 'vi' ? issue.message_vi : issue.message_ko}
-                    </span>
-                  </div>
+            <div className="space-y-2.5 max-h-64 overflow-y-auto pr-1">
+              {groupKeys.map((catKey) => {
+                const grp = readiness.issue_groups[catKey];
+                const isExpanded = Boolean(expandedCategories[catKey]);
+                const isRisk = grp.severity === 'RISK';
 
-                  {issue.type === 'ALLOCATION_UNSET' && onOpenWorkforceModal && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsOpen(false);
-                        onOpenWorkforceModal();
-                      }}
-                      className="text-[10px] font-extrabold text-blue-700 bg-blue-100 hover:bg-blue-200 px-2 py-1 rounded shrink-0 flex items-center gap-0.5"
+                return (
+                  <div
+                    key={catKey}
+                    className={`rounded-lg border overflow-hidden ${
+                      isRisk ? 'bg-rose-50/50 border-rose-200' : 'bg-amber-50/50 border-amber-200'
+                    }`}
+                  >
+                    {/* Category Header */}
+                    <div
+                      onClick={() => toggleCategory(catKey)}
+                      className="p-2.5 flex items-center justify-between cursor-pointer hover:bg-black/5 transition"
                     >
-                      <span>{lang === 'vi' ? 'Phân bổ' : '투입 설정'}</span>
-                      <ChevronRight className="w-3 h-3" />
-                    </button>
-                  )}
-                </div>
-              ))}
+                      <div className="flex items-center gap-2 font-bold text-slate-900 text-xs">
+                        {isRisk ? (
+                          <AlertTriangle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                        ) : (
+                          <HelpCircle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                        )}
+                        <span>{lang === 'vi' ? grp.label_vi : grp.label_ko}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        {catKey === 'ALLOCATION_UNSET' && onOpenWorkforceModal && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setIsOpen(false);
+                              onOpenWorkforceModal();
+                            }}
+                            className="text-[10px] font-extrabold text-blue-700 bg-blue-100 hover:bg-blue-200 px-2 py-0.5 rounded flex items-center gap-0.5"
+                          >
+                            <span>{lang === 'vi' ? 'Phân bổ' : '투입 설정'}</span>
+                          </button>
+                        )}
+                        {isExpanded ? (
+                          <ChevronDown className="w-3.5 h-3.5 text-slate-500" />
+                        ) : (
+                          <ChevronRight className="w-3.5 h-3.5 text-slate-500" />
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Collapsible Items List */}
+                    {isExpanded && (
+                      <div className="px-2.5 pb-2.5 pt-1 border-t border-slate-200/60 bg-white/70 space-y-1 text-[11px]">
+                        {grp.tasks &&
+                          grp.tasks.map((tItem) => (
+                            <div
+                              key={tItem.id}
+                              onClick={() => {
+                                setIsOpen(false);
+                                onOpenTaskModal?.(tItem.id);
+                              }}
+                              className="p-1.5 rounded hover:bg-slate-100 cursor-pointer flex items-center justify-between text-slate-700"
+                            >
+                              <span className="font-semibold truncate">{tItem.task_name}</span>
+                              <span className="text-[10px] text-slate-400 font-mono shrink-0 ml-1">
+                                {tItem.end_date || 'N/A'}
+                              </span>
+                            </div>
+                          ))}
+                        {grp.workers &&
+                          grp.workers.map((wItem) => (
+                            <div key={wItem.id} className="p-1.5 rounded bg-slate-50 text-slate-800 font-semibold">
+                              {wItem.name}
+                            </div>
+                          ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
