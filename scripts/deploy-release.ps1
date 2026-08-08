@@ -48,6 +48,7 @@ if ($LASTEXITCODE -ne 0) {
 
 # 4.5 Verify QA Completion Integrity Health Check
 Write-Host "Verifying QA Completion Integrity Health Check..." -ForegroundColor Yellow
+Start-Sleep -Seconds 2
 try {
   $qaHealthRes = Invoke-RestMethod -Uri "https://concost-dev-scheduler-qa.eumditravel.workers.dev/api/health/completion-integrity" -Method Get
   $qaData = $qaHealthRes.data
@@ -79,6 +80,7 @@ if ($LASTEXITCODE -ne 0) {
 
 # 6.5 Verify Production Completion Integrity Health Check
 Write-Host "Verifying Production Completion Integrity Health Check..." -ForegroundColor Yellow
+Start-Sleep -Seconds 2
 try {
   $prodHealthRes = Invoke-RestMethod -Uri "https://concost-dev-scheduler.eumditravel.workers.dev/api/health/completion-integrity" -Method Get
   $prodData = $prodHealthRes.data

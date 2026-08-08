@@ -272,6 +272,7 @@ export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
     const path = url.pathname;
+    const cleanPath = path.replace(/\/$/, '') || '/';
     const method = request.method;
     const db = env.DB;
 
@@ -287,7 +288,7 @@ export default {
 
     try {
       // 0. GET /api/version
-      if (method === 'GET' && path === '/api/version') {
+      if (method === 'GET' && (cleanPath === '/api/version' || path === '/api/version')) {
         const isQa = url.hostname.includes('-qa') || url.hostname.includes('qa-') || url.searchParams.get('env') === 'qa';
         return jsonResponse({
           commit: env.BUILD_SHA || 'unknown',
@@ -297,7 +298,7 @@ export default {
       }
 
       // 0.01 GET /api/health/completion-integrity
-      if (method === 'GET' && path === '/api/health/completion-integrity') {
+      if (method === 'GET' && (cleanPath === '/api/health/completion-integrity' || path.startsWith('/api/health/completion-integrity'))) {
         const { results: completedProjects } = await db
           .prepare("SELECT id, name, name_ko, status FROM projects WHERE status = 'COMPLETED'")
           .all();
