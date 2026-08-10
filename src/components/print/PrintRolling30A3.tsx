@@ -121,6 +121,7 @@ export const PrintRolling30A3: React.FC<PrintRolling30A3Props> = ({
                       style={{
                         ...PRINT_DAY_CELL_STYLE,
                         backgroundColor: printToken.baseColor === '#FFFFFF' ? '#1E293B' : printToken.baseColor,
+                        backgroundImage: printToken.hatch.pattern || 'none',
                         color: printToken.textColor === '#334155' ? '#FFFFFF' : printToken.textColor,
                       }}
                     >
