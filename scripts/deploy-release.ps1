@@ -25,15 +25,15 @@ if ($LASTEXITCODE -ne 0) {
 
 # 3.5 Verify D1 Database Required Schema (Preflight Guard)
 Write-Host "Verifying QA D1 Database Schema Preflight..." -ForegroundColor Yellow
-$qaSchemaCheck = (cmd /c "npx wrangler d1 execute concost-db-qa -e qa --remote --command=""PRAGMA table_info(tasks);""") | Out-String
-if ($qaSchemaCheck -notmatch "schedule_revision") {
+cmd /c "node scripts/check-schema.cjs qa"
+if ($LASTEXITCODE -ne 0) {
   Write-Error "SCHEMA_MIGRATION_REQUIRED: QA D1 database tasks table is missing required column schedule_revision."
   exit 1
 }
 
 Write-Host "Verifying Production D1 Database Schema Preflight..." -ForegroundColor Yellow
-$prodSchemaCheck = (cmd /c "npx wrangler d1 execute concost-db --remote --command=""PRAGMA table_info(tasks);""") | Out-String
-if ($prodSchemaCheck -notmatch "schedule_revision") {
+cmd /c "node scripts/check-schema.cjs production"
+if ($LASTEXITCODE -ne 0) {
   Write-Error "SCHEMA_MIGRATION_REQUIRED: Production D1 database tasks table is missing required column schedule_revision."
   exit 1
 }
