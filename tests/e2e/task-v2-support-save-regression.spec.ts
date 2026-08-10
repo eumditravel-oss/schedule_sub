@@ -1,6 +1,9 @@
 import { test, expect } from '@playwright/test';
 
-test.use({ baseURL: 'https://concost-dev-scheduler-qa.eumditravel.workers.dev' });
+test.use({
+  baseURL: 'https://concost-dev-scheduler-qa.eumditravel.workers.dev',
+  extraHTTPHeaders: { 'x-editor-name': 'Park Yongjin' },
+});
 
 test.describe('Task V2 Support & Assignment Normalization Suite', () => {
   const createdTaskIds: string[] = [];
@@ -8,13 +11,26 @@ test.describe('Task V2 Support & Assignment Normalization Suite', () => {
   let activeEditors: any[] = [];
 
   test.beforeEach(async ({ page }) => {
-    const projectsRes = await page.request.get('/api/projects');
+    await page.addInitScript(() => {
+      window.localStorage.setItem('scheduler_current_worker', JSON.stringify({
+        id: 'w_pyj',
+        name: 'Park Yongjin',
+        access_role: 'EDITOR',
+        country_code: 'KR'
+      }));
+    });
+
+    const projectsRes = await page.request.get('/api/projects', {
+      headers: { 'x-editor-name': 'Park Yongjin' },
+    });
     const projectsJson = await projectsRes.json();
     const projects = Array.isArray(projectsJson) ? projectsJson : (projectsJson.data || []);
     const activeProject = projects.find((p: any) => p.status === 'ACTIVE') || projects[0];
     testProjectId = activeProject?.id || 'prj_demo_1';
 
-    const workersRes = await page.request.get('/api/workers');
+    const workersRes = await page.request.get('/api/workers', {
+      headers: { 'x-editor-name': 'Park Yongjin' },
+    });
     const workersJson = await workersRes.json();
     const workers = Array.isArray(workersJson) ? workersJson : (workersJson.data || []);
     activeEditors = workers.filter(

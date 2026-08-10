@@ -7,6 +7,20 @@ test.describe('Print Dropdown Menu Portal & Viewport Clamping Suite', () => {
     { width: 1920, height: 1080 },
   ];
 
+  test.beforeEach(async ({ page }) => {
+    await page.addInitScript(() => {
+      window.localStorage.setItem('scheduler_current_worker', JSON.stringify({
+        id: 'w_pyj',
+        name: 'Park Yongjin',
+        access_role: 'EDITOR',
+        country_code: 'KR'
+      }));
+    });
+    await page.setExtraHTTPHeaders({
+      'x-editor-name': 'Park Yongjin',
+    });
+  });
+
   for (const vp of viewports) {
     test(`1. Project Overview Print Dropdown Portal rendering & bounds at ${vp.width}x${vp.height}`, async ({ page }) => {
       await page.setViewportSize(vp);
@@ -19,7 +33,6 @@ test.describe('Print Dropdown Menu Portal & Viewport Clamping Suite', () => {
       // Get initial header scrollHeight
       const headerEl = page.locator('header').first();
       const initialScrollHeight = await headerEl.evaluate((el) => el.scrollHeight);
-      const initialClientHeight = await headerEl.evaluate((el) => el.clientHeight);
 
       // Open Print Dropdown
       await triggerBtn.click();
@@ -51,7 +64,9 @@ test.describe('Print Dropdown Menu Portal & Viewport Clamping Suite', () => {
       await page.setViewportSize(vp);
       
       // Fetch an active project from API
-      const response = await page.request.get('/api/projects');
+      const response = await page.request.get('/api/projects', {
+        headers: { 'x-editor-name': 'Park Yongjin' },
+      });
       const projectsJson = await response.json();
       const projects = Array.isArray(projectsJson) ? projectsJson : (projectsJson.data || []);
       const prjId = projects[0]?.id || 'prj_demo_1';

@@ -7,8 +7,23 @@ test.describe('Task Group Add & Create P0 Regression Suite', () => {
   let testProjectId: string = '';
 
   test.beforeEach(async ({ page }) => {
+    // Preset current worker in localStorage and set extra HTTP headers to bypass WorkerSelectionModal
+    await page.addInitScript(() => {
+      window.localStorage.setItem('scheduler_current_worker', JSON.stringify({
+        id: 'w_pyj',
+        name: 'Park Yongjin',
+        access_role: 'EDITOR',
+        country_code: 'KR'
+      }));
+    });
+    await page.setExtraHTTPHeaders({
+      'x-editor-name': 'Park Yongjin',
+    });
+
     // Fetch an active project from QA API
-    const response = await page.request.get('/api/projects');
+    const response = await page.request.get('/api/projects', {
+      headers: { 'x-editor-name': 'Park Yongjin' },
+    });
     const projectsJson = await response.json();
     const projects = Array.isArray(projectsJson) ? projectsJson : (projectsJson.data || []);
     const activeProject = projects.find((p: any) => p.status === 'ACTIVE') || projects[0];
@@ -42,6 +57,12 @@ test.describe('Task Group Add & Create P0 Regression Suite', () => {
 
     await page.goto(`/projects/${testProjectId}`);
     await page.waitForLoadState('networkidle');
+
+    // Dismiss worker modal if present
+    const workerModal = page.locator('[data-testid="worker-prompt-modal"]');
+    if (await workerModal.isVisible()) {
+      await page.locator('button:has-text("Park Yongjin"), button:has-text("박용진")').first().click().catch(() => {});
+    }
 
     // Find first task group add task button
     const groupAddBtn = page.locator('[data-testid^="task-group-add-task-"]').first();
