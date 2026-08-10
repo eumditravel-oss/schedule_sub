@@ -97,16 +97,32 @@ export const PrintViewPage: React.FC = () => {
     updateUrlParam('lang', l);
   };
 
-  // Fetch Read-Only Data for printing (Multi-Year Holiday Loading)
+  // Fetch Read-Only Data for printing (Multi-Year Holiday Loading dynamically computed from query params)
   useEffect(() => {
     let isMounted = true;
     async function loadPrintData() {
       setLoading(true);
       setError(null);
       try {
-        const currentYearNum = parseInt(getKoreaBusinessYear(), 10);
-        // Multi-year array for cross-year projects (e.g., 2025, 2026, 2027)
-        const years = [currentYearNum - 1, currentYearNum, currentYearNum + 1];
+        const startParam = searchParams.get('start') || searchParams.get('month') || getKoreaBusinessMonth();
+        const yearParam = searchParams.get('year') || getKoreaBusinessYear();
+
+        const targetYears = new Set<number>();
+        targetYears.add(parseInt(getKoreaBusinessYear(), 10));
+
+        if (yearParam) {
+          const y = parseInt(yearParam, 10);
+          if (!isNaN(y)) targetYears.add(y);
+        }
+        if (startParam) {
+          const y = parseInt(startParam.substring(0, 4), 10);
+          if (!isNaN(y)) {
+            targetYears.add(y);
+            targetYears.add(y + 1); // include adjacent next year for cross-year views
+          }
+        }
+
+        const years = Array.from(targetYears);
 
         const krPromises = years.map((y) => api.getHolidays('KR', y).catch(() => []));
         const vnPromises = years.map((y) => api.getHolidays('VN', y).catch(() => []));
@@ -163,7 +179,7 @@ export const PrintViewPage: React.FC = () => {
     return () => {
       isMounted = false;
     };
-  }, [projectId]);
+  }, [projectId, searchParams]);
 
   // Handle Print Action
   const handlePrint = () => {

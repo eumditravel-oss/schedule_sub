@@ -6,7 +6,7 @@ import {
   getPrintStatusBadgeStyle,
   resolvePrintCalendarVisualState,
 } from '../printVisualTokens';
-import { WorkDayStatus } from '../../types';
+import { WorkDayStatus, CountryHoliday } from '../../types';
 
 describe('printVisualTokens Suite', () => {
   it('should return standard color visual token in color mode', () => {
@@ -71,5 +71,24 @@ describe('printVisualTokens Suite', () => {
 
     const workOverrideToken = resolvePrintCalendarVisualState('2026-08-16', [], [], [], 'color', workOverrideStatus, 'VN');
     expect(workOverrideToken.visualState).toBe('WORK_OVERRIDE');
+  });
+
+  it('should correctly resolve VN_ONLY_OFF for Vietnam National Day 2026-09-02', () => {
+    const vnHolidays: CountryHoliday[] = [
+      {
+        id: 'hol_VN_2026-09-02',
+        country_code: 'VN',
+        holiday_date: '2026-09-02',
+        name_local: 'Quốc khánh',
+        name_ko: 'National Day',
+        name_vi: 'Quốc khánh',
+        source: 'NAGER',
+        source_year: 2026,
+        is_verified: 1,
+      },
+    ];
+
+    const token = resolvePrintCalendarVisualState('2026-09-02', [], vnHolidays, [], 'color');
+    expect(token.visualState).toBe('VN_ONLY_OFF');
   });
 });
