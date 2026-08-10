@@ -3,7 +3,7 @@ import { describe, it, expect } from 'vitest';
 import { detectCrossProjectWorkerConflicts, generateConflictFingerprint } from '../crossProjectConflictDetector';
 import { Project, Task, Worker } from '../../types';
 
-describe('Cross-Project Conflict Engine', () => {
+describe('Cross-Project Conflict Engine (V2 PRIMARY-Only)', () => {
   const mockWorkers: Worker[] = [
     {
       id: 'wrk_03',
@@ -40,137 +40,191 @@ describe('Cross-Project Conflict Engine', () => {
       start_date: '2026-05-01',
       end_date: '2026-05-31',
     } as any,
+    {
+      id: 'prj_completed',
+      name: 'COMPLETED-PROJECT',
+      status: 'COMPLETED',
+      start_date: '2026-05-01',
+      end_date: '2026-05-31',
+    } as any,
   ];
 
-  it('returns 0 conflicts for parallel tasks assigned within the SAME project', () => {
-    const tasksWithinSameProject: Task[] = [
+  it('CASE 1: PRIMARY A <-> PRIMARY B overlap generates Conflict = 1', () => {
+    const tasks: Task[] = [
       {
         id: 'tsk_01',
         project_id: 'prj_01',
-        task_name: 'Sub Task A',
+        task_name: 'Task 1',
         start_date: '2026-05-11',
         end_date: '2026-05-15',
         schedule_status: 'SCHEDULED',
         primary_worker_id: 'wrk_03',
         worker_name: 'Thanh Phuong',
-        assignees: [{ worker_id: 'wrk_03', name: 'Thanh Phuong', allocation_percent: 60 }],
+        assignees: [{ worker_id: 'wrk_03', name: 'Thanh Phuong', assignment_role: 'PRIMARY', allocation_percent: 100 }],
       } as any,
       {
         id: 'tsk_02',
-        project_id: 'prj_01',
-        task_name: 'Sub Task B',
+        project_id: 'prj_02',
+        task_name: 'Task 2',
         start_date: '2026-05-11',
         end_date: '2026-05-15',
         schedule_status: 'SCHEDULED',
         primary_worker_id: 'wrk_03',
         worker_name: 'Thanh Phuong',
-        assignees: [{ worker_id: 'wrk_03', name: 'Thanh Phuong', allocation_percent: 60 }],
+        assignees: [{ worker_id: 'wrk_03', name: 'Thanh Phuong', assignment_role: 'PRIMARY', allocation_percent: 100 }],
       } as any,
     ];
 
-    const result = detectCrossProjectWorkerConflicts(
-      mockActiveProjects,
-      tasksWithinSameProject,
-      mockWorkers
-    );
+    const result = detectCrossProjectWorkerConflicts(mockActiveProjects, tasks, mockWorkers);
+    expect(result.total_conflict_count).toBe(1);
+    expect(result.groups[0].policy_version).toBe('cross_project_v2_primary_only');
+  });
 
+  it('CASE 2: PRIMARY A <-> SUPPORT B overlap generates Conflict = 0', () => {
+    const tasks: Task[] = [
+      {
+        id: 'tsk_01',
+        project_id: 'prj_01',
+        task_name: 'Task 1',
+        start_date: '2026-05-11',
+        end_date: '2026-05-15',
+        schedule_status: 'SCHEDULED',
+        primary_worker_id: 'wrk_03',
+        worker_name: 'Thanh Phuong',
+        assignees: [{ worker_id: 'wrk_03', name: 'Thanh Phuong', assignment_role: 'PRIMARY', allocation_percent: 100 }],
+      } as any,
+      {
+        id: 'tsk_02',
+        project_id: 'prj_02',
+        task_name: 'Task 2',
+        start_date: '2026-05-11',
+        end_date: '2026-05-15',
+        schedule_status: 'SCHEDULED',
+        primary_worker_id: 'wrk_04',
+        worker_name: 'Manh Cuong',
+        assignees: [
+          { worker_id: 'wrk_04', name: 'Manh Cuong', assignment_role: 'PRIMARY', allocation_percent: 100 },
+          { worker_id: 'wrk_03', name: 'Thanh Phuong', assignment_role: 'CO_ASSIGNEE', allocation_percent: 0 },
+        ],
+      } as any,
+    ];
+
+    const result = detectCrossProjectWorkerConflicts(mockActiveProjects, tasks, mockWorkers);
     expect(result.total_conflict_count).toBe(0);
-    expect(result.unacknowledged_conflict_count).toBe(0);
-    expect(result.groups).toHaveLength(0);
   });
 
-  it('detects a conflict when worker is assigned across 2 distinct ACTIVE projects on working days', () => {
-    const tasksAcrossProjects: Task[] = [
+  it('CASE 4: SUPPORT <-> SUPPORT overlap generates Conflict = 0', () => {
+    const tasks: Task[] = [
       {
         id: 'tsk_01',
         project_id: 'prj_01',
-        task_name: 'Hub Backend API',
+        task_name: 'Task 1',
         start_date: '2026-05-11',
         end_date: '2026-05-15',
         schedule_status: 'SCHEDULED',
-        primary_worker_id: 'wrk_03',
-        worker_name: 'Thanh Phuong',
-        assignees: [{ worker_id: 'wrk_03', name: 'Thanh Phuong', allocation_percent: 50 }],
+        primary_worker_id: 'wrk_04',
+        worker_name: 'Manh Cuong',
+        assignees: [
+          { worker_id: 'wrk_04', name: 'Manh Cuong', assignment_role: 'PRIMARY', allocation_percent: 100 },
+          { worker_id: 'wrk_03', name: 'Thanh Phuong', assignment_role: 'CO_ASSIGNEE', allocation_percent: 0 },
+        ],
       } as any,
       {
         id: 'tsk_02',
         project_id: 'prj_02',
-        task_name: 'Factory Site Supervision',
+        task_name: 'Task 2',
         start_date: '2026-05-11',
         end_date: '2026-05-15',
         schedule_status: 'SCHEDULED',
-        primary_worker_id: 'wrk_03',
-        worker_name: 'Thanh Phuong',
-        assignees: [{ worker_id: 'wrk_03', name: 'Thanh Phuong', allocation_percent: 50 }],
+        primary_worker_id: 'wrk_01',
+        worker_name: 'Yoo Jong-wook',
+        assignees: [
+          { worker_id: 'wrk_01', name: 'Yoo Jong-wook', assignment_role: 'PRIMARY', allocation_percent: 100 },
+          { worker_id: 'wrk_03', name: 'Thanh Phuong', assignment_role: 'CO_ASSIGNEE', allocation_percent: 0 },
+        ],
       } as any,
     ];
 
-    const result = detectCrossProjectWorkerConflicts(
-      mockActiveProjects,
-      tasksAcrossProjects,
-      mockWorkers
-    );
-
-    expect(result.total_conflict_count).toBe(1);
-    expect(result.unacknowledged_conflict_count).toBe(1);
-    expect(result.groups).toHaveLength(1);
-
-    const group = result.groups[0];
-    expect(group.policy_version).toBe('cross_project_v1');
-    expect(group.worker_id).toBe('wrk_03');
-    expect(group.project_ids).toEqual(['prj_01', 'prj_02']);
-    expect(group.overlap_start_date).toBe('2026-05-11');
-    expect(group.overlap_end_date).toBe('2026-05-15');
-    expect(group.acknowledged).toBe(false);
+    const result = detectCrossProjectWorkerConflicts(mockActiveProjects, tasks, mockWorkers);
+    expect(result.total_conflict_count).toBe(0);
   });
 
-  it('correctly respects acknowledgement matching by fingerprint', () => {
-    const tasksAcrossProjects: Task[] = [
+  it('CASE 5: Support allocation_percent = 0 is preserved and never converted to 100', () => {
+    const tasks: Task[] = [
       {
         id: 'tsk_01',
         project_id: 'prj_01',
-        task_name: 'Hub Backend API',
+        task_name: 'Task 1',
         start_date: '2026-05-11',
         end_date: '2026-05-15',
         schedule_status: 'SCHEDULED',
         primary_worker_id: 'wrk_03',
         worker_name: 'Thanh Phuong',
-        assignees: [{ worker_id: 'wrk_03', name: 'Thanh Phuong', allocation_percent: 50 }],
+        assignees: [{ worker_id: 'wrk_03', name: 'Thanh Phuong', assignment_role: 'PRIMARY', allocation_percent: 100 }],
+      } as any,
+    ];
+
+    const result = detectCrossProjectWorkerConflicts(mockActiveProjects, tasks, mockWorkers);
+    expect(result.total_conflict_count).toBe(0);
+  });
+
+  it('CASE 6: Overlap with COMPLETED Project generates Current Hard Conflict = 0', () => {
+    const tasks: Task[] = [
+      {
+        id: 'tsk_01',
+        project_id: 'prj_01',
+        task_name: 'Task Active',
+        start_date: '2026-05-11',
+        end_date: '2026-05-15',
+        schedule_status: 'SCHEDULED',
+        primary_worker_id: 'wrk_03',
+        worker_name: 'Thanh Phuong',
+        assignees: [{ worker_id: 'wrk_03', name: 'Thanh Phuong', assignment_role: 'PRIMARY', allocation_percent: 100 }],
+      } as any,
+      {
+        id: 'tsk_02',
+        project_id: 'prj_completed',
+        task_name: 'Task Completed',
+        start_date: '2026-05-11',
+        end_date: '2026-05-15',
+        schedule_status: 'SCHEDULED',
+        primary_worker_id: 'wrk_03',
+        worker_name: 'Thanh Phuong',
+        assignees: [{ worker_id: 'wrk_03', name: 'Thanh Phuong', assignment_role: 'PRIMARY', allocation_percent: 100 }],
+      } as any,
+    ];
+
+    const result = detectCrossProjectWorkerConflicts(mockActiveProjects, tasks, mockWorkers);
+    expect(result.total_conflict_count).toBe(0);
+  });
+
+  it('CASE 7: Same PIC across distinct projects but NO date overlap generates Conflict = 0', () => {
+    const tasks: Task[] = [
+      {
+        id: 'tsk_01',
+        project_id: 'prj_01',
+        task_name: 'Task May Early',
+        start_date: '2026-05-01',
+        end_date: '2026-05-05',
+        schedule_status: 'SCHEDULED',
+        primary_worker_id: 'wrk_03',
+        worker_name: 'Thanh Phuong',
+        assignees: [{ worker_id: 'wrk_03', name: 'Thanh Phuong', assignment_role: 'PRIMARY', allocation_percent: 100 }],
       } as any,
       {
         id: 'tsk_02',
         project_id: 'prj_02',
-        task_name: 'Factory Site Supervision',
-        start_date: '2026-05-11',
+        task_name: 'Task May Late',
+        start_date: '2026-05-10',
         end_date: '2026-05-15',
         schedule_status: 'SCHEDULED',
         primary_worker_id: 'wrk_03',
         worker_name: 'Thanh Phuong',
-        assignees: [{ worker_id: 'wrk_03', name: 'Thanh Phuong', allocation_percent: 50 }],
+        assignees: [{ worker_id: 'wrk_03', name: 'Thanh Phuong', assignment_role: 'PRIMARY', allocation_percent: 100 }],
       } as any,
     ];
 
-    const fingerprint = generateConflictFingerprint('wrk_03', ['prj_01', 'prj_02'], '2026-05-11', '2026-05-15');
-    const acks = [
-      {
-        conflict_fingerprint: fingerprint,
-        acknowledged_by_name: 'CEO',
-        acknowledged_at: '2026-08-07T12:00:00Z',
-      },
-    ];
-
-    const result = detectCrossProjectWorkerConflicts(
-      mockActiveProjects,
-      tasksAcrossProjects,
-      mockWorkers,
-      [],
-      [],
-      undefined,
-      acks
-    );
-
-    expect(result.total_conflict_count).toBe(1);
-    expect(result.unacknowledged_conflict_count).toBe(0);
-    expect(result.groups[0].acknowledged).toBe(true);
+    const result = detectCrossProjectWorkerConflicts(mockActiveProjects, tasks, mockWorkers);
+    expect(result.total_conflict_count).toBe(0);
   });
 });

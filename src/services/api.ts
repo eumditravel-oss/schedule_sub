@@ -534,7 +534,7 @@ export const api = {
     const res = await fetch(`/api/projects/${encodeURIComponent(projectId)}/conflicts/${encodeURIComponent(fingerprint)}/acknowledge`, {
       method: 'POST',
       headers: getWriteHeaders(),
-      body: JSON.stringify({ policy_version: 'cross_project_v1' }),
+      body: JSON.stringify({ policy_version: 'cross_project_v2_primary_only' }),
     });
     return handleResponse<any>(res);
   },
@@ -542,6 +542,12 @@ export const api = {
   async getTodaySummary(dateStr?: string): Promise<any> {
     const query = dateStr ? `?date=${encodeURIComponent(dateStr)}` : '';
     const res = await fetch(`/api/dashboard/today-summary${query}`);
+    return handleResponse<any>(res);
+  },
+
+  async getOverdueDetails(dateStr?: string): Promise<any> {
+    const query = dateStr ? `?date=${encodeURIComponent(dateStr)}` : '';
+    const res = await fetch(`/api/today-summary/overdue-details${query}`);
     return handleResponse<any>(res);
   },
 };

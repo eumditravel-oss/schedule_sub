@@ -1,6 +1,19 @@
 // src/utils/projectReadiness.ts
-import { Project, Task, ProjectWorkerAllocation, Worker } from '../types';
+import { Project, Task, ProjectWorkerAllocation, Worker, CountryHoliday, CalendarOverride } from '../types';
 import { getKoreaDateString } from './dateUtils';
+import { calculateTaskProgress } from './progressCalculator';
+
+export function classifyTaskDeadlineState(
+  task: Task | any,
+  actualProgress: number,
+  businessDate: string
+): 'COMPLETED' | 'UNSCHEDULED' | 'COMPLETION_REVIEW' | 'OVERDUE' | 'ON_TRACK' {
+  if (Number(task.completion_confirmed) === 1) return 'COMPLETED';
+  if (task.schedule_status === 'UNSCHEDULED' || !task.start_date || !task.end_date) return 'UNSCHEDULED';
+  if (actualProgress >= 100) return 'COMPLETION_REVIEW';
+  if (task.end_date < businessDate && actualProgress < 100) return 'OVERDUE';
+  return 'ON_TRACK';
+}
 
 export type ReadinessIssueType =
   | 'PIC_MISSING'
@@ -52,7 +65,9 @@ export function calculateProjectReadiness(
   project: Project,
   tasks: Task[],
   allocations: ProjectWorkerAllocation[],
-  workers: Worker[]
+  workers: Worker[],
+  holidays: CountryHoliday[] = [],
+  overrides: CalendarOverride[] = []
 ): ProjectReadiness {
   const issues: ReadinessIssue[] = [];
   const groupsMap: Record<string, ReadinessGroupSummary> = {};
@@ -71,10 +86,10 @@ export function calculateProjectReadiness(
       issues.push({
         type: 'PROJECT_COMPLETION_INCONSISTENCY',
         severity: 'RISK',
-        title_ko: '프로젝트 완료 불일치',
-        title_vi: 'Không đồng bộ hoàn thành dự án',
-        description_ko: `프로젝트는 완료 상태이지만 미완료 세부 작업이 ${incompleteTasks.length}건 존재합니다.`,
-        description_vi: `Dự án đã hoàn thành nhưng còn ${incompleteTasks.length} công việc chưa hoàn thành.`,
+        title_ko: '완료 불일치',
+        title_vi: 'Dữ liệu chưa đồng bộ',
+        description_ko: `완료 처리된 프로젝트에 미완료 작업 ${incompleteTasks.length}건이 존재합니다.`,
+        description_vi: `Dự án đã hoàn thành nhưng còn ${incompleteTasks.length} công việc chưa xong.`,
       });
 
       groupsMap['PROJECT_COMPLETION_INCONSISTENCY'] = {
@@ -113,7 +128,16 @@ export function calculateProjectReadiness(
         });
       }
 
-      // Schedule Status & Overdue Check
+      // Schedule Status & Overdue Check using V2 Progress Engine Single Source
+      const computedMetrics = calculateTaskProgress(
+        task,
+        workers || [],
+        holidays || [],
+        overrides || [],
+        project.status
+      );
+      const deadlineState = classifyTaskDeadlineState(task, computedMetrics.actual_progress, todayStr);
+
       if (task.schedule_status === 'UNSCHEDULED' || (!task.start_date && !task.end_date)) {
         unscheduledTasks.push(task);
         issues.push({
@@ -126,12 +150,7 @@ export function calculateProjectReadiness(
           target_id: task.id,
           target_name: task.task_name,
         });
-      } else if (
-        task.end_date &&
-        task.end_date < todayStr &&
-        (task.actual_progress ?? task.progress ?? 0) < 100 &&
-        Number(task.completion_confirmed) !== 1
-      ) {
+      } else if (deadlineState === 'OVERDUE') {
         overdueTasks.push(task);
         issues.push({
           type: 'OVERDUE_TASK',

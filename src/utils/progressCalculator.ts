@@ -20,7 +20,7 @@ export interface TaskProgressMetrics {
 
 export function calculateTaskProgress(
   task: Task,
-  worker?: Worker | null,
+  workers?: Worker[] | Worker | null,
   holidays: CountryHoliday[] = [],
   overrides: CalendarOverride[] = [],
   projectStatus: 'ACTIVE' | 'COMPLETED' = 'ACTIVE',
@@ -36,8 +36,11 @@ export function calculateTaskProgress(
       schedule_state: 'UPCOMING',
     };
   }
-  const todayStr = referenceTodayStr || getTodayStrForWorker(worker);
-  const workerObj = worker;
+
+  const workerList: Worker[] = Array.isArray(workers) ? workers : (workers ? [workers] : []);
+  const primaryId = task.primary_worker_id || (task.assignees?.find(a => a.assignment_role === 'PRIMARY')?.worker_id) || task.worker_name;
+  const workerObj: Worker | null = workerList.find(w => w.id === primaryId || w.name === primaryId) || workerList[0] || null;
+  const todayStr = referenceTodayStr || getTodayStrForWorker(workerObj);
 
   const dates: string[] = [];
   let curDate = new Date(`${task.start_date}T00:00:00Z`);

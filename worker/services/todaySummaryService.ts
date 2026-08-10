@@ -1,4 +1,6 @@
 // worker/services/todaySummaryService.ts
+import { calculateTaskProgressServer, TaskProgressMetricsServer } from './progressAndConflictServer';
+
 export interface TodaySummaryResult {
   date: string;
   scheduled_today: { count: number; task_ids: string[] };
@@ -10,14 +12,37 @@ export interface TodaySummaryResult {
   blocked_count?: number;
 }
 
+export interface OverdueTaskDetailItem {
+  task_id: string;
+  task_name: string;
+  project_id: string;
+  project_name: string;
+  primary_worker_id: string;
+  worker_name: string;
+  start_date: string;
+  end_date: string;
+  business_date: string;
+  days_overdue: number;
+  progress_mode: string;
+  actual_progress: number;
+  completion_confirmed: number;
+  judgement_reason: string;
+}
+
 export function classifyTaskDeadlineStateServer(
   task: any,
-  actualProgress: number,
+  metricsOrActualProgress: number | TaskProgressMetricsServer,
   businessDate: string
 ): 'COMPLETED' | 'UNSCHEDULED' | 'COMPLETION_REVIEW' | 'OVERDUE' | 'ON_TRACK' {
   if (Number(task.completion_confirmed) === 1) return 'COMPLETED';
   if (task.schedule_status === 'UNSCHEDULED' || !task.start_date || !task.end_date) return 'UNSCHEDULED';
-  if (actualProgress >= 100) return 'COMPLETION_REVIEW';
+
+  const actualProgress = typeof metricsOrActualProgress === 'number'
+    ? metricsOrActualProgress
+    : metricsOrActualProgress.actual_progress;
+  const scheduleState = typeof metricsOrActualProgress === 'object' ? metricsOrActualProgress.schedule_state : undefined;
+
+  if (scheduleState === 'COMPLETION_REVIEW' || actualProgress >= 100) return 'COMPLETION_REVIEW';
   if (task.end_date < businessDate && actualProgress < 100) return 'OVERDUE';
   return 'ON_TRACK';
 }
@@ -40,7 +65,7 @@ export async function getTodayDashboardSummaryServer(
   }
   const nextMonthStart = `${nextYear}-${String(nextMonth).padStart(2, '0')}-01`;
 
-  // Fetch Monthly Completed Projects (ADDENDUM F Business Rule: status = COMPLETED AND schedule end_date in business month)
+  // Fetch Monthly Completed Projects
   let completedThisMonthProjectIds: string[] = [];
   try {
     const completedPrjsRes = await db
@@ -60,13 +85,19 @@ export async function getTodayDashboardSummaryServer(
     throw new Error(`MONTHLY_COMPLETION_QUERY_FAILED: ${e?.message || 'Database query error'}`);
   }
 
-  // Fetch active projects
-  const activePrjRes = await db
-    .prepare(`SELECT id, status FROM projects WHERE status = 'ACTIVE'`)
-    .all();
+  // Batch Load Reference Data for V2 Progress Engine (Rule 9)
+  const [workersRes, holidaysRes, overridesRes, activePrjRes] = await Promise.all([
+    db.prepare(`SELECT id, name, country_code, workweek_profile, is_active FROM workers WHERE is_active = 1`).all(),
+    db.prepare(`SELECT country_code, holiday_date, name_ko, name_vi FROM country_holidays`).all(),
+    db.prepare(`SELECT * FROM calendar_overrides`).all(),
+    db.prepare(`SELECT id, name, name_ko, status FROM projects WHERE status = 'ACTIVE'`).all(),
+  ]);
+
+  const workers = workersRes.results || [];
+  const holidays = holidaysRes.results || [];
+  const overrides = overridesRes.results || [];
   const activeProjects: any[] = activePrjRes.results || [];
-  const activeProjectMap = new Map<string, any>();
-  activeProjects.forEach((p) => activeProjectMap.set(p.id, p));
+  const activeProjectMap = new Map<string, any>(activeProjects.map((p) => [p.id, p]));
 
   if (activeProjects.length === 0) {
     return {
@@ -87,7 +118,8 @@ export async function getTodayDashboardSummaryServer(
   const tasksRes = await db
     .prepare(
       `SELECT t.id, t.project_id, t.task_name, t.start_date, t.end_date, t.progress,
-              t.completion_confirmed, t.schedule_status, t.progress_mode
+              t.completion_confirmed, t.schedule_status, t.progress_mode,
+              t.primary_worker_id, t.worker_name
        FROM tasks t
        JOIN projects p ON t.project_id = p.id
        WHERE p.status = 'ACTIVE'
@@ -98,14 +130,30 @@ export async function getTodayDashboardSummaryServer(
     .all();
   const activeTasks: any[] = tasksRes.results || [];
 
-  // Fetch daily status for businessDate
-  const dailyRes = await db
-    .prepare(`SELECT task_id, status FROM daily_status WHERE work_date = ?`)
-    .bind(businessDate)
-    .all();
+  // Batch Load Task Assignees and Daily Statuses (Rule 9)
+  const [assigneesRes, dailyRes] = await Promise.all([
+    db.prepare(`SELECT task_id, worker_id, name, country_code, assignment_role, allocation_percent, sort_order FROM task_assignees`).all(),
+    db.prepare(`SELECT task_id, work_date, status FROM daily_status`).all(),
+  ]);
+
+  const assigneesMap = new Map<string, any[]>();
+  (assigneesRes.results || []).forEach((row: any) => {
+    if (!assigneesMap.has(row.task_id)) {
+      assigneesMap.set(row.task_id, []);
+    }
+    assigneesMap.get(row.task_id)!.push(row);
+  });
+
   const dailyStatusMap = new Map<string, string>();
+  const taskDailyStatusRecords = new Map<string, Record<string, string>>();
   (dailyRes.results || []).forEach((row: any) => {
-    dailyStatusMap.set(row.task_id, row.status);
+    if (row.work_date === businessDate) {
+      dailyStatusMap.set(row.task_id, row.status);
+    }
+    if (!taskDailyStatusRecords.has(row.task_id)) {
+      taskDailyStatusRecords.set(row.task_id, {});
+    }
+    taskDailyStatusRecords.get(row.task_id)![row.work_date] = row.status;
   });
 
   const scheduledTodayIds: string[] = [];
@@ -115,19 +163,23 @@ export async function getTodayDashboardSummaryServer(
   const completionReviewIds: string[] = [];
 
   activeTasks.forEach((t) => {
+    // Attach assignees array from DB (Rule 9)
+    t.assignees = assigneesMap.get(t.id) || [];
+    const dailyStatuses = taskDailyStatusRecords.get(t.id) || {};
+
+    // STRICT V2 PROGRESS ENGINE: Calculate progress metrics using complete DB batch data
+    const metrics = calculateTaskProgressServer(
+      t,
+      workers,
+      holidays,
+      overrides,
+      'ACTIVE',
+      dailyStatuses,
+      businessDate
+    );
+
     const isScheduledToday = t.start_date <= businessDate && businessDate <= t.end_date;
-
-    // Compute actual_progress according to progress_mode
-    let actualProgress = Number(t.progress || 0);
-    if (t.progress_mode === 'AUTO_TIME') {
-      if (businessDate > t.end_date) {
-        actualProgress = 100;
-      } else if (businessDate < t.start_date) {
-        actualProgress = 0;
-      }
-    }
-
-    const deadlineState = classifyTaskDeadlineStateServer(t, actualProgress, businessDate);
+    const deadlineState = classifyTaskDeadlineStateServer(t, metrics, businessDate);
 
     // 1. Scheduled Today
     if (isScheduledToday) {
@@ -138,7 +190,7 @@ export async function getTodayDashboardSummaryServer(
     const ds = dailyStatusMap.get(t.id);
     const isInProgressState =
       ds === 'IN_PROGRESS' ||
-      (actualProgress > 0 && actualProgress < 100) ||
+      (metrics.actual_progress > 0 && metrics.actual_progress < 100) ||
       (isScheduledToday && Number(t.completion_confirmed) !== 1);
 
     if (isScheduledToday && isInProgressState && Number(t.completion_confirmed) !== 1) {
@@ -154,7 +206,7 @@ export async function getTodayDashboardSummaryServer(
       }
     }
 
-    // 4. Overdue (end_date < businessDate AND actualProgress < 100 AND completion_confirmed != 1)
+    // 4. Overdue (end_date < businessDate AND metrics.actual_progress < 100 AND completion_confirmed != 1)
     if (deadlineState === 'OVERDUE') {
       if (!overdueIds.includes(t.id)) {
         overdueIds.push(t.id);
@@ -192,4 +244,85 @@ export async function getTodayDashboardSummaryServer(
     completion_review: { count: completionReviewIds.length, task_ids: completionReviewIds },
     blocked_count: blockedCount,
   };
+}
+
+export async function getOverdueTaskDetailsServer(
+  db: any,
+  businessDate: string
+): Promise<OverdueTaskDetailItem[]> {
+  const summary = await getTodayDashboardSummaryServer(db, businessDate);
+  const overdueIds = summary.overdue.task_ids;
+  if (overdueIds.length === 0) return [];
+
+  const [workersRes, holidaysRes, overridesRes] = await Promise.all([
+    db.prepare(`SELECT id, name, country_code, workweek_profile, is_active FROM workers WHERE is_active = 1`).all(),
+    db.prepare(`SELECT country_code, holiday_date, name_ko, name_vi FROM country_holidays`).all(),
+    db.prepare(`SELECT * FROM calendar_overrides`).all(),
+  ]);
+
+  const workers = workersRes.results || [];
+  const holidays = holidaysRes.results || [];
+  const overrides = overridesRes.results || [];
+
+  const placeholders = overdueIds.map(() => '?').join(',');
+  const tasksRes = await db
+    .prepare(
+      `SELECT t.id, t.project_id, t.task_name, t.start_date, t.end_date, t.progress,
+              t.completion_confirmed, t.schedule_status, t.progress_mode,
+              t.primary_worker_id, t.worker_name, p.name as project_name
+       FROM tasks t
+       JOIN projects p ON t.project_id = p.id
+       WHERE t.id IN (${placeholders})`
+    )
+    .bind(...overdueIds)
+    .all();
+
+  const assigneesRes = await db.prepare(`SELECT task_id, worker_id, name, country_code, assignment_role, allocation_percent FROM task_assignees`).all();
+  const assigneesMap = new Map<string, any[]>();
+  (assigneesRes.results || []).forEach((row: any) => {
+    if (!assigneesMap.has(row.task_id)) assigneesMap.set(row.task_id, []);
+    assigneesMap.get(row.task_id)!.push(row);
+  });
+
+  const dailyRes = await db.prepare(`SELECT task_id, work_date, status FROM daily_status`).all();
+  const taskDailyStatusRecords = new Map<string, Record<string, string>>();
+  (dailyRes.results || []).forEach((row: any) => {
+    if (!taskDailyStatusRecords.has(row.task_id)) taskDailyStatusRecords.set(row.task_id, {});
+    taskDailyStatusRecords.get(row.task_id)![row.work_date] = row.status;
+  });
+
+  const items: OverdueTaskDetailItem[] = [];
+
+  (tasksRes.results || []).forEach((t: any) => {
+    t.assignees = assigneesMap.get(t.id) || [];
+    const dailyStatuses = taskDailyStatusRecords.get(t.id) || {};
+    const metrics = calculateTaskProgressServer(t, workers, holidays, overrides, 'ACTIVE', dailyStatuses, businessDate);
+
+    const endDateObj = new Date(`${t.end_date}T00:00:00Z`);
+    const bizDateObj = new Date(`${businessDate}T00:00:00Z`);
+    const daysOverdue = Math.max(1, Math.round((bizDateObj.getTime() - endDateObj.getTime()) / (1000 * 3600 * 24)));
+
+    const picName = t.worker_name || t.primary_worker_id || '담당자 미정';
+    const modeStr = t.progress_mode || 'AUTO_TIME';
+    const reason = `종료일 ${t.end_date}가 지났으며 ${modeStr} 실제 공정률이 ${metrics.actual_progress}%이고 완료 확정되지 않았습니다.`;
+
+    items.push({
+      task_id: t.id,
+      task_name: t.task_name,
+      project_id: t.project_id,
+      project_name: t.project_name || '프로젝트',
+      primary_worker_id: t.primary_worker_id || '',
+      worker_name: picName,
+      start_date: t.start_date,
+      end_date: t.end_date,
+      business_date: businessDate,
+      days_overdue: daysOverdue,
+      progress_mode: modeStr,
+      actual_progress: metrics.actual_progress,
+      completion_confirmed: Number(t.completion_confirmed || 0),
+      judgement_reason: reason,
+    });
+  });
+
+  return items;
 }

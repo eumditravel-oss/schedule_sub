@@ -36,7 +36,7 @@ import {
   logIntegrationApiRequest,
 } from './services/integrationAuthServer';
 import { OPENAPI_V1_SPEC } from './services/openapiSpec';
-import { getTodayDashboardSummaryServer } from './services/todaySummaryService';
+import { getTodayDashboardSummaryServer, getOverdueTaskDetailsServer } from './services/todaySummaryService';
 import { getProjectAllocations, updateProjectAllocations, getAllocationHistory, getProjectAllocationHistory } from './services/projectAllocationService';
 import { completeProjectService } from './services/projectCompletionService';
 
@@ -635,11 +635,17 @@ export default {
         });
       }
 
-      // 0.05 GET /api/dashboard/today-summary
-      if (method === 'GET' && path === '/api/dashboard/today-summary') {
+      // 0.05 GET /api/dashboard/today-summary & /api/today-summary
+      if (method === 'GET' && (path === '/api/dashboard/today-summary' || path === '/api/today-summary')) {
         const targetDate = url.searchParams.get('date') || getTodayStrForWorkerServer(null);
         const summary = await getTodayDashboardSummaryServer(db, targetDate);
         return jsonResponse(summary);
+      }
+
+      if (method === 'GET' && (path === '/api/dashboard/today-summary/overdue-details' || path === '/api/today-summary/overdue-details')) {
+        const targetDate = url.searchParams.get('date') || getTodayStrForWorkerServer(null);
+        const items = await getOverdueTaskDetailsServer(db, targetDate);
+        return jsonResponse({ date: targetDate, overdue_tasks: items });
       }
 
       // 0.1 GET /api/projects/:id/shift-logs

@@ -15,7 +15,7 @@ export interface CrossProjectTaskRef {
 export interface CrossProjectConflictGroup {
   id: string;
   fingerprint: string;
-  policy_version: 'cross_project_v1';
+  policy_version: 'cross_project_v2_primary_only';
   worker_id: string;
   worker_name: string;
   project_ids: string[];
@@ -39,6 +39,27 @@ export interface CrossProjectConflictResult {
   groups: CrossProjectConflictGroup[];
 }
 
+export function resolvePrimaryWorkerId(task: any): string | null {
+  if (!task) return null;
+  const assignees = task.assignees || [];
+  if (Array.isArray(assignees) && assignees.length > 0) {
+    const primaryAssignee = assignees.find((a: any) => a && a.assignment_role === 'PRIMARY');
+    if (primaryAssignee && (primaryAssignee.worker_id || primaryAssignee.name)) {
+      return primaryAssignee.worker_id || primaryAssignee.name;
+    }
+  }
+  if (task.primary_worker_id) {
+    return task.primary_worker_id;
+  }
+  if (task.worker_name) {
+    return task.worker_name;
+  }
+  if (Array.isArray(assignees) && assignees.length > 0 && assignees[0]) {
+    return assignees[0].worker_id || assignees[0].name || null;
+  }
+  return null;
+}
+
 export function generateConflictFingerprint(
   workerId: string,
   projectIds: string[],
@@ -46,7 +67,7 @@ export function generateConflictFingerprint(
   endDate: string
 ): string {
   const sortedPids = [...projectIds].sort().join('_');
-  return `cross_project_v1_${workerId}_${sortedPids}_${startDate}_${endDate}`;
+  return `cross_project_v2_primary_only_${workerId}_${sortedPids}_${startDate}_${endDate}`;
 }
 
 export function detectCrossProjectWorkerConflicts(
@@ -58,7 +79,7 @@ export function detectCrossProjectWorkerConflicts(
   filterProjectId?: string,
   acknowledgements: { conflict_fingerprint: string; acknowledged_by_name?: string; acknowledged_at?: string }[] = []
 ): CrossProjectConflictResult {
-  const activeProjects = (allProjects || []).filter((p) => p.status === 'ACTIVE');
+  const activeProjects = (allProjects || []).filter((p) => p && p.status === 'ACTIVE');
   const activeProjectMap = new Map<string, Project>(activeProjects.map((p) => [p.id, p]));
 
   const ackMap = new Map<string, any>();
@@ -69,7 +90,7 @@ export function detectCrossProjectWorkerConflicts(
   });
 
   const scheduledTasks = (allTasks || []).filter((t) => {
-    if (!t.start_date || !t.end_date || t.schedule_status === 'UNSCHEDULED') return false;
+    if (!t || !t.start_date || !t.end_date || t.schedule_status === 'UNSCHEDULED') return false;
     return activeProjectMap.has(t.project_id);
   });
 
@@ -86,12 +107,10 @@ export function detectCrossProjectWorkerConflicts(
     const workerId = worker.id;
     const workerName = worker.name;
 
+    // V2 Rule: Filter tasks where this worker is strictly the PRIMARY (PIC) assignee
     const workerTasks = scheduledTasks.filter((t) => {
-      const assignees = t.assignees || [];
-      if (assignees.length > 0) {
-        return assignees.some((a) => a.worker_id === workerId || a.name === workerName);
-      }
-      return t.primary_worker_id === workerId || t.worker_name === workerName;
+      const primaryId = resolvePrimaryWorkerId(t);
+      return primaryId === workerId || primaryId === workerName;
     });
 
     if (workerTasks.length === 0) continue;
@@ -121,8 +140,9 @@ export function detectCrossProjectWorkerConflicts(
           projectSet.add(t.project_id);
           const prj = activeProjectMap.get(t.project_id);
           const assignees = t.assignees || [];
-          const matchedAssignee = assignees.find((a) => a.worker_id === workerId || a.name === workerName);
-          const alloc = matchedAssignee ? Number(matchedAssignee.allocation_percent) || 100 : 100;
+          const matchedAssignee = assignees.find((a: any) => a && (a.worker_id === workerId || a.name === workerName));
+          const rawAlloc = matchedAssignee?.allocation_percent;
+          const alloc = rawAlloc === undefined || rawAlloc === null ? 100 : Number(rawAlloc);
 
           taskEntries.push({
             task_id: t.id,
@@ -135,7 +155,7 @@ export function detectCrossProjectWorkerConflicts(
           });
         });
 
-        // CROSS-PROJECT CONFLICT: Scheduled across 2 or more distinct ACTIVE projects
+        // HARD CROSS-PROJECT CONFLICT: PRIMARY scheduled across 2 or more distinct ACTIVE projects
         if (projectSet.size >= 2) {
           const sortedProjectIds = Array.from(projectSet).sort();
           rawDailyConflicts.push({
@@ -151,6 +171,7 @@ export function detectCrossProjectWorkerConflicts(
     }
   }
 
+  // Group contiguous days with exact same worker_id and exact same project_ids
   const groups: CrossProjectConflictGroup[] = [];
 
   let currentGroup: {
@@ -190,6 +211,7 @@ export function detectCrossProjectWorkerConflicts(
     groups.push(buildGroupObject(currentGroup, activeProjectMap, ackMap));
   }
 
+  // Filter groups by filterProjectId if provided
   const filteredGroups = filterProjectId
     ? groups.filter((g) => g.project_ids.includes(filterProjectId))
     : groups;
@@ -253,7 +275,7 @@ function buildGroupObject(
   return {
     id: `cp_conf_${groupData.worker_id}_${startDate}_${endDate}`,
     fingerprint,
-    policy_version: 'cross_project_v1',
+    policy_version: 'cross_project_v2_primary_only',
     worker_id: groupData.worker_id,
     worker_name: groupData.worker_name,
     project_ids: groupData.project_ids,
