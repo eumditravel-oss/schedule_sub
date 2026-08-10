@@ -184,6 +184,11 @@ test.describe('Task Save Persistence & Gantt Reflection Regression Suite', () =>
     await expect(nameInput).toBeVisible();
     await nameInput.fill(taskNameCaseA);
 
+    const translatedInput = page.locator('[data-testid="task-translated-input"]');
+    if (await translatedInput.isVisible().catch(() => false)) {
+      await translatedInput.fill(taskNameCaseA);
+    }
+
     const startDateInput = page.locator('[data-testid="task-start-date-input"]');
     if (await startDateInput.isVisible().catch(() => false)) {
       await startDateInput.fill('2030-05-10');
@@ -574,6 +579,11 @@ test.describe('Task Save Persistence & Gantt Reflection Regression Suite', () =>
     const updatedTaskName = `UPDATED_TASK_A_${runId}`;
     const nameInput = page.locator('[data-testid="task-name-input"]');
     await nameInput.fill(updatedTaskName);
+
+    const translatedInput = page.locator('[data-testid="task-translated-input"]');
+    if (await translatedInput.isVisible().catch(() => false)) {
+      await translatedInput.fill(updatedTaskName);
+    }
 
     const startDateInput = page.locator('[data-testid="task-start-date-input"]');
     if (await startDateInput.isVisible().catch(() => false)) {
