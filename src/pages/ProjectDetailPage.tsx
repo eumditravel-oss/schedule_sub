@@ -613,10 +613,11 @@ const DroppableTaskGroupRow: React.FC<DroppableTaskGroupRowProps> = ({
                   type="button"
                   data-testid={`task-group-add-task-${group.id}`}
                   onClick={() => onOpenAddTaskInGroup(group.id)}
+                  title={lang === 'vi' ? 'Thêm công việc' : '세부 작업 추가'}
                   className="px-2 py-0.5 rounded-md bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 font-bold text-[11px] flex items-center gap-0.5 transition"
                 >
                   <Plus className="w-3 h-3 text-blue-600" />
-                  <span>{lang === 'vi' ? '+ Thêm' : '+ 세부 작업'}</span>
+                  <span>{lang === 'vi' ? 'Thêm' : '세부 작업'}</span>
                 </button>
 
                 <button
@@ -1261,6 +1262,8 @@ export const ProjectDetailPage: React.FC = () => {
     }
   };
 
+  const [newTaskGroupId, setNewTaskGroupId] = useState<string | null>(null);
+
   const handleOpenAddTaskInGroup = (groupId: string) => {
     if (isViewer) {
       alert(lang === 'vi' ? 'Tài khoản quản lý chỉ có quyền xem lịch trình.' : '경영진 계정은 일정을 조회할 수만 있습니다.');
@@ -1272,9 +1275,8 @@ export const ProjectDetailPage: React.FC = () => {
     }
     if (!requireWorkerSelection()) return;
 
-    setSelectedTask({
-      task_group_id: groupId,
-    } as any);
+    setSelectedTask(null);
+    setNewTaskGroupId(groupId);
     setIsTaskModalOpen(true);
   };
 
@@ -1568,6 +1570,7 @@ export const ProjectDetailPage: React.FC = () => {
     }
     if (!requireWorkerSelection()) return;
     setSelectedTask(null);
+    setNewTaskGroupId(null);
     setIsTaskModalOpen(true);
   };
 
@@ -1582,7 +1585,7 @@ export const ProjectDetailPage: React.FC = () => {
     }
     if (!requireWorkerSelection()) return;
     try {
-      if (selectedTask) {
+      if (selectedTask?.id) {
         await api.updateTask(selectedTask.id, data);
       } else {
         await api.createTask({ ...data, project_id: projectId });
@@ -1610,7 +1613,7 @@ export const ProjectDetailPage: React.FC = () => {
         });
         return;
       }
-      alert(getLocalizedErrorMessage(err, t));
+      throw err;
     }
   };
 
@@ -1623,7 +1626,7 @@ export const ProjectDetailPage: React.FC = () => {
         confirm_cross_project_conflicts:
           conflictModalState.pendingTaskData.confirm_cross_project_conflicts || true,
       };
-      if (selectedTask) {
+      if (selectedTask?.id) {
         await api.updateTask(selectedTask.id, payload);
       } else {
         await api.createTask({ ...payload, project_id: projectId });
@@ -1632,7 +1635,7 @@ export const ProjectDetailPage: React.FC = () => {
       setConflictModalState({ isOpen: false, conflicts: [], pendingTaskData: null });
       setIsTaskModalOpen(false);
     } catch (err: any) {
-      alert(getLocalizedErrorMessage(err, t));
+      throw err;
     }
   };
 
@@ -1647,6 +1650,7 @@ export const ProjectDetailPage: React.FC = () => {
     }
     if (!requireWorkerSelection()) return;
     setSelectedTask(taskItem);
+    setNewTaskGroupId(null);
     setIsTaskModalOpen(true);
   };
 
@@ -2426,6 +2430,7 @@ export const ProjectDetailPage: React.FC = () => {
         onClose={() => setIsTaskModalOpen(false)}
         onSave={handleSaveTask}
         task={selectedTask}
+        initialTaskGroupId={newTaskGroupId}
         projectId={projectId || ''}
         project={project}
         currentWorker={currentWorker}

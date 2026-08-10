@@ -790,6 +790,22 @@ async function validateAndNormalizeTaskAssigneesServer(
     uniqueIds.unshift(primaryId);
   }
 
+  const isV2Payload = Boolean(
+    body.pic_worker_id ||
+    body.primary_worker_id ||
+    body.support_worker_ids ||
+    (body.assignees && body.assignees.some((a: any) => a.assignment_role))
+  );
+
+  // V2 Rule: Support worker count max 4 (total assignees max 5)
+  if (isV2Payload) {
+    const rawSupportIds: string[] = body.support_worker_ids || (body.assignees ? body.assignees.filter((a: any) => a.assignment_role === 'CO_ASSIGNEE').map((a: any) => a.worker_id) : []);
+    const uniqueSupportIds = Array.from(new Set(rawSupportIds.filter((id) => id !== primaryId)));
+    if (uniqueSupportIds.length > 4) {
+      return { valid: false, errorCode: 'MAX_SUPPORT_EXCEEDED', errorMsg: 'Support 작업자는 최대 4명까지만 등록할 수 있습니다.' };
+    }
+  }
+
   const validatedAssignees: any[] = [];
   const rawAllocations: any[] = body.assignee_allocations || [];
 
@@ -811,14 +827,20 @@ async function validateAndNormalizeTaskAssigneesServer(
       return { valid: false, errorCode: 'EXECUTIVE_ASSIGNMENT_FORBIDDEN', errorMsg: `경영진 및 보기 전용 계정(${wObj.name})은 작업자로 배정할 수 없습니다.` };
     }
 
-    const allocInput = rawAllocations.find((a: any) => a.worker_id === wid || a.worker_id === wObj.name);
-    let allocPercent = allocInput && !isNaN(Number(allocInput.allocation_percent)) ? Number(allocInput.allocation_percent) : (defaultAlloc + (idx === 0 ? remainder : 0));
+    const isPrimary = wid === primaryId;
+    let allocPercent = 0;
 
-    if (allocPercent < 1 || allocPercent > 100) {
-      return { valid: false, errorCode: 'INVALID_ALLOCATION_PERCENT', errorMsg: '작업 비중은 1%에서 100% 사이여야 합니다.' };
+    if (isV2Payload) {
+      allocPercent = isPrimary ? 100 : 0;
+    } else {
+      const allocInput = rawAllocations.find((a: any) => a.worker_id === wid || a.worker_id === wObj.name);
+      allocPercent = allocInput && !isNaN(Number(allocInput.allocation_percent)) ? Number(allocInput.allocation_percent) : (defaultAlloc + (idx === 0 ? remainder : 0));
+
+      if (allocPercent < 1 || allocPercent > 100) {
+        return { valid: false, errorCode: 'INVALID_ALLOCATION_PERCENT', errorMsg: '작업 비중은 1%에서 100% 사이여야 합니다.' };
+      }
     }
 
-    const isPrimary = wid === primaryId;
     validatedAssignees.push({
       worker_id: wObj.id,
       name: wObj.name,
@@ -829,9 +851,11 @@ async function validateAndNormalizeTaskAssigneesServer(
     });
   }
 
-  const totalAlloc = validatedAssignees.reduce((sum, a) => sum + a.allocation_percent, 0);
-  if (totalAlloc !== 100) {
-    return { valid: false, errorCode: 'ALLOCATION_TOTAL_INVALID', errorMsg: '담당 비중 합계는 100%여야 합니다.' };
+  if (!isV2Payload) {
+    const totalAlloc = validatedAssignees.reduce((sum, a) => sum + a.allocation_percent, 0);
+    if (totalAlloc !== 100) {
+      return { valid: false, errorCode: 'ALLOCATION_TOTAL_INVALID', errorMsg: '담당 비중 합계는 100%여야 합니다.' };
+    }
   }
 
   const primaryObj = validatedAssignees.find((a) => a.assignment_role === 'PRIMARY') || validatedAssignees[0];

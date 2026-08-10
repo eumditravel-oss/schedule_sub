@@ -11,6 +11,7 @@ interface TaskModalProps {
   projectId: string;
   project?: Project | null;
   task: Task | null;
+  initialTaskGroupId?: string | null;
   currentWorker: Worker | null;
   taskGroups?: TaskGroup[];
   holidays?: CountryHoliday[];
@@ -25,6 +26,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
   projectId,
   project,
   task,
+  initialTaskGroupId,
   currentWorker,
   taskGroups = [],
   holidays,
@@ -88,11 +90,12 @@ export const TaskModal: React.FC<TaskModalProps> = ({
     setInputLang(src);
     setSaveError(null);
 
+    const initialGroupId = task?.task_group_id || initialTaskGroupId || taskGroups[0]?.id || '';
+    setTaskGroupId(initialGroupId);
+
     if (task && task.id) {
-      setTaskGroupId(task.task_group_id || taskGroups[0]?.id || '');
       setManualLock(task.translation_status === 'MANUAL');
     } else {
-      setTaskGroupId((task as any)?.task_group_id || taskGroups[0]?.id || '');
       setManualLock(false);
     }
 
@@ -132,25 +135,26 @@ export const TaskModal: React.FC<TaskModalProps> = ({
       const defaultEnd = project?.end_date || defaultStart;
       const initialPrimary = currentWorker?.id || (activeEditors[0]?.id || '');
 
-      setTaskGroupId((task as any)?.task_group_id || taskGroups[0]?.id || '');
-
       setTaskNameInput('');
       setTargetText('');
       setScheduleStatus('SCHEDULED');
       setStartDate(defaultStart);
       setEndDate(defaultEnd);
-      setProgressMode('AUTO_TIME');
       setPrimaryWorkerId(initialPrimary);
       setInitialPrimaryId(initialPrimary);
       setSupportWorkerIds([]);
+      setProgressMode('AUTO_TIME');
+      setIsBlocked(false);
+      setBlockedReason('');
     }
-  }, [task, project, isOpen, currentWorker, workers]);
+  }, [isOpen, task, initialTaskGroupId, taskGroups, currentWorker, project, workerLang, workers]);
 
-  const handlePrimaryChange = (newId: string) => {
-    if (!newId) return;
-    setPrimaryWorkerId(newId);
+  const handlePrimaryChange = (newPrimaryId: string) => {
+    setPrimaryWorkerId(newPrimaryId);
     setSaveError(null);
-    setSupportWorkerIds((prev) => prev.filter((id) => id !== newId));
+    if (supportWorkerIds.includes(newPrimaryId)) {
+      setSupportWorkerIds(supportWorkerIds.filter((id) => id !== newPrimaryId));
+    }
   };
 
   const handleAddSupport = (workerId: string) => {
@@ -242,7 +246,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
       setSaving(true);
 
       const pWorker = workers.find((w) => w.id === primaryWorkerId) || primaryWorkerObj;
-      const allAssigneeIds = [primaryWorkerId, ...supportWorkerIds];
+      const allAssigneeIds = Array.from(new Set([primaryWorkerId, ...supportWorkerIds]));
 
       const assigneesPayload: TaskAssignee[] = [
         {
@@ -273,10 +277,6 @@ export const TaskModal: React.FC<TaskModalProps> = ({
         support_worker_ids: supportWorkerIds,
         assignee_ids: allAssigneeIds,
         assignees: assigneesPayload,
-        assignee_allocations: assigneesPayload.map((a) => ({
-          worker_id: a.worker_id,
-          allocation_percent: a.allocation_percent,
-        })),
         progress_mode: progressMode,
         availability_policy: 'ANY_AVAILABLE',
         task_name: taskNameInput.trim(),

@@ -56,7 +56,12 @@ export function calculateTaskProgressServer(
     }
   }
 
-  const refWorker = workerList.find((w: any) => w.id === task.primary_worker_id || w.name === task.worker_name) || workerList[0];
+  // V2 Rule: PRIMARY worker (PIC) calendar is the single source for schedule/progress calculations.
+  const primaryAssignee = taskAssignees.find((a: any) => a.assignment_role === 'PRIMARY') || taskAssignees[0];
+  const refWorker = primaryAssignee
+    ? workerList.find((w: any) => w.id === primaryAssignee.worker_id || w.name === primaryAssignee.name)
+    : (workerList.find((w: any) => w.id === task.primary_worker_id || w.name === task.worker_name) || workerList[0]);
+
   const todayStr = referenceTodayStr || getTodayStrForWorkerServer(refWorker);
 
   const dates: string[] = [];
@@ -72,24 +77,10 @@ export function calculateTaskProgressServer(
   let elapsed_planned_working_days = 0;
   let completed_working_days = 0;
 
-  const policy = task.availability_policy || 'ANY_AVAILABLE';
-
   for (const dateStr of dates) {
-    let isWorking = false;
-    if (taskAssignees.length === 0) {
-      const dayStatus = resolveWorkDayStatusServer(dateStr, refWorker, holidays, overrides);
-      isWorking = dayStatus.is_working_day;
-    } else {
-      const statuses = taskAssignees.map(a => {
-        const wObj = workerList.find((w: any) => w.id === a.worker_id || w.name === a.name);
-        return resolveWorkDayStatusServer(dateStr, wObj, holidays, overrides);
-      });
-      if (policy === 'ALL_REQUIRED') {
-        isWorking = statuses.every(s => s.is_working_day);
-      } else {
-        isWorking = statuses.some(s => s.is_working_day);
-      }
-    }
+    // Single source evaluation: PRIMARY worker calendar ONLY.
+    const dayStatus = resolveWorkDayStatusServer(dateStr, refWorker, holidays, overrides);
+    const isWorking = dayStatus.is_working_day;
 
     if (isWorking) {
       planned_working_days += 1;
@@ -175,8 +166,6 @@ export interface ProjectProgressMetricsServer {
 
 /**
  * Calculates project progress metrics server-side.
- * Note: For COMPLETED projects (status === 'COMPLETED'), performs a Calendar day-matrix calculation bypass
- * returning 100% display progress immediately without day-by-day calendar loops.
  */
 export function calculateProjectProgressServer(
   project: any,
@@ -301,11 +290,18 @@ export function detectWorkerTaskConflictsServer(
   if (targetAssignees.length === 0 && target.worker_name) {
     const wObj = workers.find((w) => w.id === target.worker_name || w.name === target.worker_name);
     if (wObj) {
-      targetAssignees = [{ worker_id: wObj.id, name: wObj.name, allocation_percent: 100 }];
+      targetAssignees = [{ worker_id: wObj.id, name: wObj.name, assignment_role: 'PRIMARY', allocation_percent: 100 }];
     }
   }
 
   if (targetAssignees.length === 0) return [];
+
+  // V2 Rule: ONLY PRIMARY target assignment generates hard worker schedule conflict.
+  // Support (CO_ASSIGNEE) assignments generate 0 conflicts.
+  const primaryTargetAssignees = targetAssignees.filter(
+    (a, idx) => a.assignment_role === 'PRIMARY' || (!a.assignment_role && idx === 0)
+  );
+  if (primaryTargetAssignees.length === 0) return [];
 
   const activeProjectMap = new Map<string, any>();
   allProjects.forEach((p) => {
@@ -316,7 +312,7 @@ export function detectWorkerTaskConflictsServer(
 
   const conflicts: any[] = [];
 
-  for (const a of targetAssignees) {
+  for (const a of primaryTargetAssignees) {
     const targetWorker = workers.find((w) => w.id === a.worker_id || w.name === a.name);
     if (!targetWorker || !targetWorker.country_code || !targetWorker.workweek_profile) continue;
 
@@ -327,11 +323,16 @@ export function detectWorkerTaskConflictsServer(
       let otherAssignees: any[] = otherTask.assignees || [];
       if (otherAssignees.length === 0 && otherTask.worker_name) {
         const ow = workers.find((w) => w.id === otherTask.worker_name || w.name === otherTask.worker_name);
-        if (ow) otherAssignees = [{ worker_id: ow.id, name: ow.name, allocation_percent: 100 }];
+        if (ow) otherAssignees = [{ worker_id: ow.id, name: ow.name, assignment_role: 'PRIMARY', allocation_percent: 100 }];
       }
 
-      const isAssigned = otherAssignees.some((oa) => oa.worker_id === targetWorker.id || oa.name === targetWorker.name);
-      if (!isAssigned) continue;
+      // Check if target worker is PRIMARY on other task as well
+      const isPrimaryOnOther = otherAssignees.some(
+        (oa, idx) =>
+          (oa.assignment_role === 'PRIMARY' || (!oa.assignment_role && idx === 0)) &&
+          (oa.worker_id === targetWorker.id || oa.name === targetWorker.name)
+      );
+      if (!isPrimaryOnOther) continue;
 
       const startMax = target.start_date > otherTask.start_date ? target.start_date : otherTask.start_date;
       const endMin = target.end_date < otherTask.end_date ? target.end_date : otherTask.end_date;
