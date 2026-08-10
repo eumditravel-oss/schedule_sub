@@ -89,7 +89,7 @@ test.describe('Task Save Persistence & Gantt Reflection Regression Suite', () =>
     await dismissAllModals(page);
 
     // Click Add Task button
-    const addTaskBtn = page.locator('[data-testid="detail-add-task-btn"]').first();
+    const addTaskBtn = page.locator('[data-testid^="task-group-add-task-"]').first();
     await expect(addTaskBtn).toBeVisible({ timeout: 15000 });
     await addTaskBtn.click({ force: true });
 
@@ -160,7 +160,7 @@ test.describe('Task Save Persistence & Gantt Reflection Regression Suite', () =>
     await dismissAllModals(page);
 
     // Open Task Modal on Project B
-    const addTaskBtn = page.locator('[data-testid="detail-add-task-btn"]').first();
+    const addTaskBtn = page.locator('[data-testid^="task-group-add-task-"]').first();
     await expect(addTaskBtn).toBeVisible({ timeout: 15000 });
     await addTaskBtn.click({ force: true });
 
