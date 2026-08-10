@@ -116,9 +116,12 @@ export const PrintViewPage: React.FC = () => {
         }
         if (startParam) {
           const y = parseInt(startParam.substring(0, 4), 10);
+          const mm = startParam.length >= 7 ? startParam.substring(5, 7) : '';
           if (!isNaN(y)) {
             targetYears.add(y);
-            targetYears.add(y + 1); // include adjacent next year for cross-year views
+            // Only add adjacent years if date range actually crosses year boundary (December or January)
+            if (mm === '12') targetYears.add(y + 1);
+            if (mm === '01') targetYears.add(y - 1);
           }
         }
 
