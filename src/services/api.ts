@@ -66,11 +66,20 @@ function getWriteHeaders() {
 }
 
 async function handleResponse<T>(res: Response): Promise<T> {
-  const json: ApiResponse<T> = await res.json();
+  let json: ApiResponse<T>;
+  try {
+    json = await res.json();
+  } catch (parseErr) {
+    const errorObj = new Error(`서버 응답 오류 (HTTP ${res.status}): JSON 형식이 아닙니다.`) as any;
+    errorObj.code = res.status === 429 ? 'RATE_LIMIT_EXCEEDED' : 'INVALID_SERVER_RESPONSE';
+    errorObj.status = res.status;
+    throw errorObj;
+  }
+
   if (!res.ok || !json.success) {
-    const errorMsg = json.error?.message || '요청 처리 중 오류가 발생했습니다.';
+    const errorMsg = json.error?.message || `요청 처리 중 오류가 발생했습니다. (HTTP ${res.status})`;
     const errorObj = new Error(errorMsg) as any;
-    errorObj.code = json.error?.code;
+    errorObj.code = json.error?.code || `HTTP_${res.status}`;
     errorObj.details = json.error?.details;
     throw errorObj;
   }
