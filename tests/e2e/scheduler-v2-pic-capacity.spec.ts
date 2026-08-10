@@ -1,15 +1,14 @@
 import { test, expect } from '@playwright/test';
 import { assertMutationSafety } from './productionMutationGuard';
 
-const QA_BASE_URL = (process.env.TEST_BASE_URL || process.env.PLAYWRIGHT_TEST_BASE_URL || 'http://localhost:5173').trim();
-assertMutationSafety(QA_BASE_URL, 'scheduler-v2-pic-capacity');
+const TEST_BASE_URL = (process.env.TEST_BASE_URL || process.env.PLAYWRIGHT_TEST_BASE_URL || 'http://localhost:5173').trim();
+assertMutationSafety(TEST_BASE_URL, 'scheduler-v2-pic-capacity');
 
 test.describe('P0 Scheduler V2 PIC & Capacity Model Verification Suite', () => {
-  const BASE_URL = process.env.PLAYWRIGHT_TEST_BASE_URL || 'https://concost-dev-scheduler-qa.eumditravel.workers.dev';
 
   test.beforeEach(async ({ page }) => {
     // Set Park Yongjin (wrk_02) as active logged in worker in localStorage
-    await page.goto(`${BASE_URL}/projects`);
+    await page.goto(`${TEST_BASE_URL}/projects`);
     await page.evaluate(() => {
       localStorage.setItem('schedule_current_worker_id', 'wrk_02');
       localStorage.setItem('schedule_current_worker_name', '박용진 수석');
@@ -20,7 +19,7 @@ test.describe('P0 Scheduler V2 PIC & Capacity Model Verification Suite', () => {
 
   test('1. Verify TaskModal PIC selection, Support addition, and saving', async ({ page }) => {
     // Navigate to first active project detail
-    await page.goto(`${BASE_URL}/projects`);
+    await page.goto(`${TEST_BASE_URL}/projects`);
     await page.waitForSelector('[data-testid="project-overview-page"]');
 
     // Click first project card
@@ -69,7 +68,7 @@ test.describe('P0 Scheduler V2 PIC & Capacity Model Verification Suite', () => {
   });
 
   test('2. Verify PIC change triggers pic-change-alert warning banner', async ({ page }) => {
-    await page.goto(`${BASE_URL}/projects`);
+    await page.goto(`${TEST_BASE_URL}/projects`);
     const firstProjectLink = page.locator('a[href^="/projects/"]').first();
     await firstProjectLink.click();
 
@@ -107,7 +106,7 @@ test.describe('P0 Scheduler V2 PIC & Capacity Model Verification Suite', () => {
   });
 
   test('3. Verify Project Workforce Modal capacity input and total FTE calculation', async ({ page }) => {
-    await page.goto(`${BASE_URL}/projects`);
+    await page.goto(`${TEST_BASE_URL}/projects`);
     const firstProjectLink = page.locator('a[href^="/projects/"]').first();
     await firstProjectLink.click();
 

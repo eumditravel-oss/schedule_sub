@@ -2,8 +2,8 @@ import { test, expect } from '@playwright/test';
 import { assertMutationSafety } from './productionMutationGuard';
 import path from 'path';
 
-const QA_BASE_URL = (process.env.TEST_BASE_URL || process.env.PLAYWRIGHT_TEST_BASE_URL || 'http://localhost:5173').trim();
-assertMutationSafety(QA_BASE_URL, 'project-actions-regression');
+const TEST_BASE_URL = (process.env.TEST_BASE_URL || process.env.PLAYWRIGHT_TEST_BASE_URL || 'http://localhost:5173').trim();
+assertMutationSafety(TEST_BASE_URL, 'project-actions-regression');
 import fs from 'fs';
 
 const SCREENSHOT_DIR = path.join(process.cwd(), 'qa', 'screenshots');
@@ -40,7 +40,7 @@ async function dismissBlockingModals(page: any) {
   }
 }
 
-const QA_BASE_URL = (process.env.TEST_BASE_URL || process.env.PLAYWRIGHT_TEST_BASE_URL || 'http://localhost:5173').trim();
+
 
 test.describe('P0 Project Actions & Complete CRUD Regression Suite', () => {
   let createdProjectId = '';

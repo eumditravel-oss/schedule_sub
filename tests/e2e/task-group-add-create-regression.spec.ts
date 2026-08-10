@@ -1,8 +1,8 @@
 import { test, expect } from '@playwright/test';
 import { assertMutationSafety } from './productionMutationGuard';
 
-const QA_BASE_URL = (process.env.TEST_BASE_URL || process.env.PLAYWRIGHT_TEST_BASE_URL || 'http://localhost:5173').trim();
-assertMutationSafety(QA_BASE_URL, 'task-group-add-create-regression');
+const TEST_BASE_URL = (process.env.TEST_BASE_URL || process.env.PLAYWRIGHT_TEST_BASE_URL || 'http://localhost:5173').trim();
+assertMutationSafety(TEST_BASE_URL, 'task-group-add-create-regression');
 
 test.describe('Task Group Add & Create P0 Regression Suite', () => {
   let createdTaskId: string | null = null;

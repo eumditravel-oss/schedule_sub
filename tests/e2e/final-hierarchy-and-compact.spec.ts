@@ -1,8 +1,8 @@
 import { test, expect } from '@playwright/test';
 import { assertMutationSafety } from './productionMutationGuard';
 
-const QA_BASE_URL = (process.env.TEST_BASE_URL || process.env.PLAYWRIGHT_TEST_BASE_URL || 'http://localhost:5173').trim();
-assertMutationSafety(QA_BASE_URL, 'final-hierarchy-and-compact');
+const TEST_BASE_URL = (process.env.TEST_BASE_URL || process.env.PLAYWRIGHT_TEST_BASE_URL || 'http://localhost:5173').trim();
+assertMutationSafety(TEST_BASE_URL, 'final-hierarchy-and-compact');
 
 test.describe('Task Hierarchy, Multi-Assignees, Auto Progress & Compact Gantt Rows', () => {
   let createdProjectId = '';

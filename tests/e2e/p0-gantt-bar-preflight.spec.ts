@@ -2,8 +2,8 @@
 import { test, expect } from '@playwright/test';
 import { assertMutationSafety } from './productionMutationGuard';
 
-const QA_BASE_URL = (process.env.TEST_BASE_URL || process.env.PLAYWRIGHT_TEST_BASE_URL || 'https://concost-dev-scheduler-qa.eumditravel.workers.dev').trim();
-assertMutationSafety(QA_BASE_URL, 'p0-gantt-bar-preflight');
+const TEST_BASE_URL = (process.env.TEST_BASE_URL || process.env.PLAYWRIGHT_TEST_BASE_URL || 'http://localhost:5173').trim();
+assertMutationSafety(TEST_BASE_URL, 'p0-gantt-bar-preflight');
 
 async function dismissWorkerPromptModal(page: any) {
   const modal = page.locator('[data-testid="worker-prompt-modal"]');
@@ -25,7 +25,7 @@ test.describe('P0 Preflight Verification — Horizontal ScheduleBar Visibility &
   test.beforeAll(async () => {
     const runId = Date.now();
     // Create QA Project in August 2026
-    const prjRes = await fetch(`${QA_BASE_URL}/api/projects`, {
+    const prjRes = await fetch(`${TEST_BASE_URL}/api/projects`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -44,7 +44,7 @@ test.describe('P0 Preflight Verification — Horizontal ScheduleBar Visibility &
     createdProjectId = prjJson.id || prjJson.project?.id || prjJson.data?.id;
 
     // 1-Day Task
-    const t1Res = await fetch(`${QA_BASE_URL}/api/tasks`, {
+    const t1Res = await fetch(`${TEST_BASE_URL}/api/tasks`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -64,7 +64,7 @@ test.describe('P0 Preflight Verification — Horizontal ScheduleBar Visibility &
     taskId1Day = t1Json.id || t1Json.task?.id || t1Json.data?.id;
 
     // 3-Day Task
-    const t3Res = await fetch(`${QA_BASE_URL}/api/tasks`, {
+    const t3Res = await fetch(`${TEST_BASE_URL}/api/tasks`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -84,7 +84,7 @@ test.describe('P0 Preflight Verification — Horizontal ScheduleBar Visibility &
     taskId3Day = t3Json.id || t3Json.task?.id || t3Json.data?.id;
 
     // 10-Day Task
-    const t10Res = await fetch(`${QA_BASE_URL}/api/tasks`, {
+    const t10Res = await fetch(`${TEST_BASE_URL}/api/tasks`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -106,7 +106,7 @@ test.describe('P0 Preflight Verification — Horizontal ScheduleBar Visibility &
 
   test.afterAll(async () => {
     if (createdProjectId) {
-      await fetch(`${QA_BASE_URL}/api/projects/${createdProjectId}`, {
+      await fetch(`${TEST_BASE_URL}/api/projects/${createdProjectId}`, {
         method: 'DELETE',
         headers: { 'x-editor-name': encodeURIComponent('Manh Cuong(끄엉)') },
       });
@@ -115,7 +115,7 @@ test.describe('P0 Preflight Verification — Horizontal ScheduleBar Visibility &
 
   test('Preflight Check: Verify ScheduleBar visibility and track width > 0 for 1d, 3d, 10d tasks', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
-    await page.goto(`${QA_BASE_URL}/projects/${createdProjectId}`);
+    await page.goto(`${TEST_BASE_URL}/projects/${createdProjectId}`);
     await page.waitForLoadState('networkidle');
     await dismissWorkerPromptModal(page);
 

@@ -4,8 +4,8 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { assertMutationSafety } from './productionMutationGuard';
 
-const PROD_BASE_URL = (process.env.TEST_BASE_URL || process.env.PLAYWRIGHT_TEST_BASE_URL || 'https://concost-dev-scheduler.eumditravel.workers.dev').trim();
-assertMutationSafety(PROD_BASE_URL, 'verify-live-production-final');
+const TEST_BASE_URL = (process.env.TEST_BASE_URL || process.env.PLAYWRIGHT_TEST_BASE_URL || 'http://localhost:5173').trim();
+assertMutationSafety(TEST_BASE_URL, 'verify-live-production-final');
 const EXPECTED_SHA_PREFIX = 'ab62b03';
 
 const QA_LIVE_DIR = path.join(process.cwd(), 'qa', 'live-production');
@@ -36,7 +36,7 @@ async function handleWorkerPrompt(page: any) {
 test.describe('Live Production Release Final Audit Suite', () => {
   test('1. Verify Production /api/version and Build Indicator SHA', async ({ page }) => {
     // API Version Audit
-    const versionRes = await page.request.get(`${PROD_BASE_URL}/api/version`);
+    const versionRes = await page.request.get(`${TEST_BASE_URL}/api/version`);
     expect(versionRes.status()).toBe(200);
     const versionData = await versionRes.json();
     console.log('Production /api/version:', versionData);
@@ -45,7 +45,7 @@ test.describe('Live Production Release Final Audit Suite', () => {
 
     // Browser Build Indicator Audit
     await setupWorkerSession(page);
-    await page.goto(`${PROD_BASE_URL}/`, { waitUntil: 'networkidle' });
+    await page.goto(`${TEST_BASE_URL}/`, { waitUntil: 'networkidle' });
     await page.waitForTimeout(1000);
 
     const indicator = page.locator('[data-testid="build-version-indicator"]');
@@ -58,7 +58,7 @@ test.describe('Live Production Release Final Audit Suite', () => {
   test('2. Verify Project Overview Page schedule bar layering & hatch overlay', async ({ page }) => {
     await page.setViewportSize({ width: 1400, height: 900 });
     await setupWorkerSession(page);
-    await page.goto(`${PROD_BASE_URL}/`, { waitUntil: 'networkidle' });
+    await page.goto(`${TEST_BASE_URL}/`, { waitUntil: 'networkidle' });
     await page.waitForTimeout(1500);
 
     // Locate Schedule Bar
@@ -97,7 +97,7 @@ test.describe('Live Production Release Final Audit Suite', () => {
   test('3. Verify ES Project Detail 2026-05-02 BOTH_OFF visual contract', async ({ page }) => {
     await page.setViewportSize({ width: 1400, height: 900 });
     await setupWorkerSession(page);
-    await page.goto(`${PROD_BASE_URL}/projects/prj_1785986689248_qhuq`, { waitUntil: 'networkidle' });
+    await page.goto(`${TEST_BASE_URL}/projects/prj_1785986689248_qhuq`, { waitUntil: 'networkidle' });
     await page.waitForTimeout(1000);
     await handleWorkerPrompt(page);
 
@@ -119,7 +119,7 @@ test.describe('Live Production Release Final Audit Suite', () => {
   test('4. Verify ES Project Detail 2026-04-18 KR_ONLY_OFF visual contract', async ({ page }) => {
     await page.setViewportSize({ width: 1400, height: 900 });
     await setupWorkerSession(page);
-    await page.goto(`${PROD_BASE_URL}/projects/prj_1785986689248_qhuq`, { waitUntil: 'networkidle' });
+    await page.goto(`${TEST_BASE_URL}/projects/prj_1785986689248_qhuq`, { waitUntil: 'networkidle' });
     await page.waitForTimeout(1000);
     await handleWorkerPrompt(page);
 
@@ -142,7 +142,7 @@ test.describe('Live Production Release Final Audit Suite', () => {
       // Start at 1280x800 desktop viewport to render add-task-btn reliably, then resize if needed
       await page.setViewportSize({ width: 1280, height: 800 });
       await setupWorkerSession(page);
-      await page.goto(`${PROD_BASE_URL}/projects/prj_1785986689248_qhuq`, { waitUntil: 'networkidle' });
+      await page.goto(`${TEST_BASE_URL}/projects/prj_1785986689248_qhuq`, { waitUntil: 'networkidle' });
       await page.waitForTimeout(1000);
       await handleWorkerPrompt(page);
 

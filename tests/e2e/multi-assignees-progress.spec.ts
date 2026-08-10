@@ -2,8 +2,8 @@
 import { test, expect } from '@playwright/test';
 import { assertMutationSafety } from './productionMutationGuard';
 
-const QA_BASE_URL = (process.env.TEST_BASE_URL || process.env.PLAYWRIGHT_TEST_BASE_URL || 'http://localhost:5173').trim();
-assertMutationSafety(QA_BASE_URL, 'multi-assignees-progress');
+const TEST_BASE_URL = (process.env.TEST_BASE_URL || process.env.PLAYWRIGHT_TEST_BASE_URL || 'http://localhost:5173').trim();
+assertMutationSafety(TEST_BASE_URL, 'multi-assignees-progress');
 
 async function dismissBlockingModals(page: any) {
   const keepBtn = page.locator('[data-testid="leave-cascade-keep-btn"]');
@@ -17,10 +17,9 @@ async function dismissBlockingModals(page: any) {
 }
 
 test.describe('Multi-Assignees & Progress Mode E2E Flow', () => {
-  const QA_URL = 'https://concost-dev-scheduler-qa.eumditravel.workers.dev';
 
   test('1. Create task with multiple assignees, equalize allocations, and verify persistence after F5', async ({ page }) => {
-    await page.goto(QA_URL);
+    await page.goto(TEST_BASE_URL);
     await dismissBlockingModals(page);
 
     // Set worker to Park Yongjin (Editor)

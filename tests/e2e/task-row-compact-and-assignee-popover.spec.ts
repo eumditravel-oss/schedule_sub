@@ -1,10 +1,8 @@
 import { test, expect } from '@playwright/test';
 import { assertMutationSafety } from './productionMutationGuard';
 
-const QA_BASE_URL = (process.env.TEST_BASE_URL || process.env.PLAYWRIGHT_TEST_BASE_URL || 'http://localhost:5173').trim();
-assertMutationSafety(QA_BASE_URL, 'task-row-compact-and-assignee-popover');
-
-const LOCAL_BASE_URL = (process.env.TEST_BASE_URL || 'http://localhost:5174').trim();
+const TEST_BASE_URL = (process.env.TEST_BASE_URL || process.env.PLAYWRIGHT_TEST_BASE_URL || 'http://localhost:5173').trim();
+assertMutationSafety(TEST_BASE_URL, 'task-row-compact-and-assignee-popover');
 
 const ALL_VIEWPORTS = [
   { width: 1024, height: 768 },
@@ -15,7 +13,7 @@ const ALL_VIEWPORTS = [
 ];
 
 async function resolveProjectIds(page: any) {
-  await page.goto(`${LOCAL_BASE_URL}/projects`);
+  await page.goto(`${TEST_BASE_URL}/projects`);
   await page.waitForLoadState('networkidle');
   return await page.evaluate(() => {
     const defaultEs = 'prj_1785986689248_qhuq';
@@ -79,7 +77,7 @@ test.describe('P0 Compact Task Rows, Action Boundary Containment & Assignee Popo
       await page.setViewportSize(vp);
 
       // 1. HUB Project (Exact 21 Task Rows)
-      await page.goto(`${LOCAL_BASE_URL}/projects/${hubId}`);
+      await page.goto(`${TEST_BASE_URL}/projects/${hubId}`);
       await page.waitForLoadState('networkidle');
       await page.locator('[data-testid="view-month-btn"]').waitFor({ state: 'visible', timeout: 15000 });
       await expandAllTaskGroups(page);
@@ -123,7 +121,7 @@ test.describe('P0 Compact Task Rows, Action Boundary Containment & Assignee Popo
       }
 
       // 2. ES Project (Exact 15 Task Rows)
-      await page.goto(`${LOCAL_BASE_URL}/projects/${esId}`);
+      await page.goto(`${TEST_BASE_URL}/projects/${esId}`);
       await page.waitForLoadState('networkidle');
       await page.locator('[data-testid="view-month-btn"]').waitFor({ state: 'visible', timeout: 15000 });
       await expandAllTaskGroups(page);
@@ -176,7 +174,7 @@ test.describe('P0 Compact Task Rows, Action Boundary Containment & Assignee Popo
 
       for (const pid of [hubId, esId]) {
         const expectedCount = pid === hubId ? 21 : 15;
-        await page.goto(`${LOCAL_BASE_URL}/projects/${pid}`);
+        await page.goto(`${TEST_BASE_URL}/projects/${pid}`);
         await page.waitForLoadState('networkidle');
         await page.locator('[data-testid="view-month-btn"]').waitFor({ state: 'visible', timeout: 15000 });
         await expandAllTaskGroups(page);
@@ -233,7 +231,7 @@ test.describe('P0 Compact Task Rows, Action Boundary Containment & Assignee Popo
   test('3. Comprehensive Assignee Popover Portal Elevation, Top Z-Index & Interactive Trigger Audit', async ({ page }) => {
     const { hubId } = await resolveProjectIds(page);
     await page.setViewportSize({ width: 1536, height: 864 });
-    await page.goto(`${LOCAL_BASE_URL}/projects/${hubId}`);
+    await page.goto(`${TEST_BASE_URL}/projects/${hubId}`);
     await page.waitForLoadState('networkidle');
 
     await page.locator('[data-testid="view-month-btn"]').waitFor({ state: 'visible', timeout: 15000 });
@@ -354,7 +352,7 @@ test.describe('P0 Compact Task Rows, Action Boundary Containment & Assignee Popo
 
     for (const vp of ALL_VIEWPORTS) {
       await page.setViewportSize(vp);
-      await page.goto(`${LOCAL_BASE_URL}/projects/${hubId}`);
+      await page.goto(`${TEST_BASE_URL}/projects/${hubId}`);
       await page.waitForLoadState('networkidle');
 
       await page.locator('[data-testid="view-month-btn"]').waitFor({ state: 'visible', timeout: 15000 });

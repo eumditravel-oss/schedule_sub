@@ -1,12 +1,8 @@
 import { test, expect } from '@playwright/test';
 import { assertMutationSafety } from './productionMutationGuard';
 
-const QA_BASE_URL = (process.env.TEST_BASE_URL || process.env.PLAYWRIGHT_TEST_BASE_URL || 'http://localhost:5173').trim();
-assertMutationSafety(QA_BASE_URL, 'task-modal-fixed-actions');
-import * as fs from 'fs';
-import * as path from 'path';
-
-const QA_BASE_URL = (process.env.TEST_BASE_URL || 'https://concost-dev-scheduler-qa.eumditravel.workers.dev').trim();
+const TEST_BASE_URL = (process.env.TEST_BASE_URL || process.env.PLAYWRIGHT_TEST_BASE_URL || 'http://localhost:5173').trim();
+assertMutationSafety(TEST_BASE_URL, 'task-modal-fixed-actions');
 
 const QA_MODAL_DIR = path.join(process.cwd(), 'qa', 'modal');
 if (!fs.existsSync(QA_MODAL_DIR)) {
@@ -47,7 +43,7 @@ test.describe('Task Modal Fixed Actions Footer Suite', () => {
     test(`Verify Task Modal actions are fixed and immediately visible on ${vp.width}x${vp.height}`, async ({ page }) => {
       await page.setViewportSize(vp);
       await setupWorkerSession(page);
-      await page.goto(`${QA_BASE_URL}/projects/prj_1785986589890_zi9o`, { waitUntil: 'domcontentloaded' });
+      await page.goto(`${TEST_BASE_URL}/projects/prj_1785986589890_zi9o`, { waitUntil: 'domcontentloaded' });
       await page.waitForTimeout(1000);
       await handleWorkerPrompt(page);
 

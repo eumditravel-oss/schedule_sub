@@ -2,15 +2,13 @@
 import { test, expect } from '@playwright/test';
 import { assertMutationSafety } from './productionMutationGuard';
 
-const QA_BASE_URL = (process.env.TEST_BASE_URL || process.env.PLAYWRIGHT_TEST_BASE_URL || 'http://localhost:5173').trim();
-assertMutationSafety(QA_BASE_URL, 'completion-integrity-guard');
-
-const BASE_URL = process.env.QA_URL || 'https://concost-dev-scheduler-qa.eumditravel.workers.dev';
+const TEST_BASE_URL = (process.env.TEST_BASE_URL || process.env.PLAYWRIGHT_TEST_BASE_URL || 'http://localhost:5173').trim();
+assertMutationSafety(TEST_BASE_URL, 'completion-integrity-guard');
 const EDITOR_NAME = '박용진 수석';
 
 test.describe('Completion Integrity Guard & Health Check Suite', () => {
   test('1. Verify GET /api/health/completion-integrity returns 0 inconsistent projects and tasks', async () => {
-    const res = await fetch(`${BASE_URL}/api/health/completion-integrity`);
+    const res = await fetch(`${TEST_BASE_URL}/api/health/completion-integrity`);
     expect(res.status).toBe(200);
 
     const json = await res.json();
@@ -23,7 +21,7 @@ test.describe('Completion Integrity Guard & Health Check Suite', () => {
 
   test('2. Verify STRICT completion mode blocks incomplete project completion (409) & COMPLETE_ALL resolves integrity 0', async () => {
     // A. Create ACTIVE test project
-    const prjRes = await fetch(`${BASE_URL}/api/projects`, {
+    const prjRes = await fetch(`${TEST_BASE_URL}/api/projects`, {
       method: 'POST',
       headers: {
         'Accept': 'application/json',
@@ -44,7 +42,7 @@ test.describe('Completion Integrity Guard & Health Check Suite', () => {
     try {
       // B. Create 3 incomplete tasks (progress=30, completion_confirmed=0)
       for (let i = 1; i <= 3; i++) {
-        const taskRes = await fetch(`${BASE_URL}/api/tasks`, {
+        const taskRes = await fetch(`${TEST_BASE_URL}/api/tasks`, {
           method: 'POST',
           headers: {
             'Accept': 'application/json',
@@ -67,7 +65,7 @@ test.describe('Completion Integrity Guard & Health Check Suite', () => {
       }
 
       // C. STRICT mode: complete project with incomplete tasks -> HTTP 409
-      const strictRes = await fetch(`${BASE_URL}/api/projects/${projectId}/complete`, {
+      const strictRes = await fetch(`${TEST_BASE_URL}/api/projects/${projectId}/complete`, {
         method: 'POST',
         headers: {
           'Accept': 'application/json',
@@ -82,14 +80,14 @@ test.describe('Completion Integrity Guard & Health Check Suite', () => {
       expect(errCode).toBe('PROJECT_HAS_INCOMPLETE_TASKS');
 
       // Verify project status remains ACTIVE
-      const activePrjRes = await fetch(`${BASE_URL}/api/projects/${projectId}/detail`, {
+      const activePrjRes = await fetch(`${TEST_BASE_URL}/api/projects/${projectId}/detail`, {
         headers: { 'Accept': 'application/json' },
       }).then((r) => r.json());
       const activeStatus = activePrjRes.data?.project?.status || activePrjRes.project?.status;
       expect(activeStatus).toBe('ACTIVE');
 
       // D. COMPLETE_ALL mode: atomic completion of project & 3 tasks -> HTTP 200
-      const atomicRes = await fetch(`${BASE_URL}/api/projects/${projectId}/complete`, {
+      const atomicRes = await fetch(`${TEST_BASE_URL}/api/projects/${projectId}/complete`, {
         method: 'POST',
         headers: {
           'Accept': 'application/json',
@@ -101,7 +99,7 @@ test.describe('Completion Integrity Guard & Health Check Suite', () => {
       expect(atomicRes.status).toBe(200);
 
       // Verify completed status and child task confirmation
-      const completedDetailRes = await fetch(`${BASE_URL}/api/projects/${projectId}/detail`, {
+      const completedDetailRes = await fetch(`${TEST_BASE_URL}/api/projects/${projectId}/detail`, {
         headers: { 'Accept': 'application/json' },
       }).then((r) => r.json());
       const completedStatus = completedDetailRes.data?.project?.status || completedDetailRes.project?.status;
@@ -115,7 +113,7 @@ test.describe('Completion Integrity Guard & Health Check Suite', () => {
       });
 
       // E. Health Check after atomic completion: inconsistent count === 0
-      const postHealthRes = await fetch(`${BASE_URL}/api/health/completion-integrity`, {
+      const postHealthRes = await fetch(`${TEST_BASE_URL}/api/health/completion-integrity`, {
         headers: { 'Accept': 'application/json' },
       });
       const postHealthJson = await postHealthRes.json();
@@ -125,7 +123,7 @@ test.describe('Completion Integrity Guard & Health Check Suite', () => {
 
     } finally {
       // Clean up test project
-      await fetch(`${BASE_URL}/api/projects/${projectId}`, {
+      await fetch(`${TEST_BASE_URL}/api/projects/${projectId}`, {
         method: 'DELETE',
         headers: {
           'Accept': 'application/json',

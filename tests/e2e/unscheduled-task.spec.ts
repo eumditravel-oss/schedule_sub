@@ -2,8 +2,8 @@
 import { test, expect } from '@playwright/test';
 import { assertMutationSafety } from './productionMutationGuard';
 
-const QA_BASE_URL = (process.env.TEST_BASE_URL || process.env.PLAYWRIGHT_TEST_BASE_URL || 'https://concost-dev-scheduler-qa.eumditravel.workers.dev').trim();
-assertMutationSafety(QA_BASE_URL, 'unscheduled-task');
+const TEST_BASE_URL = (process.env.TEST_BASE_URL || process.env.PLAYWRIGHT_TEST_BASE_URL || 'http://localhost:5173').trim();
+assertMutationSafety(TEST_BASE_URL, 'unscheduled-task');
 
 async function dismissWorkerPromptModal(page: any) {
   const modal = page.locator('[data-testid="worker-prompt-modal"]');
@@ -23,7 +23,7 @@ test.describe('Unscheduled (Backlog) Tasks E2E Verification Suite', () => {
   test.beforeAll(async () => {
     const runId = Date.now();
     // 1. Create QA Project
-    const prjRes = await fetch(`${QA_BASE_URL}/api/projects`, {
+    const prjRes = await fetch(`${TEST_BASE_URL}/api/projects`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -42,7 +42,7 @@ test.describe('Unscheduled (Backlog) Tasks E2E Verification Suite', () => {
     createdProjectId = prjJson.id || prjJson.project?.id || prjJson.data?.id;
 
     // 2. Create UNSCHEDULED Task via API
-    const taskRes = await fetch(`${QA_BASE_URL}/api/tasks`, {
+    const taskRes = await fetch(`${TEST_BASE_URL}/api/tasks`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -70,7 +70,7 @@ test.describe('Unscheduled (Backlog) Tasks E2E Verification Suite', () => {
 
   test.afterAll(async () => {
     if (createdProjectId) {
-      await fetch(`${QA_BASE_URL}/api/projects/${createdProjectId}`, {
+      await fetch(`${TEST_BASE_URL}/api/projects/${createdProjectId}`, {
         method: 'DELETE',
         headers: { 'x-editor-name': encodeURIComponent('Manh Cuong(끄엉)') },
       });
@@ -80,7 +80,7 @@ test.describe('Unscheduled (Backlog) Tasks E2E Verification Suite', () => {
   test('Verify Unscheduled Task: Null Dates, Badge Visible, Zero ScheduleBar, F5 Persistence', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
 
-    await page.goto(`${QA_BASE_URL}/projects/${createdProjectId}`);
+    await page.goto(`${TEST_BASE_URL}/projects/${createdProjectId}`);
     await page.waitForLoadState('networkidle');
     await dismissWorkerPromptModal(page);
 

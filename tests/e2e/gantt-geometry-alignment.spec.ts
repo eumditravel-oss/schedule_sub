@@ -2,8 +2,8 @@
 import { test, expect } from '@playwright/test';
 import { assertMutationSafety } from './productionMutationGuard';
 
-const QA_BASE_URL = (process.env.TEST_BASE_URL || process.env.PLAYWRIGHT_TEST_BASE_URL || 'https://concost-dev-scheduler-qa.eumditravel.workers.dev').trim();
-assertMutationSafety(QA_BASE_URL, 'gantt-geometry-alignment');
+const TEST_BASE_URL = (process.env.TEST_BASE_URL || process.env.PLAYWRIGHT_TEST_BASE_URL || 'http://localhost:5173').trim();
+assertMutationSafety(TEST_BASE_URL, 'gantt-geometry-alignment');
 
 async function dismissWorkerPromptModal(page: any) {
   const modal = page.locator('[data-testid="worker-prompt-modal"]');
@@ -25,7 +25,7 @@ test.describe('Gantt Geometry Single Source of Truth & Today Indicator Alignment
   test.beforeAll(async () => {
     const runId = Date.now();
     // 1. Create QA Project (spanning August 2026)
-    const prjRes = await fetch(`${QA_BASE_URL}/api/projects`, {
+    const prjRes = await fetch(`${TEST_BASE_URL}/api/projects`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -45,7 +45,7 @@ test.describe('Gantt Geometry Single Source of Truth & Today Indicator Alignment
     expect(createdProjectId).toBeTruthy();
 
     // 2. Create 1-Day Task (2026-08-03 ~ 2026-08-03)
-    const t1Res = await fetch(`${QA_BASE_URL}/api/tasks`, {
+    const t1Res = await fetch(`${TEST_BASE_URL}/api/tasks`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -65,7 +65,7 @@ test.describe('Gantt Geometry Single Source of Truth & Today Indicator Alignment
     taskId1Day = t1Json.id || t1Json.task?.id || t1Json.data?.id;
 
     // 3. Create 3-Day Task (2026-08-05 ~ 2026-08-07)
-    const t3Res = await fetch(`${QA_BASE_URL}/api/tasks`, {
+    const t3Res = await fetch(`${TEST_BASE_URL}/api/tasks`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -85,7 +85,7 @@ test.describe('Gantt Geometry Single Source of Truth & Today Indicator Alignment
     taskId3Day = t3Json.id || t3Json.task?.id || t3Json.data?.id;
 
     // 4. Create 10-Day Task (2026-08-10 ~ 2026-08-21)
-    const t10Res = await fetch(`${QA_BASE_URL}/api/tasks`, {
+    const t10Res = await fetch(`${TEST_BASE_URL}/api/tasks`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -107,7 +107,7 @@ test.describe('Gantt Geometry Single Source of Truth & Today Indicator Alignment
 
   test.afterAll(async () => {
     if (createdProjectId) {
-      await fetch(`${QA_BASE_URL}/api/projects/${createdProjectId}`, {
+      await fetch(`${TEST_BASE_URL}/api/projects/${createdProjectId}`, {
         method: 'DELETE',
         headers: { 'x-editor-name': encodeURIComponent('Manh Cuong(끄엉)') },
       });
@@ -117,7 +117,7 @@ test.describe('Gantt Geometry Single Source of Truth & Today Indicator Alignment
   test('1. Mandatory Verification of Date Header vs Body Cell Alignment (x & width <= 0.5px)', async ({ page }) => {
     await page.setViewportSize({ width: 1536, height: 864 });
 
-    await page.goto(`${QA_BASE_URL}/projects/${createdProjectId}`);
+    await page.goto(`${TEST_BASE_URL}/projects/${createdProjectId}`);
     await page.waitForLoadState('networkidle');
     await dismissWorkerPromptModal(page);
 

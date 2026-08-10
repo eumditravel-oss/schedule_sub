@@ -1,13 +1,12 @@
 import { test, expect } from '@playwright/test';
 import { assertMutationSafety } from './productionMutationGuard';
 
-const QA_BASE_URL = (process.env.TEST_BASE_URL || process.env.PLAYWRIGHT_TEST_BASE_URL || 'http://localhost:5173').trim();
-assertMutationSafety(QA_BASE_URL, 'task-modal-persistent-footer');
+const TEST_BASE_URL = (process.env.TEST_BASE_URL || process.env.PLAYWRIGHT_TEST_BASE_URL || 'http://localhost:5173').trim();
+assertMutationSafety(TEST_BASE_URL, 'task-modal-persistent-footer');
 import * as fs from 'fs';
 import * as path from 'path';
 
 test.describe('P0 Task & Workforce Modal Persistent Action Footer Suite', () => {
-  const BASE_URL = process.env.PLAYWRIGHT_TEST_BASE_URL || 'https://concost-dev-scheduler-qa.eumditravel.workers.dev';
 
   const VIEWPORTS = [
     // Desktop Viewports
@@ -42,7 +41,7 @@ test.describe('P0 Task & Workforce Modal Persistent Action Footer Suite', () => 
     }
 
     const runId = Date.now();
-    const prjRes = await fetch(`${BASE_URL}/api/projects`, {
+    const prjRes = await fetch(`${TEST_BASE_URL}/api/projects`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -60,13 +59,13 @@ test.describe('P0 Task & Workforce Modal Persistent Action Footer Suite', () => 
     createdProjectId = prjJson.id || prjJson.data?.id;
 
     // Fetch detail to get group ID
-    const detailRes = await fetch(`${BASE_URL}/api/projects/${createdProjectId}/detail`);
+    const detailRes = await fetch(`${TEST_BASE_URL}/api/projects/${createdProjectId}/detail`);
     const detailJson: any = await detailRes.json();
     const taskGroups = detailJson.data?.task_groups || detailJson.task_groups || [];
     const taskGroupId = taskGroups[0]?.id;
 
     // Create test task
-    await fetch(`${BASE_URL}/api/tasks`, {
+    await fetch(`${TEST_BASE_URL}/api/tasks`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

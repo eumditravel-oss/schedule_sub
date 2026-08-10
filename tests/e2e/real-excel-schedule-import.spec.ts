@@ -2,8 +2,8 @@
 import { test, expect } from '@playwright/test';
 import { assertMutationSafety } from './productionMutationGuard';
 
-const QA_BASE_URL = (process.env.TEST_BASE_URL || process.env.PLAYWRIGHT_TEST_BASE_URL || 'https://concost-dev-scheduler-qa.eumditravel.workers.dev').trim();
-assertMutationSafety(QA_BASE_URL, 'real-excel-schedule-import');
+const TEST_BASE_URL = (process.env.TEST_BASE_URL || process.env.PLAYWRIGHT_TEST_BASE_URL || 'http://localhost:5173').trim();
+assertMutationSafety(TEST_BASE_URL, 'real-excel-schedule-import');
 
 async function dismissWorkerPromptModal(page: any) {
   const modal = page.locator('[data-testid="worker-prompt-modal"]');
@@ -22,7 +22,7 @@ test.describe('Real Excel Schedule Manifest Pre-flight QA Validation', () => {
   test.beforeAll(async () => {
     const runId = Date.now();
     // Create QA Project representing ES Program Development
-    const prjRes = await fetch(`${QA_BASE_URL}/api/projects`, {
+    const prjRes = await fetch(`${TEST_BASE_URL}/api/projects`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -41,7 +41,7 @@ test.describe('Real Excel Schedule Manifest Pre-flight QA Validation', () => {
     createdProjectId = prjJson.id || prjJson.project?.id || prjJson.data?.id;
 
     // Create Representative Task (08-03 ~ 08-05)
-    await fetch(`${QA_BASE_URL}/api/tasks`, {
+    await fetch(`${TEST_BASE_URL}/api/tasks`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -60,7 +60,7 @@ test.describe('Real Excel Schedule Manifest Pre-flight QA Validation', () => {
 
   test.afterAll(async () => {
     if (createdProjectId) {
-      await fetch(`${QA_BASE_URL}/api/projects/${createdProjectId}`, {
+      await fetch(`${TEST_BASE_URL}/api/projects/${createdProjectId}`, {
         method: 'DELETE',
         headers: { 'x-editor-name': encodeURIComponent('Manh Cuong(끄엉)') },
       });
@@ -70,7 +70,7 @@ test.describe('Real Excel Schedule Manifest Pre-flight QA Validation', () => {
   test('Verify QA UI ScheduleBar rendering and F5 persistence for Excel representative task', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
 
-    await page.goto(`${QA_BASE_URL}/projects/${createdProjectId}`);
+    await page.goto(`${TEST_BASE_URL}/projects/${createdProjectId}`);
     await page.waitForLoadState('networkidle');
     await dismissWorkerPromptModal(page);
 
