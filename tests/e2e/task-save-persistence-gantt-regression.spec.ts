@@ -401,8 +401,8 @@ test.describe('Task Save Persistence & Gantt Reflection Regression Suite', () =>
     const conflictModal = page.locator('[data-testid="worker-conflict-summary-modal"]');
     await expect(conflictModal).toBeVisible({ timeout: 5000 });
 
-    // Click Cancel on Conflict Modal
-    const cancelBtn = page.locator('[data-testid="conflict-modal-cancel-btn"]');
+    // Click Close/Cancel on Conflict Modal
+    const cancelBtn = page.locator('[data-testid="conflict-modal-close-btn"], [data-testid="conflict-modal-cancel-btn"]').first();
     await cancelBtn.click({ force: true });
 
     // Conflict Modal closes
@@ -560,15 +560,13 @@ test.describe('Task Save Persistence & Gantt Reflection Regression Suite', () =>
     });
 
     // Find and edit the created task from Case A
-    const editBtn = page.locator(`[data-testid="task-edit-${createdTaskIdCaseA}"]`).or(
+    const editBtn = page.locator(`[data-testid="task-edit-btn-${createdTaskIdCaseA}"]`).or(
+      page.locator('[data-testid^="task-edit-btn-"]').first()
+    ).or(
       page.locator('[data-testid="edit-task-btn"]').first()
     );
-    if (await editBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
-      await editBtn.click({ force: true });
-    } else {
-      const taskText = page.getByText(taskNameCaseA, { exact: true });
-      await taskText.click({ force: true });
-    }
+    await expect(editBtn).toBeVisible({ timeout: 10000 });
+    await editBtn.click({ force: true });
 
     const taskModal = page.locator('[data-testid="task-modal"]');
     await expect(taskModal).toBeVisible();
