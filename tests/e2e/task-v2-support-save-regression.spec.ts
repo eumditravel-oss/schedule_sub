@@ -9,9 +9,10 @@ test.describe('Task V2 Support & Assignment Normalization Suite', () => {
 
   test.beforeEach(async ({ page }) => {
     const projectsRes = await page.request.get('/api/projects');
-    const projects = await projectsRes.json();
+    const projectsJson = await projectsRes.json();
+    const projects = Array.isArray(projectsJson) ? projectsJson : (projectsJson.data || []);
     const activeProject = projects.find((p: any) => p.status === 'ACTIVE') || projects[0];
-    testProjectId = activeProject.id;
+    testProjectId = activeProject?.id || 'prj_demo_1';
 
     const workersRes = await page.request.get('/api/workers');
     const workers = await workersRes.json();

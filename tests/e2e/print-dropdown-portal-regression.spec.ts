@@ -52,7 +52,8 @@ test.describe('Print Dropdown Menu Portal & Viewport Clamping Suite', () => {
       
       // Fetch an active project from API
       const response = await page.request.get('/api/projects');
-      const projects = await response.json();
+      const projectsJson = await response.json();
+      const projects = Array.isArray(projectsJson) ? projectsJson : (projectsJson.data || []);
       const prjId = projects[0]?.id || 'prj_demo_1';
 
       await page.goto(`/projects/${prjId}`);

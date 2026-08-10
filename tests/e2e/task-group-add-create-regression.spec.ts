@@ -9,9 +9,10 @@ test.describe('Task Group Add & Create P0 Regression Suite', () => {
   test.beforeEach(async ({ page }) => {
     // Fetch an active project from QA API
     const response = await page.request.get('/api/projects');
-    const projects = await response.json();
+    const projectsJson = await response.json();
+    const projects = Array.isArray(projectsJson) ? projectsJson : (projectsJson.data || []);
     const activeProject = projects.find((p: any) => p.status === 'ACTIVE') || projects[0];
-    testProjectId = activeProject.id;
+    testProjectId = activeProject?.id || 'prj_demo_1';
   });
 
   test.afterEach(async ({ page }) => {
