@@ -28,6 +28,19 @@ test.describe('P0 Integration API Key Management & QA Bearer Token Suite', () =>
     await workersPromise;
     await page.waitForTimeout(500);
 
+    for (let i = 0; i < 5; i++) {
+      const modal = page.locator('[data-testid="calendar-manager-modal"]').first();
+      if (await modal.isVisible({ timeout: 300 }).catch(() => false)) {
+        const closeBtn = page.locator('[data-testid="calendar-modal-close-btn"]').first();
+        if (await closeBtn.isVisible({ timeout: 300 }).catch(() => false)) {
+          await closeBtn.click({ force: true }).catch(() => {});
+        } else {
+          await page.keyboard.press('Escape');
+        }
+        await page.waitForTimeout(200);
+      }
+    }
+
     // 2. Open Integration Modal
     const openApiBtn = page.locator('[data-testid="open-integration-api-btn"]');
     await expect(openApiBtn).toBeVisible({ timeout: 10000 });
