@@ -1,6 +1,9 @@
-// tests/e2e/project-actions-regression.spec.ts
 import { test, expect } from '@playwright/test';
+import { assertMutationSafety } from './productionMutationGuard';
 import path from 'path';
+
+const QA_BASE_URL = (process.env.TEST_BASE_URL || process.env.PLAYWRIGHT_TEST_BASE_URL || 'http://localhost:5173').trim();
+assertMutationSafety(QA_BASE_URL, 'project-actions-regression');
 import fs from 'fs';
 
 const SCREENSHOT_DIR = path.join(process.cwd(), 'qa', 'screenshots');

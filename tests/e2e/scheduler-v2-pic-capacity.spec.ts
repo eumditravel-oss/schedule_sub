@@ -1,5 +1,8 @@
-// tests/e2e/scheduler-v2-pic-capacity.spec.ts
 import { test, expect } from '@playwright/test';
+import { assertMutationSafety } from './productionMutationGuard';
+
+const QA_BASE_URL = (process.env.TEST_BASE_URL || process.env.PLAYWRIGHT_TEST_BASE_URL || 'http://localhost:5173').trim();
+assertMutationSafety(QA_BASE_URL, 'scheduler-v2-pic-capacity');
 
 test.describe('P0 Scheduler V2 PIC & Capacity Model Verification Suite', () => {
   const BASE_URL = process.env.PLAYWRIGHT_TEST_BASE_URL || 'https://concost-dev-scheduler-qa.eumditravel.workers.dev';

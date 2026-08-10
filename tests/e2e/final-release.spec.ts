@@ -1,5 +1,9 @@
 // tests/e2e/final-release.spec.ts
 import { test, expect, Page } from '@playwright/test';
+import { assertMutationSafety } from './productionMutationGuard';
+
+const QA_BASE_URL = (process.env.TEST_BASE_URL || process.env.PLAYWRIGHT_TEST_BASE_URL || 'http://localhost:5173').trim();
+assertMutationSafety(QA_BASE_URL, 'final-release');
 import * as fs from 'fs';
 import * as path from 'path';
 

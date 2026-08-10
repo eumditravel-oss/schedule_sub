@@ -1,7 +1,8 @@
-// tests/e2e/warning-explainability.spec.ts
 import { test, expect } from '@playwright/test';
+import { assertMutationSafety } from './productionMutationGuard';
 
 const QA_BASE_URL = (process.env.TEST_BASE_URL || process.env.PLAYWRIGHT_TEST_BASE_URL || 'http://localhost:5173').trim();
+assertMutationSafety(QA_BASE_URL, 'warning-explainability');
 
 async function dismissAllModals(page: any) {
   for (let i = 0; i < 5; i++) {

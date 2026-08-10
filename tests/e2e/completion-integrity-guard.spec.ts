@@ -1,5 +1,9 @@
 // tests/e2e/completion-integrity-guard.spec.ts
 import { test, expect } from '@playwright/test';
+import { assertMutationSafety } from './productionMutationGuard';
+
+const QA_BASE_URL = (process.env.TEST_BASE_URL || process.env.PLAYWRIGHT_TEST_BASE_URL || 'http://localhost:5173').trim();
+assertMutationSafety(QA_BASE_URL, 'completion-integrity-guard');
 
 const BASE_URL = process.env.QA_URL || 'https://concost-dev-scheduler-qa.eumditravel.workers.dev';
 const EDITOR_NAME = '박용진 수석';

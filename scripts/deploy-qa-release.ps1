@@ -136,11 +136,29 @@ try {
 } catch {}
 Stop-Job $proxyJob -ErrorAction SilentlyContinue
 
-# Count total QA Worker requests including Health Check
-$totalQAWorkerRequests = $measuredE2ERequests + $qaHealthRequestCount
+# 7.5 Query Live QA Environment /api/version
+Write-Host "Querying Live QA Environment /api/version..." -ForegroundColor Yellow
+$qaVersionRequestCount = 1
+$qaRuntimeSha = ""
+try {
+  $nowTicks = [DateTimeOffset]::Now.ToUnixTimeMilliseconds()
+  $qaVerRes = Invoke-RestMethod -Uri "https://concost-dev-scheduler-qa.eumditravel.workers.dev/api/version?t=$nowTicks" -Headers @{ "Cache-Control" = "no-cache" }
+  $qaRuntimeSha = $qaVerRes.data.commit
+  if ($qaRuntimeSha -ne $sha) {
+    Write-Error "QA_RUNTIME_SHA_MISMATCH: Live QA Worker version commit ($qaRuntimeSha) does not match candidate SHA ($sha)."
+    exit 1
+  }
+  Write-Host "Live QA Runtime SHA Verification Passed: $qaRuntimeSha" -ForegroundColor Green
+} catch {
+  Write-Error "Failed to query Live QA /api/version: $_"
+  exit 1
+}
+
+# Count total QA Worker requests including Health & Version Checks
+$totalQAWorkerRequests = $measuredE2ERequests + $qaHealthRequestCount + $qaVersionRequestCount
 $budgetLimit = 1500
 
-Write-Host "Measured QA Worker HTTP Requests: $totalQAWorkerRequests (E2E: $measuredE2ERequests, Health: $qaHealthRequestCount)" -ForegroundColor Yellow
+Write-Host "Measured QA Worker HTTP Requests: $totalQAWorkerRequests (E2E: $measuredE2ERequests, Health: $qaHealthRequestCount, Version: $qaVersionRequestCount)" -ForegroundColor Yellow
 
 if ($totalQAWorkerRequests -gt $budgetLimit) {
   Write-Error "RELEASE_REQUEST_BUDGET_EXCEEDED: Actual QA Worker HTTP request count ($totalQAWorkerRequests) exceeded budget threshold ($budgetLimit)."
@@ -152,7 +170,7 @@ Write-Host "Request Budget Verification Passed (Count: $totalQAWorkerRequests <=
 Write-Host "Generating Untracked Evidence Manifest (qa/verified-release.json)..." -ForegroundColor Yellow
 $evidenceObj = @{
   sha = $sha
-  qa_runtime_sha = $sha
+  qa_runtime_sha = $qaRuntimeSha
   core_gate_passed = 21
   phase_b_gate_passed = 4
   total_gate_passed = 25

@@ -1,7 +1,9 @@
 // tests/e2e/gantt-geometry-alignment.spec.ts
 import { test, expect } from '@playwright/test';
+import { assertMutationSafety } from './productionMutationGuard';
 
-const QA_BASE_URL = 'https://concost-dev-scheduler-qa.eumditravel.workers.dev';
+const QA_BASE_URL = (process.env.TEST_BASE_URL || process.env.PLAYWRIGHT_TEST_BASE_URL || 'https://concost-dev-scheduler-qa.eumditravel.workers.dev').trim();
+assertMutationSafety(QA_BASE_URL, 'gantt-geometry-alignment');
 
 async function dismissWorkerPromptModal(page: any) {
   const modal = page.locator('[data-testid="worker-prompt-modal"]');

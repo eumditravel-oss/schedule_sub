@@ -2,8 +2,10 @@
 import { test, expect } from '@playwright/test';
 import * as fs from 'fs';
 import * as path from 'path';
+import { assertMutationSafety } from './productionMutationGuard';
 
-const PROD_BASE_URL = 'https://concost-dev-scheduler.eumditravel.workers.dev';
+const PROD_BASE_URL = (process.env.TEST_BASE_URL || process.env.PLAYWRIGHT_TEST_BASE_URL || 'https://concost-dev-scheduler.eumditravel.workers.dev').trim();
+assertMutationSafety(PROD_BASE_URL, 'verify-live-production-final');
 const EXPECTED_SHA_PREFIX = 'ab62b03';
 
 const QA_LIVE_DIR = path.join(process.cwd(), 'qa', 'live-production');

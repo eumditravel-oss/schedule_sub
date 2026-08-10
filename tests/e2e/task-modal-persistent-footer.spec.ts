@@ -1,5 +1,8 @@
-// tests/e2e/task-modal-persistent-footer.spec.ts
 import { test, expect } from '@playwright/test';
+import { assertMutationSafety } from './productionMutationGuard';
+
+const QA_BASE_URL = (process.env.TEST_BASE_URL || process.env.PLAYWRIGHT_TEST_BASE_URL || 'http://localhost:5173').trim();
+assertMutationSafety(QA_BASE_URL, 'task-modal-persistent-footer');
 import * as fs from 'fs';
 import * as path from 'path';
 

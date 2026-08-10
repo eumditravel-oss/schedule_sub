@@ -1,9 +1,8 @@
 import { test, expect } from '@playwright/test';
+import { assertMutationSafety } from './productionMutationGuard';
 
-test.use({
-  baseURL: process.env.TEST_BASE_URL || process.env.PLAYWRIGHT_TEST_BASE_URL || 'http://localhost:5173',
-  extraHTTPHeaders: { 'x-editor-name': encodeURIComponent('박용진 수석') },
-});
+const QA_BASE_URL = (process.env.TEST_BASE_URL || process.env.PLAYWRIGHT_TEST_BASE_URL || 'http://localhost:5173').trim();
+assertMutationSafety(QA_BASE_URL, 'task-v2-support-save-regression');
 
 test.describe('Task V2 Support & Assignment Normalization Suite', () => {
   const createdTaskIds: string[] = [];

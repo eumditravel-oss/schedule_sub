@@ -1,7 +1,9 @@
 // tests/e2e/unscheduled-task.spec.ts
 import { test, expect } from '@playwright/test';
+import { assertMutationSafety } from './productionMutationGuard';
 
-const QA_BASE_URL = 'https://concost-dev-scheduler-qa.eumditravel.workers.dev';
+const QA_BASE_URL = (process.env.TEST_BASE_URL || process.env.PLAYWRIGHT_TEST_BASE_URL || 'https://concost-dev-scheduler-qa.eumditravel.workers.dev').trim();
+assertMutationSafety(QA_BASE_URL, 'unscheduled-task');
 
 async function dismissWorkerPromptModal(page: any) {
   const modal = page.locator('[data-testid="worker-prompt-modal"]');

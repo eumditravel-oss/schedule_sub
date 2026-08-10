@@ -1,10 +1,12 @@
 // tests/e2e/vietnam-saturday-calendar.spec.ts
 import { test, expect } from '@playwright/test';
+import { assertMutationSafety } from './productionMutationGuard';
 import * as fs from 'fs';
 import * as path from 'path';
 
 const SCREENSHOT_DIR = path.join(process.cwd(), 'qa', 'screenshots');
 const QA_BASE_URL = (process.env.TEST_BASE_URL || process.env.PLAYWRIGHT_TEST_BASE_URL || 'http://localhost:5173').trim();
+assertMutationSafety(QA_BASE_URL, 'vietnam-saturday-calendar');
 
 test.beforeAll(() => {
   if (!fs.existsSync(SCREENSHOT_DIR)) {
