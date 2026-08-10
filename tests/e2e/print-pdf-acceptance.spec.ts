@@ -4,15 +4,30 @@ import * as path from 'path';
 
 test.describe('Scheduler V2.5 PDF Acceptance & MediaBox Validation', () => {
   const pdfOutputDir = path.join(process.cwd(), 'test-results', 'pdf');
+  let realProjectId1 = 'prj_1785986638625_9qkc';
+  let realProjectId2 = 'prj_1785986589890_zi9o';
 
-  test.beforeAll(() => {
+  test.beforeAll(async ({ request }) => {
     if (!fs.existsSync(pdfOutputDir)) {
       fs.mkdirSync(pdfOutputDir, { recursive: true });
+    }
+
+    try {
+      const res = await request.get('/api/projects');
+      if (res.ok()) {
+        const json = await res.json();
+        if (json.data && Array.isArray(json.data) && json.data.length >= 2) {
+          realProjectId1 = json.data[0].id;
+          realProjectId2 = json.data[1].id;
+        }
+      }
+    } catch {
+      // fallback to known QA IDs
     }
   });
 
   test('1. A4 Single Project Summary PDF Generation & MediaBox Verification', async ({ page }) => {
-    await page.goto('/print/project/qa-proj-1/summary-a4?lang=ko&colorMode=color');
+    await page.goto(`/print/project/${realProjectId1}/summary-a4?lang=ko&colorMode=color`);
     await expect(page.locator('.print-page-shell')).toBeVisible();
 
     const pdfBuffer = await page.pdf({
@@ -71,7 +86,7 @@ test.describe('Scheduler V2.5 PDF Acceptance & MediaBox Validation', () => {
   });
 
   test('5. A3 Project Full Schedule PDF Generation & Dynamic @page Size', async ({ page }) => {
-    await page.goto('/print/project/qa-proj-1/full-a3?lang=ko&colorMode=color');
+    await page.goto(`/print/project/${realProjectId1}/full-a3?lang=ko&colorMode=color`);
     await expect(page.locator('.print-page-shell')).toBeVisible();
 
     const pdfBuffer = await page.pdf({
@@ -114,7 +129,7 @@ test.describe('Scheduler V2.5 PDF Acceptance & MediaBox Validation', () => {
 
   test('8. A3 Combined 2~3 Projects PDF Generation & Strict Validation', async ({ page }) => {
     // Valid 2 projects
-    await page.goto('/print/projects/combined-a3?projectIds=proj-1,proj-2&lang=ko&colorMode=color');
+    await page.goto(`/print/projects/combined-a3?projectIds=${realProjectId1},${realProjectId2}&lang=ko&colorMode=color`);
     await expect(page.locator('.print-page-shell')).toBeVisible();
 
     const pdfBuffer = await page.pdf({
@@ -126,11 +141,11 @@ test.describe('Scheduler V2.5 PDF Acceptance & MediaBox Validation', () => {
     expect(pdfBuffer.length).toBeGreaterThan(1000);
 
     // Invalid 1 project selection -> Error Page
-    await page.goto('/print/projects/combined-a3?projectIds=proj-1&lang=ko');
+    await page.goto(`/print/projects/combined-a3?projectIds=${realProjectId1}&lang=ko`);
     await expect(page.locator('text=A3 통합 일정표 프로젝트 선택 오류')).toBeVisible();
 
     // Invalid 4 projects selection -> Error Page
-    await page.goto('/print/projects/combined-a3?projectIds=p1,p2,p3,p4&lang=ko');
+    await page.goto(`/print/projects/combined-a3?projectIds=${realProjectId1},${realProjectId2},p3,p4&lang=ko`);
     await expect(page.locator('text=A3 통합 일정표 프로젝트 선택 오류')).toBeVisible();
   });
 

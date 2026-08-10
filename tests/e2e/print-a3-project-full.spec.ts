@@ -1,8 +1,24 @@
 import { test, expect } from '@playwright/test';
 
 test.describe('Print Template 5: A3 Single Project Full Schedule', () => {
+  let realProjectId = 'prj_1785986638625_9qkc';
+
+  test.beforeAll(async ({ request }) => {
+    try {
+      const res = await request.get('/api/projects');
+      if (res.ok()) {
+        const json = await res.json();
+        if (json.data && Array.isArray(json.data) && json.data.length > 0) {
+          realProjectId = json.data[0].id;
+        }
+      }
+    } catch {
+      // fallback
+    }
+  });
+
   test('should render A3 landscape full schedule table with 30-day band pagination for long projects', async ({ page }) => {
-    await page.goto('/print/project/qa-project-1/full-a3?lang=ko&colorMode=color');
+    await page.goto(`/print/project/${realProjectId}/full-a3?lang=ko&colorMode=color`);
 
     const shell = page.locator('.print-page-shell');
     await expect(shell).toBeVisible();
