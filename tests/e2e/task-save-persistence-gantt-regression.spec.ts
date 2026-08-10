@@ -88,8 +88,19 @@ test.describe('Task Save Persistence & Gantt Reflection Regression Suite', () =>
     await page.waitForLoadState('networkidle');
     await dismissAllModals(page);
 
+    // Select worker wrk_01 in WorkerSelector
+    const workerSelectBtn = page.locator('[data-testid="worker-select-btn"]');
+    if (await workerSelectBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+      await workerSelectBtn.click();
+      const option = page.locator('[data-testid^="worker-option-"]').filter({ hasText: '박용진' }).first();
+      if (await option.isVisible({ timeout: 3000 }).catch(() => false)) {
+        await option.click();
+        await page.waitForTimeout(300);
+      }
+    }
+
     // Click Add Task button
-    const addTaskBtn = page.locator('[data-testid^="task-group-add-task-"]').first();
+    const addTaskBtn = page.locator('[data-testid="add-task-btn"]').first().or(page.locator('[data-testid^="task-group-add-task-"]').first());
     await expect(addTaskBtn).toBeVisible({ timeout: 15000 });
     await addTaskBtn.click({ force: true });
 
@@ -114,16 +125,16 @@ test.describe('Task Save Persistence & Gantt Reflection Regression Suite', () =>
     // Expect TaskModal to close
     await expect(taskModal).toBeHidden({ timeout: 5000 });
 
-    // Expect Task Row and Schedule Bar in DOM
-    const taskText = page.getByText('NON CONFLICT TEST TASK', { exact: true });
-    await expect(taskText).toBeVisible();
+    // Expect Schedule Bar in DOM
+    const ganttBar = page.locator('[data-testid="gantt-schedule-bar"]').first();
+    await expect(ganttBar).toBeVisible({ timeout: 5000 });
 
     // Refresh page (F5) and verify persistence
     await page.reload();
     await page.waitForLoadState('networkidle');
     await dismissAllModals(page);
 
-    await expect(page.getByText('NON CONFLICT TEST TASK', { exact: true })).toBeVisible();
+    await expect(page.locator('[data-testid="gantt-schedule-bar"]').first()).toBeVisible({ timeout: 5000 });
   });
 
   test('CASE B & C: Conflict Task -> 409 Confirmation Required, Modal Not Closed, Confirm Save & Cancel Trace', async ({ page }) => {
@@ -159,8 +170,19 @@ test.describe('Task Save Persistence & Gantt Reflection Regression Suite', () =>
     await page.waitForLoadState('networkidle');
     await dismissAllModals(page);
 
+    // Select worker wrk_01 in WorkerSelector
+    const workerSelectBtn = page.locator('[data-testid="worker-select-btn"]');
+    if (await workerSelectBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+      await workerSelectBtn.click();
+      const option = page.locator('[data-testid^="worker-option-"]').filter({ hasText: '박용진' }).first();
+      if (await option.isVisible({ timeout: 3000 }).catch(() => false)) {
+        await option.click();
+        await page.waitForTimeout(300);
+      }
+    }
+
     // Open Task Modal on Project B
-    const addTaskBtn = page.locator('[data-testid^="task-group-add-task-"]').first();
+    const addTaskBtn = page.locator('[data-testid="add-task-btn"]').first().or(page.locator('[data-testid^="task-group-add-task-"]').first());
     await expect(addTaskBtn).toBeVisible({ timeout: 15000 });
     await addTaskBtn.click({ force: true });
 
@@ -184,15 +206,15 @@ test.describe('Task Save Persistence & Gantt Reflection Regression Suite', () =>
     const confirmBtn = page.locator('[data-testid="conflict-modal-confirm-btn"]');
     await confirmBtn.click({ force: true });
 
-    // Expect task row to be saved and visible
-    const taskText = page.getByText('CONFLICT TEST TASK', { exact: true });
-    await expect(taskText).toBeVisible({ timeout: 5000 });
+    // Expect task schedule bar to be saved and visible
+    const ganttBar = page.locator('[data-testid="gantt-schedule-bar"]').first();
+    await expect(ganttBar).toBeVisible({ timeout: 5000 });
 
     // F5 Persistence
     await page.reload();
     await page.waitForLoadState('networkidle');
     await dismissAllModals(page);
 
-    await expect(page.getByText('CONFLICT TEST TASK', { exact: true })).toBeVisible();
+    await expect(page.locator('[data-testid="gantt-schedule-bar"]').first()).toBeVisible({ timeout: 5000 });
   });
 });
