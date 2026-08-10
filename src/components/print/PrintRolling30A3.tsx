@@ -3,7 +3,7 @@ import React from 'react';
 import { Project, Task, Worker, CountryHoliday, CalendarOverride } from '../../types';
 import { PrintHeader } from './PrintHeader';
 import { PrintFooter } from './PrintFooter';
-import { PrintColorMode, getPrintStatusBadgeStyle, getPrintGanttBarStyle, getPrintCalendarVisualStyle } from '../../utils/printVisualTokens';
+import { PrintColorMode, getPrintStatusBadgeStyle, getPrintGanttBarStyle, getPrintCalendarVisualStyle, getProjectPicSummary, PRINT_DAY_CELL_STYLE } from '../../utils/printVisualTokens';
 import { calculateProjectProgress } from '../../utils/progressCalculator';
 import { resolveCalendarVisualState } from '../../utils/calendarVisualTokens';
 import { parseISO, format, addDays } from 'date-fns';
@@ -102,10 +102,10 @@ export const PrintRolling30A3: React.FC<PrintRolling30A3Props> = ({
                 <th className="border-r border-slate-700 px-2 py-1 text-left w-48">{isKo ? '프로젝트명' : 'Tên dự án'}</th>
                 <th className="border-r border-slate-700 px-1 py-1 text-center w-24">{isKo ? '기간' : 'Thời gian'}</th>
                 <th className="border-r border-slate-700 px-1 py-1 text-center w-14">{isKo ? '상태' : 'Trạng thái'}</th>
-                <th className="border-r border-slate-700 px-1 py-1 text-left w-20">{isKo ? 'PIC' : 'PIC'}</th>
+                <th className="border-r border-slate-700 px-1 py-1 text-left w-24">{isKo ? 'PIC (PRIMARY)' : 'PIC chính'}</th>
                 <th className="border-r border-slate-700 px-1 py-1 text-center w-16">{isKo ? '공정률' : 'Tiến độ'}</th>
 
-                {/* 30 Date Columns */}
+                {/* 30 Date Columns: Strict 8mm Min Width Contract */}
                 {daysArray.map((dayDate, dIdx) => {
                   const dateStr = format(dayDate, 'yyyy-MM-dd');
                   const dayNum = format(dayDate, 'dd');
@@ -117,8 +117,9 @@ export const PrintRolling30A3: React.FC<PrintRolling30A3Props> = ({
                   return (
                     <th
                       key={dIdx}
-                      className="border-r border-slate-600 px-0.5 py-1 text-center font-mono text-[9px] min-w-[28px]"
+                      className="border-r border-slate-600 px-0.5 py-1 text-center font-mono text-[9px]"
                       style={{
+                        ...PRINT_DAY_CELL_STYLE,
                         backgroundColor: printToken.baseColor === '#FFFFFF' ? '#1E293B' : printToken.baseColor,
                         color: printToken.textColor === '#334155' ? '#FFFFFF' : printToken.textColor,
                       }}
@@ -135,7 +136,8 @@ export const PrintRolling30A3: React.FC<PrintRolling30A3Props> = ({
                 const pTasks = tasks.filter((t) => t.project_id === p.id);
                 const progress = calculateProjectProgress(p, pTasks);
                 const badgeStyle = getPrintStatusBadgeStyle(p.status, colorMode, lang);
-                const picName = p.participating_workers?.[0] || '-';
+                // V2 Domain: PIC derived from Task PRIMARY
+                const picName = getProjectPicSummary(pTasks, workerMap, lang);
                 const pName = isKo ? (p.name_ko || p.name) : (p.name_vi || p.name);
 
                 const pStart = p.start_date ? parseISO(p.start_date) : null;
@@ -165,7 +167,7 @@ export const PrintRolling30A3: React.FC<PrintRolling30A3Props> = ({
                       {progress.actual_progress}%
                     </td>
 
-                    {/* 30 Daily Cells */}
+                    {/* 30 Daily Cells: Strict 8mm Min Width Contract */}
                     {daysArray.map((dayDate, dIdx) => {
                       const dateStr = format(dayDate, 'yyyy-MM-dd');
                       const visToken = resolveCalendarVisualState(dateStr, null, null, null, [...krHolidays, ...vnHolidays], calendarOverrides);
@@ -176,8 +178,9 @@ export const PrintRolling30A3: React.FC<PrintRolling30A3Props> = ({
                       return (
                         <td
                           key={dIdx}
-                          className="border-r border-slate-200 p-0 text-center relative min-w-[28px] h-7"
+                          className="border-r border-slate-200 p-0 text-center relative h-7"
                           style={{
+                            ...PRINT_DAY_CELL_STYLE,
                             backgroundColor: printToken.baseColor,
                             backgroundImage: printToken.hatch.pattern || 'none',
                           }}

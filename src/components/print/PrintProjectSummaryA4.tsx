@@ -3,7 +3,7 @@ import React from 'react';
 import { Project, Task, TaskGroup, ProjectWorkerAllocation, Worker } from '../../types';
 import { PrintHeader } from './PrintHeader';
 import { PrintFooter } from './PrintFooter';
-import { PrintColorMode, getPrintStatusBadgeStyle, getPrintGanttBarStyle } from '../../utils/printVisualTokens';
+import { PrintColorMode, getPrintStatusBadgeStyle, getPrintGanttBarStyle, getProjectPicSummary, getProjectSupportSummary } from '../../utils/printVisualTokens';
 import { calculateProjectProgress } from '../../utils/progressCalculator';
 import { parseISO, format, eachWeekOfInterval } from 'date-fns';
 
@@ -31,6 +31,7 @@ export const PrintProjectSummaryA4: React.FC<PrintProjectSummaryA4Props> = ({
   referenceDate = new Date().toISOString().substring(0, 10),
 }) => {
   const isKo = lang === 'ko';
+  const workerMap = new Map(workers.map((w) => [w.id, w.name]));
 
   // Calculate project statistics
   const progressInfo = calculateProjectProgress(project, tasks);
@@ -46,9 +47,9 @@ export const PrintProjectSummaryA4: React.FC<PrintProjectSummaryA4Props> = ({
 
   const badgeStyle = getPrintStatusBadgeStyle(project.status, colorMode, lang);
 
-  // Workforce Map
-  const workerMap = new Map(workers.map((w) => [w.id, w.name]));
-  const primaryPic = (allocations[0] && workerMap.get(allocations[0].worker_id)) || project.participating_workers?.[0] || '-';
+  // V2 Domain Semantics: Task PRIMARY = PIC, Task CO_ASSIGNEE = Support
+  const projectPic = getProjectPicSummary(tasks, workerMap, lang);
+  const projectSupport = getProjectSupportSummary(tasks, workerMap);
 
   // Task Group summaries
   const groupSummaries = taskGroups.map((group) => {
@@ -154,31 +155,41 @@ export const PrintProjectSummaryA4: React.FC<PrintProjectSummaryA4Props> = ({
           {/* Workforce Summary Box */}
           <div className="border border-slate-200 rounded p-2.5 bg-white">
             <h3 className="font-bold text-slate-800 text-xs mb-1.5 border-b border-slate-200 pb-1 flex items-center justify-between">
-              <span>{isKo ? '투입 인력 및 담당자' : 'Nhân sự & Người phụ trách'}</span>
-              <span className="text-[10px] font-normal text-slate-500">
-                PIC: <strong className="text-slate-900">{primaryPic}</strong>
+              <span>{isKo ? '담당자 (Task PRIMARY) & 투입 인력' : 'PIC & Phân công nhân sự'}</span>
+              <span className="text-[10px] font-normal text-slate-600">
+                주요 PIC: <strong className="text-slate-900">{projectPic}</strong>
               </span>
             </h3>
 
-            {allocations && allocations.length > 0 ? (
-              <div className="space-y-1">
-                {allocations.map((alloc) => {
-                  const name = workerMap.get(alloc.worker_id) || alloc.worker_id;
-                  return (
-                    <div key={alloc.worker_id} className="flex items-center justify-between text-[11px]">
-                      <span className="font-medium text-slate-700">{name}</span>
-                      <span className="font-mono text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded">
-                        {alloc.allocation_percent}% FTE
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <p className="text-[11px] text-slate-400 italic">
-                {isKo ? '설정된 인력 투입 정보가 없습니다.' : 'Chưa thiết lập phân công nhân sự.'}
-              </p>
-            )}
+            <div className="mb-2 text-[11px] text-slate-700 flex items-center gap-2">
+              <span className="text-slate-500">{isKo ? 'Support 인력:' : 'Hỗ trợ:'}</span>
+              <span className="font-medium text-slate-800">{projectSupport}</span>
+            </div>
+
+            <div className="border-t border-slate-100 pt-1.5">
+              <span className="text-[10px] text-slate-500 font-bold block mb-1">
+                {isKo ? '프로젝트 투입률 (Capacity / FTE):' : 'Tỷ lệ phân công (Capacity):'}
+              </span>
+              {allocations && allocations.length > 0 ? (
+                <div className="space-y-1">
+                  {allocations.map((alloc) => {
+                    const name = workerMap.get(alloc.worker_id) || alloc.worker_id;
+                    return (
+                      <div key={alloc.worker_id} className="flex items-center justify-between text-[11px]">
+                        <span className="font-medium text-slate-700">{name}</span>
+                        <span className="font-mono text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded">
+                          {alloc.allocation_percent}% FTE
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="text-[10.5px] text-slate-400 italic">
+                  {isKo ? '설정된 Capacity 투입 비율이 없습니다.' : 'Chưa thiết lập định mức capacity.'}
+                </p>
+              )}
+            </div>
           </div>
 
           {/* Task Issue Counter Box */}

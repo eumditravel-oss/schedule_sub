@@ -3,7 +3,7 @@ import React from 'react';
 import { Project, Task, Worker } from '../../types';
 import { PrintHeader } from './PrintHeader';
 import { PrintFooter } from './PrintFooter';
-import { PrintColorMode, getPrintStatusBadgeStyle, getPrintGanttBarStyle } from '../../utils/printVisualTokens';
+import { PrintColorMode, getPrintStatusBadgeStyle, getPrintGanttBarStyle, getProjectPicSummary } from '../../utils/printVisualTokens';
 import { calculateProjectProgress } from '../../utils/progressCalculator';
 import { parseISO, format, addMonths, startOfMonth, endOfMonth } from 'date-fns';
 
@@ -100,7 +100,7 @@ export const PrintHalfYearProjectsA4: React.FC<PrintHalfYearProjectsA4Props> = (
                 <th className="border border-slate-300 px-2 py-1 text-left">{isKo ? '프로젝트명' : 'Tên dự án'}</th>
                 <th className="border border-slate-300 px-2 py-1 text-center w-24">{isKo ? '기간' : 'Thời gian'}</th>
                 <th className="border border-slate-300 px-2 py-1 text-center w-16">{isKo ? '상태' : 'Trạng thái'}</th>
-                <th className="border border-slate-300 px-2 py-1 text-left w-20">{isKo ? '담당자' : 'PIC'}</th>
+                <th className="border border-slate-300 px-2 py-1 text-left w-24">{isKo ? '담당자 (PRIMARY)' : 'PIC chính'}</th>
                 <th className="border border-slate-300 px-2 py-1 text-center w-16">{isKo ? '공정률' : 'Tiến độ'}</th>
                 {monthsSequence.map((mDate, idx) => (
                   <th key={idx} className="border border-slate-300 px-1 py-1 text-center w-10 text-[9.5px]">
@@ -114,7 +114,8 @@ export const PrintHalfYearProjectsA4: React.FC<PrintHalfYearProjectsA4Props> = (
                 const pTasks = tasks.filter((t) => t.project_id === p.id);
                 const progress = calculateProjectProgress(p, pTasks);
                 const badgeStyle = getPrintStatusBadgeStyle(p.status, colorMode, lang);
-                const picName = p.participating_workers?.[0] || '-';
+                // V2 Domain: PIC derived from Task PRIMARY
+                const picName = getProjectPicSummary(pTasks, workerMap, lang);
                 const pName = isKo ? (p.name_ko || p.name) : (p.name_vi || p.name);
                 const pStart = p.start_date ? parseISO(p.start_date) : startMonthDate;
                 const pEnd = p.end_date ? parseISO(p.end_date) : periodEndMonth;

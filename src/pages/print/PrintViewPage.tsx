@@ -288,11 +288,34 @@ export const PrintViewPage: React.FC = () => {
           />
         );
 
-      case 'combined-a3':
+      case 'combined-a3': {
         const selectedProjs = projects.filter((p) => selectedIds.includes(p.id));
+        const isValidSelection = selectedProjs.length >= 2 && selectedProjs.length <= 3 && selectedProjs.length === selectedIds.length;
+
+        if (!isValidSelection) {
+          return (
+            <div className="p-8 bg-white border border-rose-300 rounded-lg shadow-md max-w-lg mx-auto my-8 text-center text-slate-800">
+              <div className="text-rose-600 font-extrabold text-base mb-2">
+                {lang === 'vi' ? 'Lỗi chọn dự án kết hợp A3' : 'A3 통합 일정표 프로젝트 선택 오류'}
+              </div>
+              <p className="text-xs text-slate-600 mb-4">
+                {lang === 'vi'
+                  ? `Lịch trình tổng hợp A3 yêu cầu chọn chính xác từ 2 đến 3 dự án hợp lệ. (Đã chọn: ${selectedProjs.length}/${selectedIds.length})`
+                  : `A3 선택 프로젝트 통합 일정표는 정확히 2~3개의 유효한 프로젝트를 선택해야 출력이 가능합니다. (현재 선택된 유효 프로젝트: ${selectedProjs.length}개)`}
+              </p>
+              <button
+                onClick={handleClose}
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs rounded transition"
+              >
+                {lang === 'ko' ? '프로젝트 목록으로 돌아가기' : 'Quay lại danh sách dự án'}
+              </button>
+            </div>
+          );
+        }
+
         return (
           <PrintCombinedProjectsA3
-            selectedProjects={selectedProjs.length > 0 ? selectedProjs : projects.slice(0, 3)}
+            selectedProjects={selectedProjs}
             allTasks={tasks}
             workers={workers}
             krHolidays={krHolidays}
@@ -304,6 +327,7 @@ export const PrintViewPage: React.FC = () => {
             referenceDate={referenceDate}
           />
         );
+      }
 
       default:
         return <div>Invalid print template</div>;
@@ -312,6 +336,16 @@ export const PrintViewPage: React.FC = () => {
 
   return (
     <div className="print-view-wrapper min-h-screen bg-slate-200 pt-16 pb-12 print:p-0 print:bg-white select-none">
+      {/* Dynamic @page CSS rule injection */}
+      <style>{`
+        @media print {
+          @page {
+            size: ${paper.toUpperCase()} ${orientation};
+            margin: 0;
+          }
+        }
+      `}</style>
+
       {/* Top Floating Toolbar */}
       <PrintToolbar
         paper={paper}

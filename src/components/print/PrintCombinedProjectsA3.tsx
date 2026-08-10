@@ -3,7 +3,7 @@ import React from 'react';
 import { Project, Task, TaskGroup, Worker, CountryHoliday, CalendarOverride } from '../../types';
 import { PrintHeader } from './PrintHeader';
 import { PrintFooter } from './PrintFooter';
-import { PrintColorMode, getPrintStatusBadgeStyle, getPrintGanttBarStyle, getPrintCalendarVisualStyle } from '../../utils/printVisualTokens';
+import { PrintColorMode, getPrintStatusBadgeStyle, getPrintGanttBarStyle, getPrintCalendarVisualStyle, getProjectPicSummary, PRINT_DAY_CELL_STYLE } from '../../utils/printVisualTokens';
 import { calculateProjectProgress } from '../../utils/progressCalculator';
 import { resolveCalendarVisualState } from '../../utils/calendarVisualTokens';
 import { parseISO, format, addDays, differenceInCalendarDays } from 'date-fns';
@@ -99,10 +99,10 @@ export const PrintCombinedProjectsA3: React.FC<PrintCombinedProjectsA3Props> = (
                       <th className="border-r border-slate-700 px-2 py-1 text-left w-52">{isKo ? '프로젝트 / 세부 공정' : 'Dự án / Công việc'}</th>
                       <th className="border-r border-slate-700 px-1 py-1 text-center w-24">{isKo ? '기간' : 'Thời gian'}</th>
                       <th className="border-r border-slate-700 px-1 py-1 text-center w-14">{isKo ? '상태' : 'Trạng thái'}</th>
-                      <th className="border-r border-slate-700 px-1 py-1 text-left w-20">{isKo ? '담당자' : 'PIC'}</th>
+                      <th className="border-r border-slate-700 px-1 py-1 text-left w-24">{isKo ? 'PIC (PRIMARY)' : 'PIC chính'}</th>
                       <th className="border-r border-slate-700 px-1 py-1 text-center w-16">{isKo ? '공정률' : 'Tiến độ'}</th>
 
-                      {/* 30 Date Columns */}
+                      {/* 30 Date Columns: Strict 8mm Min Width Contract */}
                       {daysArray.map((dayDate, dIdx) => {
                         const dateStr = format(dayDate, 'yyyy-MM-dd');
                         const dayNum = format(dayDate, 'dd');
@@ -114,8 +114,9 @@ export const PrintCombinedProjectsA3: React.FC<PrintCombinedProjectsA3Props> = (
                         return (
                           <th
                             key={dIdx}
-                            className="border-r border-slate-600 px-0.5 py-1 text-center font-mono text-[9px] min-w-[28px]"
+                            className="border-r border-slate-600 px-0.5 py-1 text-center font-mono text-[9px]"
                             style={{
+                              ...PRINT_DAY_CELL_STYLE,
                               backgroundColor: printToken.baseColor === '#FFFFFF' ? '#1E293B' : printToken.baseColor,
                               color: printToken.textColor === '#334155' ? '#FFFFFF' : printToken.textColor,
                             }}
@@ -132,7 +133,8 @@ export const PrintCombinedProjectsA3: React.FC<PrintCombinedProjectsA3Props> = (
                       const pTasks = allTasks.filter((t) => t.project_id === project.id);
                       const progress = calculateProjectProgress(project, pTasks);
                       const badgeStyle = getPrintStatusBadgeStyle(project.status, colorMode, lang);
-                      const picName = project.participating_workers?.[0] || '-';
+                      // V2 Domain: PIC derived from Task PRIMARY
+                      const picName = getProjectPicSummary(pTasks, workerMap, lang);
                       const pName = isKo ? (project.name_ko || project.name) : (project.name_vi || project.name);
 
                       const pStart = project.start_date ? parseISO(project.start_date) : null;
@@ -176,8 +178,9 @@ export const PrintCombinedProjectsA3: React.FC<PrintCombinedProjectsA3Props> = (
                               return (
                                 <td
                                   key={dIdx}
-                                  className="border-r border-slate-200 p-0 text-center relative min-w-[28px] h-6 bg-slate-100"
+                                  className="border-r border-slate-200 p-0 text-center relative h-6 bg-slate-100"
                                   style={{
+                                    ...PRINT_DAY_CELL_STYLE,
                                     backgroundImage: printToken.hatch.pattern || 'none',
                                   }}
                                 >
@@ -233,7 +236,7 @@ export const PrintCombinedProjectsA3: React.FC<PrintCombinedProjectsA3Props> = (
                                   {task.actual_progress ?? (task.schedule_state === 'COMPLETED' ? 100 : 0)}%
                                 </td>
 
-                                {/* Task Bar Cells */}
+                                {/* Task Bar Cells: Strict 8mm Min Width Contract */}
                                 {daysArray.map((dayDate, dIdx) => {
                                   const dateStr = format(dayDate, 'yyyy-MM-dd');
                                   const visToken = resolveCalendarVisualState(dateStr, null, null, null, [...krHolidays, ...vnHolidays], calendarOverrides);
@@ -243,8 +246,9 @@ export const PrintCombinedProjectsA3: React.FC<PrintCombinedProjectsA3Props> = (
                                   return (
                                     <td
                                       key={dIdx}
-                                      className="border-r border-slate-200 p-0 text-center relative min-w-[28px] h-5"
+                                      className="border-r border-slate-200 p-0 text-center relative h-5"
                                       style={{
+                                        ...PRINT_DAY_CELL_STYLE,
                                         backgroundColor: printToken.baseColor,
                                         backgroundImage: printToken.hatch.pattern || 'none',
                                       }}

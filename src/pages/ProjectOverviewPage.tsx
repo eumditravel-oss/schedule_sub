@@ -1060,6 +1060,27 @@ export const ProjectOverviewPage: React.FC = () => {
                             className="sticky left-0 bg-white group-hover:!bg-[#f8fafc] px-3 py-2 border-r border-slate-200 shrink-0 flex items-center h-full relative"
                           >
                             <div className="flex items-center justify-between w-full h-full gap-2">
+                              {/* Selection Checkbox for A3 Combined Print */}
+                              <input
+                                type="checkbox"
+                                data-testid={`project-select-checkbox-${project.id}`}
+                                checked={selectedProjectIds.includes(project.id)}
+                                onClick={(e) => e.stopPropagation()}
+                                onChange={(e) => {
+                                  e.stopPropagation();
+                                  if (e.target.checked) {
+                                    if (selectedProjectIds.length >= 3) {
+                                      alert(lang === 'vi' ? 'Chỉ được chọn tối đa 3 dự án' : 'A3 통합 일정표는 최대 3개 프로젝트까지만 선택 가능합니다.');
+                                      return;
+                                    }
+                                    setSelectedProjectIds([...selectedProjectIds, project.id]);
+                                  } else {
+                                    setSelectedProjectIds(selectedProjectIds.filter((id) => id !== project.id));
+                                  }
+                                }}
+                                className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer shrink-0 mr-1"
+                                title={lang === 'vi' ? 'Chọn dự án để in kết hợp A3' : 'A3 통합 일정표 출력을 위한 프로젝트 선택 (2~3개)'}
+                              />
                               <div className="pr-1 overflow-hidden min-w-0 flex-1 flex flex-col justify-center gap-0.5">
                                 {/* Row 1: Dedicated Project Name Line */}
                                 <div

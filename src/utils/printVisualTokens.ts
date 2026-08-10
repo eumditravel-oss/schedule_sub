@@ -1,7 +1,17 @@
 // src/utils/printVisualTokens.ts
+import React from 'react';
 import { CalendarVisualState, CalendarVisualToken, CALENDAR_VISUAL_TOKENS } from './calendarVisualTokens';
+import { Task, getPicAssignee, getSupportAssignees } from '../types';
 
 export type PrintColorMode = 'color' | 'mono';
+
+export const PRINT_DAY_CELL_MM = '8mm';
+
+export const PRINT_DAY_CELL_STYLE: React.CSSProperties = {
+  minWidth: '8mm',
+  width: '8mm',
+  boxSizing: 'border-box',
+};
 
 export interface PrintGanttBarStyle {
   backgroundColor: string;
@@ -16,6 +26,68 @@ export interface PrintStatusBadgeStyle {
   borderColor: string;
   textColor: string;
   label: string;
+}
+
+/**
+ * Returns project's PRIMARY PIC names strictly derived from Task PRIMARY assignees.
+ * NEVER uses Project Workforce Allocation[0] or participating_workers[0] as PIC.
+ */
+export function getProjectPicNames(
+  projectTasks: Task[],
+  workerMap: Map<string, string>
+): string[] {
+  const picNames = new Set<string>();
+
+  for (const t of projectTasks) {
+    const pic = getPicAssignee(t);
+    if (pic) {
+      const name = pic.name || workerMap.get(pic.worker_id) || (pic.worker_id && !pic.worker_id.startsWith('wrk_') ? pic.worker_id : '');
+      if (name) picNames.add(name);
+    } else if (t.primary_worker_id) {
+      const name = workerMap.get(t.primary_worker_id) || (t.worker_name && !t.worker_name.startsWith('wrk_') ? t.worker_name : '');
+      if (name) picNames.add(name);
+    } else if (t.worker_name && t.worker_name !== '-' && !t.worker_name.startsWith('wrk_')) {
+      picNames.add(t.worker_name);
+    }
+  }
+
+  return Array.from(picNames);
+}
+
+export function getProjectPicSummary(
+  projectTasks: Task[],
+  workerMap: Map<string, string>,
+  lang: 'ko' | 'vi' = 'ko'
+): string {
+  const pics = getProjectPicNames(projectTasks, workerMap);
+  if (pics.length === 0) {
+    return lang === 'vi' ? 'Chưa chỉ định' : '미지정';
+  }
+  return pics.join(', ');
+}
+
+/**
+ * Returns project's Support Worker names strictly derived from Task CO_ASSIGNEE assignees.
+ */
+export function getProjectSupportSummary(
+  projectTasks: Task[],
+  workerMap: Map<string, string>
+): string {
+  const supportNames = new Set<string>();
+
+  for (const t of projectTasks) {
+    const supports = getSupportAssignees(t);
+    for (const sup of supports) {
+      const name = sup.name || workerMap.get(sup.worker_id);
+      if (name) supportNames.add(name);
+    }
+  }
+
+  const supports = Array.from(supportNames);
+  if (supports.length === 0) {
+    return '-';
+  }
+  return supports.join(', ');
 }
 
 /**

@@ -3,7 +3,7 @@ import React from 'react';
 import { Project, Task, TaskGroup, Worker, CountryHoliday, CalendarOverride } from '../../types';
 import { PrintHeader } from './PrintHeader';
 import { PrintFooter } from './PrintFooter';
-import { PrintColorMode, getPrintStatusBadgeStyle, getPrintGanttBarStyle, getPrintCalendarVisualStyle } from '../../utils/printVisualTokens';
+import { PrintColorMode, getPrintStatusBadgeStyle, getPrintGanttBarStyle, getPrintCalendarVisualStyle, getProjectPicSummary, PRINT_DAY_CELL_STYLE } from '../../utils/printVisualTokens';
 import { calculateProjectProgress } from '../../utils/progressCalculator';
 import { resolveCalendarVisualState } from '../../utils/calendarVisualTokens';
 import { parseISO, format, addDays, differenceInCalendarDays, isSameDay } from 'date-fns';
@@ -58,7 +58,8 @@ export const PrintProjectFullA3: React.FC<PrintProjectFullA3Props> = ({
     });
   }
 
-  const primaryPic = project.participating_workers?.[0] || '-';
+  // V2 Domain: PIC derived from Task PRIMARY
+  const primaryPic = getProjectPicSummary(tasks, workerMap, lang);
   const pName = isKo ? (project.name_ko || project.name) : (project.name_vi || project.name);
 
   return (
@@ -74,7 +75,7 @@ export const PrintProjectFullA3: React.FC<PrintProjectFullA3Props> = ({
             <div>
               {/* Header */}
               <PrintHeader
-                title={`${pName} - ${isKo ? '전체 상세 일정표 (A3 Gantt)' : 'Lịch trình chi tiết dự án'}`}
+                title={`${pName} - ${isKo ? '전체 상세 일정표 (A3 Gantt 30-Day Band Split)' : 'Lịch trình chi tiết dự án (30-Day Band Split)'}`}
                 subtitle={
                   isKo
                     ? `구간 ${band.pageIdx}/${bandPagesCount}: ${format(band.start, 'yyyy-MM-dd')} ~ ${format(band.end, 'yyyy-MM-dd')} (${totalDays}일 중 ${band.daysCount}일 표시)`
@@ -92,7 +93,7 @@ export const PrintProjectFullA3: React.FC<PrintProjectFullA3Props> = ({
               <div className="flex items-center justify-between bg-slate-50 border border-slate-300 rounded p-2 mb-2 text-xs">
                 <div className="flex items-center gap-4">
                   <div>
-                    <span className="text-slate-500 font-medium">{isKo ? '담당자 (PIC): ' : 'PIC: '}</span>
+                    <span className="text-slate-500 font-medium">{isKo ? '주요 PIC (PRIMARY): ' : 'PIC: '}</span>
                     <strong className="text-slate-900">{primaryPic}</strong>
                   </div>
                   <div>
@@ -126,7 +127,7 @@ export const PrintProjectFullA3: React.FC<PrintProjectFullA3Props> = ({
                       <th className="border-r border-slate-700 px-1 py-1 text-center w-24">{isKo ? '시작~종료' : 'Ngày'}</th>
                       <th className="border-r border-slate-700 px-1 py-1 text-center w-14">{isKo ? '상태' : 'Trạng thái'}</th>
 
-                      {/* Date Cells */}
+                      {/* Date Cells: Strict 8mm Min Width Contract */}
                       {daysArray.map((dayDate, dIdx) => {
                         const dateStr = format(dayDate, 'yyyy-MM-dd');
                         const dayNum = format(dayDate, 'dd');
@@ -138,8 +139,9 @@ export const PrintProjectFullA3: React.FC<PrintProjectFullA3Props> = ({
                         return (
                           <th
                             key={dIdx}
-                            className="border-r border-slate-600 px-0.5 py-1 text-center font-mono text-[9px] min-w-[30px]"
+                            className="border-r border-slate-600 px-0.5 py-1 text-center font-mono text-[9px]"
                             style={{
+                              ...PRINT_DAY_CELL_STYLE,
                               backgroundColor: printToken.baseColor === '#FFFFFF' ? '#1E293B' : printToken.baseColor,
                               color: printToken.textColor === '#334155' ? '#FFFFFF' : printToken.textColor,
                             }}
@@ -202,7 +204,7 @@ export const PrintProjectFullA3: React.FC<PrintProjectFullA3Props> = ({
                               </span>
                             </td>
 
-                            {/* Daily Cell Gantt Bar & Hatch */}
+                            {/* Daily Cell Gantt Bar & Hatch: Strict 8mm Min Width Contract */}
                             {daysArray.map((dayDate, dIdx) => {
                               const dateStr = format(dayDate, 'yyyy-MM-dd');
                               const visToken = resolveCalendarVisualState(dateStr, null, null, null, [...krHolidays, ...vnHolidays], calendarOverrides);
@@ -214,8 +216,9 @@ export const PrintProjectFullA3: React.FC<PrintProjectFullA3Props> = ({
                               return (
                                 <td
                                   key={dIdx}
-                                  className="border-r border-slate-200 p-0 text-center relative min-w-[30px] h-6"
+                                  className="border-r border-slate-200 p-0 text-center relative h-6"
                                   style={{
+                                    ...PRINT_DAY_CELL_STYLE,
                                     backgroundColor: printToken.baseColor,
                                     backgroundImage: printToken.hatch.pattern || 'none',
                                   }}

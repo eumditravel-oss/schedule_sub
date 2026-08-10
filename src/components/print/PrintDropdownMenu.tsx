@@ -183,29 +183,51 @@ export const PrintDropdownMenu: React.FC<PrintDropdownMenuProps> = ({
               </div>
 
               {/* Combined Projects A3 Option */}
-              <button
-                type="button"
-                data-testid="print-a3-combined-btn"
-                onClick={() => {
-                  const queryIds = selectedProjectIds.length > 0 ? selectedProjectIds.join(',') : '';
-                  handleNavigate(`/print/projects/combined-a3?projectIds=${queryIds}&lang=${lang}&colorMode=color`);
-                }}
-                className={`w-full text-left px-2 py-1.5 rounded text-slate-800 font-medium flex items-center justify-between transition ${
-                  selectedProjectIds.length >= 2 && selectedProjectIds.length <= 3
-                    ? 'hover:bg-emerald-50 border border-emerald-300 bg-emerald-50/50'
-                    : 'hover:bg-slate-100'
-                }`}
-              >
-                <div className="flex items-center gap-2">
-                  <Layers className="w-4 h-4 text-purple-600 shrink-0" />
-                  <span>{isKo ? 'A3 선택 프로젝트 통합 일정표' : 'A3 Lịch tổng hợp đã chọn'}</span>
-                </div>
-                {selectedProjectIds.length > 0 && (
-                  <span className="bg-emerald-600 text-white px-1.5 py-0.5 rounded-full text-[9.5px] font-bold">
-                    {selectedProjectIds.length}
-                  </span>
-                )}
-              </button>
+              {(() => {
+                const isValidCount = selectedProjectIds.length >= 2 && selectedProjectIds.length <= 3;
+                return (
+                  <button
+                    type="button"
+                    data-testid="print-a3-combined-btn"
+                    disabled={!isValidCount}
+                    onClick={() => {
+                      if (!isValidCount) return;
+                      const queryIds = selectedProjectIds.join(',');
+                      handleNavigate(`/print/projects/combined-a3?projectIds=${queryIds}&lang=${lang}&colorMode=color`);
+                    }}
+                    title={
+                      !isValidCount
+                        ? isKo
+                          ? 'A3 통합 일정표는 프로젝트를 정확히 2~3개 체크한 후 출력 가능합니다.'
+                          : 'Cần chọn từ 2 đến 3 dự án'
+                        : undefined
+                    }
+                    className={`w-full text-left px-2 py-1.5 rounded text-slate-800 font-medium flex items-center justify-between transition ${
+                      isValidCount
+                        ? 'hover:bg-emerald-50 border border-emerald-300 bg-emerald-50/50 cursor-pointer'
+                        : 'opacity-50 cursor-not-allowed bg-slate-50'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <Layers className={`w-4 h-4 shrink-0 ${isValidCount ? 'text-purple-600' : 'text-slate-400'}`} />
+                      <span>{isKo ? 'A3 선택 프로젝트 통합 일정표' : 'A3 Lịch tổng hợp đã chọn'}</span>
+                    </div>
+                    <span
+                      className={`px-1.5 py-0.5 rounded-full text-[9.5px] font-bold ${
+                        isValidCount
+                          ? 'bg-emerald-600 text-white'
+                          : 'bg-slate-200 text-slate-600 border border-slate-300'
+                      }`}
+                    >
+                      {selectedProjectIds.length > 0
+                        ? `${selectedProjectIds.length}개`
+                        : isKo
+                        ? '2~3개 선택'
+                        : 'Chọn 2-3'}
+                    </span>
+                  </button>
+                );
+              })()}
             </div>
           )}
         </div>
