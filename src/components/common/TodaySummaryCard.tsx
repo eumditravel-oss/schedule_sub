@@ -187,6 +187,18 @@ export const TodaySummaryCard: React.FC<TodaySummaryCardProps> = ({
         </div>
       )}
 
+      {Number((data as any)?.completion_review?.count || 0) > 0 && (
+        <div data-testid="today-summary-completion-review-strip" className="mt-2 px-3 py-1 bg-blue-50 border border-blue-200 rounded-lg text-blue-900 text-[11px] font-extrabold flex items-center justify-between">
+          <span className="flex items-center gap-1">
+            <Clock className="w-3.5 h-3.5 text-blue-600" />
+            <span>{lang === 'vi' ? 'Công việc cần xác nhận hoàn thành' : '완료 확인 필요 작업'}</span>
+          </span>
+          <span className="bg-blue-200 text-blue-900 px-2 py-0.5 rounded font-black text-xs">
+            {Number((data as any)?.completion_review?.count)}건
+          </span>
+        </div>
+      )}
+
       {Number((data as any)?.blocked_count || 0) > 0 && (
         <div data-testid="today-summary-blocked-secondary-strip" className="mt-2 px-3 py-1 bg-rose-50 border border-rose-200 rounded-lg text-rose-900 text-[11px] font-extrabold flex items-center justify-between">
           <span className="flex items-center gap-1">

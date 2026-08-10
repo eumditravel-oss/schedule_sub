@@ -5,7 +5,7 @@ import { PrintHeader } from './PrintHeader';
 import { PrintFooter } from './PrintFooter';
 import { PrintColorMode, getPrintStatusBadgeStyle, getPrintGanttBarStyle, resolvePrintCalendarVisualState, getProjectPicSummary, PRINT_DAY_CELL_STYLE } from '../../utils/printVisualTokens';
 import { resolveWorkDayStatus } from '../../utils/workCalendar';
-import { calculateProjectProgress } from '../../utils/progressCalculator';
+import { resolveReportProjectProgress } from '../../utils/reportProgress';
 import { parseISO, format, addDays, differenceInCalendarDays, isSameDay } from 'date-fns';
 
 export interface PrintProjectFullA3Props {
@@ -59,6 +59,8 @@ export const PrintProjectFullA3: React.FC<PrintProjectFullA3Props> = ({
     });
   }
 
+  // Single-Source Report Progress Engine
+  const reportProgress = resolveReportProjectProgress(project, tasks);
   // V2 Domain: PIC derived from Task PRIMARY
   const primaryPic = getProjectPicSummary(tasks, workerMap, lang);
   const pName = isKo ? (project.name_ko || project.name) : (project.name_vi || project.name);
@@ -90,13 +92,9 @@ export const PrintProjectFullA3: React.FC<PrintProjectFullA3Props> = ({
                 lang={lang}
               />
 
-              {/* Project Meta Bar */}
-              <div className="flex items-center justify-between bg-slate-50 border border-slate-300 rounded p-2 mb-2 text-xs">
-                <div className="flex items-center gap-4">
-                  <div>
-                    <span className="text-slate-500 font-medium">{isKo ? '주요 PIC (PRIMARY): ' : 'PIC: '}</span>
-                    <strong className="text-slate-900">{primaryPic}</strong>
-                  </div>
+              {/* Sub-Header & Progress */}
+              <div className="flex items-center justify-between text-xs mb-2 bg-slate-50 p-2 rounded border border-slate-200">
+                <div className="flex items-center gap-6">
                   <div>
                     <span className="text-slate-500 font-medium">{isKo ? '전체 기간: ' : 'Thời gian: '}</span>
                     <strong className="text-slate-900 font-mono">
@@ -108,11 +106,11 @@ export const PrintProjectFullA3: React.FC<PrintProjectFullA3Props> = ({
                 <div className="flex items-center gap-3 font-mono">
                   <span>
                     {isKo ? '예정 공정률: ' : 'KH: '}
-                    <strong className="text-blue-700">{calculateProjectProgress(project, tasks).planned_progress}%</strong>
+                    <strong className="text-blue-700">{reportProgress.plannedProgress}%</strong>
                   </span>
                   <span>
                     {isKo ? '실제 공정률: ' : 'Thực tế: '}
-                    <strong className="text-emerald-700">{calculateProjectProgress(project, tasks).actual_progress}%</strong>
+                    <strong className="text-emerald-700">{reportProgress.actualProgress}%</strong>
                   </span>
                 </div>
               </div>

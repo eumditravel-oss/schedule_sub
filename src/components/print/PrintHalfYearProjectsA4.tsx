@@ -4,7 +4,7 @@ import { Project, Task, Worker } from '../../types';
 import { PrintHeader } from './PrintHeader';
 import { PrintFooter } from './PrintFooter';
 import { PrintColorMode, getPrintStatusBadgeStyle, getPrintGanttBarStyle, getProjectPicSummary } from '../../utils/printVisualTokens';
-import { calculateProjectProgress } from '../../utils/progressCalculator';
+import { resolveReportProjectProgress } from '../../utils/reportProgress';
 import { parseISO, format, addMonths, startOfMonth, endOfMonth } from 'date-fns';
 
 export interface PrintHalfYearProjectsA4Props {
@@ -83,7 +83,7 @@ export const PrintHalfYearProjectsA4: React.FC<PrintHalfYearProjectsA4Props> = (
             <span className="font-extrabold text-purple-700 text-xs">
               {periodProjects.length > 0
                 ? Math.round(
-                    periodProjects.reduce((acc, p) => acc + calculateProjectProgress(p, tasks.filter((t) => t.project_id === p.id)).actual_progress, 0) /
+                    periodProjects.reduce((acc, p) => acc + resolveReportProjectProgress(p, tasks.filter((t) => t.project_id === p.id)).actualProgress, 0) /
                       periodProjects.length
                   )
                 : 0}
@@ -112,8 +112,8 @@ export const PrintHalfYearProjectsA4: React.FC<PrintHalfYearProjectsA4Props> = (
             <tbody>
               {periodProjects.map((p) => {
                 const pTasks = tasks.filter((t) => t.project_id === p.id);
-                const progress = calculateProjectProgress(p, pTasks);
-                const badgeStyle = getPrintStatusBadgeStyle(p.status, colorMode, lang);
+                const reportProgress = resolveReportProjectProgress(p, pTasks);
+                const badgeStyle = getPrintStatusBadgeStyle(reportProgress.scheduleState === 'COMPLETED' ? 'COMPLETED' : p.status, colorMode, lang);
                 // V2 Domain: PIC derived from Task PRIMARY
                 const picName = getProjectPicSummary(pTasks, workerMap, lang);
                 const pName = isKo ? (p.name_ko || p.name) : (p.name_vi || p.name);
@@ -136,12 +136,12 @@ export const PrintHalfYearProjectsA4: React.FC<PrintHalfYearProjectsA4Props> = (
                           color: badgeStyle.textColor,
                         }}
                       >
-                        {badgeStyle.label}
+                        {isKo ? reportProgress.statusDisplayKo : reportProgress.statusDisplayVi}
                       </span>
                     </td>
                     <td className="border border-slate-300 px-2 py-1 text-slate-700 font-medium">{picName}</td>
                     <td className="border border-slate-300 px-1 py-1 text-center font-mono font-bold text-emerald-700">
-                      {progress.actual_progress}%
+                      {reportProgress.actualProgress}%
                     </td>
 
                     {/* 6 Monthly Columns Bar */}

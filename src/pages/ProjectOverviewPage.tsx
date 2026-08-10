@@ -26,6 +26,7 @@ import { ProjectModal } from '../components/modals/ProjectModal';
 import { ProjectWorkforceModal } from '../components/modals/ProjectWorkforceModal';
 import { ProjectReadinessPopover } from '../components/common/ProjectReadinessPopover';
 import { calculateProjectReadiness } from '../utils/projectReadiness';
+import { compareProjectsByStartDateDesc } from '../utils/projectSorting';
 import { WorkerSelector } from '../components/common/WorkerSelector';
 import { WorkerPromptModal } from '../components/modals/WorkerPromptModal';
 import { GanttViewControls } from '../components/common/GanttViewControls';
@@ -252,7 +253,7 @@ export const ProjectOverviewPage: React.FC = () => {
       ]);
       if (requestId !== fetchRequestIdRef.current) return;
 
-      const projectList = data || [];
+      const projectList = (data || []).slice().sort(compareProjectsByStartDateDesc);
       setProjects(projectList);
       setAllTasks(tasksData || []);
 

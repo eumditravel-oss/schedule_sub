@@ -159,7 +159,8 @@ const SortableTaskRow: React.FC<SortableTaskRowProps> = ({
     transform: CSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.35 : 1,
-    height: `${TASK_ROW_HEIGHT_PX}px`,
+    minHeight: `${TASK_ROW_HEIGHT_PX}px`,
+    height: 'auto',
   };
 
   const taskNumStr = `${groupNum}.${tIdx + 1}`;
@@ -189,7 +190,7 @@ const SortableTaskRow: React.FC<SortableTaskRowProps> = ({
       style={{ ...style, position: 'relative', isolation: 'isolate' }}
       role="row"
       data-testid={`task-row-${tItem.id}`}
-      className={`hover:bg-slate-50 transition border-b border-slate-200 flex shrink-0 ${isDragging ? 'bg-blue-50/50' : ''}`}
+      className={`hover:bg-slate-50 transition border-b border-slate-200 flex shrink-0 items-stretch ${isDragging ? 'bg-blue-50/50' : ''}`}
     >
       {/* Sticky Task Info Header Cell with Explicit 3-Column CSS Grid */}
       <div
@@ -208,7 +209,7 @@ const SortableTaskRow: React.FC<SortableTaskRowProps> = ({
           backgroundClip: 'padding-box',
           isolation: 'isolate',
         }}
-        className="sticky left-0 bg-white hover:!bg-[#f8fafc] border-r border-slate-200 shrink-0 h-full items-center relative"
+        className="sticky left-0 bg-white hover:!bg-[#f8fafc] border-r border-slate-200 shrink-0 h-full items-center relative py-1"
       >
         <div
           data-testid="gantt-sticky-occlusion-rail"
@@ -239,7 +240,7 @@ const SortableTaskRow: React.FC<SortableTaskRowProps> = ({
             </button>
           )}
           <span className="font-bold text-slate-400 shrink-0 text-[11px] mr-1">{taskNumStr}</span>
-          <span className="font-extrabold text-slate-800 text-[11px] leading-[16px] truncate" title={taskTitle}>
+          <span className="font-extrabold text-slate-800 text-[11px] leading-[16px] whitespace-normal break-words py-0.5" title={taskTitle}>
             {taskTitle}
           </span>
           {(tItem.schedule_status === 'UNSCHEDULED' || (!tItem.start_date && !tItem.end_date)) && (
@@ -505,7 +506,8 @@ const DroppableTaskGroupRow: React.FC<DroppableTaskGroupRowProps> = ({
     transform: CSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.4 : 1,
-    height: `${TASK_GROUP_ROW_HEIGHT_PX}px`,
+    minHeight: `${TASK_GROUP_ROW_HEIGHT_PX}px`,
+    height: 'auto',
   };
 
   const groupName = lang === 'vi' ? (group.group_name_vi || group.group_name) : (group.group_name_ko || group.group_name);
@@ -529,7 +531,7 @@ const DroppableTaskGroupRow: React.FC<DroppableTaskGroupRowProps> = ({
       role="row"
       data-testid={`task-group-row-${group.id}`}
       data-testid-dropzone={`task-group-drop-zone-${group.id}`}
-      className={`transition border-b border-slate-200 flex shrink-0 ${
+      className={`transition border-b border-slate-200 flex shrink-0 items-stretch ${
         isOver
           ? 'bg-blue-100 border-2 border-dashed border-blue-500'
           : 'bg-slate-100 hover:bg-slate-200'
@@ -567,7 +569,7 @@ const DroppableTaskGroupRow: React.FC<DroppableTaskGroupRowProps> = ({
             boxShadow: '4px 0 8px rgba(15, 23, 42, 0.08)',
           }}
         />
-        <div className="flex items-center justify-between text-xs font-bold text-slate-800 w-full">
+        <div className="flex items-center justify-between text-xs font-bold text-slate-800 w-full py-1">
           <div className="flex items-center gap-1 min-w-0 pr-2">
             {!isViewer && !isCompleted && (
               <button
@@ -592,7 +594,7 @@ const DroppableTaskGroupRow: React.FC<DroppableTaskGroupRowProps> = ({
             </button>
 
             <span className="font-extrabold text-blue-900 shrink-0 text-xs">{groupNum}.</span>
-            <span className="font-extrabold text-slate-900 truncate" title={groupName}>
+            <span className="font-extrabold text-slate-900 whitespace-normal break-words py-0.5" title={groupName}>
               {groupName}
             </span>
             <span className="px-1.5 py-0.5 rounded-full bg-slate-200 text-slate-700 font-bold text-[10px] shrink-0 ml-1">
@@ -1819,7 +1821,7 @@ export const ProjectDetailPage: React.FC = () => {
                   className="h-9 px-3 rounded-lg border border-blue-200 bg-blue-50 hover:bg-blue-100 text-xs font-bold text-blue-700 flex items-center gap-1.5 transition shadow-xs"
                 >
                   <Users className="w-4 h-4 text-blue-600" />
-                  <span>{lang === 'vi' ? 'Phân bổ nhân lực' : '투입 인력'}</span>
+                  <span>{lang === 'vi' ? 'Phân bổ nhân lực (Tạm dừng)' : '투입 인력 (보류)'}</span>
                 </button>
                 <button
                   type="button"

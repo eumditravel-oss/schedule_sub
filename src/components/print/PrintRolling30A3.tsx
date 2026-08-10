@@ -4,7 +4,7 @@ import { Project, Task, Worker, CountryHoliday, CalendarOverride } from '../../t
 import { PrintHeader } from './PrintHeader';
 import { PrintFooter } from './PrintFooter';
 import { PrintColorMode, getPrintStatusBadgeStyle, getPrintGanttBarStyle, resolvePrintCalendarVisualState, getProjectPicSummary, PRINT_DAY_CELL_STYLE } from '../../utils/printVisualTokens';
-import { calculateProjectProgress } from '../../utils/progressCalculator';
+import { resolveReportProjectProgress } from '../../utils/reportProgress';
 import { parseISO, format, addDays } from 'date-fns';
 
 export interface PrintRolling30A3Props {
@@ -135,8 +135,8 @@ export const PrintRolling30A3: React.FC<PrintRolling30A3Props> = ({
             <tbody>
               {active30Projects.map((p) => {
                 const pTasks = tasks.filter((t) => t.project_id === p.id);
-                const progress = calculateProjectProgress(p, pTasks);
-                const badgeStyle = getPrintStatusBadgeStyle(p.status, colorMode, lang);
+                const reportProgress = resolveReportProjectProgress(p, pTasks);
+                const badgeStyle = getPrintStatusBadgeStyle(reportProgress.scheduleState === 'COMPLETED' ? 'COMPLETED' : p.status, colorMode, lang);
                 // V2 Domain: PIC derived from Task PRIMARY
                 const picName = getProjectPicSummary(pTasks, workerMap, lang);
                 const pName = isKo ? (p.name_ko || p.name) : (p.name_vi || p.name);
@@ -160,12 +160,12 @@ export const PrintRolling30A3: React.FC<PrintRolling30A3Props> = ({
                           color: badgeStyle.textColor,
                         }}
                       >
-                        {badgeStyle.label}
+                        {isKo ? reportProgress.statusDisplayKo : reportProgress.statusDisplayVi}
                       </span>
                     </td>
                     <td className="border-r border-slate-300 px-1.5 py-1 text-slate-700 font-medium">{picName}</td>
                     <td className="border-r border-slate-300 px-1 py-1 text-center font-mono font-bold text-emerald-700">
-                      {progress.actual_progress}%
+                      {reportProgress.actualProgress}%
                     </td>
 
                     {/* 30 Daily Cells: Strict 8mm Min Width Contract */}

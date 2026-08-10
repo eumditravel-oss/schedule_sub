@@ -4,7 +4,7 @@ import { Project, Task, Worker, ProjectWorkerAllocation } from '../../types';
 import { PrintHeader } from './PrintHeader';
 import { PrintFooter } from './PrintFooter';
 import { PrintColorMode, getPrintStatusBadgeStyle, getPrintGanttBarStyle, getProjectPicSummary } from '../../utils/printVisualTokens';
-import { calculateProjectProgress } from '../../utils/progressCalculator';
+import { resolveReportProjectProgress } from '../../utils/reportProgress';
 import { parseISO, startOfMonth, endOfMonth, eachWeekOfInterval } from 'date-fns';
 
 export interface PrintMonthlyProjectsA4Props {
@@ -130,8 +130,8 @@ export const PrintMonthlyProjectsA4: React.FC<PrintMonthlyProjectsA4Props> = ({
               <tr className="bg-slate-100 text-slate-700 font-semibold border-b border-slate-300">
                 <th className="border border-slate-300 px-2 py-1 text-left">{isKo ? '프로젝트명' : 'Tên dự án'}</th>
                 <th className="border border-slate-300 px-2 py-1 text-center w-24">{isKo ? '기간' : 'Thời gian'}</th>
-                <th className="border border-slate-300 px-2 py-1 text-center w-16">{isKo ? '상태' : 'Trạng thái'}</th>
                 <th className="border border-slate-300 px-2 py-1 text-left w-24">{isKo ? 'PIC (PRIMARY)' : 'PIC chính'}</th>
+                <th className="border border-slate-300 px-2 py-1 text-center w-20">{isKo ? '상태' : 'Trạng thái'}</th>
                 <th className="border border-slate-300 px-2 py-1 text-center w-24">{isKo ? '예정/실제 공정' : 'Tiến độ'}</th>
                 <th className="border border-slate-300 px-2 py-1 text-center w-28">{isKo ? '월간 위치 (4주)' : 'Tiến trình tuần'}</th>
               </tr>
@@ -139,8 +139,8 @@ export const PrintMonthlyProjectsA4: React.FC<PrintMonthlyProjectsA4Props> = ({
             <tbody>
               {monthProjects.map((p) => {
                 const pTasks = tasks.filter((t) => t.project_id === p.id);
-                const progress = calculateProjectProgress(p, pTasks);
-                const badgeStyle = getPrintStatusBadgeStyle(p.status, colorMode, lang);
+                const reportProgress = resolveReportProjectProgress(p, pTasks);
+                const badgeStyle = getPrintStatusBadgeStyle(reportProgress.scheduleState === 'COMPLETED' ? 'COMPLETED' : p.status, colorMode, lang);
                 // V2 Domain: PIC derived from Task PRIMARY
                 const picName = getProjectPicSummary(pTasks, workerMap, lang);
                 const pName = isKo ? (p.name_ko || p.name) : (p.name_vi || p.name);
@@ -155,6 +155,7 @@ export const PrintMonthlyProjectsA4: React.FC<PrintMonthlyProjectsA4Props> = ({
                     <td className="border border-slate-300 px-1 py-1 text-center font-mono text-[9.5px]">
                       {p.start_date?.substring(5)} ~ {p.end_date?.substring(5)}
                     </td>
+                    <td className="border border-slate-300 px-2 py-1 text-slate-700 font-medium">{picName}</td>
                     <td className="border border-slate-300 px-1 py-1 text-center">
                       <span
                         className="px-1.5 py-0.5 rounded text-[9.5px] font-bold border inline-block"
@@ -169,8 +170,8 @@ export const PrintMonthlyProjectsA4: React.FC<PrintMonthlyProjectsA4Props> = ({
                     </td>
                     <td className="border border-slate-300 px-2 py-1 text-slate-700 font-medium">{picName}</td>
                     <td className="border border-slate-300 px-1 py-1 text-center font-mono">
-                      <span className="text-blue-700">{progress.planned_progress}%</span> /{' '}
-                      <span className="text-emerald-700 font-bold">{progress.actual_progress}%</span>
+                      <span className="text-blue-700">{reportProgress.plannedProgress}%</span> /{' '}
+                      <span className="text-emerald-700 font-bold">{reportProgress.actualProgress}%</span>
                     </td>
                     <td className="border border-slate-300 px-1 py-1 text-center">
                       <div className="grid grid-cols-4 gap-0.5 h-3">

@@ -1340,9 +1340,9 @@ async function validateAndNormalizeTaskAssigneesServer(
             LEFT JOIN tasks t ON p.id = t.project_id
             GROUP BY p.id
             ORDER BY
-              CASE WHEN p.status = 'ACTIVE' THEN 0 ELSE 1 END,
-              CASE WHEN p.status = 'ACTIVE' THEN p.start_date END DESC,
-              CASE WHEN p.status = 'COMPLETED' THEN COALESCE(p.completed_at, p.end_date) END DESC,
+              CASE WHEN p.start_date IS NULL THEN 1 ELSE 0 END,
+              p.start_date DESC,
+              p.end_date DESC,
               p.created_at DESC
           `;
         } else {
@@ -1359,7 +1359,7 @@ async function validateAndNormalizeTaskAssigneesServer(
             params.push(yearFilter, yearFilter);
           }
 
-          query += ` GROUP BY p.id ORDER BY p.start_date DESC, p.created_at DESC`;
+          query += ` GROUP BY p.id ORDER BY CASE WHEN p.start_date IS NULL THEN 1 ELSE 0 END, p.start_date DESC, p.end_date DESC, p.created_at DESC`;
         }
 
         const stmt = db.prepare(query);

@@ -9,12 +9,8 @@ test.describe('Print Dropdown Menu Portal & Viewport Clamping Suite', () => {
 
   test.beforeEach(async ({ page }) => {
     await page.addInitScript(() => {
-      window.localStorage.setItem('scheduler_current_worker', JSON.stringify({
-        id: 'w_pyj',
-        name: 'Park Yongjin',
-        access_role: 'EDITOR',
-        country_code: 'KR'
-      }));
+      window.localStorage.setItem('schedule_current_worker_id', 'wrk_01');
+      window.localStorage.setItem('schedule_current_worker_name', '박용진 수석');
     });
     await page.setExtraHTTPHeaders({
       'x-editor-name': 'Park Yongjin',

@@ -127,10 +127,21 @@ export function calculateProjectProgress(
   overrides: CalendarOverride[] = [],
   referenceTodayStr?: string
 ): ProjectProgressMetrics {
+  if (project.status === 'COMPLETED') {
+    return {
+      planned_working_days: 0,
+      completed_working_days: 0,
+      planned_progress: 100,
+      actual_progress: 100,
+      progress_gap: 0,
+      schedule_state: 'COMPLETED',
+    };
+  }
+
   if (!tasks || tasks.length === 0) {
     const todayStr = referenceTodayStr || getTodayStrForWorker(null);
     let state: ScheduleState = 'UPCOMING';
-    if (project.status === 'COMPLETED') {
+    if ((project.status as string) === 'COMPLETED') {
       state = 'COMPLETED';
     } else if (todayStr > project.end_date) {
       state = 'DELAYED';
@@ -172,7 +183,7 @@ export function calculateProjectProgress(
   const todayStr = referenceTodayStr || getTodayStrForWorker(null);
 
   let schedule_state: ScheduleState = 'UPCOMING';
-  if (project.status === 'COMPLETED' || actual_progress === 100) {
+  if ((project.status as string) === 'COMPLETED' || actual_progress === 100) {
     schedule_state = 'COMPLETED';
   } else if (todayStr > project.end_date && actual_progress < 100) {
     schedule_state = 'DELAYED';

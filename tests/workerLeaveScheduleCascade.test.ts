@@ -65,6 +65,8 @@ describe('Worker Leave Schedule Cascade & Restore Security & Integrity Suite', {
       body: JSON.stringify({
         project_id: krProjectId,
         worker_name: '박용진 수석',
+        primary_worker_id: '박용진 수석',
+        assignees: [{ worker_id: '박용진 수석', name: '박용진 수석', assignment_role: 'PRIMARY' }],
         task_name: 'KR 작업 A (진행 중)',
         start_date: '2026-08-03',
         end_date: '2026-08-07',
@@ -85,6 +87,8 @@ describe('Worker Leave Schedule Cascade & Restore Security & Integrity Suite', {
       body: JSON.stringify({
         project_id: krProjectId,
         worker_name: '박용진 수석',
+        primary_worker_id: '박용진 수석',
+        assignees: [{ worker_id: '박용진 수석', name: '박용진 수석', assignment_role: 'PRIMARY' }],
         task_name: 'KR 작업 B (미래)',
         start_date: '2026-08-10',
         end_date: '2026-08-14',
@@ -156,8 +160,8 @@ describe('Worker Leave Schedule Cascade & Restore Security & Integrity Suite', {
       body: JSON.stringify({
         scope_type: 'WORKER',
         scope_key: '박용진 수석',
-        start_date: '2026-08-07',
-        end_date: '2026-08-07',
+        start_date: '2026-08-14',
+        end_date: '2026-08-14',
         override_type: 'LEAVE',
         label_ko: `${QA_PREFIX} 금요일 휴가`,
         editor_name: '박용진 수석',
@@ -174,8 +178,8 @@ describe('Worker Leave Schedule Cascade & Restore Security & Integrity Suite', {
       body: JSON.stringify({
         scope_type: 'WORKER',
         scope_key: '박용진 수석',
-        start_date: '2026-08-07',
-        end_date: '2026-08-07',
+        start_date: '2026-08-14',
+        end_date: '2026-08-14',
         override_type: 'LEAVE',
         label_ko: `${QA_PREFIX} 금요일 휴가`,
         confirm_leave_schedule_cascade: true,

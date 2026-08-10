@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 
 test.use({
   baseURL: 'https://concost-dev-scheduler-qa.eumditravel.workers.dev',
-  extraHTTPHeaders: { 'x-editor-name': 'Park Yongjin' },
+  extraHTTPHeaders: { 'x-editor-name': encodeURIComponent('박용진 수석') },
 });
 
 test.describe('Task V2 Support & Assignment Normalization Suite', () => {
@@ -12,16 +12,12 @@ test.describe('Task V2 Support & Assignment Normalization Suite', () => {
 
   test.beforeEach(async ({ page }) => {
     await page.addInitScript(() => {
-      window.localStorage.setItem('scheduler_current_worker', JSON.stringify({
-        id: 'w_pyj',
-        name: 'Park Yongjin',
-        access_role: 'EDITOR',
-        country_code: 'KR'
-      }));
+      window.localStorage.setItem('schedule_current_worker_id', 'wrk_01');
+      window.localStorage.setItem('schedule_current_worker_name', '박용진 수석');
     });
 
     const projectsRes = await page.request.get('/api/projects', {
-      headers: { 'x-editor-name': 'Park Yongjin' },
+      headers: { 'x-editor-name': encodeURIComponent('박용진 수석') },
     });
     const projectsJson = await projectsRes.json();
     const projects = Array.isArray(projectsJson) ? projectsJson : (projectsJson.data || []);
@@ -42,7 +38,7 @@ test.describe('Task V2 Support & Assignment Normalization Suite', () => {
     // Teardown: Delete ONLY the test-created tasks on QA
     for (const taskId of createdTaskIds) {
       await page.request.delete(`/api/tasks/${taskId}`, {
-        headers: { 'x-editor-name': 'Park Yongjin' },
+        headers: { 'x-editor-name': encodeURIComponent('박용진 수석') },
       }).catch(() => {});
     }
     createdTaskIds.length = 0;
@@ -81,7 +77,7 @@ test.describe('Task V2 Support & Assignment Normalization Suite', () => {
 
     // Test CASE B: PIC + 1 Support
     const resB = await page.request.post('/api/tasks', {
-      headers: { 'x-editor-name': 'Park Yongjin' },
+      headers: { 'x-editor-name': encodeURIComponent('박용진 수석') },
       data: {
         project_id: testProjectId,
         task_name: `V2 PIC+1 Support Task ${Date.now()}`,
@@ -106,7 +102,7 @@ test.describe('Task V2 Support & Assignment Normalization Suite', () => {
 
     // Test CASE C: PIC + 4 Support
     const resC = await page.request.post('/api/tasks', {
-      headers: { 'x-editor-name': 'Park Yongjin' },
+      headers: { 'x-editor-name': encodeURIComponent('박용진 수석') },
       data: {
         project_id: testProjectId,
         task_name: `V2 PIC+4 Support Task ${Date.now()}`,
@@ -133,7 +129,7 @@ test.describe('Task V2 Support & Assignment Normalization Suite', () => {
     const supports = activeEditors.slice(1, 6).map((w) => w.id);
 
     const res = await page.request.post('/api/tasks', {
-      headers: { 'x-editor-name': 'Park Yongjin' },
+      headers: { 'x-editor-name': encodeURIComponent('박용진 수석') },
       data: {
         project_id: testProjectId,
         task_name: `V2 5 Support Task ${Date.now()}`,
@@ -158,7 +154,7 @@ test.describe('Task V2 Support & Assignment Normalization Suite', () => {
 
     // Create task with PIC only
     const resA = await page.request.post('/api/tasks', {
-      headers: { 'x-editor-name': 'Park Yongjin' },
+      headers: { 'x-editor-name': encodeURIComponent('박용진 수석') },
       data: {
         project_id: testProjectId,
         task_name: `V2 Support Progress Neutrality Task ${Date.now()}`,
@@ -175,7 +171,7 @@ test.describe('Task V2 Support & Assignment Normalization Suite', () => {
 
     // Add KR Support
     const resB = await page.request.put(`/api/tasks/${taskDataA.id}`, {
-      headers: { 'x-editor-name': 'Park Yongjin' },
+      headers: { 'x-editor-name': encodeURIComponent('박용진 수석') },
       data: {
         ...taskDataA,
         support_worker_ids: [krSupport.id],
@@ -185,7 +181,7 @@ test.describe('Task V2 Support & Assignment Normalization Suite', () => {
 
     // Add VN Support
     const resC = await page.request.put(`/api/tasks/${taskDataA.id}`, {
-      headers: { 'x-editor-name': 'Park Yongjin' },
+      headers: { 'x-editor-name': encodeURIComponent('박용진 수석') },
       data: {
         ...taskDataA,
         support_worker_ids: [vnSupport.id],

@@ -4,7 +4,7 @@ import { Project, Task, TaskGroup, ProjectWorkerAllocation, Worker } from '../..
 import { PrintHeader } from './PrintHeader';
 import { PrintFooter } from './PrintFooter';
 import { PrintColorMode, getPrintStatusBadgeStyle, getPrintGanttBarStyle, getProjectPicSummary, getProjectSupportSummary } from '../../utils/printVisualTokens';
-import { calculateProjectProgress } from '../../utils/progressCalculator';
+import { resolveReportProjectProgress, getCompletedTaskCount } from '../../utils/reportProgress';
 import { parseISO, format, eachWeekOfInterval } from 'date-fns';
 
 export interface PrintProjectSummaryA4Props {
@@ -13,7 +13,7 @@ export interface PrintProjectSummaryA4Props {
   taskGroups: TaskGroup[];
   allocations?: ProjectWorkerAllocation[];
   workers?: Worker[];
-  colorMode?: PrintColorMode;
+  colorMode?: 'color' | 'mono';
   lang?: 'ko' | 'vi';
   viewerName?: string;
   referenceDate?: string;
@@ -21,8 +21,8 @@ export interface PrintProjectSummaryA4Props {
 
 export const PrintProjectSummaryA4: React.FC<PrintProjectSummaryA4Props> = ({
   project,
-  tasks,
-  taskGroups,
+  tasks = [],
+  taskGroups = [],
   allocations = [],
   workers = [],
   colorMode = 'color',
@@ -33,19 +33,20 @@ export const PrintProjectSummaryA4: React.FC<PrintProjectSummaryA4Props> = ({
   const isKo = lang === 'ko';
   const workerMap = new Map(workers.map((w) => [w.id, w.name]));
 
-  // Calculate project statistics
-  const progressInfo = calculateProjectProgress(project, tasks);
-  const plannedProgress = progressInfo.planned_progress;
-  const actualProgress = progressInfo.actual_progress;
+  // Single Source Report Progress & Status Resolution
+  const reportProgress = resolveReportProjectProgress(project, tasks);
+  const plannedProgress = reportProgress.plannedProgress;
+  const actualProgress = reportProgress.actualProgress;
 
-  const isCompleted = project.status === 'COMPLETED' || actualProgress === 100;
   const totalTasks = tasks.length;
-  const completedTasks = tasks.filter((t) => t.schedule_state === 'COMPLETED' || t.actual_progress === 100).length;
+  const completedTasks = getCompletedTaskCount(tasks);
   const blockedTasks = tasks.filter((t) => Boolean(t.is_blocked)).length;
-  const delayedTasks = tasks.filter((t) => t.schedule_state === 'DELAYED' || (t.end_date && t.end_date < referenceDate && t.actual_progress !== 100)).length;
+  const delayedTasks = tasks.filter(
+    (t) => t.schedule_state === 'DELAYED' || (t.end_date && t.end_date < referenceDate && (t.actual_progress ?? t.progress ?? 0) < 100)
+  ).length;
   const inProgressTasks = tasks.filter((t) => t.schedule_state === 'IN_PROGRESS' && !t.is_blocked).length;
 
-  const badgeStyle = getPrintStatusBadgeStyle(project.status, colorMode, lang);
+  const badgeStyle = getPrintStatusBadgeStyle(reportProgress.scheduleState === 'COMPLETED' ? 'COMPLETED' : project.status, colorMode, lang);
 
   // V2 Domain Semantics: Task PRIMARY = PIC, Task CO_ASSIGNEE = Support
   const projectPic = getProjectPicSummary(tasks, workerMap, lang);
@@ -55,9 +56,10 @@ export const PrintProjectSummaryA4: React.FC<PrintProjectSummaryA4Props> = ({
   const groupSummaries = taskGroups.map((group) => {
     const groupTasks = tasks.filter((t) => t.task_group_id === group.id);
     const gTotal = groupTasks.length;
-    const gDone = groupTasks.filter((t) => t.schedule_state === 'COMPLETED' || t.actual_progress === 100).length;
+    const gDone = getCompletedTaskCount(groupTasks);
     const gBlocked = groupTasks.filter((t) => Boolean(t.is_blocked)).length;
-    const gPct = gTotal > 0 ? Math.round((gDone / gTotal) * 100) : 0;
+    // Group progress: if lifecycle completed and gTotal > 0 and all done => 100
+    const gPct = gTotal > 0 ? (reportProgress.isLifecycleCompleted && gDone === gTotal ? 100 : Math.round((gDone / gTotal) * 100)) : 0;
     const gName = isKo ? (group.group_name_ko || group.group_name) : (group.group_name_vi || group.group_name);
     return {
       id: group.id,
@@ -107,7 +109,7 @@ export const PrintProjectSummaryA4: React.FC<PrintProjectSummaryA4Props> = ({
                 color: badgeStyle.textColor,
               }}
             >
-              {badgeStyle.label}
+              {isKo ? reportProgress.statusDisplayKo : reportProgress.statusDisplayVi}
             </span>
           </div>
 
@@ -139,13 +141,7 @@ export const PrintProjectSummaryA4: React.FC<PrintProjectSummaryA4Props> = ({
               {isKo ? '완료 정보' : 'Thông tin hoàn thành'}
             </span>
             <span className="text-xs font-semibold text-slate-800">
-              {isCompleted
-                ? isKo
-                  ? `완료 (${project.completed_at || referenceDate})`
-                  : `Đã xong (${project.completed_at || referenceDate})`
-                : isKo
-                ? '진행 중'
-                : 'Đang thực hiện'}
+              {isKo ? reportProgress.completedAtDisplayKo : reportProgress.completedAtDisplayVi}
             </span>
           </div>
         </div>

@@ -6,7 +6,20 @@ export interface TodaySummaryResult {
   completed_today: { count: number; task_ids: string[] };
   completed_this_month: { count: number; project_ids: string[] };
   overdue: { count: number; task_ids: string[] };
+  completion_review?: { count: number; task_ids: string[] };
   blocked_count?: number;
+}
+
+export function classifyTaskDeadlineStateServer(
+  task: any,
+  actualProgress: number,
+  businessDate: string
+): 'COMPLETED' | 'UNSCHEDULED' | 'COMPLETION_REVIEW' | 'OVERDUE' | 'ON_TRACK' {
+  if (Number(task.completion_confirmed) === 1) return 'COMPLETED';
+  if (task.schedule_status === 'UNSCHEDULED' || !task.start_date || !task.end_date) return 'UNSCHEDULED';
+  if (actualProgress >= 100) return 'COMPLETION_REVIEW';
+  if (task.end_date < businessDate && actualProgress < 100) return 'OVERDUE';
+  return 'ON_TRACK';
 }
 
 export async function getTodayDashboardSummaryServer(
@@ -27,7 +40,7 @@ export async function getTodayDashboardSummaryServer(
   }
   const nextMonthStart = `${nextYear}-${String(nextMonth).padStart(2, '0')}-01`;
 
-  // Fetch Monthly Completed Projects (Single Source of Truth: project.completed_at)
+  // Fetch Monthly Completed Projects (ADDENDUM F Business Rule: status = COMPLETED AND schedule end_date in business month)
   let completedThisMonthProjectIds: string[] = [];
   try {
     const completedPrjsRes = await db
@@ -35,9 +48,9 @@ export async function getTodayDashboardSummaryServer(
         `SELECT id
          FROM projects
          WHERE status = 'COMPLETED'
-           AND completed_at IS NOT NULL
-           AND completed_at >= ?
-           AND completed_at < ?`
+           AND end_date IS NOT NULL
+           AND end_date >= ?
+           AND end_date < ?`
       )
       .bind(monthStart, nextMonthStart)
       .all();
@@ -47,7 +60,7 @@ export async function getTodayDashboardSummaryServer(
     throw new Error(`MONTHLY_COMPLETION_QUERY_FAILED: ${e?.message || 'Database query error'}`);
   }
 
-  // Fetch active projects (column is 'status')
+  // Fetch active projects
   const activePrjRes = await db
     .prepare(`SELECT id, status FROM projects WHERE status = 'ACTIVE'`)
     .all();
@@ -66,6 +79,7 @@ export async function getTodayDashboardSummaryServer(
         project_ids: completedThisMonthProjectIds,
       },
       overdue: { count: 0, task_ids: [] },
+      completion_review: { count: 0, task_ids: [] },
     };
   }
 
@@ -84,7 +98,7 @@ export async function getTodayDashboardSummaryServer(
     .all();
   const activeTasks: any[] = tasksRes.results || [];
 
-  // Fetch daily status for businessDate (table name is daily_status)
+  // Fetch daily status for businessDate
   const dailyRes = await db
     .prepare(`SELECT task_id, status FROM daily_status WHERE work_date = ?`)
     .bind(businessDate)
@@ -98,9 +112,22 @@ export async function getTodayDashboardSummaryServer(
   const inProgressIds: string[] = [];
   const completedTodayIds: string[] = [];
   const overdueIds: string[] = [];
+  const completionReviewIds: string[] = [];
 
   activeTasks.forEach((t) => {
     const isScheduledToday = t.start_date <= businessDate && businessDate <= t.end_date;
+
+    // Compute actual_progress according to progress_mode
+    let actualProgress = Number(t.progress || 0);
+    if (t.progress_mode === 'AUTO_TIME') {
+      if (businessDate > t.end_date) {
+        actualProgress = 100;
+      } else if (businessDate < t.start_date) {
+        actualProgress = 0;
+      }
+    }
+
+    const deadlineState = classifyTaskDeadlineStateServer(t, actualProgress, businessDate);
 
     // 1. Scheduled Today
     if (isScheduledToday) {
@@ -109,10 +136,9 @@ export async function getTodayDashboardSummaryServer(
 
     // 2. In Progress
     const ds = dailyStatusMap.get(t.id);
-    const prog = t.progress ?? 0;
     const isInProgressState =
       ds === 'IN_PROGRESS' ||
-      (prog > 0 && prog < 100) ||
+      (actualProgress > 0 && actualProgress < 100) ||
       (isScheduledToday && Number(t.completion_confirmed) !== 1);
 
     if (isScheduledToday && isInProgressState && Number(t.completion_confirmed) !== 1) {
@@ -128,10 +154,17 @@ export async function getTodayDashboardSummaryServer(
       }
     }
 
-    // 4. Overdue (end_date < businessDate AND completion_confirmed != 1 AND Project status = ACTIVE)
-    if (t.end_date < businessDate && Number(t.completion_confirmed) !== 1) {
+    // 4. Overdue (end_date < businessDate AND actualProgress < 100 AND completion_confirmed != 1)
+    if (deadlineState === 'OVERDUE') {
       if (!overdueIds.includes(t.id)) {
         overdueIds.push(t.id);
+      }
+    }
+
+    // 5. Completion Review
+    if (deadlineState === 'COMPLETION_REVIEW' && Number(t.completion_confirmed) !== 1) {
+      if (!completionReviewIds.includes(t.id)) {
+        completionReviewIds.push(t.id);
       }
     }
   });
@@ -156,6 +189,7 @@ export async function getTodayDashboardSummaryServer(
       project_ids: completedThisMonthProjectIds,
     },
     overdue: { count: overdueIds.length, task_ids: overdueIds },
+    completion_review: { count: completionReviewIds.length, task_ids: completionReviewIds },
     blocked_count: blockedCount,
   };
 }

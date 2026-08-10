@@ -220,41 +220,8 @@ export function calculateProjectReadiness(
       };
     }
 
-    // Allocation Unset Check
-    const unallocatedWorkers: Worker[] = [];
-    const allocatedWorkerIds = new Set(allocations.map((a) => a.worker_id));
-
-    workers.forEach((w) => {
-      if (w.is_active) {
-        const isAssigned = projectTasks.some(
-          (t) => (t.assignee_ids || []).includes(w.id) || t.primary_worker_id === w.id
-        );
-        if (isAssigned && !allocatedWorkerIds.has(w.id)) {
-          unallocatedWorkers.push(w);
-          issues.push({
-            type: 'ALLOCATION_UNSET',
-            severity: 'NEEDS_SETUP',
-            title_ko: '작업자 투입률 미설정',
-            title_vi: 'Chưa 설정 tỷ lệ phân bổ',
-            description_ko: `작업자 '${w.name}'의 프로젝트 투입 비율이 설정되지 않았습니다.`,
-            description_vi: `Tỷ lệ phân bổ cho '${w.name}' chưa được thiết lập.`,
-            target_id: w.id,
-            target_name: w.name,
-          });
-        }
-      }
-    });
-
-    if (unallocatedWorkers.length > 0) {
-      groupsMap['ALLOCATION_UNSET'] = {
-        type: 'ALLOCATION_UNSET',
-        severity: 'NEEDS_SETUP',
-        count: unallocatedWorkers.length,
-        label_ko: `투입률 미설정 (${unallocatedWorkers.length}명)`,
-        label_vi: `Chưa phân bổ (${unallocatedWorkers.length})`,
-        workers: unallocatedWorkers,
-      };
-    }
+    // Allocation Unset Check (DISABLED_BY_PRODUCT_POLICY under Capacity Feature Hold)
+    // Fixed project allocation % is temporarily on hold, so unallocated workers do not trigger readiness issues.
   }
 
   // Calculate Aggregates

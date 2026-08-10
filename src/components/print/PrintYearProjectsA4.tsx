@@ -4,7 +4,7 @@ import { Project, Task, Worker } from '../../types';
 import { PrintHeader } from './PrintHeader';
 import { PrintFooter } from './PrintFooter';
 import { PrintColorMode, getPrintStatusBadgeStyle, getPrintGanttBarStyle } from '../../utils/printVisualTokens';
-import { calculateProjectProgress } from '../../utils/progressCalculator';
+import { resolveReportProjectProgress } from '../../utils/reportProgress';
 import { parseISO, startOfMonth, endOfMonth } from 'date-fns';
 
 export interface PrintYearProjectsA4Props {
@@ -108,8 +108,8 @@ export const PrintYearProjectsA4: React.FC<PrintYearProjectsA4Props> = ({
             <tbody>
               {yearProjects.map((p) => {
                 const pTasks = tasks.filter((t) => t.project_id === p.id);
-                const progress = calculateProjectProgress(p, pTasks);
-                const badgeStyle = getPrintStatusBadgeStyle(p.status, colorMode, lang);
+                const reportProgress = resolveReportProjectProgress(p, pTasks);
+                const badgeStyle = getPrintStatusBadgeStyle(reportProgress.scheduleState === 'COMPLETED' ? 'COMPLETED' : p.status, colorMode, lang);
                 const pName = isKo ? (p.name_ko || p.name) : (p.name_vi || p.name);
                 const pStart = p.start_date ? parseISO(p.start_date) : yearStart;
                 const pEnd = p.end_date ? parseISO(p.end_date) : yearEnd;
@@ -132,11 +132,11 @@ export const PrintYearProjectsA4: React.FC<PrintYearProjectsA4Props> = ({
                           color: badgeStyle.textColor,
                         }}
                       >
-                        {badgeStyle.label}
+                        {isKo ? reportProgress.statusDisplayKo : reportProgress.statusDisplayVi}
                       </span>
                     </td>
                     <td className="border border-slate-300 px-1 py-1 text-center font-mono font-bold text-emerald-700 text-[9.5px]">
-                      {progress.actual_progress}%
+                      {reportProgress.actualProgress}%
                     </td>
 
                     {/* 12 Months Columns */}

@@ -158,11 +158,16 @@ export const WorkforceCapacityPage: React.FC = () => {
             <div className="flex items-center gap-2">
               <Users className="w-6 h-6 text-blue-400" />
               <div>
-                <h1 className="font-extrabold text-lg tracking-tight">
-                  {lang === 'vi' ? 'Phân bổ nhân lực' : '인력 투입 현황'}
+                <h1 className="font-extrabold text-lg tracking-tight flex items-center gap-2">
+                  <span>{lang === 'vi' ? 'Phân bổ nhân lực' : '인력 투입 현황'}</span>
+                  <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                    EXPERIMENTAL / HOLD (기능 보류)
+                  </span>
                 </h1>
-                <p className="text-xs text-slate-400 font-medium">
-                  {lang === 'vi' ? 'Kiểm tra tỷ lệ phân bổ và quá tải theo dự án' : '프로젝트별 투입률과 과배정 확인'}
+                <p className="text-xs text-amber-200/80 font-medium">
+                  {lang === 'vi'
+                    ? 'Tỷ lệ phân bổ cố định tạm dừng (Chỉ tham khảo)'
+                    : '고정 % 기반 투입률 기능은 보류 상태이며 참고용 데이터입니다.'}
                 </p>
               </div>
             </div>

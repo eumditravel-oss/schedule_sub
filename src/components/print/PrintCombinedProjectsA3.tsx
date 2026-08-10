@@ -5,7 +5,7 @@ import { PrintHeader } from './PrintHeader';
 import { PrintFooter } from './PrintFooter';
 import { PrintColorMode, getPrintStatusBadgeStyle, getPrintGanttBarStyle, resolvePrintCalendarVisualState, getProjectPicSummary, PRINT_DAY_CELL_STYLE } from '../../utils/printVisualTokens';
 import { resolveWorkDayStatus } from '../../utils/workCalendar';
-import { calculateProjectProgress } from '../../utils/progressCalculator';
+import { resolveReportProjectProgress } from '../../utils/reportProgress';
 import { parseISO, format, addDays, differenceInCalendarDays } from 'date-fns';
 
 export interface PrintCombinedProjectsA3Props {
@@ -133,8 +133,8 @@ export const PrintCombinedProjectsA3: React.FC<PrintCombinedProjectsA3Props> = (
                   <tbody>
                     {selectedProjects.map((project) => {
                       const pTasks = allTasks.filter((t) => t.project_id === project.id);
-                      const progress = calculateProjectProgress(project, pTasks);
-                      const badgeStyle = getPrintStatusBadgeStyle(project.status, colorMode, lang);
+                      const reportProgress = resolveReportProjectProgress(project, pTasks);
+                      const badgeStyle = getPrintStatusBadgeStyle(reportProgress.scheduleState === 'COMPLETED' ? 'COMPLETED' : project.status, colorMode, lang);
                       // V2 Domain: PIC derived from Task PRIMARY
                       const picName = getProjectPicSummary(pTasks, workerMap, lang);
                       const pName = isKo ? (project.name_ko || project.name) : (project.name_vi || project.name);
@@ -162,12 +162,12 @@ export const PrintCombinedProjectsA3: React.FC<PrintCombinedProjectsA3Props> = (
                                   color: badgeStyle.textColor,
                                 }}
                               >
-                                {badgeStyle.label}
+                                {isKo ? reportProgress.statusDisplayKo : reportProgress.statusDisplayVi}
                               </span>
                             </td>
                             <td className="border-r border-slate-300 px-1.5 py-1 text-slate-700">{picName}</td>
                             <td className="border-r border-slate-300 px-1 py-1 text-center font-mono font-bold text-emerald-700">
-                              {progress.actual_progress}%
+                              {reportProgress.actualProgress}%
                             </td>
 
                             {/* Project level bar row */}

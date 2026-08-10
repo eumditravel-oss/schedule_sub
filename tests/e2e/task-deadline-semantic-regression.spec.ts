@@ -1,12 +1,7 @@
 import { test, expect } from '@playwright/test';
 
-test.describe('Today Summary Monthly Completed KPI Suite (Addendum F)', () => {
-  test('Monthly completed project count includes ONLY projects with end_date in current month', async ({ page }) => {
-    await page.addInitScript(() => {
-      window.localStorage.setItem('schedule_current_worker_id', 'wrk_01');
-      window.localStorage.setItem('schedule_current_worker_name', '박용진 수석');
-    });
-
+test.describe('Deadline Semantic Integrity Suite (Overdue vs Completion Review)', () => {
+  test('AUTO_TIME task at 100% actual progress past end_date is classified as COMPLETION_REVIEW, NOT OVERDUE', async ({ page }) => {
     await page.route('**/api/workers*', async (route) => {
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([{ id: 'wrk_01', name: '박용진 수석', is_active: 1, access_role: 'EDITOR' }]) });
     });
@@ -27,15 +22,12 @@ test.describe('Today Summary Monthly Completed KPI Suite (Addendum F)', () => {
     await page.route('**/api/dashboard/today-summary*', async (route) => {
       const json = {
         date: '2026-08-10',
-        scheduled_today: { count: 1, task_ids: ['t1'] },
-        in_progress: { count: 1, task_ids: ['t1'] },
+        scheduled_today: { count: 0, task_ids: [] },
+        in_progress: { count: 0, task_ids: [] },
         completed_today: { count: 0, task_ids: [] },
-        completed_this_month: {
-          count: 1,
-          project_ids: ['prj-concost-hub'], // Only CONCOST-HUB (end_date: 2026-08-04)
-        },
-        overdue: { count: 0, task_ids: [] },
-        completion_review: { count: 1, task_ids: ['t2'] },
+        completed_this_month: { count: 1, project_ids: ['prj-1'] },
+        overdue: { count: 0, task_ids: [] }, // 0 OVERDUE
+        completion_review: { count: 1, task_ids: ['task-auto-100'] }, // 1 COMPLETION_REVIEW
       };
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(json) });
     });
@@ -46,8 +38,13 @@ test.describe('Today Summary Monthly Completed KPI Suite (Addendum F)', () => {
     const card = page.locator('[data-testid="today-summary-card"]');
     await expect(card).toBeVisible({ timeout: 10000 });
 
-    // Verify "이번 달 완료 프로젝트" displays 1개 (NOT 3개)
-    await expect(card.locator('text=이번 달 완료 프로젝트')).toBeVisible();
-    await expect(card.locator('text=1개')).toBeVisible();
+    // Verify OVERDUE secondary strip is NOT present or shows 0
+    const overdueStrip = card.locator('[data-testid="today-summary-overdue-secondary-strip"]');
+    await expect(overdueStrip).not.toBeVisible();
+
+    // Verify COMPLETION_REVIEW strip IS present and shows 1건
+    const reviewStrip = card.locator('[data-testid="today-summary-completion-review-strip"]');
+    await expect(reviewStrip).toBeVisible();
+    await expect(reviewStrip).toContainText('1건');
   });
 });
