@@ -1439,6 +1439,21 @@ export const ProjectOverviewPage: React.FC = () => {
         />
       )}
 
+      {conflictModalState.isOpen && (
+        <WorkerConflictSummaryModal
+          isOpen={conflictModalState.isOpen}
+          projectName={conflictModalState.projectName}
+          conflicts={conflictModalState.conflicts}
+          onClose={() => setConflictModalState({ isOpen: false, conflicts: [] })}
+          onAcknowledgeGroup={async (group) => {
+            if (conflictModalState.projectId) {
+              await api.acknowledgeConflict(conflictModalState.projectId, group.fingerprint || (group as any).conflict_fingerprint);
+              await fetchProjects();
+            }
+          }}
+        />
+      )}
+
       {/* Toast Notification */}
       {toastMessage && (
         <div
