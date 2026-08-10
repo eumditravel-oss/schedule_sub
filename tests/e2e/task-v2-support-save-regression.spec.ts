@@ -15,7 +15,8 @@ test.describe('Task V2 Support & Assignment Normalization Suite', () => {
     testProjectId = activeProject?.id || 'prj_demo_1';
 
     const workersRes = await page.request.get('/api/workers');
-    const workers = await workersRes.json();
+    const workersJson = await workersRes.json();
+    const workers = Array.isArray(workersJson) ? workersJson : (workersJson.data || []);
     activeEditors = workers.filter(
       (w: any) => Number(w.is_active) === 1 && w.access_role === 'EDITOR' && w.name !== 'CEO' && w.name !== 'COO'
     );
