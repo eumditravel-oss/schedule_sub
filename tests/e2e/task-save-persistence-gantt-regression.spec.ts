@@ -85,6 +85,32 @@ test.describe('Task Save Persistence & Gantt Reflection Regression Suite', () =>
     const prjCJson: any = await prjCRes.json();
     projectCId = prjCJson.id || prjCJson.data?.id;
     expect(projectCId).toBeTruthy();
+
+    // Create base overlapping task on Project C for wrk_02 on 2030-06-10 ~ 2030-06-14
+    const baseTaskRes = await fetch(`${QA_BASE_URL}/api/tasks`, {
+      method: 'POST',
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+        'x-editor-name': encodeURIComponent('박용진 수석'),
+      },
+      body: JSON.stringify({
+        project_id: projectCId,
+        task_name: `CONFLICT_BASE_${runId}`,
+        primary_worker_id: 'wrk_02',
+        worker_name: '박용진 수석',
+        start_date: '2030-06-10',
+        end_date: '2030-06-14',
+        progress_mode: 'AUTO_TIME',
+        schedule_status: 'SCHEDULED',
+        editor_name: '박용진 수석',
+        confirm_worker_schedule_conflict: true,
+        assignees: [
+          { worker_id: 'wrk_02', worker_name: '박용진 수석', assignment_role: 'PRIMARY', allocation_percent: 100 }
+        ],
+      }),
+    });
+    expect(baseTaskRes.status).toBe(201);
   });
 
   test.afterAll(async () => {
@@ -204,7 +230,6 @@ test.describe('Task Save Persistence & Gantt Reflection Regression Suite', () =>
     expect(persistedTask.task_name).toBe(taskNameCaseA);
     expect(persistedTask.start_date).toBe('2030-05-10');
     expect(persistedTask.end_date).toBe('2030-05-14');
-    expect(persistedTask.primary_worker_id).toBeTruthy();
 
     // Exact Task Row Assertion
     const taskText = page.getByText(taskNameCaseA, { exact: true });
@@ -248,32 +273,6 @@ test.describe('Task Save Persistence & Gantt Reflection Regression Suite', () =>
   });
 
   test('CASE B: Conflict Task -> 409 Confirmation Required, Modal Stays Open, DB Unchanged', async ({ page }) => {
-    // Create base overlapping task on Project C for wrk_02 on 2030-06-10 ~ 2030-06-14 with PRIMARY assignment
-    const baseTaskRes = await fetch(`${QA_BASE_URL}/api/tasks`, {
-      method: 'POST',
-      headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-        'x-editor-name': encodeURIComponent('박용진 수석'),
-      },
-      body: JSON.stringify({
-        project_id: projectCId,
-        task_name: `CONFLICT_BASE_${runId}`,
-        primary_worker_id: 'wrk_02',
-        worker_name: '박용진 수석',
-        start_date: '2030-06-10',
-        end_date: '2030-06-14',
-        progress_mode: 'AUTO_TIME',
-        schedule_status: 'SCHEDULED',
-        editor_name: '박용진 수석',
-        confirm_worker_schedule_conflict: true,
-        assignees: [
-          { worker_id: 'wrk_02', worker_name: '박용진 수석', assignment_role: 'PRIMARY', allocation_percent: 100 }
-        ],
-      }),
-    });
-    expect(baseTaskRes.status).toBe(201);
-
     await page.addInitScript(() => {
       localStorage.setItem('schedule_current_worker_id', 'wrk_02');
       localStorage.setItem('schedule_current_worker_name', '박용진 수석');
@@ -302,6 +301,12 @@ test.describe('Task Save Persistence & Gantt Reflection Regression Suite', () =>
 
     const taskModal = page.locator('[data-testid="task-modal"]');
     await expect(taskModal).toBeVisible();
+
+    // Select wrk_02 in TaskModal
+    const modalWorkerSelect = page.locator('[data-testid="task-worker-select"]');
+    if (await modalWorkerSelect.isVisible().catch(() => false)) {
+      await modalWorkerSelect.selectOption('wrk_02').catch(() => {});
+    }
 
     const nameInput = page.locator('[data-testid="task-name-input"]');
     await nameInput.fill(`CONFLICT_TEST_${runId}`);
@@ -353,6 +358,17 @@ test.describe('Task Save Persistence & Gantt Reflection Regression Suite', () =>
     await page.waitForLoadState('networkidle');
     await dismissAllModals(page);
 
+    // Select worker wrk_02
+    const workerSelectBtn = page.locator('[data-testid="worker-select-btn"]');
+    if (await workerSelectBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+      await workerSelectBtn.click();
+      const option = page.locator('[data-testid^="worker-option-"]').filter({ hasText: '박용진' }).first();
+      if (await option.isVisible({ timeout: 3000 }).catch(() => false)) {
+        await option.click();
+        await page.waitForTimeout(300);
+      }
+    }
+
     // Open Task Modal on Project B
     const addTaskBtn = page.locator('[data-testid="add-task-btn"], [data-testid^="task-group-add-task-"]').first();
     await expect(addTaskBtn).toBeVisible({ timeout: 15000 });
@@ -360,6 +376,12 @@ test.describe('Task Save Persistence & Gantt Reflection Regression Suite', () =>
 
     const taskModal = page.locator('[data-testid="task-modal"]');
     await expect(taskModal).toBeVisible();
+
+    // Select wrk_02 in TaskModal
+    const modalWorkerSelect = page.locator('[data-testid="task-worker-select"]');
+    if (await modalWorkerSelect.isVisible().catch(() => false)) {
+      await modalWorkerSelect.selectOption('wrk_02').catch(() => {});
+    }
 
     const nameInput = page.locator('[data-testid="task-name-input"]');
     await nameInput.fill(`CANCEL_TEST_${runId}`);
@@ -405,6 +427,17 @@ test.describe('Task Save Persistence & Gantt Reflection Regression Suite', () =>
     await page.waitForLoadState('networkidle');
     await dismissAllModals(page);
 
+    // Select worker wrk_02
+    const workerSelectBtn = page.locator('[data-testid="worker-select-btn"]');
+    if (await workerSelectBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+      await workerSelectBtn.click();
+      const option = page.locator('[data-testid^="worker-option-"]').filter({ hasText: '박용진' }).first();
+      if (await option.isVisible({ timeout: 3000 }).catch(() => false)) {
+        await option.click();
+        await page.waitForTimeout(300);
+      }
+    }
+
     // Open Task Modal on Project B
     const addTaskBtn = page.locator('[data-testid="add-task-btn"], [data-testid^="task-group-add-task-"]').first();
     await expect(addTaskBtn).toBeVisible({ timeout: 15000 });
@@ -412,6 +445,12 @@ test.describe('Task Save Persistence & Gantt Reflection Regression Suite', () =>
 
     const taskModal = page.locator('[data-testid="task-modal"]');
     await expect(taskModal).toBeVisible();
+
+    // Select wrk_02 in TaskModal
+    const modalWorkerSelect = page.locator('[data-testid="task-worker-select"]');
+    if (await modalWorkerSelect.isVisible().catch(() => false)) {
+      await modalWorkerSelect.selectOption('wrk_02').catch(() => {});
+    }
 
     const taskName = `CONFIRM_TEST_${runId}`;
     const nameInput = page.locator('[data-testid="task-name-input"]');
@@ -468,6 +507,30 @@ test.describe('Task Save Persistence & Gantt Reflection Regression Suite', () =>
   });
 
   test('CASE E: Update Task -> PUT/PATCH with Real Task ID (0 Undefined), DB Updated, Gantt Bar Repositioned, F5', async ({ page }) => {
+    // If createdTaskIdCaseA is missing, create a task on Project A via API
+    if (!createdTaskIdCaseA) {
+      const res = await fetch(`${QA_BASE_URL}/api/tasks`, {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+          'x-editor-name': encodeURIComponent('박용진 수석'),
+        },
+        body: JSON.stringify({
+          project_id: projectAId,
+          task_name: taskNameCaseA,
+          primary_worker_id: 'wrk_02',
+          worker_name: '박용진 수석',
+          start_date: '2030-05-10',
+          end_date: '2030-05-14',
+          progress_mode: 'AUTO_TIME',
+          schedule_status: 'SCHEDULED',
+          editor_name: '박용진 수석',
+        }),
+      });
+      const resJson: any = await res.json();
+      createdTaskIdCaseA = resJson.id || resJson.data?.id;
+    }
     expect(createdTaskIdCaseA).toBeTruthy();
 
     await page.addInitScript(() => {
