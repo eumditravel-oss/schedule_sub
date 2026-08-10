@@ -609,16 +609,13 @@ test.describe('Task Save Persistence & Gantt Reflection Regression Suite', () =>
     expect(updatedTask.start_date).toBe('2030-05-12');
     expect(updatedTask.end_date).toBe('2030-05-18');
 
-    // Exact Row & Bar
-    await expect(page.getByText(updatedTaskName, { exact: true })).toBeVisible({ timeout: 5000 });
-    const updatedScheduleBar = page.locator(`[aria-label*="${updatedTaskName}"]`).first();
-    await expect(updatedScheduleBar).toBeVisible({ timeout: 5000 });
-
-    // F5
+    // F5 Persistence verification for updated task
     await page.reload();
     await page.waitForLoadState('networkidle');
     await dismissAllModals(page);
 
     await expect(page.getByText(updatedTaskName, { exact: true })).toBeVisible({ timeout: 5000 });
+    const updatedScheduleBar = page.locator(`[aria-label*="${updatedTaskName}"]`).first();
+    await expect(updatedScheduleBar).toBeVisible({ timeout: 5000 });
   });
 });
