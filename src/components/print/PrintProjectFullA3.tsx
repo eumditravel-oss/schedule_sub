@@ -3,9 +3,8 @@ import React from 'react';
 import { Project, Task, TaskGroup, Worker, CountryHoliday, CalendarOverride } from '../../types';
 import { PrintHeader } from './PrintHeader';
 import { PrintFooter } from './PrintFooter';
-import { PrintColorMode, getPrintStatusBadgeStyle, getPrintGanttBarStyle, getPrintCalendarVisualStyle, getProjectPicSummary, PRINT_DAY_CELL_STYLE } from '../../utils/printVisualTokens';
+import { PrintColorMode, getPrintStatusBadgeStyle, getPrintGanttBarStyle, resolvePrintCalendarVisualState, getProjectPicSummary, PRINT_DAY_CELL_STYLE } from '../../utils/printVisualTokens';
 import { calculateProjectProgress } from '../../utils/progressCalculator';
-import { resolveCalendarVisualState } from '../../utils/calendarVisualTokens';
 import { parseISO, format, addDays, differenceInCalendarDays, isSameDay } from 'date-fns';
 
 export interface PrintProjectFullA3Props {
@@ -133,12 +132,13 @@ export const PrintProjectFullA3: React.FC<PrintProjectFullA3Props> = ({
                         const dayNum = format(dayDate, 'dd');
                         const dowStr = format(dayDate, 'eee');
 
-                        const visToken = resolveCalendarVisualState(dateStr, null, null, null, [...krHolidays, ...vnHolidays], calendarOverrides);
-                        const printToken = getPrintCalendarVisualStyle(visToken.visualState, colorMode);
+                        const printToken = resolvePrintCalendarVisualState(dateStr, krHolidays, vnHolidays, calendarOverrides, colorMode);
 
                         return (
                           <th
                             key={dIdx}
+                            data-date={dateStr}
+                            data-visual-state={printToken.visualState}
                             className="border-r border-slate-600 px-0.5 py-1 text-center font-mono text-[9px]"
                             style={{
                               ...PRINT_DAY_CELL_STYLE,
@@ -207,8 +207,7 @@ export const PrintProjectFullA3: React.FC<PrintProjectFullA3Props> = ({
                             {/* Daily Cell Gantt Bar & Hatch: Strict 8mm Min Width Contract */}
                             {daysArray.map((dayDate, dIdx) => {
                               const dateStr = format(dayDate, 'yyyy-MM-dd');
-                              const visToken = resolveCalendarVisualState(dateStr, null, null, null, [...krHolidays, ...vnHolidays], calendarOverrides);
-                              const printToken = getPrintCalendarVisualStyle(visToken.visualState, colorMode);
+                              const printToken = resolvePrintCalendarVisualState(dateStr, krHolidays, vnHolidays, calendarOverrides, colorMode);
 
                               const isTaskDay = taskStart && taskEnd && dayDate >= taskStart && dayDate <= taskEnd;
                               const barStyle = getPrintGanttBarStyle(taskStatus, colorMode);
@@ -216,6 +215,8 @@ export const PrintProjectFullA3: React.FC<PrintProjectFullA3Props> = ({
                               return (
                                 <td
                                   key={dIdx}
+                                  data-date={dateStr}
+                                  data-visual-state={printToken.visualState}
                                   className="border-r border-slate-200 p-0 text-center relative h-6"
                                   style={{
                                     ...PRINT_DAY_CELL_STYLE,

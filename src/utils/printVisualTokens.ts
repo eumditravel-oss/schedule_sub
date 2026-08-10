@@ -1,7 +1,8 @@
 // src/utils/printVisualTokens.ts
 import React from 'react';
 import { CalendarVisualState, CalendarVisualToken, CALENDAR_VISUAL_TOKENS } from './calendarVisualTokens';
-import { Task, getPicAssignee, getSupportAssignees } from '../types';
+import { getCountryOffState } from './workCalendar';
+import { Task, Worker, WorkDayStatus, CountryCode, CountryHoliday, CalendarOverride, getPicAssignee, getSupportAssignees } from '../types';
 
 export type PrintColorMode = 'color' | 'mono';
 
@@ -88,6 +89,50 @@ export function getProjectSupportSummary(
     return '-';
   }
   return supports.join(', ');
+}
+
+/**
+ * Resolves calendar visual token for Print views without dayStatus=null WORKDAY short-circuit bug.
+ * Uses getCountryOffState to accurately detect BOTH_OFF, KR_ONLY_OFF, VN_ONLY_OFF, and WORKDAY.
+ */
+export function resolvePrintCalendarVisualState(
+  dateStr: string,
+  krHolidays: CountryHoliday[] = [],
+  vnHolidays: CountryHoliday[] = [],
+  calendarOverrides: CalendarOverride[] = [],
+  colorMode: PrintColorMode = 'color',
+  dayStatus?: WorkDayStatus | null,
+  workerCountryCode?: CountryCode
+): CalendarVisualToken {
+  // 1. If specific task worker dayStatus is provided (e.g. LEAVE or WORK_OVERRIDE)
+  if (dayStatus) {
+    if (dayStatus.day_type === 'WORK_OVERRIDE') {
+      return getPrintCalendarVisualStyle('WORK_OVERRIDE', colorMode);
+    }
+    if (dayStatus.day_type === 'LEAVE' || dayStatus.day_type === 'MANUAL_OFF') {
+      return getPrintCalendarVisualStyle('PERSONAL_LEAVE', colorMode);
+    }
+  }
+
+  // 2. Global / Project Off State via getCountryOffState
+  const offInfo = getCountryOffState(dateStr, calendarOverrides, [...krHolidays, ...vnHolidays]);
+
+  let state: CalendarVisualState = 'WORKDAY';
+  if (offInfo.state === 'BOTH_OFF') {
+    state = 'BOTH_OFF';
+  } else if (offInfo.state === 'KR_ONLY_OFF') {
+    state = workerCountryCode === 'VN' ? 'WORKDAY' : 'KR_ONLY_OFF';
+  } else if (offInfo.state === 'VN_ONLY_OFF') {
+    state = workerCountryCode === 'KR' ? 'WORKDAY' : 'VN_ONLY_OFF';
+  } else {
+    // Check Sunday fallback
+    const dow = new Date(`${dateStr}T00:00:00Z`).getUTCDay();
+    if (dow === 0) {
+      state = 'BOTH_OFF';
+    }
+  }
+
+  return getPrintCalendarVisualStyle(state, colorMode);
 }
 
 /**

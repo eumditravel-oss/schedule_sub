@@ -14,6 +14,7 @@ import { PrintProjectFullA3 } from '../../components/print/PrintProjectFullA3';
 import { PrintRolling30A3 } from '../../components/print/PrintRolling30A3';
 import { PrintCombinedProjectsA3 } from '../../components/print/PrintCombinedProjectsA3';
 import { useI18n } from '../../hooks/useI18n';
+import { getKoreaDateString, getKoreaBusinessMonth, getKoreaBusinessYear } from '../../utils/dateUtils';
 
 export type TemplateType =
   | 'summary-a4'
@@ -66,7 +67,7 @@ export const PrintViewPage: React.FC = () => {
   const [calendarOverrides, setCalendarOverrides] = useState<CalendarOverride[]>([]);
 
   const viewerName = getCurrentWorkerName() || 'CEO / COO Viewer';
-  const referenceDate = new Date().toISOString().substring(0, 10);
+  const referenceDate = getKoreaDateString();
 
   // Sync state to search params
   const updateUrlParam = (key: string, value: string) => {
@@ -103,14 +104,21 @@ export const PrintViewPage: React.FC = () => {
       setLoading(true);
       setError(null);
       try {
-        const [allProjs, allWrks] = await Promise.all([
+        const currentYear = parseInt(getKoreaBusinessYear(), 10);
+        const [allProjs, allWrks, krHols, vnHols, calOvers] = await Promise.all([
           api.getProjects('ALL'),
           api.getWorkers(),
+          api.getHolidays('KR', currentYear).catch(() => []),
+          api.getHolidays('VN', currentYear).catch(() => []),
+          api.getCalendarOverrides().catch(() => []),
         ]);
 
         if (!isMounted) return;
         setProjects(allProjs);
         setWorkers(allWrks);
+        setKrHolidays(krHols || []);
+        setVnHolidays(vnHols || []);
+        setCalendarOverrides(calOvers || []);
 
         if (projectId) {
           const detail = await api.getProjectDetail(projectId);
@@ -184,9 +192,9 @@ export const PrintViewPage: React.FC = () => {
 
   // Render Template Content based on templateType
   const renderTemplateContent = () => {
-    const monthQuery = searchParams.get('month') || '2026-08';
-    const startQuery = searchParams.get('start') || '2026-07';
-    const yearQuery = searchParams.get('year') || '2026';
+    const monthQuery = searchParams.get('month') || getKoreaBusinessMonth();
+    const startQuery = searchParams.get('start') || getKoreaBusinessMonth();
+    const yearQuery = searchParams.get('year') || getKoreaBusinessYear();
     const modeQuery = (searchParams.get('mode') as any) || 'today';
     const projectIdsStr = searchParams.get('projectIds') || '';
     const selectedIds = projectIdsStr.split(',').filter(Boolean);

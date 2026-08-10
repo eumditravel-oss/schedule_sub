@@ -3,9 +3,8 @@ import React from 'react';
 import { Project, Task, TaskGroup, Worker, CountryHoliday, CalendarOverride } from '../../types';
 import { PrintHeader } from './PrintHeader';
 import { PrintFooter } from './PrintFooter';
-import { PrintColorMode, getPrintStatusBadgeStyle, getPrintGanttBarStyle, getPrintCalendarVisualStyle, getProjectPicSummary, PRINT_DAY_CELL_STYLE } from '../../utils/printVisualTokens';
+import { PrintColorMode, getPrintStatusBadgeStyle, getPrintGanttBarStyle, resolvePrintCalendarVisualState, getProjectPicSummary, PRINT_DAY_CELL_STYLE } from '../../utils/printVisualTokens';
 import { calculateProjectProgress } from '../../utils/progressCalculator';
-import { resolveCalendarVisualState } from '../../utils/calendarVisualTokens';
 import { parseISO, format, addDays, differenceInCalendarDays } from 'date-fns';
 
 export interface PrintCombinedProjectsA3Props {
@@ -108,12 +107,13 @@ export const PrintCombinedProjectsA3: React.FC<PrintCombinedProjectsA3Props> = (
                         const dayNum = format(dayDate, 'dd');
                         const dowStr = format(dayDate, 'eee');
 
-                        const visToken = resolveCalendarVisualState(dateStr, null, null, null, [...krHolidays, ...vnHolidays], calendarOverrides);
-                        const printToken = getPrintCalendarVisualStyle(visToken.visualState, colorMode);
+                        const printToken = resolvePrintCalendarVisualState(dateStr, krHolidays, vnHolidays, calendarOverrides, colorMode);
 
                         return (
                           <th
                             key={dIdx}
+                            data-date={dateStr}
+                            data-visual-state={printToken.visualState}
                             className="border-r border-slate-600 px-0.5 py-1 text-center font-mono text-[9px]"
                             style={{
                               ...PRINT_DAY_CELL_STYLE,
@@ -171,13 +171,14 @@ export const PrintCombinedProjectsA3: React.FC<PrintCombinedProjectsA3Props> = (
                             {/* Project level bar row */}
                             {daysArray.map((dayDate, dIdx) => {
                               const dateStr = format(dayDate, 'yyyy-MM-dd');
-                              const visToken = resolveCalendarVisualState(dateStr, null, null, null, [...krHolidays, ...vnHolidays], calendarOverrides);
-                              const printToken = getPrintCalendarVisualStyle(visToken.visualState, colorMode);
+                              const printToken = resolvePrintCalendarVisualState(dateStr, krHolidays, vnHolidays, calendarOverrides, colorMode);
                               const isPDay = pStart && pEnd && dayDate >= pStart && dayDate <= pEnd;
 
                               return (
                                 <td
                                   key={dIdx}
+                                  data-date={dateStr}
+                                  data-visual-state={printToken.visualState}
                                   className="border-r border-slate-200 p-0 text-center relative h-6 bg-slate-100"
                                   style={{
                                     ...PRINT_DAY_CELL_STYLE,
@@ -239,13 +240,14 @@ export const PrintCombinedProjectsA3: React.FC<PrintCombinedProjectsA3Props> = (
                                 {/* Task Bar Cells: Strict 8mm Min Width Contract */}
                                 {daysArray.map((dayDate, dIdx) => {
                                   const dateStr = format(dayDate, 'yyyy-MM-dd');
-                                  const visToken = resolveCalendarVisualState(dateStr, null, null, null, [...krHolidays, ...vnHolidays], calendarOverrides);
-                                  const printToken = getPrintCalendarVisualStyle(visToken.visualState, colorMode);
+                                  const printToken = resolvePrintCalendarVisualState(dateStr, krHolidays, vnHolidays, calendarOverrides, colorMode);
                                   const isTDay = taskStart && taskEnd && dayDate >= taskStart && dayDate <= taskEnd;
 
                                   return (
                                     <td
                                       key={dIdx}
+                                      data-date={dateStr}
+                                      data-visual-state={printToken.visualState}
                                       className="border-r border-slate-200 p-0 text-center relative h-5"
                                       style={{
                                         ...PRINT_DAY_CELL_STYLE,

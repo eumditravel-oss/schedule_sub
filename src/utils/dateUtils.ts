@@ -36,8 +36,22 @@ export function getLocalDateString(date: Date = new Date(), timeZone: string = '
 /**
  * Returns current date in Korea Standard Time (Asia/Seoul) as YYYY-MM-DD
  */
-export function getKoreaDateString(): string {
-  return getLocalDateString(new Date(), 'Asia/Seoul');
+export function getKoreaDateString(date: Date = new Date()): string {
+  return getLocalDateString(date, 'Asia/Seoul');
+}
+
+/**
+ * Returns current month in Korea Standard Time (Asia/Seoul) as YYYY-MM
+ */
+export function getKoreaBusinessMonth(date: Date = new Date()): string {
+  return getKoreaDateString(date).substring(0, 7);
+}
+
+/**
+ * Returns current year in Korea Standard Time (Asia/Seoul) as YYYY
+ */
+export function getKoreaBusinessYear(date: Date = new Date()): string {
+  return getKoreaDateString(date).substring(0, 4);
 }
 
 export function formatDateStr(date: Date): string {

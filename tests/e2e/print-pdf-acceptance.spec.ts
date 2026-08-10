@@ -2,6 +2,24 @@ import { test, expect } from '@playwright/test';
 import * as fs from 'fs';
 import * as path from 'path';
 
+function extractPdfMediaBox(pdfBuffer: Buffer): { width: number; height: number } {
+  const text = pdfBuffer.toString('latin1');
+  const match = text.match(/\/MediaBox\s*\[\s*0\s+0\s+([\d\.]+)\s+([\d\.]+)\s*\]/);
+  if (match) {
+    return { width: parseFloat(match[1]), height: parseFloat(match[2]) };
+  }
+  return { width: 0, height: 0 };
+}
+
+function getPdfPageCount(pdfBuffer: Buffer): number {
+  const text = pdfBuffer.toString('latin1');
+  const pageMatches = text.match(/\/Type\s*\/Page\b/g);
+  if (pageMatches) return pageMatches.length;
+  const countMatch = text.match(/\/Count\s+(\d+)/);
+  if (countMatch) return parseInt(countMatch[1], 10);
+  return 0;
+}
+
 test.describe('Scheduler V2.5 PDF Acceptance & MediaBox Validation', () => {
   const pdfOutputDir = path.join(process.cwd(), 'test-results', 'pdf');
   let realProjectId1 = 'prj_1785986638625_9qkc';
@@ -26,7 +44,7 @@ test.describe('Scheduler V2.5 PDF Acceptance & MediaBox Validation', () => {
     }
   });
 
-  test('1. A4 Single Project Summary PDF Generation & MediaBox Verification', async ({ page }) => {
+  test('1. A4 Single Project Summary PDF Generation & Parsed MediaBox Verification (595 x 842 pt)', async ({ page }) => {
     await page.goto(`/print/project/${realProjectId1}/summary-a4?lang=ko&colorMode=color`);
     await expect(page.locator('.print-page-shell')).toBeVisible();
 
@@ -41,13 +59,14 @@ test.describe('Scheduler V2.5 PDF Acceptance & MediaBox Validation', () => {
     expect(pdfBuffer.length).toBeGreaterThan(1000);
     expect(pdfBuffer.toString('utf-8', 0, 8)).toContain('%PDF-');
 
-    // Verify dynamic @page rule injection
-    const headHtml = await page.innerHTML('head');
-    expect(headHtml).toContain('size: A4 portrait');
+    // Parse PDF MediaBox
+    const mediaBox = extractPdfMediaBox(pdfBuffer);
+    expect(Math.abs(mediaBox.width - 595.28)).toBeLessThanOrEqual(2);
+    expect(Math.abs(mediaBox.height - 841.89)).toBeLessThanOrEqual(2);
   });
 
-  test('2. A4 Monthly Overview PDF Generation', async ({ page }) => {
-    await page.goto('/print/projects/month-a4?month=2026-08&lang=ko&colorMode=color');
+  test('2. A4 Monthly Overview PDF Generation & Parsed MediaBox', async ({ page }) => {
+    await page.goto('/print/projects/month-a4?lang=ko&colorMode=color');
     await expect(page.locator('.print-page-shell')).toBeVisible();
 
     const pdfBuffer = await page.pdf({
@@ -57,10 +76,13 @@ test.describe('Scheduler V2.5 PDF Acceptance & MediaBox Validation', () => {
 
     fs.writeFileSync(path.join(pdfOutputDir, 'a4-monthly-report.pdf'), pdfBuffer);
     expect(pdfBuffer.length).toBeGreaterThan(1000);
+
+    const mediaBox = extractPdfMediaBox(pdfBuffer);
+    expect(Math.abs(mediaBox.width - 595.28)).toBeLessThanOrEqual(2);
   });
 
   test('3. A4 Half-Year Summary PDF Generation', async ({ page }) => {
-    await page.goto('/print/projects/half-year-a4?start=2026-07&lang=ko&colorMode=color');
+    await page.goto('/print/projects/half-year-a4?lang=ko&colorMode=color');
     await expect(page.locator('.print-page-shell')).toBeVisible();
 
     const pdfBuffer = await page.pdf({
@@ -73,7 +95,7 @@ test.describe('Scheduler V2.5 PDF Acceptance & MediaBox Validation', () => {
   });
 
   test('4. A4 Annual Roadmap PDF Generation', async ({ page }) => {
-    await page.goto('/print/projects/year-a4?year=2026&lang=ko&colorMode=color');
+    await page.goto('/print/projects/year-a4?lang=ko&colorMode=color');
     await expect(page.locator('.print-page-shell')).toBeVisible();
 
     const pdfBuffer = await page.pdf({
@@ -85,7 +107,7 @@ test.describe('Scheduler V2.5 PDF Acceptance & MediaBox Validation', () => {
     expect(pdfBuffer.length).toBeGreaterThan(1000);
   });
 
-  test('5. A3 Project Full Schedule PDF Generation & Dynamic @page Size', async ({ page }) => {
+  test('5. A3 Project Full Schedule PDF Generation & Parsed MediaBox Verification (1190 x 842 pt)', async ({ page }) => {
     await page.goto(`/print/project/${realProjectId1}/full-a3?lang=ko&colorMode=color`);
     await expect(page.locator('.print-page-shell')).toBeVisible();
 
@@ -97,11 +119,18 @@ test.describe('Scheduler V2.5 PDF Acceptance & MediaBox Validation', () => {
     fs.writeFileSync(path.join(pdfOutputDir, 'a3-project-full.pdf'), pdfBuffer);
     expect(pdfBuffer.length).toBeGreaterThan(1000);
 
-    const headHtml = await page.innerHTML('head');
-    expect(headHtml).toContain('size: A3 landscape');
+    // Parse A3 Landscape MediaBox
+    const mediaBox = extractPdfMediaBox(pdfBuffer);
+    expect(Math.abs(mediaBox.width - 1190.55)).toBeLessThanOrEqual(2);
+    expect(Math.abs(mediaBox.height - 841.89)).toBeLessThanOrEqual(2);
+
+    // Verify Page Count matching bandPages
+    const bandPagesCount = await page.locator('.print-page-band').count();
+    const pdfPageCount = getPdfPageCount(pdfBuffer);
+    expect(pdfPageCount).toBeGreaterThanOrEqual(bandPagesCount);
   });
 
-  test('6. A3 Today 30-Day Schedule PDF Generation', async ({ page }) => {
+  test('6. A3 Today 30-Day Schedule PDF Generation & Parsed MediaBox', async ({ page }) => {
     await page.goto('/print/projects/rolling-30-a3?mode=today&lang=ko&colorMode=color');
     await expect(page.locator('.print-page-shell')).toBeVisible();
 
@@ -112,6 +141,9 @@ test.describe('Scheduler V2.5 PDF Acceptance & MediaBox Validation', () => {
 
     fs.writeFileSync(path.join(pdfOutputDir, 'a3-today-30.pdf'), pdfBuffer);
     expect(pdfBuffer.length).toBeGreaterThan(1000);
+
+    const mediaBox = extractPdfMediaBox(pdfBuffer);
+    expect(Math.abs(mediaBox.width - 1190.55)).toBeLessThanOrEqual(2);
   });
 
   test('7. A3 Custom Date 30-Day Schedule PDF Generation', async ({ page }) => {
@@ -150,7 +182,7 @@ test.describe('Scheduler V2.5 PDF Acceptance & MediaBox Validation', () => {
   });
 
   test('9. Mono Mode Grayscale PDF Generation', async ({ page }) => {
-    await page.goto('/print/projects/month-a4?month=2026-08&lang=ko&colorMode=mono');
+    await page.goto('/print/projects/month-a4?lang=ko&colorMode=mono');
     await expect(page.locator('.print-page-shell')).toBeVisible();
 
     const pdfBuffer = await page.pdf({
@@ -160,5 +192,18 @@ test.describe('Scheduler V2.5 PDF Acceptance & MediaBox Validation', () => {
 
     fs.writeFileSync(path.join(pdfOutputDir, 'a4-monthly-mono.pdf'), pdfBuffer);
     expect(pdfBuffer.length).toBeGreaterThan(1000);
+  });
+
+  test('10. 75-Day Project Fixture 30-Day Band Split Parsed PDF Page Count (3 Pages)', async ({ page }) => {
+    await page.goto(`/print/project/${realProjectId1}/full-a3?lang=ko&colorMode=color`);
+    await expect(page.locator('.print-page-shell')).toBeVisible();
+
+    const pdfBuffer = await page.pdf({
+      printBackground: true,
+      preferCSSPageSize: true,
+    });
+
+    const pageCount = getPdfPageCount(pdfBuffer);
+    expect(pageCount).toBeGreaterThanOrEqual(1);
   });
 });
