@@ -115,7 +115,7 @@ test.describe('Task Save Persistence & Gantt Reflection Regression Suite', () =>
     await expect(taskModal).toBeHidden({ timeout: 5000 });
 
     // Expect Task Row and Schedule Bar in DOM
-    const taskRow = page.locator('text=NON CONFLICT TEST TASK');
+    const taskRow = page.locator('[data-testid^="task-row-"]').filter({ hasText: 'NON CONFLICT TEST TASK' }).first();
     await expect(taskRow).toBeVisible();
 
     // Refresh page (F5) and verify persistence
@@ -123,7 +123,7 @@ test.describe('Task Save Persistence & Gantt Reflection Regression Suite', () =>
     await page.waitForLoadState('networkidle');
     await dismissAllModals(page);
 
-    await expect(page.locator('text=NON CONFLICT TEST TASK')).toBeVisible();
+    await expect(page.locator('[data-testid^="task-row-"]').filter({ hasText: 'NON CONFLICT TEST TASK' }).first()).toBeVisible();
   });
 
   test('CASE B & C: Conflict Task -> 409 Confirmation Required, Modal Not Closed, Confirm Save & Cancel Trace', async ({ page }) => {
@@ -184,14 +184,15 @@ test.describe('Task Save Persistence & Gantt Reflection Regression Suite', () =>
     const confirmBtn = page.locator('[data-testid="conflict-modal-confirm-btn"]');
     await confirmBtn.click({ force: true });
 
-    // Expect task to be saved and visible
-    await expect(page.locator('text=CONFLICT TEST TASK')).toBeVisible({ timeout: 5000 });
+    // Expect task row to be saved and visible
+    const taskRow = page.locator('[data-testid^="task-row-"]').filter({ hasText: 'CONFLICT TEST TASK' }).first();
+    await expect(taskRow).toBeVisible({ timeout: 5000 });
 
     // F5 Persistence
     await page.reload();
     await page.waitForLoadState('networkidle');
     await dismissAllModals(page);
 
-    await expect(page.locator('text=CONFLICT TEST TASK')).toBeVisible();
+    await expect(page.locator('[data-testid^="task-row-"]').filter({ hasText: 'CONFLICT TEST TASK' }).first()).toBeVisible();
   });
 });
