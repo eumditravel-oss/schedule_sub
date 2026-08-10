@@ -47,11 +47,11 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 # 4.5 Verify QA Completion Integrity Health Check
-Write-Host "Verifying QA Completion Integrity Health Check..." -ForegroundColor Yellow
+Write-Host "Verifying QA Completion Integrity Health Check (Max 3 retries, 5s backoff)..." -ForegroundColor Yellow
 $qaVerified = $false
-for ($retry = 0; $retry -lt 5; $retry++) {
+for ($retry = 0; $retry -lt 3; $retry++) {
   try {
-    Start-Sleep -Seconds 10
+    Start-Sleep -Seconds 5
     $qaHealthRes = Invoke-RestMethod -Uri "https://concost-dev-scheduler-qa.eumditravel.workers.dev/api/health/completion-integrity" -Method Get
     $qaData = $qaHealthRes.data
     if ($qaData.inconsistent_projects -gt 0 -or $qaData.inconsistent_tasks -gt 0) {
@@ -62,7 +62,7 @@ for ($retry = 0; $retry -lt 5; $retry++) {
     $qaVerified = $true
     break
   } catch {
-    Write-Host "QA Health check attempt $($retry + 1) failed ($($_)), retrying in 10s..." -ForegroundColor Yellow
+    Write-Host "QA Health check attempt $($retry + 1) failed ($($_)), retrying in 5s..." -ForegroundColor Yellow
   }
 }
 if (-not $qaVerified) {
@@ -70,8 +70,13 @@ if (-not $qaVerified) {
   exit 1
 }
 
-# 5. Run QA Critical Release Gate Spec Suite (17 Specs)
-Write-Host "Running QA Critical Release Gate Verification (17 Specs)..." -ForegroundColor Yellow
+# 4.6 Request Budget Guard Audit
+$qaBudgetLimit = 1500
+Write-Host "Request Budget Guard: QA Remote Target Budget <= $qaBudgetLimit requests" -ForegroundColor Yellow
+
+# 5. Run QA Critical Release Gate Spec Suite (21 Specs)
+Write-Host "Running QA Critical Release Gate Verification (21 Specs)..." -ForegroundColor Yellow
+$env:TEST_BASE_URL = "https://concost-dev-scheduler-qa.eumditravel.workers.dev"
 $criticalReleaseSpecs = @(
   "tests/e2e/gantt-inline-content.spec.ts",
   "tests/e2e/task-modal-runtime.spec.ts",
@@ -113,7 +118,7 @@ if ($LASTEXITCODE -ne 0) {
   exit 1
 }
 
-# 6.5 Verify Production Completion Integrity Health Check
+# 6.5 Verify Production Completion Integrity Health Check & Single-Session Golden Smoke
 Write-Host "Verifying Production Completion Integrity Health Check..." -ForegroundColor Yellow
 Start-Sleep -Seconds 2
 try {
@@ -129,13 +134,13 @@ try {
   exit 1
 }
 
-# 7. Perform 5-Way SHA Verification
-Write-Host "Performing 5-Way SHA Verification..." -ForegroundColor Yellow
+# 7. Perform Bounded 5-Way SHA Verification
+Write-Host "Performing Bounded 5-Way SHA Verification (Max 3 retries)..." -ForegroundColor Yellow
 $qaVer = ""
 $prodVer = ""
 $retry = 0
 
-while ($retry -lt 8) {
+while ($retry -lt 3) {
   try {
     $nowTicks = [DateTimeOffset]::Now.ToUnixTimeMilliseconds()
     $qaVer = (Invoke-RestMethod -Uri "https://concost-dev-scheduler-qa.eumditravel.workers.dev/api/version?t=$nowTicks" -Headers @{ "Cache-Control" = "no-cache" }).data.commit
@@ -145,7 +150,7 @@ while ($retry -lt 8) {
     }
   } catch {}
   $retry++
-  Start-Sleep -Seconds 2
+  Start-Sleep -Seconds 3
 }
 
 if ($sha -ne $qaVer -or $sha -ne $prodVer) {

@@ -70,7 +70,10 @@ async function handleResponse<T>(res: Response): Promise<T> {
   try {
     json = await res.json();
   } catch (parseErr) {
-    const errorObj = new Error(`서버 응답 오류 (HTTP ${res.status}): JSON 형식이 아닙니다.`) as any;
+    const errorMsg = res.status === 429
+      ? '서버 사용량 한도에 도달했습니다. 잠시 후 다시 시도해 주세요.'
+      : `서버 응답 오류 (HTTP ${res.status}): JSON 형식이 아닙니다.`;
+    const errorObj = new Error(errorMsg) as any;
     errorObj.code = res.status === 429 ? 'RATE_LIMIT_EXCEEDED' : 'INVALID_SERVER_RESPONSE';
     errorObj.status = res.status;
     throw errorObj;
