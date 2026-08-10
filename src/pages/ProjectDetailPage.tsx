@@ -48,6 +48,7 @@ import { MobileWeekView } from '../components/mobile/MobileWeekView';
 import { MobileThirtyDayGanttView } from '../components/mobile/MobileThirtyDayGanttView';
 import { MobileScheduleInfoSheet } from '../components/mobile/MobileScheduleInfoSheet';
 import { CalendarManagerModal } from '../components/modals/CalendarManagerModal';
+import { PrintDropdownMenu } from '../components/print/PrintDropdownMenu';
 import { CalendarLegend } from '../components/common/CalendarLegend';
 import { DayActionPanel } from '../components/modals/DayActionPanel';
 import { DateHeaderInfoPanel } from '../components/modals/DateHeaderInfoPanel';
@@ -1841,6 +1842,11 @@ export const ProjectDetailPage: React.FC = () => {
             <WorkerSelector
               currentWorker={currentWorker}
               onWorkerChange={handleSelectWorkerProfile}
+            />
+
+            <PrintDropdownMenu
+              projectId={projectId}
+              lang={lang}
             />
 
             <WorkerUtilizationBadge

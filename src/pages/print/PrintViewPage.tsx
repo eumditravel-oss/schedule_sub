@@ -1,0 +1,337 @@
+// src/pages/print/PrintViewPage.tsx
+import React, { useState, useEffect } from 'react';
+import { useParams, useSearchParams, useNavigate, useLocation } from 'react-router-dom';
+import { Project, Task, TaskGroup, Worker, CountryHoliday, CalendarOverride, ProjectWorkerAllocation } from '../../types';
+import { api, getCurrentWorkerName } from '../../services/api';
+import { PrintToolbar } from '../../components/print/PrintToolbar';
+import { PrintPageShell } from '../../components/print/PrintPageShell';
+import { PrintColorMode } from '../../utils/printVisualTokens';
+import { PrintProjectSummaryA4 } from '../../components/print/PrintProjectSummaryA4';
+import { PrintMonthlyProjectsA4 } from '../../components/print/PrintMonthlyProjectsA4';
+import { PrintHalfYearProjectsA4 } from '../../components/print/PrintHalfYearProjectsA4';
+import { PrintYearProjectsA4 } from '../../components/print/PrintYearProjectsA4';
+import { PrintProjectFullA3 } from '../../components/print/PrintProjectFullA3';
+import { PrintRolling30A3 } from '../../components/print/PrintRolling30A3';
+import { PrintCombinedProjectsA3 } from '../../components/print/PrintCombinedProjectsA3';
+import { useI18n } from '../../hooks/useI18n';
+
+export type TemplateType =
+  | 'summary-a4'
+  | 'month-a4'
+  | 'half-year-a4'
+  | 'year-a4'
+  | 'full-a3'
+  | 'rolling-30-a3'
+  | 'combined-a3';
+
+export const PrintViewPage: React.FC = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { projectId } = useParams<{ projectId?: string }>();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const { lang: appLang, setLanguage } = useI18n();
+
+  // Determine template type from pathname
+  const pathname = location.pathname;
+  let templateType: TemplateType = 'summary-a4';
+  if (pathname.includes('/summary-a4')) templateType = 'summary-a4';
+  else if (pathname.includes('/month-a4')) templateType = 'month-a4';
+  else if (pathname.includes('/half-year-a4')) templateType = 'half-year-a4';
+  else if (pathname.includes('/year-a4')) templateType = 'year-a4';
+  else if (pathname.includes('/full-a3')) templateType = 'full-a3';
+  else if (pathname.includes('/rolling-30-a3')) templateType = 'rolling-30-a3';
+  else if (pathname.includes('/combined-a3')) templateType = 'combined-a3';
+
+  // Default paper and orientation based on template
+  const defaultPaper = templateType.endsWith('-a3') ? 'a3' : 'a4';
+  const defaultOrientation = templateType.endsWith('-a3') ? 'landscape' : 'portrait';
+
+  // State from URL query parameters or defaults
+  const [paper, setPaper] = useState<'a4' | 'a3'>((searchParams.get('paper') as any) || defaultPaper);
+  const [orientation, setOrientation] = useState<'portrait' | 'landscape'>((searchParams.get('orientation') as any) || defaultOrientation);
+  const [colorMode, setColorMode] = useState<PrintColorMode>((searchParams.get('colorMode') as any) || 'color');
+  const [lang, setLang] = useState<'ko' | 'vi'>((searchParams.get('lang') as any) || appLang || 'ko');
+
+  // Query Data states
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [currentProject, setCurrentProject] = useState<Project | null>(null);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [taskGroups, setTaskGroups] = useState<TaskGroup[]>([]);
+  const [allocations, setAllocations] = useState<ProjectWorkerAllocation[]>([]);
+  const [workers, setWorkers] = useState<Worker[]>([]);
+  const [krHolidays, setKrHolidays] = useState<CountryHoliday[]>([]);
+  const [vnHolidays, setVnHolidays] = useState<CountryHoliday[]>([]);
+  const [calendarOverrides, setCalendarOverrides] = useState<CalendarOverride[]>([]);
+
+  const viewerName = getCurrentWorkerName() || 'CEO / COO Viewer';
+  const referenceDate = new Date().toISOString().substring(0, 10);
+
+  // Sync state to search params
+  const updateUrlParam = (key: string, value: string) => {
+    const newParams = new URLSearchParams(searchParams);
+    newParams.set(key, value);
+    setSearchParams(newParams, { replace: true });
+  };
+
+  const handlePaperChange = (p: 'a4' | 'a3') => {
+    setPaper(p);
+    updateUrlParam('paper', p);
+  };
+
+  const handleOrientationChange = (o: 'portrait' | 'landscape') => {
+    setOrientation(o);
+    updateUrlParam('orientation', o);
+  };
+
+  const handleColorModeChange = (mode: PrintColorMode) => {
+    setColorMode(mode);
+    updateUrlParam('colorMode', mode);
+  };
+
+  const handleLangChange = (l: 'ko' | 'vi') => {
+    setLang(l);
+    setLanguage(l);
+    updateUrlParam('lang', l);
+  };
+
+  // Fetch Read-Only Data for printing
+  useEffect(() => {
+    let isMounted = true;
+    async function loadPrintData() {
+      setLoading(true);
+      setError(null);
+      try {
+        const [allProjs, allWrks] = await Promise.all([
+          api.getProjects('ALL'),
+          api.getWorkers(),
+        ]);
+
+        if (!isMounted) return;
+        setProjects(allProjs);
+        setWorkers(allWrks);
+
+        if (projectId) {
+          const detail = await api.getProjectDetail(projectId);
+          if (!isMounted) return;
+          setCurrentProject(detail.project);
+          setTasks(detail.tasks);
+          setTaskGroups(detail.task_groups);
+
+          try {
+            const allocs = await api.getProjectWorkerAllocations(projectId);
+            if (isMounted) setAllocations(allocs);
+          } catch {
+            // optional worker allocations fallback
+          }
+        } else {
+          // Fetch tasks for overview reports
+          const allTsks = await api.getTasks();
+          if (isMounted) setTasks(allTsks);
+        }
+      } catch (err: any) {
+        if (isMounted) setError(err?.message || '출력 데이터 로드 중 오류가 발생했습니다.');
+      } finally {
+        if (isMounted) setLoading(false);
+      }
+    }
+
+    loadPrintData();
+    return () => {
+      isMounted = false;
+    };
+  }, [projectId]);
+
+  // Handle Print Action
+  const handlePrint = () => {
+    window.print();
+  };
+
+  const handleClose = () => {
+    if (projectId) {
+      navigate(`/projects/${projectId}`);
+    } else {
+      navigate('/projects');
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen bg-slate-100 text-slate-700 font-sans text-sm">
+        <div className="w-8 h-8 border-4 border-emerald-600 border-t-transparent rounded-full animate-spin mb-3" />
+        <p className="font-semibold">{lang === 'ko' ? '보고용 출력 양식 준비 중...' : 'Đang chuẩn bị trang in...'}</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen bg-slate-100 text-slate-800 font-sans p-4">
+        <div className="bg-white border border-rose-300 rounded-lg p-6 max-w-md shadow-lg text-center">
+          <h2 className="text-lg font-bold text-rose-700 mb-2">{lang === 'ko' ? '출력 데이터 로드 실패' : 'Lỗi tải dữ liệu'}</h2>
+          <p className="text-xs text-slate-600 mb-4">{error}</p>
+          <button
+            onClick={handleClose}
+            className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs rounded transition"
+          >
+            {lang === 'ko' ? '스케줄러로 돌아가기' : 'Quay lại'}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Render Template Content based on templateType
+  const renderTemplateContent = () => {
+    const monthQuery = searchParams.get('month') || '2026-08';
+    const startQuery = searchParams.get('start') || '2026-07';
+    const yearQuery = searchParams.get('year') || '2026';
+    const modeQuery = (searchParams.get('mode') as any) || 'today';
+    const projectIdsStr = searchParams.get('projectIds') || '';
+    const selectedIds = projectIdsStr.split(',').filter(Boolean);
+
+    switch (templateType) {
+      case 'summary-a4':
+        return currentProject ? (
+          <PrintProjectSummaryA4
+            project={currentProject}
+            tasks={tasks}
+            taskGroups={taskGroups}
+            allocations={allocations}
+            workers={workers}
+            colorMode={colorMode}
+            lang={lang}
+            viewerName={viewerName}
+            referenceDate={referenceDate}
+          />
+        ) : (
+          <div className="p-4 text-rose-600">{lang === 'ko' ? '선택된 프로젝트가 없습니다.' : 'Chưa chọn dự án.'}</div>
+        );
+
+      case 'month-a4':
+        return (
+          <PrintMonthlyProjectsA4
+            monthStr={monthQuery}
+            projects={projects}
+            tasks={tasks}
+            workers={workers}
+            colorMode={colorMode}
+            lang={lang}
+            viewerName={viewerName}
+            referenceDate={referenceDate}
+          />
+        );
+
+      case 'half-year-a4':
+        return (
+          <PrintHalfYearProjectsA4
+            startMonthStr={startQuery}
+            projects={projects}
+            tasks={tasks}
+            workers={workers}
+            colorMode={colorMode}
+            lang={lang}
+            viewerName={viewerName}
+            referenceDate={referenceDate}
+          />
+        );
+
+      case 'year-a4':
+        return (
+          <PrintYearProjectsA4
+            yearStr={yearQuery}
+            projects={projects}
+            tasks={tasks}
+            workers={workers}
+            colorMode={colorMode}
+            lang={lang}
+            viewerName={viewerName}
+            referenceDate={referenceDate}
+          />
+        );
+
+      case 'full-a3':
+        return currentProject ? (
+          <PrintProjectFullA3
+            project={currentProject}
+            tasks={tasks}
+            taskGroups={taskGroups}
+            workers={workers}
+            krHolidays={krHolidays}
+            vnHolidays={vnHolidays}
+            calendarOverrides={calendarOverrides}
+            colorMode={colorMode}
+            lang={lang}
+            viewerName={viewerName}
+            referenceDate={referenceDate}
+          />
+        ) : (
+          <div className="p-4 text-rose-600">{lang === 'ko' ? '선택된 프로젝트가 없습니다.' : 'Chưa chọn dự án.'}</div>
+        );
+
+      case 'rolling-30-a3':
+        return (
+          <PrintRolling30A3
+            startDateStr={searchParams.get('start') || undefined}
+            mode={modeQuery}
+            projects={projects}
+            tasks={tasks}
+            workers={workers}
+            krHolidays={krHolidays}
+            vnHolidays={vnHolidays}
+            calendarOverrides={calendarOverrides}
+            colorMode={colorMode}
+            lang={lang}
+            viewerName={viewerName}
+            referenceDate={referenceDate}
+          />
+        );
+
+      case 'combined-a3':
+        const selectedProjs = projects.filter((p) => selectedIds.includes(p.id));
+        return (
+          <PrintCombinedProjectsA3
+            selectedProjects={selectedProjs.length > 0 ? selectedProjs : projects.slice(0, 3)}
+            allTasks={tasks}
+            workers={workers}
+            krHolidays={krHolidays}
+            vnHolidays={vnHolidays}
+            calendarOverrides={calendarOverrides}
+            colorMode={colorMode}
+            lang={lang}
+            viewerName={viewerName}
+            referenceDate={referenceDate}
+          />
+        );
+
+      default:
+        return <div>Invalid print template</div>;
+    }
+  };
+
+  return (
+    <div className="print-view-wrapper min-h-screen bg-slate-200 pt-16 pb-12 print:p-0 print:bg-white select-none">
+      {/* Top Floating Toolbar */}
+      <PrintToolbar
+        paper={paper}
+        orientation={orientation}
+        colorMode={colorMode}
+        lang={lang}
+        onPaperChange={handlePaperChange}
+        onOrientationChange={handleOrientationChange}
+        onColorModeChange={handleColorModeChange}
+        onLangChange={handleLangChange}
+        onPrint={handlePrint}
+        onClose={handleClose}
+      />
+
+      {/* Printable Document Container */}
+      <main className="print-document-container flex justify-center">
+        <PrintPageShell paper={paper} orientation={orientation} colorMode={colorMode}>
+          {renderTemplateContent()}
+        </PrintPageShell>
+      </main>
+    </div>
+  );
+};

@@ -48,6 +48,7 @@ import { getGanttSpanColumns } from '../utils/ganttOverlay';
 import { calculateTaskWorkdayBreakdown } from '../utils/workCalendar';
 import { ProjectDeleteConfirmModal } from '../components/modals/ProjectDeleteConfirmModal';
 import { ProjectCompleteConfirmModal } from '../components/modals/ProjectCompleteConfirmModal';
+import { PrintDropdownMenu } from '../components/print/PrintDropdownMenu';
 
 export type MobileViewMode = 'SUMMARY' | 'WEEK' | 'GANTT';
 
@@ -67,6 +68,7 @@ export const ProjectOverviewPage: React.FC = () => {
   const [krHolidays, setKrHolidays] = useState<CountryHoliday[]>([]);
   const [vnHolidays, setVnHolidays] = useState<CountryHoliday[]>([]);
   const [calendarOverrides, setCalendarOverrides] = useState<CalendarOverride[]>([]);
+  const [selectedProjectIds, setSelectedProjectIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAllocationsLoading, setIsAllocationsLoading] = useState(false);
 
@@ -506,6 +508,12 @@ export const ProjectOverviewPage: React.FC = () => {
               <Users className="w-3.5 h-3.5 text-blue-600 shrink-0" />
               <span>{lang === 'vi' ? 'Công suất' : '인력 현황'}</span>
             </button>
+
+            {/* [0.6] Print Output System Dropdown */}
+            <PrintDropdownMenu
+              selectedProjectIds={selectedProjectIds}
+              lang={lang}
+            />
 
             {/* [1] Project Status Tabs — Open API 바로 오른쪽 */}
             <div

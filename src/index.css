@@ -26,3 +26,76 @@
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background: #475569;
 }
+
+/* Print Report System Layout & Geometry */
+.print-paper-a4.print-portrait {
+  width: 210mm;
+  min-height: 297mm;
+  padding: 12mm;
+}
+
+.print-paper-a4.print-landscape {
+  width: 297mm;
+  min-height: 210mm;
+  padding: 12mm;
+}
+
+.print-paper-a3.print-portrait {
+  width: 297mm;
+  min-height: 420mm;
+  padding: 8mm;
+}
+
+.print-paper-a3.print-landscape {
+  width: 420mm;
+  min-height: 297mm;
+  padding: 8mm;
+}
+
+.page-break-before {
+  page-break-before: always;
+  break-before: page;
+}
+
+.page-break-after {
+  page-break-after: always;
+  break-after: page;
+}
+
+/* Print Media Engine Rules */
+@media print {
+  @page {
+    margin: 0;
+  }
+
+  body {
+    background-color: white !important;
+    color: black !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  .print-toolbar {
+    display: none !important;
+  }
+
+  .print-view-wrapper {
+    padding: 0 !important;
+    background: transparent !important;
+  }
+
+  .print-page-shell {
+    border: none !important;
+    box-shadow: none !important;
+    margin: 0 !important;
+    width: 100% !important;
+    max-width: none !important;
+  }
+
+  tr {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+}
