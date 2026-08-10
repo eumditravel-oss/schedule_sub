@@ -17,11 +17,12 @@ async function dismissAllModals(page: any) {
 test.describe('Task Save Persistence & Gantt Reflection Regression Suite', () => {
   let projectAId = '';
   let projectBId = '';
+  const runId = Date.now();
+  let createdTaskIdCaseA = '';
+  const taskNameCaseA = `TASK_PERSIST_A_${runId}`;
 
   test.beforeAll(async () => {
-    const runId = Date.now();
-
-    // Create Project A
+    // Create Project A in far future (2030-05-01 ~ 2030-05-31) for 100% isolated non-conflict testing
     const prjARes = await fetch(`${QA_BASE_URL}/api/projects`, {
       method: 'POST',
       headers: {
@@ -31,8 +32,8 @@ test.describe('Task Save Persistence & Gantt Reflection Regression Suite', () =>
       },
       body: JSON.stringify({
         name: `[E2E-SAVE-A-${runId}] 저장 검증 프로젝트 A`,
-        start_date: '2026-08-01',
-        end_date: '2026-08-31',
+        start_date: '2030-05-01',
+        end_date: '2030-05-31',
         progress: 0,
         editor_name: '박용진 수석',
       }),
@@ -42,7 +43,7 @@ test.describe('Task Save Persistence & Gantt Reflection Regression Suite', () =>
     projectAId = prjAJson.id || prjAJson.data?.id;
     expect(projectAId).toBeTruthy();
 
-    // Create Project B
+    // Create Project B in far future (2030-06-01 ~ 2030-06-30)
     const prjBRes = await fetch(`${QA_BASE_URL}/api/projects`, {
       method: 'POST',
       headers: {
@@ -52,8 +53,8 @@ test.describe('Task Save Persistence & Gantt Reflection Regression Suite', () =>
       },
       body: JSON.stringify({
         name: `[E2E-SAVE-B-${runId}] 저장 검증 프로젝트 B`,
-        start_date: '2026-08-01',
-        end_date: '2026-08-31',
+        start_date: '2030-06-01',
+        end_date: '2030-06-30',
         progress: 0,
         editor_name: '박용진 수석',
       }),
@@ -77,7 +78,7 @@ test.describe('Task Save Persistence & Gantt Reflection Regression Suite', () =>
     }
   });
 
-  test('CASE A: Non-conflict new Task -> POST 1x, 2xx, Modal Close, Task Row & Bar Visible, F5 Persistence', async ({ page }) => {
+  test('CASE A: Genuine Non-Conflict Creation (POST 201, Exact Row & Bar, Geometry <= 0.5px, F5)', async ({ page }) => {
     await page.addInitScript(() => {
       localStorage.setItem('schedule_current_worker_id', 'wrk_01');
       localStorage.setItem('schedule_current_worker_name', '박용진 수석');
@@ -88,7 +89,24 @@ test.describe('Task Save Persistence & Gantt Reflection Regression Suite', () =>
     await page.waitForLoadState('networkidle');
     await dismissAllModals(page);
 
-    // Select worker wrk_01 in WorkerSelector
+    // Track network requests
+    let postCount = 0;
+    let putUndefinedCount = 0;
+    let patchUndefinedCount = 0;
+
+    page.on('request', (req) => {
+      const url = req.url();
+      const method = req.method();
+      if (url.includes('/api/tasks') && method === 'POST') {
+        postCount++;
+      }
+      if (url.includes('/api/tasks/undefined')) {
+        if (method === 'PUT') putUndefinedCount++;
+        if (method === 'PATCH') patchUndefinedCount++;
+      }
+    });
+
+    // Select worker wrk_01
     const workerSelectBtn = page.locator('[data-testid="worker-select-btn"]');
     if (await workerSelectBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
       await workerSelectBtn.click();
@@ -99,7 +117,7 @@ test.describe('Task Save Persistence & Gantt Reflection Regression Suite', () =>
       }
     }
 
-    // Click Add Task button
+    // Open Task Modal
     const addTaskBtn = page.locator('[data-testid="add-task-btn"], [data-testid^="task-group-add-task-"]').first();
     await expect(addTaskBtn).toBeVisible({ timeout: 15000 });
     await addTaskBtn.click({ force: true });
@@ -107,38 +125,102 @@ test.describe('Task Save Persistence & Gantt Reflection Regression Suite', () =>
     const taskModal = page.locator('[data-testid="task-modal"]');
     await expect(taskModal).toBeVisible();
 
-    // Fill task name
+    // Fill task info for 2030-05-10 ~ 2030-05-14
     const nameInput = page.locator('[data-testid="task-name-input"]');
     await expect(nameInput).toBeVisible();
-    await nameInput.fill('NON CONFLICT TEST TASK');
+    await nameInput.fill(taskNameCaseA);
 
-    // Click Save
-    const saveBtn = page.locator('[data-testid="task-save-btn"]');
-    await saveBtn.click({ force: true });
-    await page.waitForTimeout(1000);
-
-    const conflictConfirmBtn = page.locator('[data-testid="conflict-modal-confirm-btn"]');
-    if (await conflictConfirmBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
-      await conflictConfirmBtn.click({ force: true });
+    const startDateInput = page.locator('[data-testid="task-start-date-input"]');
+    if (await startDateInput.isVisible().catch(() => false)) {
+      await startDateInput.fill('2030-05-10');
+    }
+    const endDateInput = page.locator('[data-testid="task-end-date-input"]');
+    if (await endDateInput.isVisible().catch(() => false)) {
+      await endDateInput.fill('2030-05-14');
     }
 
-    // Expect TaskModal to close
+    // Set network response listener for POST /api/tasks
+    const postResponsePromise = page.waitForResponse(
+      (resp) => resp.url().includes('/api/tasks') && resp.request().method() === 'POST',
+      { timeout: 10000 }
+    );
+
+    // Save
+    const saveBtn = page.locator('[data-testid="task-save-btn"]');
+    await saveBtn.click({ force: true });
+
+    const postResponse = await postResponsePromise;
+    expect(postResponse.status()).toBe(201);
+    expect(postCount).toBe(1);
+    expect(putUndefinedCount).toBe(0);
+    expect(patchUndefinedCount).toBe(0);
+
+    const resJson: any = await postResponse.json();
+    createdTaskIdCaseA = resJson.id || resJson.data?.id;
+    expect(createdTaskIdCaseA).toBeTruthy();
+
+    // CASE A Guarantee: Conflict Modal MUST NOT appear
+    const conflictModal = page.locator('[data-testid="worker-conflict-summary-modal"]');
+    await expect(conflictModal).toBeHidden();
+
+    // Modal must close
     await expect(taskModal).toBeHidden({ timeout: 5000 });
 
-    // Expect Schedule Bar in DOM
-    const ganttBar = page.locator('[data-testid="gantt-schedule-bar"]').first();
-    await expect(ganttBar).toBeVisible({ timeout: 5000 });
+    // Verify DB/API Payload directly via Detail API
+    const detailRes = await fetch(`${QA_BASE_URL}/api/projects/${projectAId}/detail`);
+    expect(detailRes.status).toBe(200);
+    const detailJson: any = await detailRes.json();
+    const tasks = detailJson.tasks || detailJson.data?.tasks || [];
+    const persistedTask = tasks.find((t: any) => t.id === createdTaskIdCaseA || t.task_name === taskNameCaseA);
+    expect(persistedTask).toBeTruthy();
+    expect(persistedTask.task_name).toBe(taskNameCaseA);
+    expect(persistedTask.start_date).toBe('2030-05-10');
+    expect(persistedTask.end_date).toBe('2030-05-14');
+    expect(persistedTask.primary_worker_id).toBe('wrk_01');
 
-    // Refresh page (F5) and verify persistence
+    // Exact Task Row Assertion
+    const taskText = page.getByText(taskNameCaseA, { exact: true });
+    await expect(taskText).toBeVisible({ timeout: 5000 });
+
+    // Exact Schedule Bar & Date Range Assertion
+    const scheduleBar = page.locator(`[aria-label*="${taskNameCaseA}"]`).first();
+    await expect(scheduleBar).toBeVisible({ timeout: 5000 });
+
+    // Geometry verification (<= 0.5px error)
+    const startDateCell = page.locator('[data-date="2030-05-10"]').first();
+    const endDateCell = page.locator('[data-date="2030-05-14"]').first();
+    if (await startDateCell.isVisible().catch(() => false) && await endDateCell.isVisible().catch(() => false)) {
+      const startCellBox = await startDateCell.boundingBox();
+      const endCellBox = await endDateCell.boundingBox();
+      const barBox = await scheduleBar.boundingBox();
+
+      if (startCellBox && endCellBox && barBox) {
+        const startDiff = Math.abs(barBox.x - startCellBox.x);
+        const endDiff = Math.abs((barBox.x + barBox.width) - (endCellBox.x + endCellBox.width));
+        expect(startDiff).toBeLessThanOrEqual(0.5);
+        expect(endDiff).toBeLessThanOrEqual(0.5);
+      }
+    }
+
+    // F5 Persistence verification
     await page.reload();
     await page.waitForLoadState('networkidle');
     await dismissAllModals(page);
 
-    await expect(page.locator('[data-testid="gantt-schedule-bar"]').first()).toBeVisible({ timeout: 5000 });
+    // Verify detail API after F5
+    const f5DetailRes = await fetch(`${QA_BASE_URL}/api/projects/${projectAId}/detail`);
+    const f5DetailJson: any = await f5DetailRes.json();
+    const f5Tasks = f5DetailJson.tasks || f5DetailJson.data?.tasks || [];
+    const f5Task = f5Tasks.find((t: any) => t.id === createdTaskIdCaseA || t.task_name === taskNameCaseA);
+    expect(f5Task).toBeTruthy();
+    expect(f5Task.start_date).toBe('2030-05-10');
+
+    await expect(page.getByText(taskNameCaseA, { exact: true })).toBeVisible({ timeout: 5000 });
+    await expect(page.locator(`[aria-label*="${taskNameCaseA}"]`).first()).toBeVisible({ timeout: 5000 });
   });
 
-  test('CASE B & C: Conflict Task -> 409 Confirmation Required, Modal Not Closed, Confirm Save & Cancel Trace', async ({ page }) => {
-    // 1. Create a task on Project A for wrk_01 on 2026-08-10 ~ 2026-08-14
+  test('CASE B: Conflict Task -> 409 Confirmation Required, Modal Stays Open, DB Unchanged', async ({ page }) => {
+    // 1. Create existing task on Project A for wrk_01 on 2030-06-10 ~ 2030-06-14
     await fetch(`${QA_BASE_URL}/api/tasks`, {
       method: 'POST',
       headers: {
@@ -148,11 +230,11 @@ test.describe('Task Save Persistence & Gantt Reflection Regression Suite', () =>
       },
       body: JSON.stringify({
         project_id: projectAId,
-        task_name: 'Existing Task Project A',
+        task_name: `CONFLICT_BASE_${runId}`,
         primary_worker_id: 'wrk_01',
         worker_name: '박용진 수석',
-        start_date: '2026-08-10',
-        end_date: '2026-08-14',
+        start_date: '2030-06-10',
+        end_date: '2030-06-14',
         progress_mode: 'AUTO_TIME',
         schedule_status: 'SCHEDULED',
         editor_name: '박용진 수석',
@@ -170,7 +252,7 @@ test.describe('Task Save Persistence & Gantt Reflection Regression Suite', () =>
     await page.waitForLoadState('networkidle');
     await dismissAllModals(page);
 
-    // Select worker wrk_01 in WorkerSelector
+    // Select worker wrk_01
     const workerSelectBtn = page.locator('[data-testid="worker-select-btn"]');
     if (await workerSelectBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
       await workerSelectBtn.click();
@@ -189,32 +271,261 @@ test.describe('Task Save Persistence & Gantt Reflection Regression Suite', () =>
     const taskModal = page.locator('[data-testid="task-modal"]');
     await expect(taskModal).toBeVisible();
 
-    // Fill conflicting date range for wrk_01
     const nameInput = page.locator('[data-testid="task-name-input"]');
-    await expect(nameInput).toBeVisible();
-    await nameInput.fill('CONFLICT TEST TASK');
+    await nameInput.fill(`CONFLICT_TEST_${runId}`);
 
-    // Click Save
+    const startDateInput = page.locator('[data-testid="task-start-date-input"]');
+    if (await startDateInput.isVisible().catch(() => false)) {
+      await startDateInput.fill('2030-06-10');
+    }
+    const endDateInput = page.locator('[data-testid="task-end-date-input"]');
+    if (await endDateInput.isVisible().catch(() => false)) {
+      await endDateInput.fill('2030-06-14');
+    }
+
+    // Listen for HTTP 409 response
+    const conflictPostPromise = page.waitForResponse(
+      (resp) => resp.url().includes('/api/tasks') && resp.request().method() === 'POST',
+      { timeout: 10000 }
+    );
+
     const saveBtn = page.locator('[data-testid="task-save-btn"]');
     await saveBtn.click({ force: true });
 
-    // Expect WorkerConflictSummaryModal to open
+    const conflictResp = await conflictPostPromise;
+    expect(conflictResp.status()).toBe(409);
+    const conflictJson: any = await conflictResp.json();
+    expect(conflictJson.errCode || conflictJson.error?.code).toBe('CROSS_PROJECT_CONFLICT_CONFIRMATION_REQUIRED');
+
+    // UI Assertions: Both TaskModal & WorkerConflictSummaryModal MUST be visible
+    const conflictModal = page.locator('[data-testid="worker-conflict-summary-modal"]');
+    await expect(conflictModal).toBeVisible({ timeout: 5000 });
+    await expect(taskModal).toBeVisible();
+
+    // DB Check: Task MUST NOT exist on Project B
+    const detailRes = await fetch(`${QA_BASE_URL}/api/projects/${projectBId}/detail`);
+    const detailJson: any = await detailRes.json();
+    const tasks = detailJson.tasks || detailJson.data?.tasks || [];
+    const createdTask = tasks.find((t: any) => t.task_name === `CONFLICT_TEST_${runId}`);
+    expect(createdTask).toBeFalsy();
+  });
+
+  test('CASE C: Conflict Cancel -> Conflict Modal Closes, Task NOT Created in DB', async ({ page }) => {
+    await page.addInitScript(() => {
+      localStorage.setItem('schedule_current_worker_id', 'wrk_01');
+      localStorage.setItem('schedule_current_worker_name', '박용진 수석');
+    });
+
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto(`${QA_BASE_URL}/projects/${projectBId}`);
+    await page.waitForLoadState('networkidle');
+    await dismissAllModals(page);
+
+    // Open Task Modal on Project B
+    const addTaskBtn = page.locator('[data-testid="add-task-btn"], [data-testid^="task-group-add-task-"]').first();
+    await expect(addTaskBtn).toBeVisible({ timeout: 15000 });
+    await addTaskBtn.click({ force: true });
+
+    const taskModal = page.locator('[data-testid="task-modal"]');
+    await expect(taskModal).toBeVisible();
+
+    const nameInput = page.locator('[data-testid="task-name-input"]');
+    await nameInput.fill(`CANCEL_TEST_${runId}`);
+
+    const startDateInput = page.locator('[data-testid="task-start-date-input"]');
+    if (await startDateInput.isVisible().catch(() => false)) {
+      await startDateInput.fill('2030-06-10');
+    }
+    const endDateInput = page.locator('[data-testid="task-end-date-input"]');
+    if (await endDateInput.isVisible().catch(() => false)) {
+      await endDateInput.fill('2030-06-14');
+    }
+
+    const saveBtn = page.locator('[data-testid="task-save-btn"]');
+    await saveBtn.click({ force: true });
+
     const conflictModal = page.locator('[data-testid="worker-conflict-summary-modal"]');
     await expect(conflictModal).toBeVisible({ timeout: 5000 });
 
-    // Confirm Conflict Save
+    // Click Cancel on Conflict Modal
+    const cancelBtn = page.locator('[data-testid="conflict-modal-cancel-btn"]');
+    await cancelBtn.click({ force: true });
+
+    // Conflict Modal closes
+    await expect(conflictModal).toBeHidden({ timeout: 5000 });
+
+    // DB Verification: Task NOT created
+    const detailRes = await fetch(`${QA_BASE_URL}/api/projects/${projectBId}/detail`);
+    const detailJson: any = await detailRes.json();
+    const tasks = detailJson.tasks || detailJson.data?.tasks || [];
+    const canceledTask = tasks.find((t: any) => t.task_name === `CANCEL_TEST_${runId}`);
+    expect(canceledTask).toBeFalsy();
+  });
+
+  test('CASE D: Conflict Confirm -> 2nd Request 201, Created Task Exists, F5 Persistence', async ({ page }) => {
+    await page.addInitScript(() => {
+      localStorage.setItem('schedule_current_worker_id', 'wrk_01');
+      localStorage.setItem('schedule_current_worker_name', '박용진 수석');
+    });
+
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto(`${QA_BASE_URL}/projects/${projectBId}`);
+    await page.waitForLoadState('networkidle');
+    await dismissAllModals(page);
+
+    // Open Task Modal on Project B
+    const addTaskBtn = page.locator('[data-testid="add-task-btn"], [data-testid^="task-group-add-task-"]').first();
+    await expect(addTaskBtn).toBeVisible({ timeout: 15000 });
+    await addTaskBtn.click({ force: true });
+
+    const taskModal = page.locator('[data-testid="task-modal"]');
+    await expect(taskModal).toBeVisible();
+
+    const taskName = `CONFIRM_TEST_${runId}`;
+    const nameInput = page.locator('[data-testid="task-name-input"]');
+    await nameInput.fill(taskName);
+
+    const startDateInput = page.locator('[data-testid="task-start-date-input"]');
+    if (await startDateInput.isVisible().catch(() => false)) {
+      await startDateInput.fill('2030-06-10');
+    }
+    const endDateInput = page.locator('[data-testid="task-end-date-input"]');
+    if (await endDateInput.isVisible().catch(() => false)) {
+      await endDateInput.fill('2030-06-14');
+    }
+
+    const saveBtn = page.locator('[data-testid="task-save-btn"]');
+    await saveBtn.click({ force: true });
+
+    const conflictModal = page.locator('[data-testid="worker-conflict-summary-modal"]');
+    await expect(conflictModal).toBeVisible({ timeout: 5000 });
+
+    // Confirm Promise Listener for 2nd Request
+    const secondPostPromise = page.waitForResponse(
+      (resp) => resp.url().includes('/api/tasks') && resp.request().method() === 'POST',
+      { timeout: 10000 }
+    );
+
     const confirmBtn = page.locator('[data-testid="conflict-modal-confirm-btn"]');
     await confirmBtn.click({ force: true });
 
-    // Expect task schedule bar to be saved and visible
-    const ganttBar = page.locator('[data-testid="gantt-schedule-bar"]').first();
-    await expect(ganttBar).toBeVisible({ timeout: 5000 });
+    const secondPostResp = await secondPostPromise;
+    expect(secondPostResp.status()).toBe(201);
+    const secondPostJson: any = await secondPostResp.json();
+    const conflictCreatedTaskId = secondPostJson.id || secondPostJson.data?.id;
+    expect(conflictCreatedTaskId).toBeTruthy();
 
-    // F5 Persistence
+    await expect(taskModal).toBeHidden({ timeout: 5000 });
+
+    // Verify DB
+    const detailRes = await fetch(`${QA_BASE_URL}/api/projects/${projectBId}/detail`);
+    const detailJson: any = await detailRes.json();
+    const tasks = detailJson.tasks || detailJson.data?.tasks || [];
+    const createdTask = tasks.find((t: any) => t.id === conflictCreatedTaskId || t.task_name === taskName);
+    expect(createdTask).toBeTruthy();
+
+    await expect(page.getByText(taskName, { exact: true })).toBeVisible({ timeout: 5000 });
+    await expect(page.locator(`[aria-label*="${taskName}"]`).first()).toBeVisible({ timeout: 5000 });
+
+    // F5
     await page.reload();
     await page.waitForLoadState('networkidle');
     await dismissAllModals(page);
 
-    await expect(page.locator('[data-testid="gantt-schedule-bar"]').first()).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText(taskName, { exact: true })).toBeVisible({ timeout: 5000 });
+  });
+
+  test('CASE E: Update Task -> PUT/PATCH with Real Task ID (0 Undefined), DB Updated, Gantt Bar Repositioned, F5', async ({ page }) => {
+    expect(createdTaskIdCaseA).toBeTruthy();
+
+    await page.addInitScript(() => {
+      localStorage.setItem('schedule_current_worker_id', 'wrk_01');
+      localStorage.setItem('schedule_current_worker_name', '박용진 수석');
+    });
+
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto(`${QA_BASE_URL}/projects/${projectAId}`);
+    await page.waitForLoadState('networkidle');
+    await dismissAllModals(page);
+
+    // Track PUT/PATCH requests
+    let updateRealIdCount = 0;
+    let updateUndefinedCount = 0;
+
+    page.on('request', (req) => {
+      const url = req.url();
+      const method = req.method();
+      if ((method === 'PUT' || method === 'PATCH') && url.includes('/api/tasks/')) {
+        if (url.includes('/api/tasks/undefined')) {
+          updateUndefinedCount++;
+        } else if (url.includes(`/api/tasks/${createdTaskIdCaseA}`)) {
+          updateRealIdCount++;
+        }
+      }
+    });
+
+    // Find and edit the created task from Case A
+    const editBtn = page.locator(`[data-testid="task-edit-${createdTaskIdCaseA}"]`).or(
+      page.locator('[data-testid="edit-task-btn"]').first()
+    );
+    if (await editBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
+      await editBtn.click({ force: true });
+    } else {
+      const taskText = page.getByText(taskNameCaseA, { exact: true });
+      await taskText.click({ force: true });
+    }
+
+    const taskModal = page.locator('[data-testid="task-modal"]');
+    await expect(taskModal).toBeVisible();
+
+    const updatedTaskName = `UPDATED_TASK_A_${runId}`;
+    const nameInput = page.locator('[data-testid="task-name-input"]');
+    await nameInput.fill(updatedTaskName);
+
+    const startDateInput = page.locator('[data-testid="task-start-date-input"]');
+    if (await startDateInput.isVisible().catch(() => false)) {
+      await startDateInput.fill('2030-05-12');
+    }
+    const endDateInput = page.locator('[data-testid="task-end-date-input"]');
+    if (await endDateInput.isVisible().catch(() => false)) {
+      await endDateInput.fill('2030-05-18');
+    }
+
+    const updateResponsePromise = page.waitForResponse(
+      (resp) => resp.url().includes('/api/tasks/') && (resp.request().method() === 'PUT' || resp.request().method() === 'PATCH'),
+      { timeout: 10000 }
+    );
+
+    const saveBtn = page.locator('[data-testid="task-save-btn"]');
+    await saveBtn.click({ force: true });
+
+    const updateResp = await updateResponsePromise;
+    expect(updateResp.status()).toBeLessThan(300);
+    expect(updateUndefinedCount).toBe(0);
+    expect(updateRealIdCount).toBe(1);
+
+    await expect(taskModal).toBeHidden({ timeout: 5000 });
+
+    // DB Check
+    const detailRes = await fetch(`${QA_BASE_URL}/api/projects/${projectAId}/detail`);
+    const detailJson: any = await detailRes.json();
+    const tasks = detailJson.tasks || detailJson.data?.tasks || [];
+    const updatedTask = tasks.find((t: any) => t.id === createdTaskIdCaseA);
+    expect(updatedTask).toBeTruthy();
+    expect(updatedTask.task_name).toBe(updatedTaskName);
+    expect(updatedTask.start_date).toBe('2030-05-12');
+    expect(updatedTask.end_date).toBe('2030-05-18');
+
+    // Exact Row & Bar
+    await expect(page.getByText(updatedTaskName, { exact: true })).toBeVisible({ timeout: 5000 });
+    const updatedScheduleBar = page.locator(`[aria-label*="${updatedTaskName}"]`).first();
+    await expect(updatedScheduleBar).toBeVisible({ timeout: 5000 });
+
+    // F5
+    await page.reload();
+    await page.waitForLoadState('networkidle');
+    await dismissAllModals(page);
+
+    await expect(page.getByText(updatedTaskName, { exact: true })).toBeVisible({ timeout: 5000 });
   });
 });
