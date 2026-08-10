@@ -6,19 +6,19 @@ test.describe('P1 Calendar Visual Truth & Hatch Semantic Contract', () => {
     await expect(page.locator('.print-page-shell')).toBeVisible();
 
     // KR_ONLY_OFF Date: 2026-05-05 (어린이날 - Tuesday)
-    const krCell = page.locator('td[data-date="2026-05-05"]').first();
+    const krCell = page.locator('[data-date="2026-05-05"]').first();
     await expect(krCell).toBeVisible();
     await expect(krCell).toHaveAttribute('data-visual-state', 'KR_ONLY_OFF');
 
     // VN_ONLY_OFF Date: 2026-09-02 (베트남 국경일 - Wednesday)
     await page.goto('/print/projects/rolling-30-a3?mode=custom&start=2026-09-01&lang=ko&colorMode=color');
-    const vnCell = page.locator('td[data-date="2026-09-02"]').first();
+    const vnCell = page.locator('[data-date="2026-09-02"]').first();
     await expect(vnCell).toBeVisible();
     await expect(vnCell).toHaveAttribute('data-visual-state', 'VN_ONLY_OFF');
 
     // BOTH_OFF Date: 2026-01-01 (신정 / Tet - Thursday)
     await page.goto('/print/projects/rolling-30-a3?mode=custom&start=2026-01-01&lang=ko&colorMode=color');
-    const bothCell = page.locator('td[data-date="2026-01-01"]').first();
+    const bothCell = page.locator('[data-date="2026-01-01"]').first();
     await expect(bothCell).toBeVisible();
     await expect(bothCell).toHaveAttribute('data-visual-state', 'BOTH_OFF');
   });
@@ -27,22 +27,22 @@ test.describe('P1 Calendar Visual Truth & Hatch Semantic Contract', () => {
     await page.goto('/print/projects/rolling-30-a3?mode=custom&start=2026-05-01&lang=ko&colorMode=mono');
     await expect(page.locator('.print-page-shell')).toBeVisible();
 
-    // Verify Mono KR_ONLY_OFF Hatch Style (135deg) on body TD cell
-    const krMonoCell = page.locator('td[data-date="2026-05-05"]').first();
+    // Verify Mono KR_ONLY_OFF Hatch Style (135deg)
+    const krMonoCell = page.locator('[data-date="2026-05-05"]').first();
     await expect(krMonoCell).toBeVisible();
     const krBgImage = await krMonoCell.evaluate((el) => window.getComputedStyle(el).backgroundImage);
     expect(krBgImage).toContain('135deg');
 
-    // Verify Mono VN_ONLY_OFF Hatch Style (45deg) on body TD cell
+    // Verify Mono VN_ONLY_OFF Hatch Style (45deg)
     await page.goto('/print/projects/rolling-30-a3?mode=custom&start=2026-09-01&lang=ko&colorMode=mono');
-    const vnMonoCell = page.locator('td[data-date="2026-09-02"]').first();
+    const vnMonoCell = page.locator('[data-date="2026-09-02"]').first();
     await expect(vnMonoCell).toBeVisible();
     const vnBgImage = await vnMonoCell.evaluate((el) => window.getComputedStyle(el).backgroundImage);
     expect(vnBgImage).toContain('45deg');
 
-    // Verify Mono BOTH_OFF Cross Hatch Style on body TD cell
+    // Verify Mono BOTH_OFF Cross Hatch Style
     await page.goto('/print/projects/rolling-30-a3?mode=custom&start=2026-01-01&lang=ko&colorMode=mono');
-    const bothMonoCell = page.locator('td[data-date="2026-01-01"]').first();
+    const bothMonoCell = page.locator('[data-date="2026-01-01"]').first();
     await expect(bothMonoCell).toBeVisible();
     const bothBgImage = await bothMonoCell.evaluate((el) => window.getComputedStyle(el).backgroundImage);
     expect(bothBgImage).toContain('repeating-linear-gradient');
