@@ -120,8 +120,14 @@ foreach ($testFile in $allSpecs) {
   Write-Host "Running QA Release Gate Spec: $testFile" -ForegroundColor Cyan
   cmd /c "npx playwright test --workers=1 --project=chromium $testFile"
   if ($LASTEXITCODE -ne 0) {
-    # Stop proxy job before exiting
-    try { Invoke-RestMethod -Uri "http://127.0.0.1:4179/__proxy_stop" -Method Post | Out-Null } catch {}
+    # Check proxy evidence for budget_exceeded before exiting
+    try {
+      $evidenceCheck = Invoke-RestMethod -Uri "http://127.0.0.1:4179/__proxy_evidence" -Method Get
+      if ($evidenceCheck.budget_exceeded) {
+        Write-Error "RELEASE_REQUEST_BUDGET_EXCEEDED: Proxy request budget limit reached ($($evidenceCheck.forwarded_requests)/$($evidenceCheck.budget)). Remaining specs cancelled."
+      }
+      Invoke-RestMethod -Uri "http://127.0.0.1:4179/__proxy_stop" -Method Post | Out-Null
+    } catch {}
     Stop-Job $proxyJob -ErrorAction SilentlyContinue
     Write-Error "QA Release Gate verification failed on $testFile."
     exit 1
