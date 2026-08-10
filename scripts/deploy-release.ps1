@@ -51,7 +51,7 @@ Write-Host "Verifying QA Completion Integrity Health Check..." -ForegroundColor 
 $qaVerified = $false
 for ($retry = 0; $retry -lt 5; $retry++) {
   try {
-    Start-Sleep -Seconds 3
+    Start-Sleep -Seconds 10
     $qaHealthRes = Invoke-RestMethod -Uri "https://concost-dev-scheduler-qa.eumditravel.workers.dev/api/health/completion-integrity" -Method Get
     $qaData = $qaHealthRes.data
     if ($qaData.inconsistent_projects -gt 0 -or $qaData.inconsistent_tasks -gt 0) {
@@ -62,7 +62,7 @@ for ($retry = 0; $retry -lt 5; $retry++) {
     $qaVerified = $true
     break
   } catch {
-    Write-Host "QA Health check attempt $($retry + 1) failed ($($_)), retrying in 3s..." -ForegroundColor Yellow
+    Write-Host "QA Health check attempt $($retry + 1) failed ($($_)), retrying in 10s..." -ForegroundColor Yellow
   }
 }
 if (-not $qaVerified) {
