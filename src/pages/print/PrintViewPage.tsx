@@ -97,27 +97,41 @@ export const PrintViewPage: React.FC = () => {
     updateUrlParam('lang', l);
   };
 
-  // Fetch Read-Only Data for printing
+  // Fetch Read-Only Data for printing (Multi-Year Holiday Loading)
   useEffect(() => {
     let isMounted = true;
     async function loadPrintData() {
       setLoading(true);
       setError(null);
       try {
-        const currentYear = parseInt(getKoreaBusinessYear(), 10);
-        const [allProjs, allWrks, krHols, vnHols, calOvers] = await Promise.all([
+        const currentYearNum = parseInt(getKoreaBusinessYear(), 10);
+        // Multi-year array for cross-year projects (e.g., 2025, 2026, 2027)
+        const years = [currentYearNum - 1, currentYearNum, currentYearNum + 1];
+
+        const krPromises = years.map((y) => api.getHolidays('KR', y).catch(() => []));
+        const vnPromises = years.map((y) => api.getHolidays('VN', y).catch(() => []));
+
+        const [allProjs, allWrks, krArrays, vnArrays, calOvers] = await Promise.all([
           api.getProjects('ALL'),
           api.getWorkers(),
-          api.getHolidays('KR', currentYear).catch(() => []),
-          api.getHolidays('VN', currentYear).catch(() => []),
+          Promise.all(krPromises),
+          Promise.all(vnPromises),
           api.getCalendarOverrides().catch(() => []),
         ]);
+
+        const krFlat = krArrays.flat();
+        const vnFlat = vnArrays.flat();
+
+        const krMap = new Map<string, CountryHoliday>();
+        for (const h of krFlat) krMap.set(h.id || `${h.country_code}_${h.holiday_date}`, h);
+        const vnMap = new Map<string, CountryHoliday>();
+        for (const h of vnFlat) vnMap.set(h.id || `${h.country_code}_${h.holiday_date}`, h);
 
         if (!isMounted) return;
         setProjects(allProjs);
         setWorkers(allWrks);
-        setKrHolidays(krHols || []);
-        setVnHolidays(vnHols || []);
+        setKrHolidays(Array.from(krMap.values()));
+        setVnHolidays(Array.from(vnMap.values()));
         setCalendarOverrides(calOvers || []);
 
         if (projectId) {

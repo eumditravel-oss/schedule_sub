@@ -4,7 +4,9 @@ import {
   getPrintCalendarVisualStyle,
   getPrintGanttBarStyle,
   getPrintStatusBadgeStyle,
+  resolvePrintCalendarVisualState,
 } from '../printVisualTokens';
+import { WorkDayStatus } from '../../types';
 
 describe('printVisualTokens Suite', () => {
   it('should return standard color visual token in color mode', () => {
@@ -39,5 +41,35 @@ describe('printVisualTokens Suite', () => {
 
     const badgeVi = getPrintStatusBadgeStyle('COMPLETED', 'color', 'vi');
     expect(badgeVi.label).toBe('Hoàn thành');
+  });
+
+  it('should resolve Task Row PERSONAL_LEAVE and WORK_OVERRIDE 5/5 semantic match', () => {
+    const leaveDayStatus: WorkDayStatus = {
+      date: '2026-08-15',
+      worker_id: 'wrk_1',
+      worker_name: 'Minh',
+      day_type: 'LEAVE',
+      is_working_day: false,
+      label_ko: '개인 휴가',
+      label_vi: 'Nghỉ phép',
+      source: 'MANUAL',
+    };
+
+    const leaveToken = resolvePrintCalendarVisualState('2026-08-15', [], [], [], 'color', leaveDayStatus, 'VN');
+    expect(leaveToken.visualState).toBe('PERSONAL_LEAVE');
+
+    const workOverrideStatus: WorkDayStatus = {
+      date: '2026-08-16',
+      worker_id: 'wrk_1',
+      worker_name: 'Minh',
+      day_type: 'WORK_OVERRIDE',
+      is_working_day: true,
+      label_ko: '근무일 지정',
+      label_vi: 'Chỉ định ngày làm việc',
+      source: 'MANUAL',
+    };
+
+    const workOverrideToken = resolvePrintCalendarVisualState('2026-08-16', [], [], [], 'color', workOverrideStatus, 'VN');
+    expect(workOverrideToken.visualState).toBe('WORK_OVERRIDE');
   });
 });

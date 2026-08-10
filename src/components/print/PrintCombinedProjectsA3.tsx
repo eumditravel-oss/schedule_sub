@@ -4,6 +4,7 @@ import { Project, Task, TaskGroup, Worker, CountryHoliday, CalendarOverride } fr
 import { PrintHeader } from './PrintHeader';
 import { PrintFooter } from './PrintFooter';
 import { PrintColorMode, getPrintStatusBadgeStyle, getPrintGanttBarStyle, resolvePrintCalendarVisualState, getProjectPicSummary, PRINT_DAY_CELL_STYLE } from '../../utils/printVisualTokens';
+import { resolveWorkDayStatus } from '../../utils/workCalendar';
 import { calculateProjectProgress } from '../../utils/progressCalculator';
 import { parseISO, format, addDays, differenceInCalendarDays } from 'date-fns';
 
@@ -35,6 +36,7 @@ export const PrintCombinedProjectsA3: React.FC<PrintCombinedProjectsA3Props> = (
 }) => {
   const isKo = lang === 'ko';
   const workerMap = new Map(workers.map((w) => [w.id, w.name]));
+  const allHolidays = [...krHolidays, ...vnHolidays];
 
   // Calculate min(start_date) ~ max(end_date) across selected projects
   let minStart = new Date();
@@ -101,7 +103,7 @@ export const PrintCombinedProjectsA3: React.FC<PrintCombinedProjectsA3Props> = (
                       <th className="border-r border-slate-700 px-1 py-1 text-left w-24">{isKo ? 'PIC (PRIMARY)' : 'PIC chính'}</th>
                       <th className="border-r border-slate-700 px-1 py-1 text-center w-16">{isKo ? '공정률' : 'Tiến độ'}</th>
 
-                      {/* 30 Date Columns: Strict 8mm Min Width Contract */}
+                      {/* Global Header Date Columns */}
                       {daysArray.map((dayDate, dIdx) => {
                         const dateStr = format(dayDate, 'yyyy-MM-dd');
                         const dayNum = format(dayDate, 'dd');
@@ -207,9 +209,11 @@ export const PrintCombinedProjectsA3: React.FC<PrintCombinedProjectsA3Props> = (
                             const taskStart = task.start_date ? parseISO(task.start_date) : null;
                             const taskEnd = task.end_date ? parseISO(task.end_date) : null;
                             const tBarStyle = getPrintGanttBarStyle(taskStatus, colorMode);
-                            const tPic = task.primary_worker_id
-                              ? workerMap.get(task.primary_worker_id) || task.worker_name || '-'
-                              : task.worker_name || '-';
+
+                            const picWorker = workers.find(
+                              (w) => w.id === task.primary_worker_id || w.name === task.worker_name
+                            );
+                            const tPic = picWorker ? picWorker.name : task.worker_name || '-';
                             const tName = isKo ? (task.task_name_ko || task.task_name) : (task.task_name_vi || task.task_name);
 
                             return (
@@ -237,10 +241,23 @@ export const PrintCombinedProjectsA3: React.FC<PrintCombinedProjectsA3Props> = (
                                   {task.actual_progress ?? (task.schedule_state === 'COMPLETED' ? 100 : 0)}%
                                 </td>
 
-                                {/* Task Bar Cells: Strict 8mm Min Width Contract */}
+                                {/* Task Bar Cells: PIC Worker specific dayStatus */}
                                 {daysArray.map((dayDate, dIdx) => {
                                   const dateStr = format(dayDate, 'yyyy-MM-dd');
-                                  const printToken = resolvePrintCalendarVisualState(dateStr, krHolidays, vnHolidays, calendarOverrides, colorMode);
+                                  const dayStatus = picWorker
+                                    ? resolveWorkDayStatus(dateStr, picWorker, allHolidays, calendarOverrides)
+                                    : null;
+
+                                  const printToken = resolvePrintCalendarVisualState(
+                                    dateStr,
+                                    krHolidays,
+                                    vnHolidays,
+                                    calendarOverrides,
+                                    colorMode,
+                                    dayStatus,
+                                    picWorker?.country_code
+                                  );
+
                                   const isTDay = taskStart && taskEnd && dayDate >= taskStart && dayDate <= taskEnd;
 
                                   return (

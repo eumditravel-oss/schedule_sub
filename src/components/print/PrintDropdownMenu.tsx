@@ -2,6 +2,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Printer, FileText, Calendar, Layers, ChevronDown } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { getKoreaDateString, getKoreaBusinessMonth, getKoreaBusinessYear } from '../../utils/dateUtils';
 
 export interface PrintDropdownMenuProps {
   projectId?: string; // If provided, shows single project print options
@@ -18,7 +19,7 @@ export const PrintDropdownMenu: React.FC<PrintDropdownMenuProps> = ({
 }) => {
   const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
-  const [customStartDate, setCustomStartDate] = useState(new Date().toISOString().substring(0, 10));
+  const [customStartDate, setCustomStartDate] = useState(getKoreaDateString());
   const [showDatePicker, setShowDatePicker] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -42,8 +43,8 @@ export const PrintDropdownMenu: React.FC<PrintDropdownMenuProps> = ({
     navigate(path);
   };
 
-  const currentYearStr = new Date().getFullYear().toString();
-  const currentMonthStr = new Date().toISOString().substring(0, 7);
+  const currentYearStr = getKoreaBusinessYear();
+  const currentMonthStr = getKoreaBusinessMonth();
 
   return (
     <div className={`relative inline-block text-left ${className}`} ref={dropdownRef}>

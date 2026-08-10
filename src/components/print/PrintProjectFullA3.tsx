@@ -4,6 +4,7 @@ import { Project, Task, TaskGroup, Worker, CountryHoliday, CalendarOverride } fr
 import { PrintHeader } from './PrintHeader';
 import { PrintFooter } from './PrintFooter';
 import { PrintColorMode, getPrintStatusBadgeStyle, getPrintGanttBarStyle, resolvePrintCalendarVisualState, getProjectPicSummary, PRINT_DAY_CELL_STYLE } from '../../utils/printVisualTokens';
+import { resolveWorkDayStatus } from '../../utils/workCalendar';
 import { calculateProjectProgress } from '../../utils/progressCalculator';
 import { parseISO, format, addDays, differenceInCalendarDays, isSameDay } from 'date-fns';
 
@@ -36,6 +37,7 @@ export const PrintProjectFullA3: React.FC<PrintProjectFullA3Props> = ({
 }) => {
   const isKo = lang === 'ko';
   const workerMap = new Map(workers.map((w) => [w.id, w.name]));
+  const allHolidays = [...krHolidays, ...vnHolidays];
 
   const startDate = project.start_date ? parseISO(project.start_date) : new Date();
   const endDate = project.end_date ? parseISO(project.end_date) : addDays(startDate, 29);
@@ -126,7 +128,7 @@ export const PrintProjectFullA3: React.FC<PrintProjectFullA3Props> = ({
                       <th className="border-r border-slate-700 px-1 py-1 text-center w-24">{isKo ? '시작~종료' : 'Ngày'}</th>
                       <th className="border-r border-slate-700 px-1 py-1 text-center w-14">{isKo ? '상태' : 'Trạng thái'}</th>
 
-                      {/* Date Cells: Strict 8mm Min Width Contract */}
+                      {/* Global Header Date Cells: Country Off State */}
                       {daysArray.map((dayDate, dIdx) => {
                         const dateStr = format(dayDate, 'yyyy-MM-dd');
                         const dayNum = format(dayDate, 'dd');
@@ -163,9 +165,10 @@ export const PrintProjectFullA3: React.FC<PrintProjectFullA3Props> = ({
                       return groupTasks.map((task, taskIdx) => {
                         const taskStatus = task.schedule_state || (task.actual_progress === 100 ? 'COMPLETED' : 'IN_PROGRESS');
                         const badgeStyle = getPrintStatusBadgeStyle(taskStatus, colorMode, lang);
-                        const taskPic = task.primary_worker_id
-                          ? workerMap.get(task.primary_worker_id) || task.worker_name || '-'
-                          : task.worker_name || '-';
+                        const picWorker = workers.find(
+                          (w) => w.id === task.primary_worker_id || w.name === task.worker_name
+                        );
+                        const taskPic = picWorker ? picWorker.name : task.worker_name || '-';
                         const tName = isKo ? (task.task_name_ko || task.task_name) : (task.task_name_vi || task.task_name);
 
                         const taskStart = task.start_date ? parseISO(task.start_date) : null;
@@ -204,10 +207,22 @@ export const PrintProjectFullA3: React.FC<PrintProjectFullA3Props> = ({
                               </span>
                             </td>
 
-                            {/* Daily Cell Gantt Bar & Hatch: Strict 8mm Min Width Contract */}
+                            {/* Task Row Daily Cell: PIC Worker specific dayStatus */}
                             {daysArray.map((dayDate, dIdx) => {
                               const dateStr = format(dayDate, 'yyyy-MM-dd');
-                              const printToken = resolvePrintCalendarVisualState(dateStr, krHolidays, vnHolidays, calendarOverrides, colorMode);
+                              const dayStatus = picWorker
+                                ? resolveWorkDayStatus(dateStr, picWorker, allHolidays, calendarOverrides)
+                                : null;
+
+                              const printToken = resolvePrintCalendarVisualState(
+                                dateStr,
+                                krHolidays,
+                                vnHolidays,
+                                calendarOverrides,
+                                colorMode,
+                                dayStatus,
+                                picWorker?.country_code
+                              );
 
                               const isTaskDay = taskStart && taskEnd && dayDate >= taskStart && dayDate <= taskEnd;
                               const barStyle = getPrintGanttBarStyle(taskStatus, colorMode);
