@@ -67,7 +67,8 @@ test.describe('Deadline Real Engine Parity Suite (Single Source Integrity)', () 
   test('1. Verify GET /api/dashboard/today-summary classifies AUTO_TIME task past end date as COMPLETION_REVIEW, NOT OVERDUE', async () => {
     const res = await fetch(`${QA_BASE_URL}/api/dashboard/today-summary?date=2026-08-10`);
     expect(res.status).toBe(200);
-    const data: any = await res.json();
+    const json: any = await res.json();
+    const data = json.data || json;
 
     expect(data.completion_review).toBeDefined();
     expect(data.overdue).toBeDefined();

@@ -7,7 +7,8 @@ test.describe('Cross-Project PRIMARY Conflict Regression Suite', () => {
   test('1. Verify GET /api/projects/:id/conflicts uses V2 PRIMARY-only engine and policy version cross_project_v2_primary_only', async () => {
     const res = await fetch(`${QA_BASE_URL}/api/projects/prj_1786324719846_dmo5/conflicts`);
     expect(res.status).toBe(200);
-    const data: any = await res.json();
+    const json: any = await res.json();
+    const data = json.data || json;
 
     expect(data.total_conflict_count).toBeDefined();
     expect(data.groups).toBeDefined();
