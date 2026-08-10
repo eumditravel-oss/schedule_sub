@@ -1258,7 +1258,7 @@ export const CalendarManagerModal: React.FC<CalendarManagerModalProps> = ({
         </div>
       ) : (
         /* Main Calendar Manager Modal */
-        <div data-testid="calendar-manager-modal" className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
+        <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
           {/* Header */}
           <div className="px-5 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
             <div className="flex items-center gap-2">
