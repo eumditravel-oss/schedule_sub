@@ -39,7 +39,7 @@ export interface CrossProjectConflictResult {
   groups: CrossProjectConflictGroup[];
 }
 
-export function resolvePrimaryWorkerId(task: any): string | null {
+export function resolvePrimaryWorkerId(task: any, workers: any[] = []): string | null {
   if (!task) return null;
   const assignees = task.assignees || [];
   if (Array.isArray(assignees) && assignees.length > 0) {
@@ -52,10 +52,12 @@ export function resolvePrimaryWorkerId(task: any): string | null {
     return task.primary_worker_id;
   }
   if (task.worker_name) {
-    return task.worker_name;
-  }
-  if (Array.isArray(assignees) && assignees.length > 0 && assignees[0]) {
-    return assignees[0].worker_id || assignees[0].name || null;
+    if (Array.isArray(workers) && workers.length > 0) {
+      const matched = workers.find((w: any) => w.id === task.worker_name || w.name === task.worker_name);
+      if (matched) return matched.id || matched.name;
+    } else {
+      return task.worker_name;
+    }
   }
   return null;
 }

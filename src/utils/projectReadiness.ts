@@ -10,7 +10,7 @@ export function classifyTaskDeadlineState(
 ): 'COMPLETED' | 'UNSCHEDULED' | 'COMPLETION_REVIEW' | 'OVERDUE' | 'ON_TRACK' {
   if (Number(task.completion_confirmed) === 1) return 'COMPLETED';
   if (task.schedule_status === 'UNSCHEDULED' || !task.start_date || !task.end_date) return 'UNSCHEDULED';
-  if (actualProgress >= 100) return 'COMPLETION_REVIEW';
+  if (actualProgress >= 100 || task.schedule_state === 'COMPLETION_REVIEW') return 'COMPLETION_REVIEW';
   if (task.end_date < businessDate && actualProgress < 100) return 'OVERDUE';
   return 'ON_TRACK';
 }
