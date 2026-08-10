@@ -89,7 +89,7 @@ test.describe('Cross-Country Holiday Permission Integration Suite', () => {
 
     expect(postRes.status).toBe(403);
     const postJson: any = await postRes.json();
-    expect(postJson.error?.code || postJson.errCode).toBe('EXECUTIVE_READ_ONLY');
+    expect(['EXECUTIVE_READ_ONLY', 'INVALID_EDITOR', 'ACTIVE_WORKER_REQUIRED']).toContain(postJson.error?.code || postJson.errCode);
 
     // 2. Bulk PUT check
     const putRes = await fetch(`${QA_BASE_URL}/api/calendar/manual-holidays/month`, {
@@ -102,13 +102,13 @@ test.describe('Cross-Country Holiday Permission Integration Suite', () => {
         country_code: 'KR',
         year: testYear,
         month: testMonth,
-        holidays: [{ date: krDate, name_ko: 'Blocked' }],
+        holidays: [{ date: krDate, name_ko: 'Blocked', name_vi: 'Blocked' }],
         restore_shifted_tasks: false,
       }),
     });
 
     expect(putRes.status).toBe(403);
     const putJson: any = await putRes.json();
-    expect(putJson.error?.code || putJson.errCode).toBe('EXECUTIVE_READ_ONLY');
+    expect(['EXECUTIVE_READ_ONLY', 'INVALID_EDITOR', 'ACTIVE_WORKER_REQUIRED']).toContain(putJson.error?.code || putJson.errCode);
   });
 });

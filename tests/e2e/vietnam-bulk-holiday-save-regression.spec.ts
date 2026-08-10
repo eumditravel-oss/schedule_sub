@@ -48,8 +48,19 @@ test.describe('Vietnam Bulk Holiday Save & Impact Modal Regression Suite', () =>
     await page.waitForLoadState('networkidle');
     await dismissAllModals(page);
 
+    // Select worker wrk_02
+    const workerSelectBtn = page.locator('[data-testid="worker-select-btn"]');
+    if (await workerSelectBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+      await workerSelectBtn.click();
+      const option = page.locator('[data-testid^="worker-option-"]').filter({ hasText: '박용진' }).first();
+      if (await option.isVisible({ timeout: 3000 }).catch(() => false)) {
+        await option.click();
+        await page.waitForTimeout(300);
+      }
+    }
+
     // Open Calendar Manager Modal
-    const calendarBtn = page.locator('[data-testid="manage-calendar-btn"], [data-testid="calendar-btn"]').first();
+    const calendarBtn = page.locator('[data-testid="desktop-manage-calendar-btn"], [data-testid="manage-calendar-btn"], button:has-text("공휴일")').first();
     await expect(calendarBtn).toBeVisible({ timeout: 15000 });
     await calendarBtn.click({ force: true });
 
@@ -111,7 +122,7 @@ test.describe('Vietnam Bulk Holiday Save & Impact Modal Regression Suite', () =>
     const getRes = await fetch(`${QA_BASE_URL}/api/calendar/manual-holidays?country=VN&year=${testYear}&month=${testMonth}`);
     expect(getRes.status).toBe(200);
     const getJson: any = await getRes.json();
-    const holidays = getJson.data || getJson || [];
+    const holidays = Array.isArray(getJson) ? getJson : (getJson.data || []);
     const saved = holidays.find((h: any) => h.holiday_date === testDate);
     expect(saved).toBeTruthy();
 
@@ -122,7 +133,7 @@ test.describe('Vietnam Bulk Holiday Save & Impact Modal Regression Suite', () =>
 
     const f5GetRes = await fetch(`${QA_BASE_URL}/api/calendar/manual-holidays?country=VN&year=${testYear}&month=${testMonth}`);
     const f5GetJson: any = await f5GetRes.json();
-    const f5Holidays = f5GetJson.data || f5GetJson || [];
+    const f5Holidays = Array.isArray(f5GetJson) ? f5GetJson : (f5GetJson.data || []);
     const f5Saved = f5Holidays.find((h: any) => h.holiday_date === testDate);
     expect(f5Saved).toBeTruthy();
   });
@@ -138,8 +149,19 @@ test.describe('Vietnam Bulk Holiday Save & Impact Modal Regression Suite', () =>
     await page.waitForLoadState('networkidle');
     await dismissAllModals(page);
 
+    // Select worker wrk_02
+    const workerSelectBtn = page.locator('[data-testid="worker-select-btn"]');
+    if (await workerSelectBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+      await workerSelectBtn.click();
+      const option = page.locator('[data-testid^="worker-option-"]').filter({ hasText: '박용진' }).first();
+      if (await option.isVisible({ timeout: 3000 }).catch(() => false)) {
+        await option.click();
+        await page.waitForTimeout(300);
+      }
+    }
+
     // Open Calendar Manager Modal
-    const calendarBtn = page.locator('[data-testid="manage-calendar-btn"], [data-testid="calendar-btn"]').first();
+    const calendarBtn = page.locator('[data-testid="desktop-manage-calendar-btn"], [data-testid="manage-calendar-btn"], button:has-text("공휴일")').first();
     await expect(calendarBtn).toBeVisible({ timeout: 15000 });
     await calendarBtn.click({ force: true });
 
@@ -183,7 +205,7 @@ test.describe('Vietnam Bulk Holiday Save & Impact Modal Regression Suite', () =>
     // Verify DB remains clean (0 mutation)
     const getRes = await fetch(`${QA_BASE_URL}/api/calendar/manual-holidays?country=VN&year=${testYear}&month=${testMonth}`);
     const getJson: any = await getRes.json();
-    const holidays = getJson.data || getJson || [];
+    const holidays = Array.isArray(getJson) ? getJson : (getJson.data || []);
     const canceled = holidays.find((h: any) => h.holiday_date === testDate);
     expect(canceled).toBeFalsy();
   });
