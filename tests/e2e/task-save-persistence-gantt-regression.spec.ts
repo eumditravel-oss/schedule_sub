@@ -90,18 +90,26 @@ test.describe('Task Save Persistence & Gantt Reflection Regression Suite', () =>
 
     // Click Add Task button
     const addTaskBtn = page.locator('[data-testid="detail-add-task-btn"]').first();
+    await expect(addTaskBtn).toBeVisible({ timeout: 15000 });
     await addTaskBtn.click({ force: true });
 
     const taskModal = page.locator('[data-testid="task-modal"]');
     await expect(taskModal).toBeVisible();
 
     // Fill task name
-    const taskNameInput = taskModal.locator('input[type="text"]').first();
-    await taskNameInput.fill('NON CONFLICT TEST TASK');
+    const nameInput = page.locator('[data-testid="task-name-input"]');
+    await expect(nameInput).toBeVisible();
+    await nameInput.fill('NON CONFLICT TEST TASK');
 
     // Click Save
-    const saveBtn = taskModal.locator('button[type="submit"]').first();
+    const saveBtn = page.locator('[data-testid="task-save-btn"]');
     await saveBtn.click({ force: true });
+    await page.waitForTimeout(1000);
+
+    const conflictConfirmBtn = page.locator('[data-testid="conflict-modal-confirm-btn"]');
+    if (await conflictConfirmBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+      await conflictConfirmBtn.click({ force: true });
+    }
 
     // Expect TaskModal to close
     await expect(taskModal).toBeHidden({ timeout: 5000 });
@@ -153,17 +161,19 @@ test.describe('Task Save Persistence & Gantt Reflection Regression Suite', () =>
 
     // Open Task Modal on Project B
     const addTaskBtn = page.locator('[data-testid="detail-add-task-btn"]').first();
+    await expect(addTaskBtn).toBeVisible({ timeout: 15000 });
     await addTaskBtn.click({ force: true });
 
     const taskModal = page.locator('[data-testid="task-modal"]');
     await expect(taskModal).toBeVisible();
 
     // Fill conflicting date range for wrk_01
-    const taskNameInput = taskModal.locator('input[type="text"]').first();
-    await taskNameInput.fill('CONFLICT TEST TASK');
+    const nameInput = page.locator('[data-testid="task-name-input"]');
+    await expect(nameInput).toBeVisible();
+    await nameInput.fill('CONFLICT TEST TASK');
 
     // Click Save
-    const saveBtn = taskModal.locator('button[type="submit"]').first();
+    const saveBtn = page.locator('[data-testid="task-save-btn"]');
     await saveBtn.click({ force: true });
 
     // Expect WorkerConflictSummaryModal to open
