@@ -132,7 +132,7 @@ export async function getTodayDashboardSummaryServer(
 
   // Batch Load Task Assignees and Daily Statuses (Rule 9)
   const [assigneesRes, dailyRes] = await Promise.all([
-    db.prepare(`SELECT task_id, worker_id, name, country_code, assignment_role, allocation_percent, sort_order FROM task_assignees`).all(),
+    db.prepare(`SELECT * FROM task_assignees`).all(),
     db.prepare(`SELECT task_id, work_date, status FROM daily_status`).all(),
   ]);
 
@@ -277,7 +277,7 @@ export async function getOverdueTaskDetailsServer(
     .bind(...overdueIds)
     .all();
 
-  const assigneesRes = await db.prepare(`SELECT task_id, worker_id, name, country_code, assignment_role, allocation_percent FROM task_assignees`).all();
+  const assigneesRes = await db.prepare(`SELECT * FROM task_assignees`).all();
   const assigneesMap = new Map<string, any[]>();
   (assigneesRes.results || []).forEach((row: any) => {
     if (!assigneesMap.has(row.task_id)) assigneesMap.set(row.task_id, []);
