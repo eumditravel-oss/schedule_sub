@@ -48,17 +48,25 @@ if ($LASTEXITCODE -ne 0) {
 
 # 4.5 Verify QA Completion Integrity Health Check
 Write-Host "Verifying QA Completion Integrity Health Check..." -ForegroundColor Yellow
-Start-Sleep -Seconds 2
-try {
-  $qaHealthRes = Invoke-RestMethod -Uri "https://concost-dev-scheduler-qa.eumditravel.workers.dev/api/health/completion-integrity" -Method Get
-  $qaData = $qaHealthRes.data
-  if ($qaData.inconsistent_projects -gt 0 -or $qaData.inconsistent_tasks -gt 0) {
-    Write-Error "COMPLETION_INTEGRITY_REGRESSION: QA environment has $($qaData.inconsistent_projects) inconsistent projects and $($qaData.inconsistent_tasks) inconsistent tasks."
-    exit 1
+$qaVerified = $false
+for ($retry = 0; $retry -lt 5; $retry++) {
+  try {
+    Start-Sleep -Seconds 3
+    $qaHealthRes = Invoke-RestMethod -Uri "https://concost-dev-scheduler-qa.eumditravel.workers.dev/api/health/completion-integrity" -Method Get
+    $qaData = $qaHealthRes.data
+    if ($qaData.inconsistent_projects -gt 0 -or $qaData.inconsistent_tasks -gt 0) {
+      Write-Error "COMPLETION_INTEGRITY_REGRESSION: QA environment has $($qaData.inconsistent_projects) inconsistent projects and $($qaData.inconsistent_tasks) inconsistent tasks."
+      exit 1
+    }
+    Write-Host "QA Completion Integrity Verification Passed (Completed Projects: $($qaData.completed_projects), Inconsistent Projects: $($qaData.inconsistent_projects), Inconsistent Tasks: $($qaData.inconsistent_tasks))" -ForegroundColor Green
+    $qaVerified = $true
+    break
+  } catch {
+    Write-Host "QA Health check attempt $($retry + 1) failed ($($_)), retrying in 3s..." -ForegroundColor Yellow
   }
-  Write-Host "QA Completion Integrity Verification Passed (Completed Projects: $($qaData.completed_projects), Inconsistent Projects: $($qaData.inconsistent_projects), Inconsistent Tasks: $($qaData.inconsistent_tasks))" -ForegroundColor Green
-} catch {
-  Write-Error "QA Completion Integrity Health Check request failed: $_"
+}
+if (-not $qaVerified) {
+  Write-Error "QA Completion Integrity Health Check failed after retries."
   exit 1
 }
 
