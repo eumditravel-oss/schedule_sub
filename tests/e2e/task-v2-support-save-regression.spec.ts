@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 
 test.use({
-  baseURL: 'https://concost-dev-scheduler-qa.eumditravel.workers.dev',
+  baseURL: process.env.TEST_BASE_URL || process.env.PLAYWRIGHT_TEST_BASE_URL || 'http://localhost:5173',
   extraHTTPHeaders: { 'x-editor-name': encodeURIComponent('박용진 수석') },
 });
 

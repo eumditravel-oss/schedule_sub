@@ -12,7 +12,7 @@ test.beforeAll(() => {
 });
 
 test.describe('Holiday Exclusion & Date Info Panel E2E Visual Verification', () => {
-  test.use({ baseURL: 'https://concost-dev-scheduler-qa.eumditravel.workers.dev' });
+  test.use({ baseURL: process.env.TEST_BASE_URL || process.env.PLAYWRIGHT_TEST_BASE_URL || 'http://localhost:5173' });
 
   test.beforeEach(async ({ page }) => {
     await page.addInitScript(() => {

@@ -1,7 +1,7 @@
 // tests/e2e/holiday-editor-cross-country-permission.spec.ts
 import { test, expect } from '@playwright/test';
 
-const QA_BASE_URL = 'https://concost-dev-scheduler-qa.eumditravel.workers.dev';
+const QA_BASE_URL = (process.env.TEST_BASE_URL || process.env.PLAYWRIGHT_TEST_BASE_URL || 'http://localhost:5173').trim();
 
 test.describe('Cross-Country Holiday Permission Integration Suite', () => {
   const testYear = 2031;

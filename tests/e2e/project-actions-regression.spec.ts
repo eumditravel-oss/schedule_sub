@@ -37,7 +37,7 @@ async function dismissBlockingModals(page: any) {
   }
 }
 
-const QA_BASE_URL = 'https://concost-dev-scheduler-qa.eumditravel.workers.dev';
+const QA_BASE_URL = (process.env.TEST_BASE_URL || process.env.PLAYWRIGHT_TEST_BASE_URL || 'http://localhost:5173').trim();
 
 test.describe('P0 Project Actions & Complete CRUD Regression Suite', () => {
   let createdProjectId = '';

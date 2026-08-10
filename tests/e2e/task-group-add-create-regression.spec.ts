@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 
-test.use({ baseURL: 'https://concost-dev-scheduler-qa.eumditravel.workers.dev' });
+test.use({ baseURL: process.env.TEST_BASE_URL || process.env.PLAYWRIGHT_TEST_BASE_URL || 'http://localhost:5173' });
 
 test.describe('Task Group Add & Create P0 Regression Suite', () => {
   let createdTaskId: string | null = null;
