@@ -52,14 +52,14 @@ test.describe('P0 Project Actions & Complete CRUD Regression Suite', () => {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-editor-name': encodeURIComponent('Manh Cuong(끄엉)'),
+        'x-editor-name': encodeURIComponent('박용진 수석'),
       },
       body: JSON.stringify({
         name: initialProjectName,
         start_date: '2026-08-05',
         end_date: '2026-08-25',
         progress: 0,
-        editor_name: 'Manh Cuong(끄엉)',
+        editor_name: '박용진 수석',
       }),
     });
 
@@ -73,7 +73,7 @@ test.describe('P0 Project Actions & Complete CRUD Regression Suite', () => {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-editor-name': encodeURIComponent('Manh Cuong(끄엉)'),
+        'x-editor-name': encodeURIComponent('박용진 수석'),
       },
       body: JSON.stringify({
         project_id: createdProjectId,
@@ -81,7 +81,7 @@ test.describe('P0 Project Actions & Complete CRUD Regression Suite', () => {
         start_date: '2026-08-05',
         end_date: '2026-08-20',
         worker_name: 'Manh Cuong(끄엉)',
-        editor_name: 'Manh Cuong(끄엉)',
+        editor_name: '박용진 수석',
         confirm_worker_schedule_conflict: true,
       }),
     });
@@ -97,14 +97,14 @@ test.describe('P0 Project Actions & Complete CRUD Regression Suite', () => {
     if (createdTaskId) {
       await fetch(`${QA_BASE_URL}/api/tasks/${createdTaskId}`, {
         method: 'DELETE',
-        headers: { 'x-editor-name': encodeURIComponent('Manh Cuong(끄엉)') },
+        headers: { 'x-editor-name': encodeURIComponent('박용진 수석') },
       }).catch(() => {});
     }
 
     if (createdProjectId) {
       const delPrjRes = await fetch(`${QA_BASE_URL}/api/projects/${createdProjectId}`, {
         method: 'DELETE',
-        headers: { 'x-editor-name': encodeURIComponent('Manh Cuong(끄엉)') },
+        headers: { 'x-editor-name': encodeURIComponent('박용진 수석') },
       });
       if (delPrjRes.status === 200) {
         expect(delPrjRes.status).toBe(200);
