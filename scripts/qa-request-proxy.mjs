@@ -9,6 +9,7 @@ import { URL } from 'url';
 const PORT = parseInt(process.env.PROXY_PORT || '4179', 10);
 const TARGET_HOST = process.env.PROXY_TARGET_HOST || 'concost-dev-scheduler-qa.eumditravel.workers.dev';
 const REQUEST_BUDGET = parseInt(process.env.PROXY_REQUEST_BUDGET || '1500', 10);
+const SIMULATION_MODE = process.env.PROXY_SIMULATION_MODE === 'true';
 const EVIDENCE_FILE = path.join(process.cwd(), 'qa', 'request-proxy-evidence.json');
 
 let totalRequests = 0;
@@ -24,6 +25,7 @@ function buildEvidenceObj() {
     blocked_requests: blockedRequests,
     budget: REQUEST_BUDGET,
     budget_exceeded: forwardedRequests >= REQUEST_BUDGET || blockedRequests > 0,
+    simulation_mode: SIMULATION_MODE,
     by_method: byMethod,
     by_path: byPath,
     target_host: TARGET_HOST,
@@ -82,11 +84,18 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  // Increment counters for forwarded target request
+  // Increment counters for target request
   totalRequests++;
   forwardedRequests++;
   byMethod[req.method] = (byMethod[req.method] || 0) + 1;
   byPath[parsedUrl.pathname] = (byPath[parsedUrl.pathname] || 0) + 1;
+
+  // SIMULATION MODE: Respond locally with mock HTTP 200 without making remote network calls
+  if (SIMULATION_MODE) {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ status: 'SIMULATED_OK', data: { commit: 'simulated_commit_sha' } }));
+    return;
+  }
 
   // Prepare HTTPS proxy request options
   const options = {
@@ -115,5 +124,5 @@ const server = http.createServer((req, res) => {
 });
 
 server.listen(PORT, '127.0.0.1', () => {
-  console.log(`[QA REQUEST PROXY] Listening on http://127.0.0.1:${PORT} -> https://${TARGET_HOST} (Hard Budget: ${REQUEST_BUDGET})`);
+  console.log(`[QA REQUEST PROXY] Listening on http://127.0.0.1:${PORT} -> https://${TARGET_HOST} (Hard Budget: ${REQUEST_BUDGET}, Simulation: ${SIMULATION_MODE})`);
 });

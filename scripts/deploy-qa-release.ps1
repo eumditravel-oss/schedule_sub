@@ -3,6 +3,8 @@
 
 $ErrorActionPreference = "Stop"
 
+$globalQaBudget = 1500
+
 # 1. Verify working directory is clean
 $status = (git status --porcelain)
 if ($status) {
@@ -13,7 +15,7 @@ if ($status) {
 # 2. Extract git full commit SHA
 $sha = (git rev-parse HEAD).Trim()
 $deployedAt = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
-Write-Host "Releasing Candidate Commit SHA: $sha to QA at $deployedAt" -ForegroundColor Green
+Write-Host "Releasing Candidate Commit SHA: $sha to QA at $deployedAt (Global QA Budget: $globalQaBudget)" -ForegroundColor Green
 
 # 3. Build frontend production dist bundle
 $env:VITE_BUILD_SHA = $sha
@@ -65,9 +67,23 @@ if (-not $qaVerified) {
   exit 1
 }
 
-# 5. Start Local QA Counting Proxy Server
-Write-Host "Starting Local QA Counting Proxy on http://127.0.0.1:4179..." -ForegroundColor Yellow
-$proxyJob = Start-Job -ScriptBlock { node scripts/qa-request-proxy.mjs }
+# 5. DYNAMIC PROXY BUDGET CALCULATION & FAIL-BEFORE-PROXY GUARD
+$versionReserveCount = 1
+$proxyBudget = $globalQaBudget - $qaHealthRequestCount - $versionReserveCount
+Write-Host "Calculated Proxy Budget: $proxyBudget (Global: $globalQaBudget, Health Used: $qaHealthRequestCount, Version Reserved: $versionReserveCount)" -ForegroundColor Yellow
+
+if ($proxyBudget -le 0) {
+  Write-Error "RELEASE_REQUEST_BUDGET_EXCEEDED: QA Health check consumed entire request budget ($qaHealthRequestCount requests). Proxy execution aborted."
+  exit 1
+}
+
+# 5.5 Start Local QA Counting Proxy Server with Calculated Budget
+Write-Host "Starting Local QA Counting Proxy on http://127.0.0.1:4179 (Budget: $proxyBudget)..." -ForegroundColor Yellow
+$env:PROXY_REQUEST_BUDGET = [string]$proxyBudget
+$proxyJob = Start-Job -ScriptBlock {
+  $env:PROXY_REQUEST_BUDGET = $using:proxyBudget
+  node scripts/qa-request-proxy.mjs
+}
 Start-Sleep -Seconds 2
 
 # Reset Proxy Counter
@@ -138,13 +154,18 @@ foreach ($testFile in $allSpecs) {
 $measuredE2ERequests = 0
 try {
   $proxyEvidence = Invoke-RestMethod -Uri "http://127.0.0.1:4179/__proxy_stop" -Method Post
-  $measuredE2ERequests = [int]$proxyEvidence.total
+  $measuredE2ERequests = [int]$proxyEvidence.forwarded_requests
 } catch {}
 Stop-Job $proxyJob -ErrorAction SilentlyContinue
 
-# 7.5 Query Live QA Environment /api/version
+# 7.5 VERSION REQUEST PRE-CHECK & QUERY
+$projectedTotal = $qaHealthRequestCount + $measuredE2ERequests + $versionReserveCount
+if ($projectedTotal -gt $globalQaBudget) {
+  Write-Error "RELEASE_REQUEST_BUDGET_EXCEEDED: Health ($qaHealthRequestCount) + E2E ($measuredE2ERequests) + Version (1) projected total ($projectedTotal) exceeds global budget ($globalQaBudget). Version check aborted."
+  exit 1
+}
+
 Write-Host "Querying Live QA Environment /api/version..." -ForegroundColor Yellow
-$qaVersionRequestCount = 1
 $qaRuntimeSha = ""
 try {
   $nowTicks = [DateTimeOffset]::Now.ToUnixTimeMilliseconds()
@@ -160,17 +181,17 @@ try {
   exit 1
 }
 
-# Count total QA Worker requests including Health & Version Checks
-$totalQAWorkerRequests = $measuredE2ERequests + $qaHealthRequestCount + $qaVersionRequestCount
-$budgetLimit = 1500
+# 7.6 TOTAL QA WORKER REQUEST VERIFICATION
+$totalQAWorkerRequests = $qaHealthRequestCount + $measuredE2ERequests + $versionReserveCount
+$remainingBudget = $globalQaBudget - $totalQAWorkerRequests
 
-Write-Host "Measured QA Worker HTTP Requests: $totalQAWorkerRequests (E2E: $measuredE2ERequests, Health: $qaHealthRequestCount, Version: $qaVersionRequestCount)" -ForegroundColor Yellow
+Write-Host "Measured Total Remote QA Requests: $totalQAWorkerRequests (Health: $qaHealthRequestCount, E2E: $measuredE2ERequests, Version: 1, Remaining: $remainingBudget)" -ForegroundColor Yellow
 
-if ($totalQAWorkerRequests -gt $budgetLimit) {
-  Write-Error "RELEASE_REQUEST_BUDGET_EXCEEDED: Actual QA Worker HTTP request count ($totalQAWorkerRequests) exceeded budget threshold ($budgetLimit)."
+if ($totalQAWorkerRequests -gt $globalQaBudget) {
+  Write-Error "RELEASE_REQUEST_BUDGET_EXCEEDED: Actual total QA Worker request count ($totalQAWorkerRequests) exceeded global budget ($globalQaBudget)."
   exit 1
 }
-Write-Host "Request Budget Verification Passed (Count: $totalQAWorkerRequests <= Limit: $budgetLimit)" -ForegroundColor Green
+Write-Host "Global Request Budget Verification Passed (Total: $totalQAWorkerRequests <= Limit: $globalQaBudget)" -ForegroundColor Green
 
 # 8. Generate Untracked Evidence Manifest: qa/verified-release.json
 Write-Host "Generating Untracked Evidence Manifest (qa/verified-release.json)..." -ForegroundColor Yellow
@@ -180,8 +201,13 @@ $evidenceObj = @{
   core_gate_passed = 21
   phase_b_gate_passed = 4
   total_gate_passed = 25
+  global_request_budget = $globalQaBudget
+  health_requests = $qaHealthRequestCount
+  e2e_forwarded_requests = $measuredE2ERequests
+  version_requests = 1
+  total_remote_requests = $totalQAWorkerRequests
   remote_request_count = $totalQAWorkerRequests
-  request_budget = $budgetLimit
+  remaining_budget = $remainingBudget
   completion_integrity = "PASS"
   verified_at = $deployedAt
 }
