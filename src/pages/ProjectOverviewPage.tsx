@@ -1117,7 +1117,7 @@ export const ProjectOverviewPage: React.FC = () => {
                                   ) : null}
                                   {!isAllocationsLoading ? (
                                     <ProjectReadinessPopover
-                                      readiness={calculateProjectReadiness(project, allTasks, allocationsMap[project.id] || [], workers)}
+                                      readiness={calculateProjectReadiness(project, allTasks, allocationsMap[project.id] || [], workers, [...krHolidays, ...vnHolidays], calendarOverrides)}
                                       projectName={displayName}
                                       hideIfReady={true}
                                       onOpenWorkforceModal={() => handleOpenWorkforceModal(project)}

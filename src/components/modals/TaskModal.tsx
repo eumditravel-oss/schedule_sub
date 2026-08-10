@@ -305,7 +305,10 @@ export const TaskModal: React.FC<TaskModalProps> = ({
         }
       }
 
-      await onSave(payload);
+      const result: any = await onSave(payload);
+      if (result && result.status === 'PENDING_CONFLICT_CONFIRMATION') {
+        return;
+      }
       onClose();
     } catch (err: any) {
       setSaveError({ message: err.message || (lang === 'vi' ? 'Lưu không thành công.' : '저장에 실패했습니다.') });

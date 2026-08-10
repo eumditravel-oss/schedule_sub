@@ -35,7 +35,18 @@ import { StatusPopover } from '../components/modals/StatusPopover';
 import { WorkerSelector } from '../components/common/WorkerSelector';
 import { ProjectReadinessPopover } from '../components/common/ProjectReadinessPopover';
 import { calculateProjectReadiness } from '../utils/projectReadiness';
+import { resolvePrimaryWorkerId } from '../utils/crossProjectConflictDetector';
 import { calculateDateVarianceDays, formatVarianceBadgeText } from '../utils/scheduleBaseline';
+
+function resolvePrimaryWorkerObj(taskItem: Task, workers: Worker[]): Worker | null {
+  if (!taskItem || !Array.isArray(workers)) return null;
+  const primaryId = resolvePrimaryWorkerId(taskItem, workers);
+  if (primaryId) {
+    const matched = workers.find((w) => w.id === primaryId || w.name === primaryId);
+    if (matched) return matched;
+  }
+  return workers.find((w) => w.name === taskItem.worker_name) || null;
+}
 import { AlertOctagon, BookmarkCheck } from 'lucide-react';
 import { WorkerPromptModal } from '../components/modals/WorkerPromptModal';
 import { WorkerDayCellBackground } from '../components/gantt/WorkerDayCellBackground';
@@ -367,7 +378,7 @@ const SortableTaskRow: React.FC<SortableTaskRowProps> = ({
             const isUnscheduled = tItem.schedule_status === 'UNSCHEDULED' || !tItem.start_date || !tItem.end_date;
             return dateColumns.map((col, cIdx) => {
               const isInRange = !isUnscheduled && col.dateStr >= tItem.start_date! && col.dateStr <= tItem.end_date!;
-              const workerObj = workers.find((w) => w.name === tItem.worker_name) || null;
+              const workerObj = resolvePrimaryWorkerObj(tItem, workers);
               const dayStatus = resolveWorkDayStatus(col.dateStr, (workerObj || { id: tItem.worker_name, name: tItem.worker_name }) as any, countryHolidays, calendarOverrides);
               const isMonthStart = isMonthStartColumn(dateColumns, cIdx);
               return (
@@ -420,7 +431,7 @@ const SortableTaskRow: React.FC<SortableTaskRowProps> = ({
           style={{ gridTemplateColumns: dateGridTemplate }}
         >
           {dateColumns.map((col, cIdx) => {
-            const workerObj = workers.find((w) => w.name === tItem.worker_name) || null;
+            const workerObj = resolvePrimaryWorkerObj(tItem, workers);
             const dayStatus = resolveWorkDayStatus(col.dateStr, (workerObj || { id: tItem.worker_name, name: tItem.worker_name }) as any, countryHolidays, calendarOverrides);
             return (
               <WorkerDayCellBackground
@@ -1613,7 +1624,7 @@ export const ProjectDetailPage: React.FC = () => {
             confirm_cross_project_conflicts: Array.isArray(errDetails?.fingerprints) ? errDetails.fingerprints : true,
           },
         });
-        return;
+        return { status: 'PENDING_CONFLICT_CONFIRMATION' };
       }
       throw err;
     }
@@ -1742,7 +1753,7 @@ export const ProjectDetailPage: React.FC = () => {
   };
 
   const handleMobileCellClick = (taskItem: Task, dateStr: string) => {
-    const workerObj = workers.find((w) => w.name === taskItem.worker_name);
+    const workerObj = resolvePrimaryWorkerObj(taskItem, workers);
     const workStatus = resolveWorkDayStatus(dateStr, workerObj as any, countryHolidays, calendarOverrides);
     const currentStatus = taskItem.daily_statuses?.[dateStr] || 'NONE';
 
@@ -1794,7 +1805,7 @@ export const ProjectDetailPage: React.FC = () => {
                 )}
                 {project && (
                   <ProjectReadinessPopover
-                    readiness={calculateProjectReadiness(project, tasks, allocations, workers)}
+                    readiness={calculateProjectReadiness(project, tasks, allocations, workers, countryHolidays, calendarOverrides)}
                     projectName={getProjectDisplayName(project)}
                     onOpenWorkforceModal={() => setIsWorkforceModalOpen(true)}
                   />
@@ -2072,7 +2083,7 @@ export const ProjectDetailPage: React.FC = () => {
                 overrides={calendarOverrides}
                 onTaskClick={(tItem) => setInfoSheetState({ isOpen: true, task: tItem })}
                 onTaskCellClick={(tItem, dateStr) => {
-                  const workerObj = workers.find((w) => w.name === tItem.worker_name) || null;
+                  const workerObj = resolvePrimaryWorkerObj(tItem, workers);
                   const dayStatus = resolveWorkDayStatus(dateStr, (workerObj || { id: tItem.worker_name, name: tItem.worker_name }) as any, countryHolidays, calendarOverrides);
                   handleCellClick(tItem, dateStr, dayStatus, workerObj);
                 }}
@@ -2089,7 +2100,7 @@ export const ProjectDetailPage: React.FC = () => {
                 overrides={calendarOverrides}
                 onTaskClick={(tItem) => setInfoSheetState({ isOpen: true, task: tItem })}
                 onTaskCellClick={(tItem, dateStr) => {
-                  const workerObj = workers.find((w) => w.name === tItem.worker_name) || null;
+                  const workerObj = resolvePrimaryWorkerObj(tItem, workers);
                   const dayStatus = resolveWorkDayStatus(dateStr, (workerObj || { id: tItem.worker_name, name: tItem.worker_name }) as any, countryHolidays, calendarOverrides);
                   handleCellClick(tItem, dateStr, dayStatus, workerObj);
                 }}

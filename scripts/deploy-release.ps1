@@ -84,7 +84,8 @@ $criticalReleaseSpecs = @(
   "tests/e2e/project-actions-regression.spec.ts",
   "tests/e2e/deadline-real-engine-parity.spec.ts",
   "tests/e2e/cross-project-primary-conflict-regression.spec.ts",
-  "tests/e2e/warning-explainability.spec.ts"
+  "tests/e2e/warning-explainability.spec.ts",
+  "tests/e2e/task-save-persistence-gantt-regression.spec.ts"
 )
 
 foreach ($testFile in $criticalReleaseSpecs) {
