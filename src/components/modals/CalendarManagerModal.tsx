@@ -1052,47 +1052,64 @@ export const CalendarManagerModal: React.FC<CalendarManagerModalProps> = ({
           data-testid="country-holiday-impact-modal"
           className="w-full max-w-lg bg-white rounded-2xl shadow-2xl overflow-hidden border border-blue-200 text-slate-900 animate-in fade-in zoom-in-95 duration-150"
         >
-          <div className="flex items-center justify-between px-5 py-4 border-b border-blue-100 bg-blue-50/80">
-            <div className="flex items-center gap-2 text-blue-900 font-extrabold text-sm">
-              <Calendar className="w-5 h-5 text-blue-600 shrink-0" />
-              <span>{showKrImpactModal ? '한국 수동 공휴일 일정 영향 검토' : '베트남 수동 공휴일 일정 영향 검토'}</span>
-            </div>
-            <button
-              type="button"
-              onClick={() => {
-                setShowKrImpactModal(false);
-                setShowVnHolImpactModal(false);
-              }}
-              className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
+          {(() => {
+            const data = showKrImpactModal ? krImpactData : vnHolImpactData;
+            const country = showKrImpactModal ? 'KR' : 'VN';
+            const isVi = lang === 'vi';
+            const countryName = country === 'KR'
+              ? (isVi ? 'Hàn Quốc' : '한국')
+              : (isVi ? 'Việt Nam' : '베트남');
+            const titleText = isVi
+              ? `Xem xét ảnh hưởng lịch nghỉ lễ ${countryName}`
+              : `${countryName} 공휴일 일정 영향 검토`;
+            const stepBadgeText = isVi
+              ? 'Bước 1 hoàn tất — Xem xét ảnh hưởng trước khi lưu'
+              : '1단계 완료 — 저장 전 일정 영향 검토';
+            const hasRemoved = data?.removed_holidays?.length > 0;
 
-          <div className="p-5 space-y-4 text-xs">
-            {(() => {
-              const data = showKrImpactModal ? krImpactData : vnHolImpactData;
-              const country = showKrImpactModal ? 'KR' : 'VN';
-              const hasRemoved = data.removed_holidays?.length > 0;
+            return (
+              <>
+                <div className="flex items-center justify-between px-5 py-4 border-b border-blue-100 bg-blue-50/80">
+                  <div className="space-y-0.5 min-w-0">
+                    <div className="flex items-center gap-2 text-blue-900 font-extrabold text-sm truncate">
+                      <Calendar className="w-5 h-5 text-blue-600 shrink-0" />
+                      <span>{titleText}</span>
+                    </div>
+                    <div className="text-[10px] font-bold text-blue-600 pl-7">
+                      {stepBadgeText}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowKrImpactModal(false);
+                      setShowVnHolImpactModal(false);
+                    }}
+                    className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 shrink-0"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
 
-              return (
-                <>
+                <div className="p-5 space-y-4 text-xs">
                   <div className="p-3 bg-blue-50 rounded-xl border border-blue-200 text-blue-900 leading-relaxed font-semibold">
-                    {country === 'KR' ? '한국' : '베트남'} 공휴일 변경 사항을 적용합니다. 추가되는 공휴일에 따라 작업 시작일/종료일이 이연됩니다.
+                    {isVi
+                      ? `Áp dụng thay đổi lịch nghỉ lễ ${countryName}. Lịch làm việc của các công việc ảnh hưởng sẽ tự động được điều chỉnh.`
+                      : `${countryName} 공휴일 변경 사항을 적용합니다. 추가되는 공휴일에 따라 작업 시작일/종료일이 이연됩니다.`}
                   </div>
 
                   <div className="grid grid-cols-3 gap-2 text-center text-xs">
                     <div className="bg-emerald-50 p-2.5 rounded-lg border border-emerald-200">
-                      <span className="text-emerald-700 block text-[10px] font-bold">추가 공휴일</span>
-                      <span className="font-extrabold text-emerald-800 text-sm">{data.added_holidays?.length || 0}일</span>
+                      <span className="text-emerald-700 block text-[10px] font-bold">{isVi ? 'Ngày lễ bổ sung' : '추가 공휴일'}</span>
+                      <span className="font-extrabold text-emerald-800 text-sm">{data?.added_holidays?.length || 0}{isVi ? ' ngày' : '일'}</span>
                     </div>
                     <div className="bg-rose-50 p-2.5 rounded-lg border border-rose-200">
-                      <span className="text-rose-700 block text-[10px] font-bold">해제 공휴일</span>
-                      <span className="font-extrabold text-rose-800 text-sm">{data.removed_holidays?.length || 0}일</span>
+                      <span className="text-rose-700 block text-[10px] font-bold">{isVi ? 'Ngày lễ hủy' : '해제 공휴일'}</span>
+                      <span className="font-extrabold text-rose-800 text-sm">{data?.removed_holidays?.length || 0}{isVi ? ' ngày' : '일'}</span>
                     </div>
                     <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-200">
-                      <span className="text-slate-500 block text-[10px] font-bold">영향 작업 수</span>
-                      <span className="font-extrabold text-blue-700 text-sm">{data.affected_task_count || 0}개</span>
+                      <span className="text-slate-500 block text-[10px] font-bold">{isVi ? 'Số công việc ảnh hưởng' : '영향 작업 수'}</span>
+                      <span className="font-extrabold text-blue-700 text-sm">{data?.affected_task_count || 0}{isVi ? ' công việc' : '개'}</span>
                     </div>
                   </div>
 
@@ -1100,10 +1117,12 @@ export const CalendarManagerModal: React.FC<CalendarManagerModalProps> = ({
                     <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-amber-900 space-y-2">
                       <div className="font-bold text-xs flex items-center gap-1 text-amber-900">
                         <AlertTriangle className="w-4 h-4 text-amber-600" />
-                        <span>공휴일 해제 옵션 선택</span>
+                        <span>{isVi ? 'Tùy chọn hủy ngày lễ' : '공휴일 해제 옵션 선택'}</span>
                       </div>
                       <p className="text-[11px] leading-relaxed">
-                        해제된 공휴일로 밀렸던 작업 일정을 원래대로 앞당길까요?
+                        {isVi
+                          ? 'Bạn có muốn cập nhật lại tiến độ ban đầu cho các công việc bị lùi do ngày lễ này?'
+                          : '해제된 공휴일로 밀렸던 작업 일정을 원래대로 앞당길까요?'}
                       </p>
                     </div>
                   )}
@@ -1111,45 +1130,49 @@ export const CalendarManagerModal: React.FC<CalendarManagerModalProps> = ({
                   <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
                     <button
                       type="button"
+                      data-testid="country-holiday-impact-cancel-btn"
                       onClick={() => {
                         setShowKrImpactModal(false);
                         setShowVnHolImpactModal(false);
                       }}
                       className="flex-1 h-9 rounded-lg border border-slate-300 font-bold text-slate-700 hover:bg-slate-100 transition"
                     >
-                      취소
+                      {isVi ? 'Hủy' : '취소'}
                     </button>
                     {hasRemoved ? (
                       <>
                         <button
                           type="button"
+                          data-testid="country-holiday-impact-keep-btn"
                           onClick={() => handleManualHolidayConfirmSave(country, false)}
                           className="flex-1 h-9 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold transition"
                         >
-                          일정 유지
+                          {isVi ? 'Giữ nguyên lịch' : '일정 유지'}
                         </button>
                         <button
                           type="button"
+                          data-testid="country-holiday-impact-shift-btn"
                           onClick={() => handleManualHolidayConfirmSave(country, true)}
                           className="flex-1 h-9 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold transition shadow-xs"
                         >
-                          일정 앞당기기
+                          {isVi ? 'Cập nhật lịch' : '일정 앞당기기'}
                         </button>
                       </>
                     ) : (
                       <button
                         type="button"
+                        data-testid="country-holiday-impact-confirm-btn"
                         onClick={() => handleManualHolidayConfirmSave(country, false)}
                         className="flex-1 h-9 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold transition shadow-xs"
                       >
-                        저장 확정
+                        {isVi ? 'Xác nhận lưu' : '저장 확정'}
                       </button>
                     )}
                   </div>
-                </>
-              );
-            })()}
-          </div>
+                </div>
+              </>
+            );
+          })()}
         </div>
       ) : showVnImpactModal && vnImpactData ? (
         /* Vietnam Saturday Impact Preview Modal */

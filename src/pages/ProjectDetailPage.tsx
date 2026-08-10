@@ -254,6 +254,15 @@ const SortableTaskRow: React.FC<SortableTaskRowProps> = ({
           <span className="font-extrabold text-slate-800 text-[11px] leading-[16px] whitespace-normal break-words py-0.5" title={taskTitle}>
             {taskTitle}
           </span>
+          {tItem.schedule_state === 'UPCOMING' && (
+            <span
+              data-testid="upcoming-task-badge"
+              className="px-1.5 py-0.5 rounded bg-slate-100 border border-slate-300 text-slate-600 font-extrabold text-[10px] shrink-0 ml-1 select-none"
+              title={lang === 'vi' ? 'Chưa đến ngày bắt đầu công việc. (Tỷ lệ thực tế: 0%)' : '프로젝트/작업 시작 전입니다. (실제 공정률: 0%)'}
+            >
+              {lang === 'vi' ? 'Chưa bắt đầu' : '시작 전'}
+            </span>
+          )}
           {(tItem.schedule_status === 'UNSCHEDULED' || (!tItem.start_date && !tItem.end_date)) && (
             <span
               data-testid="unscheduled-task-badge"

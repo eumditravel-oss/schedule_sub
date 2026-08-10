@@ -2582,10 +2582,6 @@ function addPureCalendarDays(dateStr: string, deltaDays: number): string {
         const editorWorker = editCheck.worker!;
         const targetCountry = (body.country_code || editorWorker.country_code || 'KR') as 'KR' | 'VN';
 
-        if (editorWorker.country_code && editorWorker.country_code !== targetCountry) {
-          return errorResponse('본인 국가의 공휴일만 수동으로 등록할 수 있습니다.', 403, 'HOLIDAY_COUNTRY_MISMATCH');
-        }
-
         const holidayDate = body.holiday_date;
         const nameKo = (body.name_ko || '').trim();
         const nameVi = (body.name_vi || '').trim();
@@ -2637,10 +2633,6 @@ function addPureCalendarDays(dateStr: string, deltaDays: number): string {
 
         if (existing.source !== 'MANUAL' && existing.is_manual !== 1) {
           return errorResponse('자동 수집된 공휴일은 삭제할 수 없습니다.', 403, 'AUTO_HOLIDAY_DELETE_BLOCKED');
-        }
-
-        if (editorWorker.country_code && editorWorker.country_code !== existing.country_code) {
-          return errorResponse('본인 국가의 공휴일만 삭제할 수 있습니다.', 403, 'HOLIDAY_COUNTRY_MISMATCH');
         }
 
         await db.prepare(`DELETE FROM country_holidays WHERE id = ?`).bind(holidayId).run();

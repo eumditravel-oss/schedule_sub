@@ -38,7 +38,7 @@ export const DateHeaderInfoPanel: React.FC<DateHeaderInfoPanelProps> = ({
   if (!isOpen) return null;
 
   const isViewer = isExecutiveViewer(currentWorker);
-  const userCountry = currentWorker?.country_code || 'KR';
+  const canEditCalendar = !isViewer && currentWorker?.is_active === 1 && currentWorker?.access_role === 'EDITOR';
 
   const krHoliday = holidays.find((h) => h.country_code === 'KR' && h.holiday_date === dateStr);
   const vnHoliday = holidays.find((h) => h.country_code === 'VN' && h.holiday_date === dateStr);
@@ -82,11 +82,7 @@ export const DateHeaderInfoPanel: React.FC<DateHeaderInfoPanelProps> = ({
   }
 
   const handleOpenRegisterForm = (country: 'KR' | 'VN') => {
-    if (isViewer) return;
-    if (userCountry !== country) {
-      alert(lang === 'vi' ? 'Bạn chỉ có thể quản lý ngày lễ của quốc gia mình.' : '본인 국가의 공휴일만 등록할 수 있습니다.');
-      return;
-    }
+    if (!canEditCalendar) return;
     setTargetCountry(country);
     setNameKo(lang === 'vi' ? 'Ngày nghỉ lễ bổ sung' : '임시 공휴일');
     setNameVi('Ngày nghỉ lễ bổ sung');
@@ -95,11 +91,7 @@ export const DateHeaderInfoPanel: React.FC<DateHeaderInfoPanelProps> = ({
 
   const handleAddManualHoliday = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (isViewer) return;
-    if (userCountry !== targetCountry) {
-      alert(lang === 'vi' ? 'Bạn chỉ có thể đăng ký ngày lễ của quốc gia mình.' : '본인 국가의 공휴일만 등록할 수 있습니다.');
-      return;
-    }
+    if (!canEditCalendar) return;
 
     try {
       setLoading(true);
@@ -119,13 +111,9 @@ export const DateHeaderInfoPanel: React.FC<DateHeaderInfoPanelProps> = ({
   };
 
   const handleDeleteManualHoliday = async (holiday: CountryHoliday) => {
-    if (isViewer) return;
+    if (!canEditCalendar) return;
     if (holiday.source !== 'MANUAL' && holiday.is_manual !== 1) {
       alert(lang === 'vi' ? 'Không thể xóa các ngày lễ được đồng bộ tự động.' : '자동 동기화된 공휴일은 삭제할 수 없습니다.');
-      return;
-    }
-    if (holiday.country_code !== userCountry) {
-      alert(lang === 'vi' ? 'Bạn chỉ có thể xóa ngày lễ của quốc gia mình.' : '본인 국가의 공휴일만 삭제할 수 있습니다.');
       return;
     }
 
@@ -285,7 +273,7 @@ export const DateHeaderInfoPanel: React.FC<DateHeaderInfoPanelProps> = ({
                       <Lock className="w-3 h-3 text-rose-600" />
                       <span>자동 동기화</span>
                     </span>
-                  ) : userCountry === 'KR' && !isViewer ? (
+                  ) : canEditCalendar ? (
                     <button
                       type="button"
                       data-testid="delete-manual-holiday-btn-kr"
@@ -301,7 +289,7 @@ export const DateHeaderInfoPanel: React.FC<DateHeaderInfoPanelProps> = ({
                       수동 공휴일 (조회전용)
                     </span>
                   )
-                ) : userCountry === 'KR' && !isViewer ? (
+                ) : canEditCalendar ? (
                   <button
                     type="button"
                     data-testid="add-manual-holiday-btn-kr"
@@ -351,7 +339,7 @@ export const DateHeaderInfoPanel: React.FC<DateHeaderInfoPanelProps> = ({
                       <Lock className="w-3 h-3 text-amber-700" />
                       <span>Tự động đồng bộ</span>
                     </span>
-                  ) : userCountry === 'VN' && !isViewer ? (
+                  ) : canEditCalendar ? (
                     <button
                       type="button"
                       data-testid="delete-manual-holiday-btn-vn"
@@ -367,7 +355,7 @@ export const DateHeaderInfoPanel: React.FC<DateHeaderInfoPanelProps> = ({
                       Chỉ xem
                     </span>
                   )
-                ) : userCountry === 'VN' && !isViewer ? (
+                ) : canEditCalendar ? (
                   <button
                     type="button"
                     data-testid="add-manual-holiday-btn-vn"
