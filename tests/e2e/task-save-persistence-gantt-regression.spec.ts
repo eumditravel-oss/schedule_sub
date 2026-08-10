@@ -1,7 +1,8 @@
 // tests/e2e/task-save-persistence-gantt-regression.spec.ts
-import { test, expect } from '@playwright/test';
+import { assertMutationSafety } from './productionMutationGuard';
 
 const QA_BASE_URL = (process.env.TEST_BASE_URL || process.env.PLAYWRIGHT_TEST_BASE_URL || 'http://localhost:5173').trim();
+assertMutationSafety(QA_BASE_URL, 'task-save-persistence-gantt-regression');
 
 async function dismissAllModals(page: any) {
   for (let i = 0; i < 5; i++) {

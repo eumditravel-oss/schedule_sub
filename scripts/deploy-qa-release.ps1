@@ -41,10 +41,12 @@ if ($LASTEXITCODE -ne 0) {
 
 # 4.5 Verify QA Completion Integrity Health Check (Max 3 retries, 5s backoff)
 Write-Host "Verifying QA Completion Integrity Health Check (Max 3 retries, 5s backoff)..." -ForegroundColor Yellow
+$qaHealthRequestCount = 0
 $qaVerified = $false
 for ($retry = 0; $retry -lt 3; $retry++) {
   try {
     Start-Sleep -Seconds 5
+    $qaHealthRequestCount++
     $qaHealthRes = Invoke-RestMethod -Uri "https://concost-dev-scheduler-qa.eumditravel.workers.dev/api/health/completion-integrity" -Method Get
     $qaData = $qaHealthRes.data
     if ($qaData.inconsistent_projects -gt 0 -or $qaData.inconsistent_tasks -gt 0) {
@@ -63,9 +65,19 @@ if (-not $qaVerified) {
   exit 1
 }
 
-# 5. Run QA Release Gate Suite (21 Core + 4 Phase B = 25 Total Specs)
-Write-Host "Running QA Release Gate Verification (21 Core + 4 Phase B = 25 Total Specs)..." -ForegroundColor Yellow
-$env:TEST_BASE_URL = "https://concost-dev-scheduler-qa.eumditravel.workers.dev"
+# 5. Start Local QA Counting Proxy Server
+Write-Host "Starting Local QA Counting Proxy on http://127.0.0.1:4179..." -ForegroundColor Yellow
+$proxyJob = Start-Job -ScriptBlock { node scripts/qa-request-proxy.mjs }
+Start-Sleep -Seconds 2
+
+# Reset Proxy Counter
+try {
+  Invoke-RestMethod -Uri "http://127.0.0.1:4179/__proxy_reset" -Method Post | Out-Null
+} catch {}
+
+# 6. Run QA Release Gate Suite (21 Core + 4 Phase B = 25 Total Specs)
+Write-Host "Running QA Release Gate Verification (21 Core + 4 Phase B = 25 Total Specs) via Proxy..." -ForegroundColor Yellow
+$env:TEST_BASE_URL = "http://127.0.0.1:4179"
 
 $coreSpecs = @(
   "tests/e2e/gantt-inline-content.spec.ts",
@@ -99,8 +111,6 @@ $phaseBSpecs = @(
 )
 
 $allSpecs = $coreSpecs + $phaseBSpecs
-$totalRequestCounter = 0
-$budgetLimit = 1500
 
 Write-Host "Core Critical Specs: $($coreSpecs.Count)/21" -ForegroundColor Cyan
 Write-Host "Phase B Acceptance Specs: $($phaseBSpecs.Count)/4" -ForegroundColor Cyan
@@ -110,28 +120,57 @@ foreach ($testFile in $allSpecs) {
   Write-Host "Running QA Release Gate Spec: $testFile" -ForegroundColor Cyan
   cmd /c "npx playwright test --workers=1 --project=chromium $testFile"
   if ($LASTEXITCODE -ne 0) {
+    # Stop proxy job before exiting
+    try { Invoke-RestMethod -Uri "http://127.0.0.1:4179/__proxy_stop" -Method Post | Out-Null } catch {}
+    Stop-Job $proxyJob -ErrorAction SilentlyContinue
     Write-Error "QA Release Gate verification failed on $testFile."
     exit 1
   }
-  # Add estimated requests per spec execution (~25 requests per spec)
-  $totalRequestCounter += 25
 }
 
-# 6. Request Budget Enforcement Guard
-Write-Host "QA_REMOTE_REQUEST_COUNT=$totalRequestCounter" -ForegroundColor Yellow
-if ($totalRequestCounter -gt $budgetLimit) {
-  Write-Error "RELEASE_REQUEST_BUDGET_EXCEEDED: QA remote request count ($totalRequestCounter) exceeded budget threshold ($budgetLimit)."
+# 7. Retrieve Measured HTTP Requests from Local Proxy & Stop Proxy Server
+$measuredE2ERequests = 0
+try {
+  $proxyEvidence = Invoke-RestMethod -Uri "http://127.0.0.1:4179/__proxy_stop" -Method Post
+  $measuredE2ERequests = [int]$proxyEvidence.total
+} catch {}
+Stop-Job $proxyJob -ErrorAction SilentlyContinue
+
+# Count total QA Worker requests including Health Check
+$totalQAWorkerRequests = $measuredE2ERequests + $qaHealthRequestCount
+$budgetLimit = 1500
+
+Write-Host "Measured QA Worker HTTP Requests: $totalQAWorkerRequests (E2E: $measuredE2ERequests, Health: $qaHealthRequestCount)" -ForegroundColor Yellow
+
+if ($totalQAWorkerRequests -gt $budgetLimit) {
+  Write-Error "RELEASE_REQUEST_BUDGET_EXCEEDED: Actual QA Worker HTTP request count ($totalQAWorkerRequests) exceeded budget threshold ($budgetLimit)."
   exit 1
 }
-Write-Host "Request Budget Verification Passed (Count: $totalRequestCounter <= Limit: $budgetLimit)" -ForegroundColor Green
+Write-Host "Request Budget Verification Passed (Count: $totalQAWorkerRequests <= Limit: $budgetLimit)" -ForegroundColor Green
 
-# 7. Generate untracked QA Release Evidence Artifacts
+# 8. Generate Untracked Evidence Manifest: qa/verified-release.json
+Write-Host "Generating Untracked Evidence Manifest (qa/verified-release.json)..." -ForegroundColor Yellow
+$evidenceObj = @{
+  sha = $sha
+  qa_runtime_sha = $sha
+  core_gate_passed = 21
+  phase_b_gate_passed = 4
+  total_gate_passed = 25
+  remote_request_count = $totalQAWorkerRequests
+  request_budget = $budgetLimit
+  completion_integrity = "PASS"
+  verified_at = $deployedAt
+}
+$evidenceJson = $evidenceObj | ConvertTo-Json -Depth 4
+[System.IO.File]::WriteAllText("$PSScriptRoot/../qa/verified-release.json", $evidenceJson)
+
+# 9. Generate untracked QA Release Evidence Reports
 Write-Host "Generating QA Release Evidence Reports..." -ForegroundColor Yellow
 cmd /c "node scripts/generate-test-inventory.mjs"
 cmd /c "node scripts/generate-release-report.mjs"
 
-# 8. Ensure Git working directory remains clean
-$postStatus = (git status --porcelain)
+# 10. Ensure Git working directory remains clean (except untracked qa/ artifacts)
+$postStatus = (git status --porcelain -uno)
 if ($postStatus) {
   Write-Error "GIT_DIRTY_AFTER_RELEASE: QA release pipeline caused unexpected modifications to tracked git files."
   exit 1
