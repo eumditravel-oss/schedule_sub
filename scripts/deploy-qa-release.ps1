@@ -74,6 +74,12 @@ if (-not $qaVerified) {
   exit 1
 }
 
+# Workers Assets can briefly serve the previous HTML/chunk set after the Worker
+# version API has already switched. Let the edge asset set converge before any
+# fresh browser contexts start the strict frontend SHA and lazy-chunk gates.
+Write-Host "Waiting 30 seconds for QA Workers Assets edge convergence..." -ForegroundColor Yellow
+Start-Sleep -Seconds 30
+
 # 5. DYNAMIC PROXY BUDGET CALCULATION & FAIL-BEFORE-PROXY GUARD
 $versionReserveCount = 1
 $proxyBudget = $globalQaBudget - $qaHealthRequestCount - $versionReserveCount
