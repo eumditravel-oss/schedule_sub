@@ -68,6 +68,44 @@ describe('PrintProjectSummaryA4 task semantics', () => {
     expect(html).toContain('data-testid="print-task-planned-task-print"');
     expect(html).toMatch(/data-testid="print-task-planned-task-print"[^>]*>64%<\/td>/);
     expect(html).toMatch(/data-testid="print-task-actual-task-print"[^>]*>82%<\/td>/);
-    expect(html).toMatch(/data-testid="print-task-status-task-print"[^>]*style="[^"]*border-color:#FDE68A[^"]*"[^>]*>완료 확인 필요<\/span>/);
+    expect(html).toMatch(/data-testid="print-task-status-task-print"[^>]*style="[^"]*border-color:#A7F3D0[^"]*"[^>]*>완료<\/span>/);
+    expect(html).not.toContain('완료 확인 필요');
+  });
+
+  it('packs small phases together instead of creating one mostly-empty sheet per phase', () => {
+    const project: Project = {
+      id: 'project-packed',
+      name: 'Packed report',
+      status: 'ACTIVE',
+      start_date: '2026-08-01',
+      end_date: '2026-08-31',
+      progress: 0,
+    };
+    const groups: TaskGroup[] = [0, 1, 2].map((index) => ({
+      id: `group-${index}`,
+      project_id: project.id,
+      group_name: `${index}단계`,
+      color_key: 'BLUE',
+      sort_order: index,
+    }));
+    const tasks: Task[] = groups.map((group, index) => ({
+      id: `task-${index}`,
+      project_id: project.id,
+      task_group_id: group.id,
+      task_name: `작업 ${index}`,
+      worker_name: '-',
+      start_date: `2026-08-${String(index + 1).padStart(2, '0')}`,
+      end_date: `2026-08-${String(index + 2).padStart(2, '0')}`,
+      schedule_status: 'SCHEDULED',
+      schedule_state: 'UPCOMING',
+      actual_progress: 0,
+      progress: 0,
+    }));
+
+    const html = renderToStaticMarkup(
+      <PrintProjectSummaryA4 project={project} tasks={tasks} taskGroups={groups} referenceDate="2026-08-11" />
+    );
+    expect((html.match(/class="print-page-shell /g) || []).length).toBe(2);
+    expect(html).toContain('프로젝트 작업 상세 1/1');
   });
 });

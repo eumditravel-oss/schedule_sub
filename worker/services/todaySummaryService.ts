@@ -37,7 +37,7 @@ export function classifyTaskDeadlineStateServer(
   task: any,
   metricsOrActualProgress: number | TaskProgressMetricsServer,
   businessDate: string
-): 'COMPLETED' | 'UNSCHEDULED' | 'COMPLETION_REVIEW' | 'OVERDUE' | 'ON_TRACK' {
+): 'COMPLETED' | 'UNSCHEDULED' | 'OVERDUE' | 'ON_TRACK' {
   if (Number(task.completion_confirmed) === 1) return 'COMPLETED';
   if (task.schedule_status === 'UNSCHEDULED' || !task.start_date || !task.end_date) return 'UNSCHEDULED';
 
@@ -46,7 +46,7 @@ export function classifyTaskDeadlineStateServer(
     : metricsOrActualProgress.actual_progress;
   const scheduleState = typeof metricsOrActualProgress === 'object' ? metricsOrActualProgress.schedule_state : undefined;
 
-  if (scheduleState === 'COMPLETION_REVIEW' || actualProgress >= 100) return 'COMPLETION_REVIEW';
+  if (scheduleState === 'COMPLETED' || actualProgress >= 100) return 'COMPLETED';
   if (task.end_date < businessDate && actualProgress < 100) return 'OVERDUE';
   return 'ON_TRACK';
 }
@@ -103,7 +103,6 @@ export async function getTodayDashboardSummaryServer(
   const holidays = holidaysRes.results || [];
   const overrides = overridesRes.results || [];
   const activeProjects: any[] = activePrjRes.results || [];
-  const activeProjectMap = new Map<string, any>(activeProjects.map((p) => [p.id, p]));
 
   if (activeProjects.length === 0) {
     return {
@@ -214,13 +213,6 @@ export async function getTodayDashboardSummaryServer(
 
   // Task-based risk counters for secondary strips
   const overdueIds: string[] = [];
-  const completionReviewIds: string[] = [];
-  const completionReviewItems: Array<{
-    task_id: string;
-    task_name: string;
-    project_id: string;
-    project_name: string;
-  }> = [];
 
   activeTasks.forEach((t) => {
     t.assignees = assigneesMap.get(t.id) || [];
@@ -245,19 +237,6 @@ export async function getTodayDashboardSummaryServer(
       }
     }
 
-    // Completion Review Tasks
-    if (deadlineState === 'COMPLETION_REVIEW' && Number(t.completion_confirmed) !== 1) {
-      if (!completionReviewIds.includes(t.id)) {
-        completionReviewIds.push(t.id);
-        const project = activeProjectMap.get(t.project_id);
-        completionReviewItems.push({
-          task_id: t.id,
-          task_name: t.task_name || '-',
-          project_id: t.project_id,
-          project_name: project?.name_ko || project?.name || '-',
-        });
-      }
-    }
   });
 
   let blockedCount = 0;
@@ -281,9 +260,9 @@ export async function getTodayDashboardSummaryServer(
     },
     overdue: { count: overdueIds.length, task_ids: overdueIds },
     completion_review: {
-      count: completionReviewIds.length,
-      task_ids: completionReviewIds,
-      items: completionReviewItems,
+      count: 0,
+      task_ids: [],
+      items: [],
     },
     blocked_count: blockedCount,
   };

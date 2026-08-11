@@ -3,6 +3,7 @@ import React from 'react';
 import { Project, Task, TaskGroup, Worker, CountryHoliday, CalendarOverride } from '../../types';
 import { PrintHeader } from './PrintHeader';
 import { PrintFooter } from './PrintFooter';
+import { PrintPageShell } from './PrintPageShell';
 import { PrintColorMode, getPrintStatusBadgeStyle, getPrintGanttBarStyle, resolvePrintCalendarVisualState, getProjectPicSummary, getProjectPicWithSupportSummary, PRINT_DAY_CELL_STYLE } from '../../utils/printVisualTokens';
 import { resolveWorkDayStatus } from '../../utils/workCalendar';
 import { resolveReportProjectProgress } from '../../utils/reportProgress';
@@ -67,7 +68,7 @@ export const PrintCombinedProjectsA3: React.FC<PrintCombinedProjectsA3Props> = (
   }
 
   return (
-    <div className="print-template-a3-combined flex flex-col justify-between w-full h-full text-slate-900 font-sans text-xs">
+    <div className="print-template-a3-combined w-full text-slate-900 font-sans text-xs space-y-6 print:space-y-0">
       {bandPages.map((band, bandIdx) => {
         const daysArray: Date[] = [];
         for (let i = 0; i < band.daysCount; i++) {
@@ -75,7 +76,8 @@ export const PrintCombinedProjectsA3: React.FC<PrintCombinedProjectsA3Props> = (
         }
 
         return (
-          <div key={bandIdx} className={`print-page-band flex flex-col justify-between h-full w-full ${bandIdx > 0 ? 'page-break-before' : ''}`}>
+          <PrintPageShell key={bandIdx} paper="a3" orientation="landscape" colorMode={colorMode}>
+          <div className="print-page-band flex flex-col justify-between h-full w-full">
             <div>
               <PrintHeader
                 title={isKo ? '선택 프로젝트 통합 일정표 (A3 Combined Schedule)' : 'Lịch trình tổng hợp các dự án đã chọn'}
@@ -412,6 +414,7 @@ export const PrintCombinedProjectsA3: React.FC<PrintCombinedProjectsA3Props> = (
 
             <PrintFooter colorMode={colorMode} lang={lang} viewerName={viewerName} />
           </div>
+          </PrintPageShell>
         );
       })}
     </div>

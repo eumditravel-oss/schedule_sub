@@ -396,7 +396,7 @@ export const PrintViewPage: React.FC = () => {
 
       {/* Printable Document Container */}
       <main className="print-document-container flex justify-center">
-        {['summary-a4', 'month-a4', 'year-a4'].includes(templateType) ? (
+        {['summary-a4', 'month-a4', 'year-a4', 'full-a3', 'combined-a3'].includes(templateType) ? (
           renderTemplateContent()
         ) : (
           <PrintPageShell paper={paper} orientation={orientation} colorMode={colorMode}>

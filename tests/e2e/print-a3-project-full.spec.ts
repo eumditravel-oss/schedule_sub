@@ -21,9 +21,10 @@ test.describe('Print Template 5: A3 Single Project Full Schedule', () => {
     await page.goto(`/print/project/${realProjectId}/full-a3?lang=ko&colorMode=color`);
 
     const shell = page.locator('.print-page-shell');
-    await expect(shell).toBeVisible();
-    await expect(shell).toHaveClass(/print-paper-a3/);
-    await expect(shell).toHaveClass(/print-landscape/);
+    await expect(shell.first()).toBeVisible();
+    await expect(shell.first()).toHaveClass(/print-paper-a3/);
+    await expect(shell.first()).toHaveClass(/print-landscape/);
+    await expect(shell).toHaveCount(await page.locator('.print-page-band').count());
 
     await expect(page.locator('.print-header').first()).toContainText('프로젝트 상세 일정표 · 30일 구간');
   });

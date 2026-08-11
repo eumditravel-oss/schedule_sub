@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 
-test.describe('Deadline Semantic Integrity Suite (Overdue vs Completion Review)', () => {
-  test('AUTO_TIME task at 100% actual progress past end_date is classified as COMPLETION_REVIEW, NOT OVERDUE', async ({ page }) => {
+test.describe('Deadline Semantic Integrity Suite', () => {
+  test('does not expose a task-level completion review action that does not exist', async ({ page }) => {
     await page.route('**/api/workers*', async (route) => {
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([{ id: 'wrk_01', name: '박용진 수석', is_active: 1, access_role: 'EDITOR' }]) });
     });
@@ -42,9 +42,8 @@ test.describe('Deadline Semantic Integrity Suite (Overdue vs Completion Review)'
     const overdueStrip = card.locator('[data-testid="today-summary-overdue-secondary-strip"]');
     await expect(overdueStrip).not.toBeVisible();
 
-    // Verify COMPLETION_REVIEW strip IS present and shows 1건
+    // Legacy payloads must not resurrect the removed task-level confirmation strip.
     const reviewStrip = card.locator('[data-testid="today-summary-completion-review-strip"]');
-    await expect(reviewStrip).toBeVisible();
-    await expect(reviewStrip).toContainText('1건');
+    await expect(reviewStrip).toHaveCount(0);
   });
 });

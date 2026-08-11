@@ -333,7 +333,8 @@ export function getPrintGanttBarStyle(
   status: string = 'NOT_STARTED',
   colorMode: PrintColorMode = 'color'
 ): PrintGanttBarStyle {
-  const normStatus = (status || '').toUpperCase();
+  const rawStatus = (status || '').toUpperCase();
+  const normStatus = rawStatus === 'COMPLETION_REVIEW' ? 'COMPLETED' : rawStatus;
 
   if (colorMode === 'color') {
     switch (normStatus) {
@@ -441,7 +442,8 @@ export function getPrintStatusBadgeStyle(
   colorMode: PrintColorMode = 'color',
   lang: 'ko' | 'vi' = 'ko'
 ): PrintStatusBadgeStyle {
-  const normStatus = (status || '').toUpperCase();
+  const rawStatus = (status || '').toUpperCase();
+  const normStatus = rawStatus === 'COMPLETION_REVIEW' ? 'COMPLETED' : rawStatus;
   const labelMapKo: Record<string, string> = {
     COMPLETED: '완료',
     IN_PROGRESS: '진행중',
