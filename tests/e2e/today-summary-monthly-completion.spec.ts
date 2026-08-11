@@ -12,7 +12,7 @@ test.describe('Today Summary Monthly Completed KPI Suite (Addendum F)', () => {
     });
   });
 
-  test('Monthly completed project count includes ONLY projects with end_date in current month', async ({ page }) => {
+  test('Monthly completed project count uses completed_at in the current business month', async ({ page }) => {
     await page.goto('/projects');
     await page.waitForLoadState('networkidle');
 

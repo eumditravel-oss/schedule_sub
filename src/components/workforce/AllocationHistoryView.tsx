@@ -1,5 +1,5 @@
 // src/components/workforce/AllocationHistoryView.tsx
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import { api } from '../../services/api';
 import { Worker, Project } from '../../types';
 import { useI18n } from '../../hooks/useI18n';
@@ -23,7 +23,7 @@ export const AllocationHistoryView: React.FC<AllocationHistoryViewProps> = ({ wo
   const [selectedProjectId, setSelectedProjectId] = useState('');
   const [changeTypeFilter, setChangeTypeFilter] = useState('');
 
-  const fetchHistory = async () => {
+  const fetchHistory = useCallback(async () => {
     try {
       setLoading(true);
       const data = await api.getAllocationHistory({
@@ -40,11 +40,11 @@ export const AllocationHistoryView: React.FC<AllocationHistoryViewProps> = ({ wo
     } finally {
       setLoading(false);
     }
-  };
+  }, [changeTypeFilter, dateFrom, dateTo, selectedProjectId, selectedWorkerId]);
 
   useEffect(() => {
     fetchHistory();
-  }, [dateFrom, dateTo, selectedWorkerId, selectedProjectId, changeTypeFilter]);
+  }, [fetchHistory]);
 
   const getChangeBadge = (type: string) => {
     switch (type) {

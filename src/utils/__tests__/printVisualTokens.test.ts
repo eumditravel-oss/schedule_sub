@@ -43,6 +43,17 @@ describe('printVisualTokens Suite', () => {
     expect(badgeVi.label).toBe('Hoàn thành');
   });
 
+  it('uses translated, intentional styles for completion review and upcoming states', () => {
+    const reviewKo = getPrintStatusBadgeStyle('COMPLETION_REVIEW', 'color', 'ko');
+    const reviewVi = getPrintStatusBadgeStyle('COMPLETION_REVIEW', 'color', 'vi');
+    const upcoming = getPrintGanttBarStyle('UPCOMING', 'color');
+
+    expect(reviewKo.label).toBe('완료 확인 필요');
+    expect(reviewVi.label).toBe('Cần xác nhận hoàn thành');
+    expect(reviewKo.borderColor).toBe('#FDE68A');
+    expect(upcoming.backgroundColor).toBe('#94A3B8');
+  });
+
   it('should resolve Task Row PERSONAL_LEAVE and WORK_OVERRIDE 5/5 semantic match', () => {
     const leaveDayStatus: WorkDayStatus = {
       date: '2026-08-15',

@@ -1,5 +1,5 @@
 // src/components/modals/TaskModal.tsx
-import React, { useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { Task, Worker, Project, TaskGroup, CountryHoliday, CalendarOverride, ProgressMode, TaskAssignee } from '../../types';
 import { calculateTaskWorkdayBreakdown } from '../../utils/workCalendar';
 import { useI18n } from '../../hooks/useI18n';
@@ -37,8 +37,11 @@ export const TaskModal: React.FC<TaskModalProps> = ({
 }) => {
   const { t, lang } = useI18n();
 
-  const activeEditors = workers.filter(
-    (w) => Number(w.is_active) === 1 && w.access_role === 'EDITOR' && w.name !== 'CEO' && w.name !== 'COO'
+  const activeEditors = useMemo(
+    () => workers.filter(
+      (w) => Number(w.is_active) === 1 && w.access_role === 'EDITOR' && w.name !== 'CEO' && w.name !== 'COO'
+    ),
+    [workers]
   );
 
   const workerLang: 'ko' | 'vi' = currentWorker?.ui_language || (lang === 'vi' ? 'vi' : 'ko');
@@ -147,7 +150,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
       setIsBlocked(false);
       setBlockedReason('');
     }
-  }, [isOpen, task, initialTaskGroupId, taskGroups, currentWorker, project, workerLang, workers]);
+  }, [isOpen, task, initialTaskGroupId, taskGroups, currentWorker, project, workerLang, workers, activeEditors]);
 
   const handlePrimaryChange = (newPrimaryId: string) => {
     setPrimaryWorkerId(newPrimaryId);

@@ -10,7 +10,6 @@ import {
   getPrintGanttBarStyle,
   getProjectPicSummary,
   getProjectSupportSummary,
-  getProjectPicWithSupportSummary,
   resolvePrintCalendarVisualState,
 } from '../../utils/printVisualTokens';
 import { resolveReportProjectProgress, getCompletedTaskCount } from '../../utils/reportProgress';
@@ -74,7 +73,7 @@ export const PrintProjectSummaryA4: React.FC<PrintProjectSummaryA4Props> = ({
   const badgeStyle = getPrintStatusBadgeStyle(reportProgress.scheduleState === 'COMPLETED' ? 'COMPLETED' : project.status, colorMode, lang);
 
   // V2 Domain Semantics: Task PRIMARY = PIC, Task CO_ASSIGNEE = Support
-  const projectPic = getProjectPicWithSupportSummary(tasks, workerMap, lang);
+  const projectPic = getProjectPicSummary(tasks, workerMap, lang);
   const projectSupport = getProjectSupportSummary(tasks, workerMap);
 
   // Task Group summaries for Page 1 & Detail Pages
@@ -240,13 +239,13 @@ export const PrintProjectSummaryA4: React.FC<PrintProjectSummaryA4Props> = ({
               <h3 className="font-bold text-slate-800 text-xs mb-1.5 border-b border-slate-200 pb-1 flex items-center justify-between">
                 <span>{isKo ? '담당자 (Task PRIMARY) & 투입 인력' : 'PIC & Phân công nhân sự'}</span>
                 <span className="text-[10px] font-normal text-slate-600">
-                  주요 PIC: <strong className="text-slate-900">{projectPic}</strong>
+                  주요 PIC: <strong data-testid="print-project-pic" className="text-slate-900">{projectPic}</strong>
                 </span>
               </h3>
 
               <div className="mb-2 text-[11px] text-slate-700 flex items-center gap-2">
                 <span className="text-slate-500">{isKo ? 'Support 인력:' : 'Hỗ trợ:'}</span>
-                <span className="font-medium text-slate-800">{projectSupport}</span>
+                <span data-testid="print-project-support" className="font-medium text-slate-800">{projectSupport}</span>
               </div>
 
               <div className="border-t border-slate-100 pt-1.5">
@@ -526,6 +525,7 @@ export const PrintProjectSummaryA4: React.FC<PrintProjectSummaryA4Props> = ({
 
                       const tStartStr = task.start_date;
                       const tEndStr = task.end_date;
+                      const tPlannedProgress = task.planned_progress ?? task.progress ?? 0;
                       const tProgress = task.actual_progress ?? (task.schedule_state === 'COMPLETED' ? 100 : 0);
 
                       // Calculate span inside scaled phase timeline
@@ -559,20 +559,21 @@ export const PrintProjectSummaryA4: React.FC<PrintProjectSummaryA4Props> = ({
                           </td>
                           <td className="border-r border-slate-300 px-1 py-1 text-center">
                             <span
+                              data-testid={`print-task-status-${task.id}`}
                               className="px-1 py-0.5 rounded text-[8.5px] font-bold border inline-block"
                               style={{
                                 backgroundColor: taskBadge.backgroundColor,
-                                borderColor: badgeStyle.borderColor,
+                                borderColor: taskBadge.borderColor,
                                 color: taskBadge.textColor,
                               }}
                             >
                               {taskBadge.label}
                             </span>
                           </td>
-                          <td className="border-r border-slate-300 px-1 py-1 text-center font-mono text-slate-500">
-                            {task.progress ?? 0}%
+                          <td data-testid={`print-task-planned-${task.id}`} className="border-r border-slate-300 px-1 py-1 text-center font-mono text-slate-500">
+                            {tPlannedProgress}%
                           </td>
-                          <td className="border-r border-slate-300 px-1 py-1 text-center font-mono font-bold text-emerald-700">
+                          <td data-testid={`print-task-actual-${task.id}`} className="border-r border-slate-300 px-1 py-1 text-center font-mono font-bold text-emerald-700">
                             {tProgress}%
                           </td>
 

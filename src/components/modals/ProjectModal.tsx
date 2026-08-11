@@ -104,7 +104,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
       setEndDate(futureStr);
       setProgress(0);
     }
-  }, [project, isOpen, currentWorker]);
+  }, [project, isOpen, currentWorker, workerLang]);
 
   if (!isOpen) return null;
 

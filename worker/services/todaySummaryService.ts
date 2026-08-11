@@ -3,9 +3,9 @@ import { calculateTaskProgressServer, TaskProgressMetricsServer } from './progre
 
 export interface TodaySummaryResult {
   date: string;
-  scheduled_today: { count: number; task_ids: string[] };
-  in_progress: { count: number; task_ids: string[] };
-  completed_today: { count: number; task_ids: string[] };
+  scheduled_today: { count: number; project_ids: string[] };
+  in_progress: { count: number; project_ids: string[] };
+  completed_today: { count: number; project_ids: string[] };
   completed_this_month: { count: number; project_ids: string[] };
   overdue: { count: number; task_ids: string[] };
   completion_review?: { count: number; task_ids: string[] };
@@ -73,9 +73,9 @@ export async function getTodayDashboardSummaryServer(
         `SELECT id
          FROM projects
          WHERE status = 'COMPLETED'
-           AND end_date IS NOT NULL
-           AND end_date >= ?
-           AND end_date < ?`
+           AND completed_at IS NOT NULL
+           AND substr(completed_at, 1, 10) >= ?
+           AND substr(completed_at, 1, 10) < ?`
       )
       .bind(monthStart, nextMonthStart)
       .all();
@@ -102,9 +102,9 @@ export async function getTodayDashboardSummaryServer(
   if (activeProjects.length === 0) {
     return {
       date: businessDate,
-      scheduled_today: { count: 0, task_ids: [] },
-      in_progress: { count: 0, task_ids: [] },
-      completed_today: { count: 0, task_ids: [] },
+      scheduled_today: { count: 0, project_ids: [] },
+      in_progress: { count: 0, project_ids: [] },
+      completed_today: { count: 0, project_ids: [] },
       completed_this_month: {
         count: completedThisMonthProjectIds.length,
         project_ids: completedThisMonthProjectIds,
@@ -253,9 +253,9 @@ export async function getTodayDashboardSummaryServer(
 
   return {
     date: businessDate,
-    scheduled_today: { count: scheduledTodayProjectIds.length, task_ids: scheduledTodayProjectIds },
-    in_progress: { count: inProgressProjectIds.length, task_ids: inProgressProjectIds },
-    completed_today: { count: completedTodayProjectIds.length, task_ids: completedTodayProjectIds },
+    scheduled_today: { count: scheduledTodayProjectIds.length, project_ids: scheduledTodayProjectIds },
+    in_progress: { count: inProgressProjectIds.length, project_ids: inProgressProjectIds },
+    completed_today: { count: completedTodayProjectIds.length, project_ids: completedTodayProjectIds },
     completed_this_month: {
       count: completedThisMonthProjectIds.length,
       project_ids: completedThisMonthProjectIds,

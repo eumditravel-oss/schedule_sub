@@ -79,7 +79,7 @@ export const TaskGroupModal: React.FC<TaskGroupModalProps> = ({
       setColorKey('BLUE');
       setManualLock(false);
     }
-  }, [group, isOpen, currentWorker]);
+  }, [group, isOpen, currentWorker, workerLang]);
 
   if (!isOpen) return null;
 

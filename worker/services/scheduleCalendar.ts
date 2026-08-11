@@ -780,7 +780,7 @@ export async function saveManualHolidaysMonthServer(
   const batchQueries: any[] = [];
   const nowIso = new Date().toISOString();
   const eventId = `evt_hol_${countryCode}_${year}_${month}_${Date.now()}`;
-  const restoreToken = `tok_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+  const restoreToken = `tok_${crypto.randomUUID()}`;
 
   // 3. Clear existing manual holidays for the month & Insert new (UPSERT to avoid D1 UNIQUE constraint failure)
   batchQueries.push(

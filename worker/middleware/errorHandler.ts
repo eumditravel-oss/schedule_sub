@@ -1,6 +1,4 @@
 // worker/middleware/errorHandler.ts
-import { Response } from '@cloudflare/workers-types';
-
 export function createErrorResponse(code: string, message: string, status: number = 400): globalThis.Response {
   return new globalThis.Response(
     JSON.stringify({

@@ -27,10 +27,7 @@ export const ProjectReadinessPopover: React.FC<ProjectReadinessPopoverProps> = (
   const [isOpen, setIsOpen] = useState(false);
   const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
   const popoverRef = useRef<HTMLDivElement>(null);
-
-  if (hideIfReady && readiness.status === 'READY') {
-    return null;
-  }
+  const shouldHide = hideIfReady && readiness.status === 'READY';
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -38,13 +35,17 @@ export const ProjectReadinessPopover: React.FC<ProjectReadinessPopoverProps> = (
         setIsOpen(false);
       }
     };
-    if (isOpen) {
+    if (isOpen && !shouldHide) {
       document.addEventListener('mousedown', handleClickOutside);
     }
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [isOpen]);
+  }, [isOpen, shouldHide]);
+
+  if (shouldHide) {
+    return null;
+  }
 
   const badgeColor = readiness.badge_color_class;
   const badgeIcon =

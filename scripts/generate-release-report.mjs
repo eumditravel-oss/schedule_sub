@@ -30,7 +30,9 @@ export async function generateReleaseReport(options = {}) {
     }
   }
 
-  const frontendSha = options.frontendSha || process.env.VITE_BUILD_SHA || gitSha;
+  // These values must come from an executed build/browser verification. Never infer
+  // them from Git or the Worker runtime SHA because that would manufacture evidence.
+  const frontendSha = options.frontendSha || process.env.RELEASE_FRONTEND_SHA || 'unknown';
 
   // 3. Fetch QA and Production Version & Health Endpoints
   const qaBaseUrl = options.qaBaseUrl || 'https://concost-dev-scheduler-qa.eumditravel.workers.dev';
@@ -38,7 +40,7 @@ export async function generateReleaseReport(options = {}) {
 
   let qaSha = 'unknown';
   let prodSha = 'unknown';
-  let buildIndicatorSha = 'unknown';
+  const buildIndicatorSha = options.buildIndicatorSha || process.env.RELEASE_BUILD_INDICATOR_SHA || 'unknown';
 
   try {
     const qaRes = await fetch(`${qaBaseUrl}/api/version?t=${Date.now()}`, { cache: 'no-store' }).then((r) => r.json());
@@ -50,7 +52,6 @@ export async function generateReleaseReport(options = {}) {
   try {
     const prodRes = await fetch(`${prodBaseUrl}/api/version?t=${Date.now()}`, { cache: 'no-store' }).then((r) => r.json());
     prodSha = prodRes.data?.commit || prodRes.commit || 'unknown';
-    buildIndicatorSha = prodSha; // Worker backend SHA is rendered as Build <sha> in BuildVersionIndicator
   } catch (err) {
     console.error('Production /api/version fetch failed:', err?.message || err);
   }
@@ -100,7 +101,7 @@ export async function generateReleaseReport(options = {}) {
     critical_release_gate: {
       spec_count: inventory.release_gate_specs || 17,
       browser: 'chromium',
-      status: options.gateStatus || 'PASS',
+      status: options.gateStatus || process.env.RELEASE_GATE_STATUS || 'NOT_RUN',
     },
 
     full_repository_e2e: {
@@ -111,7 +112,7 @@ export async function generateReleaseReport(options = {}) {
     },
 
     browsers: {
-      chromium: 'PASS',
+      chromium: options.chromiumStatus || process.env.RELEASE_CHROMIUM_STATUS || 'NOT_RUN',
       msedge: 'NOT_RUN',
       webkit: 'NOT_RUN',
     },

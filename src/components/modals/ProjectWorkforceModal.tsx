@@ -1,5 +1,5 @@
 // src/components/modals/ProjectWorkforceModal.tsx
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import { Project, Worker, ProjectWorkerAllocation, Task } from '../../types';
 import { useI18n } from '../../hooks/useI18n';
 import { X, Users, Plus, Trash2, Save, RefreshCw, AlertCircle, Info, CheckCircle2, History, ArrowRight } from 'lucide-react';
@@ -39,13 +39,6 @@ export const ProjectWorkforceModal: React.FC<ProjectWorkforceModalProps> = ({
   const [historyLogs, setHistoryLogs] = useState<any[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
 
-  useEffect(() => {
-    if (isOpen && project) {
-      fetchAllocations();
-      setShowHistoryView(false);
-    }
-  }, [isOpen, project]);
-
   const fetchProjectHistory = async () => {
     if (!project) return;
     try {
@@ -60,7 +53,7 @@ export const ProjectWorkforceModal: React.FC<ProjectWorkforceModalProps> = ({
     }
   };
 
-  const fetchAllocations = async () => {
+  const fetchAllocations = useCallback(async () => {
     if (!project) return;
     try {
       setLoading(true);
@@ -94,7 +87,14 @@ export const ProjectWorkforceModal: React.FC<ProjectWorkforceModalProps> = ({
     } finally {
       setLoading(false);
     }
-  };
+  }, [lang, passedActiveProjects, project]);
+
+  useEffect(() => {
+    if (isOpen && project) {
+      void fetchAllocations();
+      setShowHistoryView(false);
+    }
+  }, [fetchAllocations, isOpen, project]);
 
   if (!isOpen || !project) return null;
 

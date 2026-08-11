@@ -16,8 +16,8 @@ const allFiles = fs.readdirSync(testsDir)
   .map((f) => `tests/e2e/${f}`)
   .sort();
 
-// 2. Read Release Gate Specs defined in deploy-release.ps1
-const releaseScriptPath = path.join(rootDir, 'scripts', 'deploy-release.ps1');
+// 2. Read the release specs from the pipeline that actually deploys and verifies QA.
+const releaseScriptPath = path.join(rootDir, 'scripts', 'deploy-qa-release.ps1');
 const releaseScriptContent = fs.readFileSync(releaseScriptPath, 'utf-8');
 
 const matches = releaseScriptContent.match(/tests\/e2e\/[a-zA-Z0-9_-]+\.spec\.ts/g) || [];

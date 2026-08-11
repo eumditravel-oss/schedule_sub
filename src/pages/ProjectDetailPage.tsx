@@ -1,5 +1,5 @@
 // src/pages/ProjectDetailPage.tsx
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useCallback, useState, useEffect, useRef, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Project, Task, TaskGroup, TaskGroupColorKey, Worker, ProjectWorkerAllocation, CountryHoliday, CalendarOverride, DailyStatusType, WorkDayStatus, CountryCode, WorkweekProfile, ScheduleConflictDetail, isExecutiveViewer, isEditableWorker, GanttDateColumn, DateColumn } from '../types';
 import { WorkerConflictModal } from '../components/modals/WorkerConflictModal';
@@ -69,6 +69,7 @@ import { BuildVersionIndicator } from '../components/common/BuildVersionIndicato
 import { ScheduleBar } from '../components/gantt/ScheduleBar';
 import { TaskAssigneePopover } from '../components/gantt/TaskAssigneePopover';
 import { TodayColumnOverlay } from '../components/gantt/TodayColumnOverlay';
+import { GanttMonthBoundaryOverlay } from '../components/gantt/GanttMonthBoundaryOverlay';
 import { getTimelineWidth, getMonthSegments } from '../utils/ganttGeometry';
 import { getGanttSpanColumns } from '../utils/ganttOverlay';
 import { calculateTaskWorkdayBreakdown } from '../utils/workCalendar';
@@ -376,7 +377,7 @@ const SortableTaskRow: React.FC<SortableTaskRowProps> = ({
         role="cell"
         data-testid={`task-timeline-${tItem.id}`}
         style={{ width: `${timelineWidth}px`, minWidth: `${timelineWidth}px` }}
-        className="relative shrink-0 h-full"
+        className="relative self-stretch shrink-0"
       >
         {/* Layer 0: Day Cell Background Grid */}
         <div
@@ -434,10 +435,10 @@ const SortableTaskRow: React.FC<SortableTaskRowProps> = ({
           </div>
         )}
 
-        {/* Layer 20: Worker/Country Off & Vacation Hatch Grid (z-20) */}
+        {/* Layer 5: Worker/Country off and vacation hatch stays behind bars */}
         <div
-          className="absolute inset-0 z-20 grid h-full w-full pointer-events-none"
-          style={{ gridTemplateColumns: dateGridTemplate }}
+          className="absolute inset-0 grid h-full w-full pointer-events-none"
+          style={{ gridTemplateColumns: dateGridTemplate, zIndex: GANTT_Z.HATCH }}
         >
           {dateColumns.map((col, cIdx) => {
             const workerObj = resolvePrimaryWorkerObj(tItem, workers);
@@ -1149,7 +1150,7 @@ export const ProjectDetailPage: React.FC = () => {
     minDayWidthPx: GANTT_DAY_WIDTH_PX,
   });
 
-  const fetchCalendarData = async () => {
+  const fetchCalendarData = useCallback(async () => {
     try {
       const currentYear = new Date().getFullYear();
       const [wData, krData, vnData, ovrData] = await Promise.all([
@@ -1174,9 +1175,9 @@ export const ProjectDetailPage: React.FC = () => {
     } catch (err) {
       console.error('Failed to fetch calendar data in detail:', err);
     }
-  };
+  }, [setLanguage]);
 
-  const fetchProjectDetail = async () => {
+  const fetchProjectDetail = useCallback(async () => {
     if (!projectId) return;
     try {
       setLoading(true);
@@ -1194,7 +1195,7 @@ export const ProjectDetailPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [navigate, projectId, t]);
 
   const toggleGroupCollapse = (groupId: string) => {
     setCollapsedGroupIds((prev) => {
@@ -1545,7 +1546,7 @@ export const ProjectDetailPage: React.FC = () => {
   useEffect(() => {
     fetchCalendarData();
     fetchProjectDetail();
-  }, [projectId]);
+  }, [fetchCalendarData, fetchProjectDetail]);
 
   const handleSelectWorkerProfile = (w: Worker) => {
     setCurrentWorker(w);
@@ -2129,6 +2130,8 @@ export const ProjectDetailPage: React.FC = () => {
               style={{
                 width: `${DETAIL_LEFT_WIDTH + timelineWidth}px`,
                 minWidth: `${DETAIL_LEFT_WIDTH + timelineWidth}px`,
+                position: 'relative',
+                isolation: 'isolate',
               }}
               role="table"
               className="flex flex-col text-left"
@@ -2426,6 +2429,13 @@ export const ProjectDetailPage: React.FC = () => {
                     );
                   })()
                 )}
+                <GanttMonthBoundaryOverlay
+                  dateColumns={dateColumns}
+                  dayWidthPx={timelineWidth / (dateColumns.length || 1)}
+                  leftOffsetPx={DETAIL_LEFT_WIDTH}
+                  timelineWidthPx={timelineWidth}
+                  surface="detail"
+                />
               </div>
             </div>
           </div>

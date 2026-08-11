@@ -1,5 +1,5 @@
 // src/components/modals/IntegrationManagerModal.tsx
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import { X, Key, Plus, Shield, Copy, Check, Trash2, Activity, AlertCircle, FileText } from 'lucide-react';
 import { IntegrationApiKey, IntegrationApiLog, Worker } from '../../types';
 import { useI18n } from '../../hooks/useI18n';
@@ -32,13 +32,6 @@ export const IntegrationManagerModal: React.FC<IntegrationManagerModalProps> = (
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
-    if (isOpen && currentWorker?.can_manage_integrations === 1) {
-      fetchKeys();
-      fetchLogs();
-    }
-  }, [isOpen, currentWorker]);
-
-  useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && isOpen) {
         onClose();
@@ -48,7 +41,7 @@ export const IntegrationManagerModal: React.FC<IntegrationManagerModalProps> = (
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
 
-  const fetchKeys = async () => {
+  const fetchKeys = useCallback(async () => {
     try {
       setLoading(true);
       const res = await fetch('/api/admin/integration-keys', {
@@ -63,9 +56,9 @@ export const IntegrationManagerModal: React.FC<IntegrationManagerModalProps> = (
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentWorker]);
 
-  const fetchLogs = async () => {
+  const fetchLogs = useCallback(async () => {
     try {
       const res = await fetch('/api/admin/integration-logs', {
         headers: { 'x-editor-name': encodeURIComponent(currentWorker?.id || currentWorker?.name || '') },
@@ -77,7 +70,14 @@ export const IntegrationManagerModal: React.FC<IntegrationManagerModalProps> = (
     } catch (err) {
       console.error('Failed to fetch API logs:', err);
     }
-  };
+  }, [currentWorker]);
+
+  useEffect(() => {
+    if (isOpen && currentWorker?.can_manage_integrations === 1) {
+      void fetchKeys();
+      void fetchLogs();
+    }
+  }, [currentWorker?.can_manage_integrations, fetchKeys, fetchLogs, isOpen]);
 
   const [keyError, setKeyError] = useState<string | null>(null);
 

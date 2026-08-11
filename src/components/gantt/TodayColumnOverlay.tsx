@@ -1,6 +1,7 @@
 // src/components/gantt/TodayColumnOverlay.tsx
 import React from 'react';
 import { GANTT_DAY_WIDTH_PX } from '../../utils/ganttGeometry';
+import { GANTT_Z } from '../../constants/ganttLayers';
 
 export interface TodayColumnOverlayProps {
   dateColumns: { dateStr: string; isToday?: boolean }[];
@@ -28,8 +29,9 @@ export const TodayColumnOverlay: React.FC<TodayColumnOverlayProps> = ({
         left: `${leftPx}px`,
         width: `${dayWidthPx}px`,
         background: 'rgba(59, 130, 246, 0.035)',
+        zIndex: GANTT_Z.TODAY,
       }}
-      className={`absolute top-0 bottom-0 z-5 pointer-events-none select-none border-x border-blue-400/20 ${className}`}
+      className={`absolute top-0 bottom-0 pointer-events-none select-none border-x border-blue-400/20 ${className}`}
     />
   );
 };

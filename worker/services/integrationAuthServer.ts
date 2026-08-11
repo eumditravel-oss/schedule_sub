@@ -44,7 +44,7 @@ export async function generateIntegrationApiKey(
   const rawSecret = `${keyPrefix}${hexString}`;
   const keyHash = await hashApiSecretToken(rawSecret);
 
-  const id = `key_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+  const id = `key_${crypto.randomUUID()}`;
   const scopesJson = JSON.stringify(scopes);
 
   let expiresAtStr: string | null = null;
@@ -126,11 +126,18 @@ export async function authenticateIntegrationKey(
     }
   }
 
-  // Update last_used_at asynchronously
-  db.prepare(`UPDATE integration_api_keys SET last_used_at = CURRENT_TIMESTAMP WHERE id = ?`)
-    .bind(apiKey.id)
-    .run()
-    .catch(() => {});
+  try {
+    await db
+      .prepare(`UPDATE integration_api_keys SET last_used_at = CURRENT_TIMESTAMP WHERE id = ?`)
+      .bind(apiKey.id)
+      .run();
+  } catch (error) {
+    console.error(JSON.stringify({
+      event: 'integration_api_key_last_used_update_failed',
+      api_key_id: apiKey.id,
+      error: error instanceof Error ? error.message : String(error),
+    }));
+  }
 
   return { allowed: true, apiKey };
 }
@@ -198,27 +205,36 @@ export async function logIntegrationApiRequest(
   errorCode?: string,
   clientIp?: string
 ): Promise<void> {
-  const id = `log_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-  await db
-    .prepare(
-      `INSERT INTO integration_api_logs (
-        id, request_id, api_key_id, method, route, source, external_id, entity_type, internal_id, http_status, error_code, client_ip
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-    )
-    .bind(
-      id,
-      requestId,
-      apiKeyId,
-      method,
+  const id = `log_${crypto.randomUUID()}`;
+  try {
+    await db
+      .prepare(
+        `INSERT INTO integration_api_logs (
+          id, request_id, api_key_id, method, route, source, external_id, entity_type, internal_id, http_status, error_code, client_ip
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      )
+      .bind(
+        id,
+        requestId,
+        apiKeyId,
+        method,
+        route,
+        source || null,
+        externalId || null,
+        entityType || null,
+        internalId || null,
+        httpStatus,
+        errorCode || null,
+        clientIp || null
+      )
+      .run();
+  } catch (error) {
+    console.error(JSON.stringify({
+      event: 'integration_api_request_log_failed',
+      request_id: requestId,
       route,
-      source || null,
-      externalId || null,
-      entityType || null,
-      internalId || null,
-      httpStatus,
-      errorCode || null,
-      clientIp || null
-    )
-    .run()
-    .catch(() => {});
+      http_status: httpStatus,
+      error: error instanceof Error ? error.message : String(error),
+    }));
+  }
 }

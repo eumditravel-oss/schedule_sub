@@ -3,6 +3,7 @@ import { CalendarOverride, CountryHoliday } from '../../types';
 import { getCountryOffState } from '../../utils/workCalendar';
 import { GANTT_DAY_WIDTH_PX } from '../../utils/ganttGeometry';
 import { CALENDAR_VISUAL_TOKENS, buildCalendarHatchPattern } from '../../utils/calendarVisualTokens';
+import { GANTT_Z } from '../../constants/ganttLayers';
 
 export interface ProjectCalendarHatchOverlayProps {
   projectId: string;
@@ -28,8 +29,11 @@ export const ProjectCalendarHatchOverlay: React.FC<ProjectCalendarHatchOverlayPr
   return (
     <div
       data-testid={`project-calendar-hatch-grid-${projectId}`}
-      className={`absolute inset-0 z-10 grid pointer-events-none select-none ${className}`}
-      style={{ gridTemplateColumns: `repeat(${dateColumns.length}, ${dayWidthPx}px)` }}
+      className={`absolute inset-0 grid pointer-events-none select-none ${className}`}
+      style={{
+        gridTemplateColumns: `repeat(${dateColumns.length}, ${dayWidthPx}px)`,
+        zIndex: GANTT_Z.HATCH,
+      }}
     >
       {dateColumns.map((col, cIdx) => {
         const offInfo = getCountryOffState(col.dateStr, calendarOverrides, countryHolidays);

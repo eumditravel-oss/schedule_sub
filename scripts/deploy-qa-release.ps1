@@ -35,14 +35,14 @@ if ($LASTEXITCODE -ne 0) {
 
 # 4. Deploy QA Worker
 Write-Host "Deploying QA Worker..." -ForegroundColor Yellow
-cmd /c "npx wrangler deploy -e qa --var BUILD_SHA:$sha --var ENVIRONMENT_NAME:qa"
+cmd /c "npx wrangler deploy -e qa --var BUILD_SHA:$sha --var BUILD_TIMESTAMP:$deployedAt --var DEPLOYED_AT:$deployedAt --var ENVIRONMENT_NAME:qa"
 if ($LASTEXITCODE -ne 0) {
   Write-Error "QA Worker deployment failed."
   exit 1
 }
 
-# 4.5 Verify QA Completion Integrity Health Check (Max 3 retries, 5s backoff)
-Write-Host "Verifying QA Completion Integrity Health Check (Max 3 retries, 5s backoff)..." -ForegroundColor Yellow
+# 4.5 Verify QA Completion and Scheduler Integrity Health Checks (Max 3 retries, 5s backoff)
+Write-Host "Verifying QA Completion and Scheduler Integrity Health Checks (Max 3 retries, 5s backoff)..." -ForegroundColor Yellow
 $qaHealthRequestCount = 0
 $qaVerified = $false
 for ($retry = 0; $retry -lt 3; $retry++) {
@@ -55,7 +55,14 @@ for ($retry = 0; $retry -lt 3; $retry++) {
       Write-Error "COMPLETION_INTEGRITY_REGRESSION: QA environment has $($qaData.inconsistent_projects) inconsistent projects and $($qaData.inconsistent_tasks) inconsistent tasks."
       exit 1
     }
-    Write-Host "QA Completion Integrity Verification Passed (Completed Projects: $($qaData.completed_projects), Inconsistent Projects: $($qaData.inconsistent_projects), Inconsistent Tasks: $($qaData.inconsistent_tasks))" -ForegroundColor Green
+    $qaHealthRequestCount++
+    $qaSchedulerRes = Invoke-RestMethod -Uri "https://concost-dev-scheduler-qa.eumditravel.workers.dev/api/health/scheduler-integrity" -Method Get
+    $qaSchedulerData = $qaSchedulerRes.data
+    if ($qaSchedulerData.status -ne "PASS") {
+      Write-Error "SCHEDULER_INTEGRITY_REGRESSION: QA scheduler integrity status is $($qaSchedulerData.status)."
+      exit 1
+    }
+    Write-Host "QA Completion and Scheduler Integrity Verification Passed (Scheduler: $($qaSchedulerData.status), Inconsistent Projects: $($qaData.inconsistent_projects), Inconsistent Tasks: $($qaData.inconsistent_tasks))" -ForegroundColor Green
     $qaVerified = $true
     break
   } catch {
@@ -209,6 +216,7 @@ $evidenceObj = @{
   remote_request_count = $totalQAWorkerRequests
   remaining_budget = $remainingBudget
   completion_integrity = "PASS"
+  scheduler_integrity = "PASS"
   verified_at = $deployedAt
 }
 $evidenceJson = $evidenceObj | ConvertTo-Json -Depth 4
@@ -217,6 +225,10 @@ $evidenceJson = $evidenceObj | ConvertTo-Json -Depth 4
 # 9. Generate untracked QA Release Evidence Reports
 Write-Host "Generating QA Release Evidence Reports..." -ForegroundColor Yellow
 cmd /c "node scripts/generate-test-inventory.mjs"
+$env:RELEASE_FRONTEND_SHA = $sha
+$env:RELEASE_BUILD_INDICATOR_SHA = $sha
+$env:RELEASE_GATE_STATUS = "PASS"
+$env:RELEASE_CHROMIUM_STATUS = "PASS"
 cmd /c "node scripts/generate-release-report.mjs"
 
 # 10. Ensure Git working directory remains clean (except untracked qa/ artifacts)

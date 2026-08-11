@@ -1,86 +1,69 @@
 # CON-COST 개발팀 프로젝트 스케줄러
 
-Cloudflare D1 데이터베이스와 React, TypeScript, Cloudflare Worker를 활용하여 개발팀의 여러 프로젝트 전체 공정 현황 및 작업자별 세부 공정을 관리하는 사내 간트 차트 웹 시스템입니다.
+React와 Cloudflare Workers/D1으로 만든 사내 프로젝트·작업 일정 관리용 간트 차트입니다.
 
----
+이 저장소는 빠른 검증을 위해 만든 임시 내부 도구입니다. 로그인과 세션 인증은 의도적으로 구현하지 않았으며, 화면의 작업자 선택은 표시 언어와 편집자 기록을 위한 프로필 선택일 뿐 인증 수단이 아닙니다. 외부 공개나 신뢰할 수 없는 사용자가 접근하는 환경에는 그대로 사용하면 안 됩니다.
 
-## 🚀 주요 특징
+## 주요 기능
 
-1. **2단계 간트 차트 구조**:
-   - **`/projects`**: 전체 프로젝트 공정 현황 (시작일~종료일 막대, 전체 공정률, 오늘 날짜선, 주말 배경 구분)
-   - **`/projects/:projectId`**: 작업자별 세부 공정 현황 (1작업 1행 배치, 날짜별 상태 색상 입력 팝업)
-2. **D1 실시간 데이터베이스 연동**:
-   - `projects`, `tasks`, `daily_status` 3개 D1 테이블 사용
-   - 새로고침 후에도 Cloudflare D1에 데이터 지속 저장 유지
-3. **공정률 자동 산출**:
-   - 하위 작업 공정률의 단순 평균으로 프로젝트 전체 공정률 자동 계산 (`sum(task.progress) / task.count`)
-4. **고정 스티키 레이아웃**:
-   - 좌측 정보 영역과 상단 날짜 헤더 고정 및 가로 스크롤 지원
+- `/projects`: 전체·진행·완료 프로젝트 일정과 월/일 간트 보기
+- `/projects/:projectId`: 공정 그룹, 세부 작업, 담당자, 휴일·휴가를 반영한 일정 보기
+- 한국·베트남 근무일, 공휴일, 베트남 토요일 근무, 개인 휴가 반영
+- 프로젝트 완료·복원, 일정 이동, 작업 충돌, 외부 연동 API
+- A4/A3 인쇄 보고서와 색상/흑백 달력 패턴
 
----
+## 기술 구성
 
-## 🛠 기술 스택
+- React 18, TypeScript, React Router 7, Vite 8, Tailwind CSS
+- Cloudflare Workers, D1, Workers AI, 정적 자산 바인딩
+- Vitest 4, Playwright, Wrangler 4
 
-- **Frontend**: React 18, TypeScript, Vite, Tailwind CSS, React Router, Lucide Icons
-- **Backend / DB**: Cloudflare Worker, Cloudflare D1 (SQLite)
-- **Testing & Tools**: Vitest, Wrangler, Zod
+## 로컬 실행
 
----
-
-## 💻 로컬 개발 및 실행 방법
-
-### 1. 패키지 설치
 ```bash
 npm install
-```
-
-### 2. D1 로컬 마이그레이션 및 시드 데이터 적용
-```bash
-# 1) 테이블 생성 마이그레이션 실행
 npm run d1:migrate:local
-
-# 2) 초기 테스트 시드 데이터 입력
-npm run d1:seed:local
-```
-
-### 3. 개발 서버 실행
-```bash
-# Vite 프론트엔드 및 Worker 통합 서버 구동
-npm run dev
-```
-
----
-
-## 🧪 테스트 및 타입 검사
-
-```bash
-# TypeScript 타입 체크
-npm run typecheck
-
-# Vitest 유닛 테스트 실행
-npm run test
-
-# 프로덕션 빌드 테스트
 npm run build
 ```
 
----
+두 터미널에서 Worker와 Vite를 각각 실행합니다.
 
-## ☁️ Cloudflare 배포 방법
-
-### 1. Cloudflare D1 데이터베이스 생성
 ```bash
-npx wrangler d1 create concost-db
-```
-출력된 `database_id`를 `wrangler.jsonc`에 입력합니다.
+# 터미널 1: 로컬 D1을 사용하는 Worker API
+npm run dev:worker
 
-### 2. 프로덕션 D1 마이그레이션 적용
-```bash
-npx wrangler d1 migrations apply concost-db --remote
-npx wrangler d1 execute concost-db --remote --file=./migrations/0002_seed_data.sql
+# 터미널 2: 프런트엔드 개발 서버
+npm run dev
 ```
 
-### 3. Cloudflare Worker 배포
+Vite의 `/api` 프록시는 기본적으로 `http://127.0.0.1:8787`만 사용합니다. QA 데이터가 바뀌는 원격 테스트는 일반 테스트와 분리돼 있습니다.
+
+## 검증 명령
+
 ```bash
-npx wrangler deploy
+npm run typecheck
+npm run typecheck:worker-bindings
+npm run lint
+npm test
+npm run build
 ```
+
+`npm test`는 로컬 단위·계약 테스트만 실행합니다. 실제 QA D1을 변경하는 테스트는 의도적으로 별도 명령으로만 실행됩니다.
+
+```bash
+npm run test:qa-remote
+```
+
+## 배포
+
+직접 `wrangler deploy`를 실행하지 않습니다. 배포 스크립트가 커밋 SHA와 배포 시각을 주입하고, 무결성 검사와 QA 브라우저 게이트를 통과한 증거를 생성합니다.
+
+```powershell
+# 1. 커밋된 깨끗한 작업 트리에서 QA 배포·검증
+powershell -ExecutionPolicy Bypass -File scripts/deploy-qa-release.ps1
+
+# 2. QA 증거 확인 및 운영 배포 승인 후
+powershell -ExecutionPolicy Bypass -File scripts/deploy-production-release.ps1 -ReleaseSha <검증된 전체 SHA>
+```
+
+세부 절차는 [docs/RELEASE.md](docs/RELEASE.md), D1 변경 규칙은 [docs/MIGRATION_POLICY.md](docs/MIGRATION_POLICY.md)를 참고합니다.

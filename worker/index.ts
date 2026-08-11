@@ -40,10 +40,10 @@ import { getTodayDashboardSummaryServer, getOverdueTaskDetailsServer } from './s
 import { getProjectAllocations, updateProjectAllocations, getAllocationHistory, getProjectAllocationHistory } from './services/projectAllocationService';
 import { completeProjectService } from './services/projectCompletionService';
 
-export interface Env {
-  DB: any;
-  ASSETS?: any;
-  AI?: any;
+export interface WorkerEnv {
+  DB: Env['DB'];
+  ASSETS?: Env['ASSETS'];
+  AI?: Env['AI'];
   KASI_HOLIDAY_API_KEY?: string;
   BUILD_SHA?: string;
   BUILD_TIMESTAMP?: string;
@@ -211,7 +211,7 @@ async function translateProjectOrTaskName(ai: any, nameText: string) {
   }
 }
 
-async function syncHolidaysInternal(db: any, env: Env, country_code: 'KR' | 'VN', year: number) {
+async function syncHolidaysInternal(db: any, env: WorkerEnv, country_code: 'KR' | 'VN', year: number) {
   let holidays: SyncedHoliday[] = [];
   let source: 'KASI' | 'NAGER' | 'MANUAL' = 'NAGER';
   let is_verified = 0;
@@ -270,12 +270,15 @@ async function syncHolidaysInternal(db: any, env: Env, country_code: 'KR' | 'VN'
 }
 
 export default {
-  async fetch(request: Request, env: Env): Promise<Response> {
+  async fetch(request: Request, env: WorkerEnv): Promise<Response> {
     const url = new URL(request.url);
     const path = url.pathname;
     const cleanPath = path.replace(/\/$/, '') || '/';
     const method = request.method;
-    const db = env.DB;
+    // D1 row shapes are heterogeneous across this legacy monolithic router.
+    // Keep the binding itself generated/typed while narrowing individual query
+    // result types incrementally in the service modules.
+    const db: any = env.DB;
 
     if (method === 'OPTIONS') {
       return new Response(null, {
@@ -294,7 +297,7 @@ export default {
         return jsonResponse({
           commit: env.BUILD_SHA || 'unknown',
           environment: env.ENVIRONMENT_NAME || (isQa ? 'qa' : 'production'),
-          deployed_at: env.DEPLOYED_AT || new Date().toISOString(),
+          deployed_at: env.DEPLOYED_AT || env.BUILD_TIMESTAMP || null,
         });
       }
 
@@ -302,7 +305,7 @@ export default {
         const isQa = url.hostname.includes('-qa') || url.hostname.includes('qa-') || url.searchParams.get('env') === 'qa';
         return jsonResponse({
           commit: env.BUILD_SHA || 'unknown',
-          builtAt: env.BUILD_TIMESTAMP || env.DEPLOYED_AT || new Date().toISOString(),
+          builtAt: env.BUILD_TIMESTAMP || env.DEPLOYED_AT || null,
           environment: env.ENVIRONMENT_NAME || (isQa ? 'qa' : 'production'),
         });
       }
@@ -511,8 +514,11 @@ export default {
           const { results } = await db.prepare(`
             SELECT o.id 
             FROM calendar_overrides o 
-            LEFT JOIN workers w ON o.worker_id = w.id 
-            WHERE o.worker_id IS NOT NULL AND w.id IS NULL
+            LEFT JOIN workers w
+              ON o.scope_type = 'WORKER'
+             AND (o.scope_key = w.id OR o.scope_key = w.name)
+            WHERE o.scope_type = 'WORKER'
+              AND w.id IS NULL
           `).all();
           invalidCalendarCount = (results || []).length;
           if ((invalidCalendarCount || 0) > 0) calendarStatus = 'FAIL';
@@ -532,7 +538,9 @@ export default {
             SELECT l.id 
             FROM integration_api_logs l 
             LEFT JOIN integration_api_keys k ON l.api_key_id = k.id 
-            WHERE k.id IS NULL
+            WHERE l.api_key_id IS NOT NULL
+              AND l.api_key_id NOT IN ('', 'none')
+              AND k.id IS NULL
           `).all();
           orphanIntegrationCount = (results || []).length;
           if ((orphanIntegrationCount || 0) > 0) integrationStatus = 'FAIL';
@@ -636,7 +644,7 @@ export default {
           },
           integration: {
             status: integrationStatus,
-            orphan_entity_links: orphanIntegrationCount,
+            orphan_api_key_references: orphanIntegrationCount,
           },
           build: {
             backend_sha: env.BUILD_SHA || 'unknown',

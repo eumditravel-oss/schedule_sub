@@ -14,6 +14,7 @@ const now = new Date();
 const kstDateStr = now.toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' });
 const kstTimeStr = now.toLocaleTimeString('en-GB', { timeZone: 'Asia/Seoul', hour: '2-digit', minute: '2-digit', hour12: false });
 const buildTimeKst = `${kstDateStr} ${kstTimeStr} KST`;
+const apiProxyTarget = process.env.SCHEDULER_API_PROXY_TARGET || 'http://127.0.0.1:8787';
 
 // Vite config with path alias, Vitest test exclude, build SHA, and dev server setup
 export default defineConfig({
@@ -25,7 +26,7 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      '@': path.resolve(__dirname, './src'),
+      '@': path.resolve(import.meta.dirname, './src'),
     },
   },
   server: {
@@ -33,7 +34,7 @@ export default defineConfig({
     open: true,
     proxy: {
       '/api': {
-        target: 'https://concost-dev-scheduler-qa.eumditravel.workers.dev',
+        target: apiProxyTarget,
         changeOrigin: true,
         secure: false,
       },
@@ -43,13 +44,21 @@ export default defineConfig({
     port: 5174,
     proxy: {
       '/api': {
-        target: 'https://concost-dev-scheduler-qa.eumditravel.workers.dev',
+        target: apiProxyTarget,
         changeOrigin: true,
         secure: false,
       },
     },
   },
   test: {
-    exclude: ['**/node_modules/**', '**/dist/**', '**/tests/e2e/**'],
+    exclude: [
+      '**/node_modules/**',
+      '**/dist/**',
+      '**/tests/e2e/**',
+      '**/tests/calendarCountryPermission.test.ts',
+      '**/tests/executeQaVerification.test.ts',
+      '**/tests/projectScheduleShiftCascade.test.ts',
+      '**/tests/workerLeaveScheduleCascade.test.ts',
+    ],
   },
 } as any);

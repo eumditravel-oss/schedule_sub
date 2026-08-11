@@ -41,6 +41,9 @@ describe('Release Report Generator & 5-Way SHA Verification Unit Suite', () => {
     expect(report.scheduler_health.status).toBe('ERROR');
     expect(report.completion_health.inconsistent_projects).toBe('UNKNOWN');
     expect(report.completion_health.inconsistent_tasks).toBe('UNKNOWN');
+    expect(report.critical_release_gate.status).toBe('NOT_RUN');
+    expect(report.browsers.chromium).toBe('NOT_RUN');
+    expect(report.build_indicator_sha).toBe('unknown');
   });
 
   it('3. Returns sha_match: true when all 5 SHAs match', async () => {
@@ -67,6 +70,9 @@ describe('Release Report Generator & 5-Way SHA Verification Unit Suite', () => {
     const report = await generateReleaseReport({
       gitSha: testSha,
       frontendSha: testSha,
+      buildIndicatorSha: testSha,
+      gateStatus: 'PASS',
+      chromiumStatus: 'PASS',
     });
 
     expect(report.sha_match).toBe(true);

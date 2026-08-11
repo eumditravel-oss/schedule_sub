@@ -2,7 +2,7 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "concost-dev-scheduler",
   "main": "worker/index.ts",
-  "compatibility_date": "2024-10-01",
+  "compatibility_date": "2026-08-11",
   "compatibility_flags": [
     "nodejs_compat"
   ],
@@ -11,9 +11,20 @@
     "binding": "ASSETS",
     "not_found_handling": "single-page-application"
   },
+  "observability": {
+    "enabled": true,
+    "logs": {
+      "enabled": true,
+      "head_sampling_rate": 1,
+      "invocation_logs": true
+    },
+    "traces": {
+      "enabled": true,
+      "head_sampling_rate": 0.05
+    }
+  },
   "vars": {
-    "ENVIRONMENT_NAME": "production",
-    "BUILD_SHA": "a905053b94df80a9695d7eb80edae0b83e390c56"
+    "ENVIRONMENT_NAME": "production"
   },
   "ai": {
     "binding": "AI"
@@ -34,9 +45,20 @@
         "binding": "ASSETS",
         "not_found_handling": "single-page-application"
       },
+      "observability": {
+        "enabled": true,
+        "logs": {
+          "enabled": true,
+          "head_sampling_rate": 1,
+          "invocation_logs": true
+        },
+        "traces": {
+          "enabled": true,
+          "head_sampling_rate": 0.05
+        }
+      },
       "vars": {
-        "ENVIRONMENT_NAME": "qa",
-        "BUILD_SHA": "a905053b94df80a9695d7eb80edae0b83e390c56"
+        "ENVIRONMENT_NAME": "qa"
       },
       "ai": {
         "binding": "AI"

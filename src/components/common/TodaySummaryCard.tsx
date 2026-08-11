@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Worker, CountryHoliday, CalendarOverride } from '../../types';
 import { useI18n } from '../../hooks/useI18n';
 import { CheckCircle2, Clock, AlertTriangle, Calendar, Flame, RefreshCw, FolderCheck } from 'lucide-react';
@@ -16,9 +16,9 @@ interface TodaySummaryCardProps {
 
 export interface TodaySummaryData {
   date: string;
-  scheduled_today: { count: number; task_ids: string[] };
-  in_progress: { count: number; task_ids: string[] };
-  completed_today: { count: number; task_ids: string[] };
+  scheduled_today: { count: number; project_ids: string[] };
+  in_progress: { count: number; project_ids: string[] };
+  completed_today: { count: number; project_ids: string[] };
   completed_this_month: { count: number; project_ids: string[] };
   overdue: { count: number; task_ids: string[] };
 }
@@ -37,7 +37,7 @@ export const TodaySummaryCard: React.FC<TodaySummaryCardProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [isOverdueModalOpen, setIsOverdueModalOpen] = useState<boolean>(false);
 
-  const fetchSummary = async () => {
+  const fetchSummary = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -49,11 +49,11 @@ export const TodaySummaryCard: React.FC<TodaySummaryCardProps> = ({
     } finally {
       setLoading(false);
     }
-  };
+  }, [todayStr]);
 
   useEffect(() => {
     fetchSummary();
-  }, [todayStr, refreshTrigger]);
+  }, [fetchSummary, refreshTrigger]);
 
   const dayStatus = currentWorker ? resolveWorkDayStatus(todayStr, currentWorker, holidays, overrides) : null;
 

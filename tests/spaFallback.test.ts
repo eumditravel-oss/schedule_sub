@@ -19,7 +19,7 @@ describe('SPA Fallback & Unregistered API Protection Tests', () => {
       method: 'GET',
     });
     const mockEnv = { DB: {} };
-    const res = await worker.fetch(req, mockEnv);
+    const res = await worker.fetch(req, mockEnv as any);
 
     expect(res.status).toBe(404);
     expect(res.headers.get('content-type')).toContain('application/json');

@@ -1,5 +1,5 @@
 // src/pages/ProjectOverviewPage.tsx
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useCallback, useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Project, Task, Worker, CountryHoliday, CalendarOverride, isExecutiveViewer, isEditableWorker } from '../types';
 import { api, getCurrentWorkerId, setCurrentWorker as setCurrentWorkerApi } from '../services/api';
@@ -45,6 +45,7 @@ import { BuildVersionIndicator } from '../components/common/BuildVersionIndicato
 import { ScheduleBar } from '../components/gantt/ScheduleBar';
 import { ProjectCalendarHatchOverlay } from '../components/gantt/ProjectCalendarHatchOverlay';
 import { TodayColumnOverlay } from '../components/gantt/TodayColumnOverlay';
+import { GanttMonthBoundaryOverlay } from '../components/gantt/GanttMonthBoundaryOverlay';
 import { getGanttSpanColumns } from '../utils/ganttOverlay';
 import { calculateTaskWorkdayBreakdown } from '../utils/workCalendar';
 import { ProjectDeleteConfirmModal } from '../components/modals/ProjectDeleteConfirmModal';
@@ -181,21 +182,19 @@ export const ProjectOverviewPage: React.FC = () => {
     }
   };
 
-  const fetchCompletedYears = async () => {
+  const fetchCompletedYears = useCallback(async () => {
     try {
       const years = await api.getCompletedYears();
       if (years && years.length > 0) {
         setCompletedYears(years);
-        if (!years.includes(selectedYear)) {
-          setSelectedYear(years[0]);
-        }
+        setSelectedYear((current) => (years.includes(current) ? current : years[0]));
       }
     } catch (err) {
       console.error('Failed to fetch completed years:', err);
     }
-  };
+  }, []);
 
-  const fetchCalendarData = async () => {
+  const fetchCalendarData = useCallback(async () => {
     try {
       const currentYear = new Date().getFullYear();
       const [wData, krData, vnData, ovrData] = await Promise.all([
@@ -237,11 +236,11 @@ export const ProjectOverviewPage: React.FC = () => {
     } catch (err) {
       console.error('Failed to fetch calendar data:', err);
     }
-  };
+  }, [setLanguage]);
 
   const fetchRequestIdRef = useRef(0);
 
-  const fetchProjects = async () => {
+  const fetchProjects = useCallback(async () => {
     const requestId = ++fetchRequestIdRef.current;
     try {
       setLoading(true);
@@ -286,18 +285,18 @@ export const ProjectOverviewPage: React.FC = () => {
         setLoading(false);
       }
     }
-  };
+  }, [activeTab, selectedYear]);
 
   const hasAppliedRoleDefaultRef = useRef(false);
 
   useEffect(() => {
     fetchCompletedYears();
     fetchCalendarData();
-  }, []);
+  }, [fetchCalendarData, fetchCompletedYears]);
 
   useEffect(() => {
     fetchProjects();
-  }, [activeTab, selectedYear]);
+  }, [fetchProjects]);
 
   const handleSelectWorkerProfile = (w: Worker) => {
     const isPrevExecutive = currentWorker ? isExecutiveViewer(currentWorker) : false;
@@ -846,6 +845,8 @@ export const ProjectOverviewPage: React.FC = () => {
                 style={{
                   width: `${OVERVIEW_LEFT_WIDTH + timelineWidth}px`,
                   minWidth: `${OVERVIEW_LEFT_WIDTH + timelineWidth}px`,
+                  position: 'relative',
+                  isolation: 'isolate',
                 }}
                 role="table"
                 className="flex flex-col text-left"
@@ -1018,7 +1019,7 @@ export const ProjectOverviewPage: React.FC = () => {
                 </div>
 
                 {/* 2. Body Container */}
-                <div className="divide-y divide-slate-200 text-sm flex flex-col">
+                <div className="divide-y divide-slate-200 text-sm flex flex-col relative isolate">
                   {loading ? (
                     <div className="py-12 text-center text-slate-500 font-medium w-full">
                       {t('loading')}
@@ -1041,7 +1042,7 @@ export const ProjectOverviewPage: React.FC = () => {
                           data-project-end={project.end_date}
                           onClick={() => navigate(`/projects/${project.id}`)}
                           style={{ position: 'relative', isolation: 'isolate', minHeight: '72px', height: 'auto' }}
-                          className="flex hover:bg-blue-50/50 transition cursor-pointer group"
+                          className="flex items-stretch hover:bg-blue-50/50 transition cursor-pointer group"
                         >
                           {/* Left Sticky Info Cell */}
                           <div
@@ -1058,7 +1059,7 @@ export const ProjectOverviewPage: React.FC = () => {
                               backgroundClip: 'padding-box',
                               isolation: 'isolate',
                             }}
-                            className="sticky left-0 bg-white group-hover:!bg-[#f8fafc] px-3 py-2 border-r border-slate-200 shrink-0 flex items-center h-full relative"
+                            className="sticky left-0 self-stretch bg-white group-hover:!bg-[#f8fafc] px-3 py-2 border-r border-slate-200 shrink-0 flex items-center relative"
                           >
                             <div className="flex items-start justify-between w-full h-full gap-2 py-1">
                               {/* Selection Checkbox for A3 Combined Print */}
@@ -1243,16 +1244,13 @@ export const ProjectOverviewPage: React.FC = () => {
                           </div>
 
                           {/* Right Timeline Cell */}
-                          <div role="cell" data-testid={`project-timeline-${project.id}`} style={{ width: `${timelineWidth}px`, minWidth: `${timelineWidth}px` }} className="relative h-full shrink-0">
-                            {/* Layer 0: Day Grid — Month Start에 2px Slate Separator & Holiday Hatch Overlay */}
-                            <div className="grid w-full h-full" style={{ gridTemplateColumns: dateGridTemplate }}>
+                          <div role="cell" data-testid={`project-timeline-${project.id}`} style={{ width: `${timelineWidth}px`, minWidth: `${timelineWidth}px` }} className="relative self-stretch shrink-0">
+                            {/* Layer 0: Full-height day grid and calendar background colors */}
+                            <div className="absolute inset-0 grid w-full h-full" style={{ gridTemplateColumns: dateGridTemplate }}>
                               {dateColumns.map((col, cIdx) => {
                                 const isMonthStartBody = cIdx > 0 && col.dateStr.slice(0, 7) !== dateColumns[cIdx - 1].dateStr.slice(0, 7);
                                 const offInfo = getCountryOffState(col.dateStr, calendarOverrides, krHolidays.concat(vnHolidays));
                                 const token = getCalendarVisualStyle(offInfo.state === 'BOTH_WORK' ? 'WORKDAY' : (offInfo.state as CalendarVisualState));
-                                const pattern = buildCalendarHatchPattern(token, 0.60);
-                                const cellHatchStyle: React.CSSProperties = pattern ? { backgroundImage: pattern } : {};
-
                                 return (
                                   <div
                                     key={cIdx}
@@ -1264,11 +1262,7 @@ export const ProjectOverviewPage: React.FC = () => {
                                       borderLeft: isMonthStartBody ? '2px solid rgba(100,116,139,0.32)' : undefined,
                                     }}
                                     className={`h-full border-r border-slate-200 relative overflow-hidden select-none ${token.headerClass}`}
-                                  >
-                                    {pattern && (
-                                      <div className="absolute inset-0 pointer-events-none opacity-100" style={cellHatchStyle} />
-                                    )}
-                                  </div>
+                                  />
                                 );
                               })}
                             </div>
@@ -1327,7 +1321,7 @@ export const ProjectOverviewPage: React.FC = () => {
                               );
                             })()}
 
-                            {/* 3. Country Off Hatch Grid Overlay Layer (z-20 pointer-events-none) */}
+                            {/* Layer 5: Country-off hatch stays behind the schedule bar */}
                             <ProjectCalendarHatchOverlay
                               projectId={project.id}
                               startDate={project.start_date}
@@ -1342,6 +1336,13 @@ export const ProjectOverviewPage: React.FC = () => {
                       );
                     })
                   )}
+                  <GanttMonthBoundaryOverlay
+                    dateColumns={dateColumns}
+                    dayWidthPx={timelineWidth / (dateColumns.length || 1)}
+                    leftOffsetPx={OVERVIEW_LEFT_WIDTH}
+                    timelineWidthPx={timelineWidth}
+                    surface="overview"
+                  />
                 </div>
               </div>
             </div>

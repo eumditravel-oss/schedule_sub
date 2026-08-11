@@ -22,9 +22,9 @@ test.describe('Deadline Semantic Integrity Suite (Overdue vs Completion Review)'
     await page.route('**/api/dashboard/today-summary*', async (route) => {
       const json = {
         date: '2026-08-10',
-        scheduled_today: { count: 0, task_ids: [] },
-        in_progress: { count: 0, task_ids: [] },
-        completed_today: { count: 0, task_ids: [] },
+        scheduled_today: { count: 0, project_ids: [] },
+        in_progress: { count: 0, project_ids: [] },
+        completed_today: { count: 0, project_ids: [] },
         completed_this_month: { count: 1, project_ids: ['prj-1'] },
         overdue: { count: 0, task_ids: [] }, // 0 OVERDUE
         completion_review: { count: 1, task_ids: ['task-auto-100'] }, // 1 COMPLETION_REVIEW

@@ -37,7 +37,6 @@ if (-not (Test-Path $evidencePath)) {
   exit 1
 }
 
-$evidenceContent = Get-Content $evidencePath | ConvertTo-Json -Depth 4 | ConvertFrom-Json
 $evidence = Get-Content $evidencePath -Raw | ConvertFrom-Json
 
 if ($evidence.sha -ne $ReleaseSha) {
@@ -52,6 +51,11 @@ if ($evidence.core_gate_passed -ne 21) {
 
 if ($evidence.phase_b_gate_passed -ne 4) {
   Write-Error "PRODUCTION_RELEASE_NOT_QA_VERIFIED: qa/verified-release.json phase_b_gate_passed ($($evidence.phase_b_gate_passed)) is not 4."
+  exit 1
+}
+
+if ($evidence.completion_integrity -ne "PASS" -or $evidence.scheduler_integrity -ne "PASS") {
+  Write-Error "PRODUCTION_RELEASE_NOT_QA_VERIFIED: QA completion/scheduler integrity evidence is not PASS."
   exit 1
 }
 
@@ -96,14 +100,14 @@ if ($LASTEXITCODE -ne 0) {
 
 # 6. Deploy Production Worker
 Write-Host "Deploying Production Worker..." -ForegroundColor Yellow
-cmd /c "npx wrangler deploy --var BUILD_SHA:$ReleaseSha --var ENVIRONMENT_NAME:production"
+cmd /c "npx wrangler deploy --var BUILD_SHA:$ReleaseSha --var BUILD_TIMESTAMP:$deployedAt --var DEPLOYED_AT:$deployedAt --var ENVIRONMENT_NAME:production"
 if ($LASTEXITCODE -ne 0) {
   Write-Error "Production Worker deployment failed."
   exit 1
 }
 
-# 7. Verify Production Completion Integrity Health Check & Golden Smoke
-Write-Host "Verifying Production Completion Integrity Health Check..." -ForegroundColor Yellow
+# 7. Verify Production Completion and Scheduler Integrity Health Checks
+Write-Host "Verifying Production Completion and Scheduler Integrity Health Checks..." -ForegroundColor Yellow
 Start-Sleep -Seconds 2
 try {
   $prodHealthRes = Invoke-RestMethod -Uri "https://concost-dev-scheduler.eumditravel.workers.dev/api/health/completion-integrity" -Method Get
@@ -112,7 +116,13 @@ try {
     Write-Error "COMPLETION_INTEGRITY_REGRESSION: Production environment has $($prodData.inconsistent_projects) inconsistent projects and $($prodData.inconsistent_tasks) inconsistent tasks."
     exit 1
   }
-  Write-Host "Production Completion Integrity Verification Passed (Completed Projects: $($prodData.completed_projects), Inconsistent Projects: $($prodData.inconsistent_projects), Inconsistent Tasks: $($prodData.inconsistent_tasks))" -ForegroundColor Green
+  $prodSchedulerRes = Invoke-RestMethod -Uri "https://concost-dev-scheduler.eumditravel.workers.dev/api/health/scheduler-integrity" -Method Get
+  $prodSchedulerData = $prodSchedulerRes.data
+  if ($prodSchedulerData.status -ne "PASS") {
+    Write-Error "SCHEDULER_INTEGRITY_REGRESSION: Production scheduler integrity status is $($prodSchedulerData.status)."
+    exit 1
+  }
+  Write-Host "Production Completion and Scheduler Integrity Verification Passed (Scheduler: $($prodSchedulerData.status), Inconsistent Projects: $($prodData.inconsistent_projects), Inconsistent Tasks: $($prodData.inconsistent_tasks))" -ForegroundColor Green
 } catch {
   Write-Error "Production Completion Integrity Health Check request failed: $_"
   exit 1
@@ -142,6 +152,18 @@ if ($ReleaseSha -ne $qaVer -or $ReleaseSha -ne $prodVer) {
   exit 1
 }
 Write-Host "5-Way SHA Verification Passed for PRODUCTION: $ReleaseSha" -ForegroundColor Green
+
+# Generate a truthful post-production report. The frontend/build-indicator values
+# were verified by the mandatory QA browser gate recorded in the evidence manifest.
+$env:RELEASE_FRONTEND_SHA = $ReleaseSha
+$env:RELEASE_BUILD_INDICATOR_SHA = $ReleaseSha
+$env:RELEASE_GATE_STATUS = "PASS"
+$env:RELEASE_CHROMIUM_STATUS = "PASS"
+cmd /c "node scripts/generate-release-report.mjs"
+if ($LASTEXITCODE -ne 0) {
+  Write-Error "Production release report generation failed."
+  exit 1
+}
 
 # 9. Ensure Git working directory remains clean
 $postStatus = (git status --porcelain -uno)

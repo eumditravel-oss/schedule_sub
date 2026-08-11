@@ -24,8 +24,8 @@
     "paths": {
       "@/*": ["src/*"]
     },
-    "types": ["@cloudflare/workers-types", "vite/client"]
+    "types": ["node", "vite/client"]
   },
-  "include": ["src", "worker", "tests"],
+  "include": ["worker-configuration.d.ts", "src", "worker", "tests"],
   "exclude": ["node_modules", "dist", "tests/e2e"]
 }

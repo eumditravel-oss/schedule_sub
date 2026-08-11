@@ -1,5 +1,5 @@
 // src/components/modals/CalendarManagerModal.tsx
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import { useI18n } from '../../hooks/useI18n';
 import { Worker, isExecutiveViewer, LeaveDeleteResponse } from '../../types';
 import { X, Calendar, Plus, Trash2, CheckCircle, AlertCircle, Lock, AlertTriangle, ArrowRight, RotateCcw, ChevronLeft, ChevronRight, RefreshCw, Users } from 'lucide-react';
@@ -80,39 +80,7 @@ export const CalendarManagerModal: React.FC<CalendarManagerModalProps> = ({
   const isViewer = isExecutiveViewer(currentWorker);
   const canEditCalendar = currentWorker?.is_active === 1 && currentWorker?.access_role === 'EDITOR';
 
-  useEffect(() => {
-    if (isOpen) {
-      if (currentWorker) {
-        setSelectedWorkerId(currentWorker.id);
-      } else if (workers.length > 0) {
-        setSelectedWorkerId(workers[0].id);
-      }
-
-      const todayStr = new Date().toISOString().slice(0, 10);
-      setStartDate(todayStr);
-      setEndDate(todayStr);
-      loadOverrideGroups();
-      checkPendingDecisions();
-
-      if (activeTab === 'VIETNAM_SATURDAY') {
-        loadVnSaturdayCalendar(vnYear, vnMonth);
-      }
-    }
-  }, [isOpen, currentWorker, workers]);
-
-  useEffect(() => {
-    if (isOpen) {
-      if (activeTab === 'VIETNAM_SATURDAY') {
-        loadVnSaturdayCalendar(vnYear, vnMonth);
-      } else if (activeTab === 'KOREA_HOLIDAY') {
-        loadManualHolidays('KR', krYear, krMonth);
-      } else if (activeTab === 'VIETNAM_HOLIDAY') {
-        loadManualHolidays('VN', vnHolYear, vnHolMonth);
-      }
-    }
-  }, [vnYear, vnMonth, krYear, krMonth, vnHolYear, vnHolMonth, activeTab, isOpen]);
-
-  const loadManualHolidays = async (country: 'KR' | 'VN', y: number, m: number) => {
+  const loadManualHolidays = useCallback(async (country: 'KR' | 'VN', y: number, m: number) => {
     if (country === 'KR') setKrLoading(true);
     else setVnHolLoading(true);
 
@@ -133,7 +101,7 @@ export const CalendarManagerModal: React.FC<CalendarManagerModalProps> = ({
       if (country === 'KR') setKrLoading(false);
       else setVnHolLoading(false);
     }
-  };
+  }, []);
 
   const handleManualHolidaySaveInit = async (country: 'KR' | 'VN') => {
     if (!canEditCalendar) {
@@ -211,7 +179,7 @@ export const CalendarManagerModal: React.FC<CalendarManagerModalProps> = ({
     }
   };
 
-  const loadVnSaturdayCalendar = async (y: number, m: number) => {
+  const loadVnSaturdayCalendar = useCallback(async (y: number, m: number) => {
     setVnLoading(true);
     try {
       const data = await api.getVietnamSaturdayCalendar(y, m);
@@ -227,9 +195,9 @@ export const CalendarManagerModal: React.FC<CalendarManagerModalProps> = ({
     } finally {
       setVnLoading(false);
     }
-  };
+  }, []);
 
-  const checkPendingDecisions = async () => {
+  const checkPendingDecisions = useCallback(async () => {
     if (!currentWorker || isViewer) return;
     try {
       const pds = await api.getPendingScheduleDecisions();
@@ -251,9 +219,9 @@ export const CalendarManagerModal: React.FC<CalendarManagerModalProps> = ({
     } catch (e) {
       console.error('Failed to check pending schedule decisions', e);
     }
-  };
+  }, [currentWorker, isViewer]);
 
-  const loadOverrideGroups = async () => {
+  const loadOverrideGroups = useCallback(async () => {
     setLoading(true);
     try {
       const data = await api.getOverrideGroups();
@@ -263,7 +231,35 @@ export const CalendarManagerModal: React.FC<CalendarManagerModalProps> = ({
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    if (currentWorker) {
+      setSelectedWorkerId(currentWorker.id);
+    } else if (workers.length > 0) {
+      setSelectedWorkerId(workers[0].id);
+    }
+
+    const todayStr = new Date().toISOString().slice(0, 10);
+    setStartDate(todayStr);
+    setEndDate(todayStr);
+    void loadOverrideGroups();
+    void checkPendingDecisions();
+  }, [checkPendingDecisions, currentWorker, isOpen, loadOverrideGroups, workers]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    if (activeTab === 'VIETNAM_SATURDAY') {
+      void loadVnSaturdayCalendar(vnYear, vnMonth);
+    } else if (activeTab === 'KOREA_HOLIDAY') {
+      void loadManualHolidays('KR', krYear, krMonth);
+    } else if (activeTab === 'VIETNAM_HOLIDAY') {
+      void loadManualHolidays('VN', vnHolYear, vnHolMonth);
+    }
+  }, [activeTab, isOpen, krMonth, krYear, loadManualHolidays, loadVnSaturdayCalendar, vnHolMonth, vnHolYear, vnMonth, vnYear]);
 
   const handleCreateOverride = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -385,7 +381,7 @@ export const CalendarManagerModal: React.FC<CalendarManagerModalProps> = ({
     }
   };
 
-  const handleKeepSchedule = async () => {
+  const handleKeepSchedule = useCallback(async () => {
     if (!deleteResponse || !deleteResponse.restore_token) return;
     try {
       await api.keepLeaveSchedule(deleteResponse.deleted_group_id, deleteResponse.restore_token);
@@ -397,7 +393,7 @@ export const CalendarManagerModal: React.FC<CalendarManagerModalProps> = ({
     } catch (e: any) {
       alert(e.message || 'Keep failed');
     }
-  };
+  }, [deleteResponse, lang, loadOverrideGroups, onRefreshCalendar]);
 
   const handleExecuteRestore = async () => {
     if (!deleteResponse || !deleteResponse.restore_token) return;
@@ -750,7 +746,7 @@ export const CalendarManagerModal: React.FC<CalendarManagerModalProps> = ({
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [deleteResponse, onClose]);
+  }, [deleteResponse, handleKeepSchedule, onClose]);
 
   const handleBackdropClick = (e: React.MouseEvent) => {
     if (e.target === e.currentTarget) {

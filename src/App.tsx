@@ -1,10 +1,27 @@
-import React from 'react';
+import React, { Suspense, lazy } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { ProjectOverviewPage } from './pages/ProjectOverviewPage';
-import { ProjectDetailPage } from './pages/ProjectDetailPage';
-import { WorkforceCapacityPage } from './pages/WorkforceCapacityPage';
-import { PrintViewPage } from './pages/print/PrintViewPage';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
+
+const ProjectOverviewPage = lazy(() =>
+  import('./pages/ProjectOverviewPage').then((module) => ({ default: module.ProjectOverviewPage }))
+);
+const ProjectDetailPage = lazy(() =>
+  import('./pages/ProjectDetailPage').then((module) => ({ default: module.ProjectDetailPage }))
+);
+const WorkforceCapacityPage = lazy(() =>
+  import('./pages/WorkforceCapacityPage').then((module) => ({ default: module.WorkforceCapacityPage }))
+);
+const PrintViewPage = lazy(() =>
+  import('./pages/print/PrintViewPage').then((module) => ({ default: module.PrintViewPage }))
+);
+
+function RouteLoadingFallback() {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-slate-50 text-sm font-semibold text-slate-600">
+      화면을 불러오는 중입니다…
+    </div>
+  );
+}
 
 function BuggyTestComponent(): JSX.Element {
   throw new Error('Intentional Error Boundary Test Trigger');
@@ -19,7 +36,8 @@ export function App() {
   return (
     <ErrorBoundary fallbackViewName="App Main Router">
       <BrowserRouter>
-        <Routes>
+        <Suspense fallback={<RouteLoadingFallback />}>
+          <Routes>
           <Route path="/" element={<Navigate to="/projects" replace />} />
           <Route
             path="/projects"
@@ -113,7 +131,8 @@ export function App() {
             />
           )}
           <Route path="*" element={<Navigate to="/projects" replace />} />
-        </Routes>
+          </Routes>
+        </Suspense>
       </BrowserRouter>
     </ErrorBoundary>
   );

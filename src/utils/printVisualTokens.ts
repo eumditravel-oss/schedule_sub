@@ -362,6 +362,7 @@ export function getPrintGanttBarStyle(
           borderStyle: 'solid',
         };
       case 'DELAYED':
+      case 'COMPLETION_REVIEW':
         return {
           backgroundColor: '#F59E0B', // Amber/Orange
           borderColor: '#D97706',
@@ -369,6 +370,8 @@ export function getPrintGanttBarStyle(
           pattern: 'none',
           borderStyle: 'solid',
         };
+      case 'UPCOMING':
+      case 'UNSCHEDULED':
       case 'NOT_STARTED':
       default:
         return {
@@ -408,6 +411,7 @@ export function getPrintGanttBarStyle(
         borderStyle: 'dashed',
       };
     case 'DELAYED':
+    case 'COMPLETION_REVIEW':
       return {
         backgroundColor: '#CBD5E1', // Light gray with diagonal hatch
         borderColor: '#334155',
@@ -415,6 +419,8 @@ export function getPrintGanttBarStyle(
         pattern: 'repeating-linear-gradient(135deg, #334155 0px, #334155 2px, transparent 2px, transparent 6px)',
         borderStyle: 'solid',
       };
+    case 'UPCOMING':
+    case 'UNSCHEDULED':
     case 'NOT_STARTED':
     default:
       return {
@@ -443,6 +449,9 @@ export function getPrintStatusBadgeStyle(
     DELAYED: '지연',
     NOT_STARTED: '미시작',
     ACTIVE: '진행중',
+    COMPLETION_REVIEW: '완료 확인 필요',
+    UPCOMING: '예정',
+    UNSCHEDULED: '미정',
   };
   const labelMapVi: Record<string, string> = {
     COMPLETED: 'Hoàn thành',
@@ -451,6 +460,9 @@ export function getPrintStatusBadgeStyle(
     DELAYED: 'Trễ hạn',
     NOT_STARTED: 'Chưa bắt đầu',
     ACTIVE: 'Đang thực hiện',
+    COMPLETION_REVIEW: 'Cần xác nhận hoàn thành',
+    UPCOMING: 'Sắp tới',
+    UNSCHEDULED: 'Chưa xếp lịch',
   };
 
   const label = lang === 'vi' ? (labelMapVi[normStatus] || normStatus) : (labelMapKo[normStatus] || normStatus);
@@ -465,7 +477,10 @@ export function getPrintStatusBadgeStyle(
       case 'BLOCKED':
         return { backgroundColor: '#FEF2F2', borderColor: '#FECACA', textColor: '#991B1B', label };
       case 'DELAYED':
+      case 'COMPLETION_REVIEW':
         return { backgroundColor: '#FFFBEB', borderColor: '#FDE68A', textColor: '#92400E', label };
+      case 'UPCOMING':
+      case 'UNSCHEDULED':
       case 'NOT_STARTED':
       default:
         return { backgroundColor: '#F8FAFC', borderColor: '#E2E8F0', textColor: '#475569', label };
@@ -482,7 +497,10 @@ export function getPrintStatusBadgeStyle(
     case 'BLOCKED':
       return { backgroundColor: '#FFFFFF', borderColor: '#0F172A', textColor: '#0F172A', label: `${label} (!)` };
     case 'DELAYED':
+    case 'COMPLETION_REVIEW':
       return { backgroundColor: '#E2E8F0', borderColor: '#334155', textColor: '#0F172A', label };
+    case 'UPCOMING':
+    case 'UNSCHEDULED':
     case 'NOT_STARTED':
     default:
       return { backgroundColor: '#FFFFFF', borderColor: '#CBD5E1', textColor: '#64748B', label };

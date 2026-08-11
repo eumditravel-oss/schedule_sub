@@ -6,9 +6,10 @@
  */
 export const GANTT_Z = {
   BASE: 0,
-  TODAY: 5,
+  HATCH: 5,
+  TODAY: 6,
   BAR: 10,
-  HATCH: 20,
+  MONTH_BOUNDARY: 20,
   STATUS: 30,
   TIMELINE_HEADER: 60,
   STICKY_LEFT_BODY: 100,
