@@ -100,7 +100,7 @@ if ($LASTEXITCODE -ne 0) {
 
 # 6. Deploy Production Worker
 Write-Host "Deploying Production Worker..." -ForegroundColor Yellow
-cmd /c "npx wrangler deploy --var BUILD_SHA:$ReleaseSha --var BUILD_TIMESTAMP:$deployedAt --var DEPLOYED_AT:$deployedAt --var ENVIRONMENT_NAME:production"
+cmd /c "npx wrangler deploy --env=\"\" --var BUILD_SHA:$ReleaseSha --var BUILD_TIMESTAMP:$deployedAt --var DEPLOYED_AT:$deployedAt --var ENVIRONMENT_NAME:production"
 if ($LASTEXITCODE -ne 0) {
   Write-Error "Production Worker deployment failed."
   exit 1
