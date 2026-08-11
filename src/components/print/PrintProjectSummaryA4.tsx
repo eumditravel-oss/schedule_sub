@@ -3,6 +3,7 @@ import React from 'react';
 import { Project, Task, TaskGroup, ProjectWorkerAllocation, Worker } from '../../types';
 import { PrintHeader } from './PrintHeader';
 import { PrintFooter } from './PrintFooter';
+import { PrintPageShell } from './PrintPageShell';
 import {
   PrintColorMode,
   getPrintStatusBadgeStyle,
@@ -41,6 +42,21 @@ export const PrintProjectSummaryA4: React.FC<PrintProjectSummaryA4Props> = ({
   const isKo = lang === 'ko';
   const workerMap = new Map(workers.map((w) => [w.id, w.name]));
   const pName = isKo ? (project.name_ko || project.name) : (project.name_vi || project.name);
+
+  // Diagnostic Overflow Check per Part A-7 rules
+  React.useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const pageShells = document.querySelectorAll('.print-paper-a4, .print-page-shell');
+      pageShells.forEach((shell, idx) => {
+        const el = shell as HTMLElement;
+        if (el.scrollHeight > el.clientHeight || el.scrollWidth > el.clientWidth) {
+          console.warn(
+            `[Print Overflow Debug] Page ${idx + 1}: width=${el.offsetWidth}/${el.scrollWidth}, height=${el.offsetHeight}/${el.scrollHeight}`
+          );
+        }
+      });
+    }
+  }, [tasks, taskGroups]);
 
   // Single Source Report Progress & Status Resolution
   const reportProgress = resolveReportProjectProgress(project, tasks);
@@ -146,13 +162,14 @@ export const PrintProjectSummaryA4: React.FC<PrintProjectSummaryA4Props> = ({
   }
 
   return (
-    <div className="print-template-a4-multipage w-full text-slate-900 font-sans text-xs">
+    <div className="print-template-a4-multipage w-full text-slate-900 font-sans text-xs space-y-8 print:space-y-0">
       {/* ========================================================================= */}
       {/* PAGE 1: PROJECT EXECUTIVE SUMMARY */}
       {/* ========================================================================= */}
-      <div className="print-page-band flex flex-col justify-between w-full h-full min-h-[210mm]">
-        <div>
-          {/* Header */}
+      <PrintPageShell paper="a4" orientation="landscape" colorMode={colorMode}>
+        <div className="print-page-band flex flex-col justify-between w-full h-full">
+          <div>
+            {/* Header */}
           <PrintHeader
             title={pName}
             subtitle={isKo ? 'PROJECT EXECUTIVE SUMMARY (프로젝트 요약 보고서)' : 'PROJECT EXECUTIVE SUMMARY (Báo cáo tóm tắt dự án)'}
@@ -372,6 +389,7 @@ export const PrintProjectSummaryA4: React.FC<PrintProjectSummaryA4Props> = ({
         {/* Footer */}
         <PrintFooter colorMode={colorMode} lang={lang} viewerName={viewerName} />
       </div>
+    </PrintPageShell>
 
       {/* ========================================================================= */}
       {/* PAGE 2 ~ N: DETAILED PHASE PAGES (0단계 ~ 6단계) */}
@@ -407,10 +425,8 @@ export const PrintProjectSummaryA4: React.FC<PrintProjectSummaryA4Props> = ({
         }
 
         return (
-          <div
-            key={`phase_page_${groupIndex}_${chunkIndex}`}
-            className="print-page-band flex flex-col justify-between w-full h-full min-h-[210mm] page-break-before"
-          >
+          <PrintPageShell key={`phase_page_${groupIndex}_${chunkIndex}`} paper="a4" orientation="landscape" colorMode={colorMode}>
+            <div className="print-page-band flex flex-col justify-between w-full h-full">
             <div>
               {/* Header */}
               <PrintHeader
@@ -625,6 +641,7 @@ export const PrintProjectSummaryA4: React.FC<PrintProjectSummaryA4Props> = ({
             {/* Footer */}
             <PrintFooter colorMode={colorMode} lang={lang} viewerName={viewerName} />
           </div>
+        </PrintPageShell>
         );
       })}
     </div>

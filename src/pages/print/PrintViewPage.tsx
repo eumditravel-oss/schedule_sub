@@ -403,9 +403,13 @@ export const PrintViewPage: React.FC = () => {
 
       {/* Printable Document Container */}
       <main className="print-document-container flex justify-center">
-        <PrintPageShell paper={paper} orientation={orientation} colorMode={colorMode}>
-          {renderTemplateContent()}
-        </PrintPageShell>
+        {templateType === 'summary-a4' ? (
+          renderTemplateContent()
+        ) : (
+          <PrintPageShell paper={paper} orientation={orientation} colorMode={colorMode}>
+            {renderTemplateContent()}
+          </PrintPageShell>
+        )}
       </main>
     </div>
   );

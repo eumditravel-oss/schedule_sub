@@ -77,21 +77,79 @@
     print-color-adjust: exact !important;
   }
 
-  .print-toolbar {
+  .print-toolbar,
+  .build-version-indicator,
+  .screen-only {
     display: none !important;
   }
 
   .print-view-wrapper {
     padding: 0 !important;
+    margin: 0 !important;
     background: transparent !important;
+  }
+
+  .print-document-container {
+    padding: 0 !important;
+    margin: 0 !important;
+    width: 100% !important;
+    display: block !important;
   }
 
   .print-page-shell {
     border: none !important;
     box-shadow: none !important;
     margin: 0 !important;
-    width: 100% !important;
     max-width: none !important;
+    box-sizing: border-box !important;
+  }
+
+  .print-paper-a4.print-landscape {
+    width: 297mm !important;
+    height: 210mm !important;
+    max-height: 210mm !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    overflow: hidden !important;
+    page-break-after: always !important;
+    break-after: page !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  .print-paper-a4.print-landscape:last-child {
+    page-break-after: auto !important;
+    break-after: auto !important;
+  }
+
+  .print-paper-a3.print-landscape {
+    width: 420mm !important;
+    height: 297mm !important;
+    max-height: 297mm !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    overflow: hidden !important;
+    page-break-after: always !important;
+    break-after: page !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  .print-paper-a3.print-landscape:last-child {
+    page-break-after: auto !important;
+    break-after: auto !important;
+  }
+
+  .print-page-band {
+    width: 100% !important;
+    height: 100% !important;
+    max-height: 100% !important;
+    margin: 0 !important;
+    padding: 8mm 12mm !important;
+    box-sizing: border-box !important;
+    overflow: hidden !important;
+    page-break-before: auto !important;
+    break-before: auto !important;
   }
 
   tr {

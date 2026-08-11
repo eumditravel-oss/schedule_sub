@@ -1244,21 +1244,31 @@ export const ProjectOverviewPage: React.FC = () => {
 
                           {/* Right Timeline Cell */}
                           <div role="cell" data-testid={`project-timeline-${project.id}`} style={{ width: `${timelineWidth}px`, minWidth: `${timelineWidth}px` }} className="relative h-full shrink-0">
-                            {/* Layer 0: Day Grid — Month Start에 2px Slate Separator (box-sizing:border-box 유지) */}
+                            {/* Layer 0: Day Grid — Month Start에 2px Slate Separator & Holiday Hatch Overlay */}
                             <div className="grid w-full h-full" style={{ gridTemplateColumns: dateGridTemplate }}>
                               {dateColumns.map((col, cIdx) => {
                                 const isMonthStartBody = cIdx > 0 && col.dateStr.slice(0, 7) !== dateColumns[cIdx - 1].dateStr.slice(0, 7);
+                                const offInfo = getCountryOffState(col.dateStr, calendarOverrides, krHolidays.concat(vnHolidays));
+                                const token = getCalendarVisualStyle(offInfo.state === 'BOTH_WORK' ? 'WORKDAY' : (offInfo.state as CalendarVisualState));
+                                const pattern = buildCalendarHatchPattern(token, 0.60);
+                                const cellHatchStyle: React.CSSProperties = pattern ? { backgroundImage: pattern } : {};
+
                                 return (
                                   <div
                                     key={cIdx}
                                     data-testid={`gantt-task-cell-overview-${project.id}-${col.dateStr}`}
                                     data-month-boundary={isMonthStartBody ? 'true' : undefined}
+                                    data-country-off-state={offInfo.state}
                                     style={{
                                       boxSizing: 'border-box',
                                       borderLeft: isMonthStartBody ? '2px solid rgba(100,116,139,0.32)' : undefined,
                                     }}
-                                    className={`h-full border-r border-slate-200 ${col.isWeekend ? 'bg-slate-50/70' : 'bg-white'}`}
-                                  />
+                                    className={`h-full border-r border-slate-200 relative overflow-hidden select-none ${token.headerClass}`}
+                                  >
+                                    {pattern && (
+                                      <div className="absolute inset-0 pointer-events-none opacity-100" style={cellHatchStyle} />
+                                    )}
+                                  </div>
                                 );
                               })}
                             </div>

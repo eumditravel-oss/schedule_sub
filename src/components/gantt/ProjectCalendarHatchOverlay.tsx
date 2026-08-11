@@ -32,11 +32,6 @@ export const ProjectCalendarHatchOverlay: React.FC<ProjectCalendarHatchOverlayPr
       style={{ gridTemplateColumns: `repeat(${dateColumns.length}, ${dayWidthPx}px)` }}
     >
       {dateColumns.map((col, cIdx) => {
-        const isInRange = col.dateStr >= startDate && col.dateStr <= endDate;
-        if (!isInRange) {
-          return <div key={cIdx} className="w-full h-full" />;
-        }
-
         const offInfo = getCountryOffState(col.dateStr, calendarOverrides, countryHolidays);
         const state = offInfo.state;
 
