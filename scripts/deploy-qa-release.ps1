@@ -177,6 +177,9 @@ foreach ($testFile in $allSpecs) {
       if ($evidenceCheck.budget_exceeded) {
         Write-Error "RELEASE_REQUEST_BUDGET_EXCEEDED: Proxy request budget limit reached ($($evidenceCheck.forwarded_requests)/$($evidenceCheck.budget)). Remaining specs cancelled."
       }
+      if ([int]$evidenceCheck.proxy_errors -gt 0) {
+        Write-Error "QA_PROXY_UPSTREAM_FAILURE: Counting proxy recorded $($evidenceCheck.proxy_errors) upstream error(s)."
+      }
       Invoke-RestMethod -Uri "http://127.0.0.1:4179/__proxy_stop" -Method Post | Out-Null
     } catch {}
     Stop-Process -Id $proxyProcess.Id -Force -ErrorAction SilentlyContinue
@@ -187,11 +190,21 @@ foreach ($testFile in $allSpecs) {
 
 # 7. Retrieve Measured HTTP Requests from Local Proxy & Stop Proxy Server
 $measuredE2ERequests = 0
+$proxyEvidence = $null
 try {
   $proxyEvidence = Invoke-RestMethod -Uri "http://127.0.0.1:4179/__proxy_stop" -Method Post
   $measuredE2ERequests = [int]$proxyEvidence.forwarded_requests
-} catch {}
+} catch {
+  Stop-Process -Id $proxyProcess.Id -Force -ErrorAction SilentlyContinue
+  Write-Error "QA_PROXY_EVIDENCE_FAILED: Could not retrieve final counting proxy evidence: $_"
+  exit 1
+}
 Stop-Process -Id $proxyProcess.Id -Force -ErrorAction SilentlyContinue
+
+if ([int]$proxyEvidence.proxy_errors -gt 0) {
+  Write-Error "QA_PROXY_UPSTREAM_FAILURE: Counting proxy recorded $($proxyEvidence.proxy_errors) upstream error(s)."
+  exit 1
+}
 
 # 7.5 VERSION REQUEST PRE-CHECK & QUERY
 $projectedTotal = $qaHealthRequestCount + $measuredE2ERequests + $versionReserveCount

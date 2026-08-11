@@ -49,7 +49,14 @@ async function runSimulation() {
   const evidence = evidenceRes.data;
   console.log('[SIMULATION] Final Proxy Evidence:', JSON.stringify(evidence, null, 2));
 
-  if (evidence.forwarded_requests === 10 && evidence.blocked_requests === 1 && evidence.budget_exceeded === true) {
+  if (
+    evidence.forwarded_requests === 10
+    && evidence.blocked_requests === 1
+    && evidence.proxy_errors === 0
+    && evidence.by_status?.['200'] === 10
+    && evidence.by_status?.['429'] === 1
+    && evidence.budget_exceeded === true
+  ) {
     console.log('✅ PROXY BUDGET HARD FAIL-CLOSED VERIFIED: Exactly 10 requests forwarded, 11th request blocked locally (0 remote calls for #11).');
     process.exit(0);
   } else {

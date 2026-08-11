@@ -27,6 +27,28 @@ async function dismissBlockingModals(page: any) {
   }
 }
 
+async function openAfterEdgePropagation(page: any, targetUrl: string, readyLocator: any) {
+  const maxAttempts = 4;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const separator = targetUrl.includes('?') ? '&' : '?';
+    await page.goto(`${targetUrl}${separator}qa_edge_attempt=${attempt}-${Date.now()}`);
+    await dismissBlockingModals(page);
+
+    const result = await Promise.race([
+      readyLocator.waitFor({ state: 'visible', timeout: 8_000 }).then(() => 'ready').catch(() => null),
+      page.locator('[data-testid="app-error-boundary"]').waitFor({ state: 'visible', timeout: 8_000 }).then(() => 'edge-error').catch(() => null),
+    ]);
+
+    if (result === 'ready') return;
+    if (result !== 'edge-error' || attempt === maxAttempts) break;
+
+    await page.waitForTimeout(1_500);
+  }
+
+  await expect(readyLocator).toBeVisible({ timeout: 15_000 });
+}
+
 import { assertMutationSafety } from './productionMutationGuard';
 
 const TEST_BASE_URL = (process.env.TEST_BASE_URL || process.env.PLAYWRIGHT_TEST_BASE_URL || 'http://localhost:5173').trim();
@@ -36,6 +58,8 @@ let createdTaskId = '';
 let expectedCommitSha = '';
 
 test.describe('Strict Gantt Inline Content & Build SHA E2E Suite', () => {
+  test.describe.configure({ mode: 'serial', timeout: 60_000 });
+
   test.beforeAll(async () => {
     try {
       expectedCommitSha = execSync('git rev-parse --short HEAD').toString().trim();
@@ -89,13 +113,15 @@ test.describe('Strict Gantt Inline Content & Build SHA E2E Suite', () => {
   });
 
   test.afterAll(async () => {
+    const cleanupErrors: string[] = [];
+
     // ID-based specific cleanup
     if (createdTaskId) {
       const delTaskRes = await fetch(`${TEST_BASE_URL}/api/tasks/${createdTaskId}`, {
         method: 'DELETE',
         headers: { 'x-editor-name': encodeURIComponent('박용진 수석') },
       });
-      expect(delTaskRes.status).toBe(200);
+      if (delTaskRes.status !== 200) cleanupErrors.push(`task DELETE returned ${delTaskRes.status}`);
     }
 
     if (createdProjectId) {
@@ -103,12 +129,16 @@ test.describe('Strict Gantt Inline Content & Build SHA E2E Suite', () => {
         method: 'DELETE',
         headers: { 'x-editor-name': encodeURIComponent('박용진 수석') },
       });
-      expect(delPrjRes.status).toBe(200);
+      if (delPrjRes.status !== 200) cleanupErrors.push(`project DELETE returned ${delPrjRes.status}`);
 
-      // Verify ID absence (404)
-      const checkPrjRes = await fetch(`${TEST_BASE_URL}/api/projects/${createdProjectId}`);
-      expect(checkPrjRes.status).toBe(404);
+      if (delPrjRes.status === 200) {
+        // Verify ID absence (404)
+        const checkPrjRes = await fetch(`${TEST_BASE_URL}/api/projects/${createdProjectId}`);
+        if (checkPrjRes.status !== 404) cleanupErrors.push(`project cleanup verification returned ${checkPrjRes.status}`);
+      }
     }
+
+    expect(cleanupErrors, `QA cleanup failed: ${cleanupErrors.join(', ')}`).toEqual([]);
   });
 
   test.beforeEach(async ({ page }) => {
@@ -125,13 +155,36 @@ test.describe('Strict Gantt Inline Content & Build SHA E2E Suite', () => {
     });
   });
 
-  test('1. Verify Complete Tooltip Removal and Zero Title Attributes', async ({ page }) => {
+  test('1. Verify deployed frontend readiness and strict Git commit SHA alignment', async ({ page }) => {
+    const versionIndicator = page.locator('[data-testid="build-version-indicator"]');
     await page.setViewportSize({ width: 1366, height: 768 });
-    await page.goto('/projects');
-    await dismissBlockingModals(page);
+    await openAfterEdgePropagation(page, '/projects', versionIndicator);
+
+    let runtimeShaMatched = false;
+    for (let attempt = 1; attempt <= 10; attempt++) {
+      const versionRes = await fetch(`${TEST_BASE_URL}/api/version?t=${Date.now()}`);
+      if (versionRes.ok) {
+        const versionJson: any = await versionRes.json();
+        const currentSha = versionJson.data?.commit || versionJson.commit;
+        if (expectedCommitSha !== 'unknown' && typeof currentSha === 'string' && currentSha.startsWith(expectedCommitSha)) {
+          runtimeShaMatched = true;
+          break;
+        }
+      }
+      if (attempt < 10) await page.waitForTimeout(1_000);
+    }
+
+    expect(runtimeShaMatched).toBe(true);
+    await expect(versionIndicator).not.toContainText('Build mismatch');
+    expect(await versionIndicator.getAttribute('data-backend-sha')).toBe(expectedCommitSha);
+    expect(await versionIndicator.getAttribute('data-frontend-sha')).toBe(expectedCommitSha);
+  });
+
+  test('2. Verify Complete Tooltip Removal and Zero Title Attributes', async ({ page }) => {
+    await page.setViewportSize({ width: 1366, height: 768 });
 
     const projectRow = page.locator(`[data-testid="project-row-${createdProjectId}"]`);
-    await expect(projectRow).toBeVisible({ timeout: 15000 });
+    await openAfterEdgePropagation(page, '/projects', projectRow);
     const scheduleBar = projectRow.locator('[data-testid="gantt-schedule-bar"]');
     await expect(scheduleBar).toBeVisible();
     await scheduleBar.hover();
@@ -146,13 +199,11 @@ test.describe('Strict Gantt Inline Content & Build SHA E2E Suite', () => {
     await page.screenshot({ path: path.join(SCREENSHOT_DIR, 'gantt-no-tooltip.png') });
   });
 
-  test('2. Mandatory Verification of Desktop Zero Inline Title', async ({ page }) => {
+  test('3. Mandatory Verification of Desktop Zero Inline Title', async ({ page }) => {
     await page.setViewportSize({ width: 1366, height: 768 });
-    await page.goto('/projects');
-    await dismissBlockingModals(page);
 
     const projectRow = page.locator(`[data-testid="project-row-${createdProjectId}"]`);
-    await expect(projectRow).toBeVisible({ timeout: 15000 });
+    await openAfterEdgePropagation(page, '/projects', projectRow);
     const firstBar = projectRow.locator('[data-testid="gantt-schedule-bar"]');
     await expect(firstBar).toBeVisible();
     const inlineTitle = firstBar.locator('[data-testid="gantt-bar-inline-title"]');
@@ -166,13 +217,11 @@ test.describe('Strict Gantt Inline Content & Build SHA E2E Suite', () => {
     await page.screenshot({ path: path.join(SCREENSHOT_DIR, 'gantt-inline-info-overview.png') });
   });
 
-  test('3. Mandatory Verification of Project Detail Page Task Bar Zero Inline Content', async ({ page }) => {
+  test('4. Mandatory Verification of Project Detail Page Task Bar Zero Inline Content', async ({ page }) => {
     await page.setViewportSize({ width: 1366, height: 768 });
-    await page.goto(`${TEST_BASE_URL}/projects/${createdProjectId}`);
-    await dismissBlockingModals(page);
 
     const detailBar = page.locator('[data-testid="gantt-schedule-bar"]').first();
-    await expect(detailBar).toBeVisible({ timeout: 15000 });
+    await openAfterEdgePropagation(page, `${TEST_BASE_URL}/projects/${createdProjectId}`, detailBar);
 
     const detailInlineTitle = detailBar.locator('[data-testid="gantt-bar-inline-title"]');
     await expect(detailInlineTitle).toHaveCount(0);
@@ -180,13 +229,11 @@ test.describe('Strict Gantt Inline Content & Build SHA E2E Suite', () => {
     await page.screenshot({ path: path.join(SCREENSHOT_DIR, 'gantt-inline-info-detail.png') });
   });
 
-  test('4. Mandatory Verification of Mobile 30-Day Calendar Agenda View', async ({ page }) => {
+  test('5. Mandatory Verification of Mobile 30-Day Calendar Agenda View', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
-    await page.goto(`${TEST_BASE_URL}/projects/${createdProjectId}`);
-    await dismissBlockingModals(page);
 
     const mobileGanttBtn = page.locator('[data-testid="mobile-view-gantt-btn"]');
-    await expect(mobileGanttBtn).toBeVisible({ timeout: 10000 });
+    await openAfterEdgePropagation(page, `${TEST_BASE_URL}/projects/${createdProjectId}`, mobileGanttBtn);
     await mobileGanttBtn.click();
     await page.waitForTimeout(500);
 
@@ -210,50 +257,4 @@ test.describe('Strict Gantt Inline Content & Build SHA E2E Suite', () => {
     await page.screenshot({ path: path.join(SCREENSHOT_DIR, 'gantt-mobile-calendar-agenda.png') });
   });
 
-  test('5. Verify Strict Git Commit SHA Alignment and BuildVersionIndicator Attributes', async ({ page }) => {
-    test.setTimeout(60000);
-    const versionRes = await fetch(`${TEST_BASE_URL}/api/version?t=${Date.now()}`);
-    expect(versionRes.status).toBe(200);
-
-    const versionJson: any = await versionRes.json();
-    const apiCommitSha = versionJson.data?.commit || versionJson.commit;
-    expect(apiCommitSha).toBeTruthy();
-    expect(typeof apiCommitSha).toBe('string');
-
-    await page.setViewportSize({ width: 1366, height: 768 });
-    await page.goto(`${TEST_BASE_URL}/projects`);
-    await dismissBlockingModals(page);
-
-    const versionIndicator = page.locator('[data-testid="build-version-indicator"]');
-    await expect(versionIndicator).toBeVisible({ timeout: 10000 });
-    await expect(versionIndicator).not.toContainText('Build mismatch');
-
-    // Wait for Cloudflare Workers edge propagation with active cache-busting reloads
-    const maxAttempts = 10;
-    let runtimeShaMatched = false;
-    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-      const versionRes = await fetch(`${TEST_BASE_URL}/api/version?t=${Date.now()}`);
-      if (versionRes.ok) {
-        const vJson: any = await versionRes.json();
-        const currentSha = vJson.data?.commit || vJson.commit;
-        if (expectedCommitSha !== 'unknown' && typeof currentSha === 'string' && currentSha.startsWith(expectedCommitSha)) {
-          runtimeShaMatched = true;
-          break;
-        }
-      }
-      if (attempt < maxAttempts) {
-        await page.waitForTimeout(1000);
-        await page.goto(`${TEST_BASE_URL}/projects?t=${Date.now()}`);
-        await dismissBlockingModals(page);
-      }
-    }
-
-    expect(runtimeShaMatched).toBe(true);
-
-    const frontendSha = await versionIndicator.getAttribute('data-frontend-sha');
-    const backendSha = await versionIndicator.getAttribute('data-backend-sha');
-
-    expect(backendSha).toBe(expectedCommitSha);
-    expect(frontendSha).toBe(expectedCommitSha);
-  });
 });

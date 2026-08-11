@@ -11,23 +11,48 @@ const TARGET_HOST = process.env.PROXY_TARGET_HOST || 'concost-dev-scheduler-qa.e
 const REQUEST_BUDGET = parseInt(process.env.PROXY_REQUEST_BUDGET || '1500', 10);
 const SIMULATION_MODE = process.env.PROXY_SIMULATION_MODE === 'true';
 const EVIDENCE_FILE = path.join(process.cwd(), 'qa', 'request-proxy-evidence.json');
+const HOP_BY_HOP_HEADERS = new Set([
+  'connection',
+  'keep-alive',
+  'proxy-authenticate',
+  'proxy-authorization',
+  'te',
+  'trailer',
+  'transfer-encoding',
+  'upgrade',
+]);
 
 let totalRequests = 0;
 let forwardedRequests = 0;
 let blockedRequests = 0;
+let proxyErrors = 0;
 const byMethod = {};
 const byPath = {};
+const byStatus = {};
+
+function withoutHopByHopHeaders(headers) {
+  return Object.fromEntries(
+    Object.entries(headers).filter(([name]) => !HOP_BY_HOP_HEADERS.has(name.toLowerCase()))
+  );
+}
+
+function recordStatus(statusCode) {
+  const key = String(statusCode);
+  byStatus[key] = (byStatus[key] || 0) + 1;
+}
 
 function buildEvidenceObj() {
   return {
     total: totalRequests,
     forwarded_requests: forwardedRequests,
     blocked_requests: blockedRequests,
+    proxy_errors: proxyErrors,
     budget: REQUEST_BUDGET,
     budget_exceeded: forwardedRequests >= REQUEST_BUDGET || blockedRequests > 0,
     simulation_mode: SIMULATION_MODE,
     by_method: byMethod,
     by_path: byPath,
+    by_status: byStatus,
     target_host: TARGET_HOST,
     timestamp: new Date().toISOString()
   };
@@ -51,8 +76,10 @@ const server = http.createServer((req, res) => {
     totalRequests = 0;
     forwardedRequests = 0;
     blockedRequests = 0;
+    proxyErrors = 0;
     Object.keys(byMethod).forEach(k => delete byMethod[k]);
     Object.keys(byPath).forEach(k => delete byPath[k]);
+    Object.keys(byStatus).forEach(k => delete byStatus[k]);
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ status: 'RESET' }));
     return;
@@ -73,6 +100,7 @@ const server = http.createServer((req, res) => {
   if (forwardedRequests >= REQUEST_BUDGET) {
     totalRequests++;
     blockedRequests++;
+    recordStatus(429);
     console.warn(`[PROXY BUDGET GUARD BLOCKED] Request #${totalRequests} (Forwarded: ${forwardedRequests}/${REQUEST_BUDGET}) -> ${req.method} ${parsedUrl.pathname}`);
     res.writeHead(429, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({
@@ -92,6 +120,7 @@ const server = http.createServer((req, res) => {
 
   // SIMULATION MODE: Respond locally with mock HTTP 200 without making remote network calls
   if (SIMULATION_MODE) {
+    recordStatus(200);
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ status: 'SIMULATED_OK', data: { commit: 'simulated_commit_sha' } }));
     return;
@@ -104,25 +133,46 @@ const server = http.createServer((req, res) => {
     path: req.url,
     method: req.method,
     headers: {
-      ...req.headers,
+      ...withoutHopByHopHeaders(req.headers),
       host: TARGET_HOST,
     },
   };
 
   const proxyReq = https.request(options, (proxyRes) => {
-    res.writeHead(proxyRes.statusCode, proxyRes.headers);
+    const statusCode = proxyRes.statusCode || 502;
+    recordStatus(statusCode);
+    res.writeHead(statusCode, withoutHopByHopHeaders(proxyRes.headers));
     proxyRes.pipe(res, { end: true });
   });
 
-  proxyReq.on('error', (err) => {
-    console.error(`[PROXY ERROR] ${req.method} ${req.url} -> ${err.message}`);
-    res.writeHead(502, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ error: { code: 'PROXY_ERROR', message: err.message } }));
+  proxyReq.setTimeout(30_000, () => {
+    proxyReq.destroy(new Error('Upstream QA request timed out after 30 seconds.'));
   });
+
+  proxyReq.on('error', (err) => {
+    proxyErrors++;
+    recordStatus(502);
+    console.error(`[PROXY ERROR] ${req.method} ${req.url} -> ${err.message}`);
+    if (!res.headersSent) {
+      res.writeHead(502, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: { code: 'PROXY_ERROR', message: err.message } }));
+    } else {
+      res.destroy(err);
+    }
+  });
+
+  req.on('aborted', () => proxyReq.destroy());
 
   req.pipe(proxyReq, { end: true });
 });
 
 server.listen(PORT, '127.0.0.1', () => {
   console.log(`[QA REQUEST PROXY] Listening on http://127.0.0.1:${PORT} -> https://${TARGET_HOST} (Hard Budget: ${REQUEST_BUDGET}, Simulation: ${SIMULATION_MODE})`);
+});
+
+server.on('clientError', (err, socket) => {
+  console.error(`[PROXY CLIENT ERROR] ${err.message}`);
+  if (socket.writable) {
+    socket.end('HTTP/1.1 400 Bad Request\r\nConnection: close\r\n\r\n');
+  }
 });
