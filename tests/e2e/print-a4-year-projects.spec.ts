@@ -5,7 +5,9 @@ test.describe('Print Template 4: A4 Annual Roadmap Report', () => {
     await page.goto('/print/projects/year-a4?year=2026&lang=ko&colorMode=color');
 
     const shell = page.locator('.print-paper-a4');
-    await expect(shell).toBeVisible();
-    await expect(page.locator('.print-header')).toContainText('연간 경영 보고용 연간 로드맵');
+    await expect(shell).toHaveCount(2);
+    await expect(shell.first()).toHaveClass(/print-landscape/);
+    await expect(page.locator('.print-header').first()).toContainText('경영 보고용 프로젝트 로드맵');
+    await expect(page.getByTestId('annual-roadmap-table')).toBeVisible();
   });
 });

@@ -21,6 +21,12 @@ export interface TodaySummaryData {
   completed_today: { count: number; project_ids: string[] };
   completed_this_month: { count: number; project_ids: string[] };
   overdue: { count: number; task_ids: string[] };
+  completion_review?: {
+    count: number;
+    task_ids: string[];
+    items?: Array<{ task_id: string; task_name: string; project_id: string; project_name: string }>;
+  };
+  blocked_count?: number;
 }
 
 export const TodaySummaryCard: React.FC<TodaySummaryCardProps> = ({
@@ -62,6 +68,8 @@ export const TodaySummaryCard: React.FC<TodaySummaryCardProps> = ({
   const completedTodayCount = data?.completed_today?.count ?? 0;
   const completedThisMonthCount = data?.completed_this_month?.count ?? 0;
   const overdueCount = data?.overdue?.count ?? 0;
+  const completionReviewCount = data?.completion_review?.count ?? 0;
+  const firstCompletionReview = data?.completion_review?.items?.[0];
 
   return (
     <div
@@ -183,14 +191,25 @@ export const TodaySummaryCard: React.FC<TodaySummaryCardProps> = ({
         </div>
       )}
 
-      {Number((data as any)?.completion_review?.count || 0) > 0 && (
-        <div data-testid="today-summary-completion-review-strip" className="mt-2 px-3 py-1 bg-blue-50 border border-blue-200 rounded-lg text-blue-900 text-[11px] font-extrabold flex items-center justify-between">
-          <span className="flex items-center gap-1">
+      {completionReviewCount > 0 && (
+        <div
+          data-testid="today-summary-completion-review-strip"
+          title={lang === 'vi'
+            ? 'Công việc đã hết thời gian dự kiến nhưng chưa được xác nhận hoàn thành.'
+            : '예정 기간이 끝나 일정상 100%에 도달했지만 완료 처리가 확정되지 않은 작업입니다.'}
+          className="mt-2 px-3 py-1.5 bg-blue-50 border border-blue-200 rounded-lg text-blue-900 text-[11px] font-extrabold flex items-center justify-between gap-3"
+        >
+          <span className="flex items-center gap-1.5 min-w-0">
             <Clock className="w-3.5 h-3.5 text-blue-600" />
-            <span>{lang === 'vi' ? 'Công việc cần xác nhận hoàn thành' : '완료 확인 필요 작업'}</span>
+            <span className="whitespace-nowrap">{lang === 'vi' ? 'Chờ xác nhận hoàn thành' : '완료 처리 대기'}</span>
+            {firstCompletionReview && (
+              <span className="font-medium text-blue-700 truncate">
+                · {firstCompletionReview.project_name} / {firstCompletionReview.task_name}
+              </span>
+            )}
           </span>
           <span className="bg-blue-200 text-blue-900 px-2 py-0.5 rounded font-black text-xs">
-            {Number((data as any)?.completion_review?.count)}건
+            {completionReviewCount}건
           </span>
         </div>
       )}

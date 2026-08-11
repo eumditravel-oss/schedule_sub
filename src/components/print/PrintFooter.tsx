@@ -9,6 +9,7 @@ export interface PrintFooterProps {
   printedAt?: string;
   viewerName?: string;
   showLegend?: boolean;
+  showCalendarLegend?: boolean;
 }
 
 export const PrintFooter: React.FC<PrintFooterProps> = ({
@@ -17,12 +18,13 @@ export const PrintFooter: React.FC<PrintFooterProps> = ({
   printedAt = new Date().toLocaleString(),
   viewerName,
   showLegend = true,
+  showCalendarLegend = true,
 }) => {
   const isKo = lang === 'ko';
 
   return (
     <footer className="print-footer w-full mt-auto pt-3 border-t border-slate-300 space-y-2 text-[10px] text-slate-500 select-none">
-      {showLegend && <PrintLegend colorMode={colorMode} lang={lang} />}
+      {showLegend && <PrintLegend colorMode={colorMode} lang={lang} showCalendarStates={showCalendarLegend} />}
 
       <div className="flex items-center justify-between font-mono text-[9.5px]">
         <div>

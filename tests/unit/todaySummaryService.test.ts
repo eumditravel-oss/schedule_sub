@@ -26,9 +26,9 @@ describe('Today Summary Monthly Completion KPI Suite (todaySummaryService.ts)', 
               const results = projects.filter(
                 (p) =>
                   p.status === 'COMPLETED' &&
-                  p.completed_at !== null &&
-                  p.completed_at.slice(0, 10) >= monthStart &&
-                  p.completed_at.slice(0, 10) < nextMonthStart
+                  p.end_date !== null &&
+                  p.end_date >= monthStart &&
+                  p.end_date < nextMonthStart
               );
               return { results };
             }
@@ -54,39 +54,37 @@ describe('Today Summary Monthly Completion KPI Suite (todaySummaryService.ts)', 
     return { db, queries };
   };
 
-  it('1. Business month boundary filtering: counts only projects completed in current month (2026-08)', async () => {
+  it('1. Business month boundary filtering: counts completed projects whose end date is in current month', async () => {
     const { db } = mockDb();
     const result = await getTodayDashboardSummaryServer(db, '2026-08-08');
 
-    expect(result.completed_this_month.count).toBe(2);
-    expect(result.completed_this_month.project_ids).toEqual(['p_aug1', 'p_aug15']);
+    expect(result.completed_this_month.count).toBe(3);
+    expect(result.completed_this_month.project_ids).toEqual(['p_july', 'p_sept1', 'p_null_completed']);
   });
 
-  it('2. Excludes projects with completed_at in previous/next month and completed_at = NULL', async () => {
+  it('2. Excludes projects whose scheduled end date is outside the business month', async () => {
     const { db } = mockDb();
     const result = await getTodayDashboardSummaryServer(db, '2026-08-08');
 
-    expect(result.completed_this_month.project_ids).not.toContain('p_july');
-    expect(result.completed_this_month.project_ids).not.toContain('p_sept1');
-    expect(result.completed_this_month.project_ids).not.toContain('p_null_completed');
+    expect(result.completed_this_month.project_ids).not.toContain('p_aug1');
+    expect(result.completed_this_month.project_ids).not.toContain('p_aug15');
   });
 
   it('3. Korean Business Date boundary: 2026-08-01 00:00 KST belongs to August', async () => {
     const { db } = mockDb();
     const result = await getTodayDashboardSummaryServer(db, '2026-08-01');
 
-    expect(result.completed_this_month.count).toBe(2);
+    expect(result.completed_this_month.count).toBe(3);
   });
 
-  it('4. Uses completed_at even when scheduled end_date belongs to a different month', async () => {
+  it('4. Uses scheduled end_date rather than the operator completion timestamp', async () => {
     const { db, queries } = mockDb();
     const result = await getTodayDashboardSummaryServer(db, '2026-08-08');
     const monthlySql = queries.find((sql) => sql.includes("WHERE status = 'COMPLETED'")) || '';
 
-    expect(result.completed_this_month.project_ids).toEqual(['p_aug1', 'p_aug15']);
-    expect(monthlySql).toContain('completed_at IS NOT NULL');
-    expect(monthlySql).toContain('substr(completed_at, 1, 10)');
-    expect(monthlySql).not.toContain('AND end_date');
+    expect(result.completed_this_month.project_ids).toEqual(['p_july', 'p_sept1', 'p_null_completed']);
+    expect(monthlySql).toContain('end_date IS NOT NULL');
+    expect(monthlySql).not.toContain('substr(completed_at, 1, 10)');
   });
 
   it('5. Project-based KPI payloads expose project_ids rather than misleading task_ids', async () => {

@@ -9,7 +9,6 @@ export interface PrintToolbarProps {
   colorMode: PrintColorMode;
   lang: 'ko' | 'vi';
   onPaperChange: (paper: 'a4' | 'a3') => void;
-  onOrientationChange: (orientation: 'portrait' | 'landscape') => void;
   onColorModeChange: (mode: PrintColorMode) => void;
   onLangChange: (lang: 'ko' | 'vi') => void;
   onPrint: () => void;
@@ -23,7 +22,6 @@ export const PrintToolbar: React.FC<PrintToolbarProps> = ({
   colorMode,
   lang,
   onPaperChange,
-  onOrientationChange,
   onColorModeChange,
   onLangChange,
   onPrint,
@@ -80,24 +78,12 @@ export const PrintToolbar: React.FC<PrintToolbarProps> = ({
             <div className="flex items-center gap-1.5">
               <Layout className="w-4 h-4 text-slate-400" />
               <span className="text-slate-300 text-xs font-medium">{isKo ? '방향:' : 'Hướng:'}</span>
-              <div className="flex bg-slate-900 rounded p-0.5 border border-slate-700 text-xs">
-                <button
-                  onClick={() => onOrientationChange('portrait')}
-                  className={`px-2 py-0.5 rounded transition ${
-                    orientation === 'portrait' ? 'bg-emerald-600 text-white font-semibold' : 'text-slate-400 hover:text-white'
-                  }`}
-                >
-                  {isKo ? '세로' : 'Dọc'}
-                </button>
-                <button
-                  onClick={() => onOrientationChange('landscape')}
-                  className={`px-2 py-0.5 rounded transition ${
-                    orientation === 'landscape' ? 'bg-emerald-600 text-white font-semibold' : 'text-slate-400 hover:text-white'
-                  }`}
-                >
-                  {isKo ? '가로' : 'Ngang'}
-                </button>
-              </div>
+              <span
+                data-testid="print-orientation-fixed"
+                className="px-2 py-0.5 rounded bg-emerald-600 text-white font-semibold text-xs"
+              >
+                {isKo ? '가로 고정' : 'Ngang cố định'}
+              </span>
             </div>
 
             {/* Color Mode */}

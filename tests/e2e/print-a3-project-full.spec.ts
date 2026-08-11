@@ -25,6 +25,6 @@ test.describe('Print Template 5: A3 Single Project Full Schedule', () => {
     await expect(shell).toHaveClass(/print-paper-a3/);
     await expect(shell).toHaveClass(/print-landscape/);
 
-    await expect(page.locator('.print-header')).toContainText('전체 상세 일정표');
+    await expect(page.locator('.print-header').first()).toContainText('프로젝트 상세 일정표 · 30일 구간');
   });
 });
