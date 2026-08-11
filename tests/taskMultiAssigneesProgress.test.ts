@@ -13,12 +13,13 @@ describe('Multi-Assignees & Progress Mode Unit Tests', () => {
     { id: 'w3', name: 'Manh Cuong', country_code: 'VN', workweek_profile: 'MON_SAT', is_active: 1, access_role: 'EDITOR' },
   ];
 
-  it('1. Calculates AUTO_TIME task progress based on PRIMARY worker calendar only', () => {
+  it('1. Preserves stored AUTO_TIME actual progress instead of deriving it from elapsed dates', () => {
     const task = {
       id: 't1',
       start_date: '2026-08-03', // Mon
       end_date: '2026-08-07', // Fri
       progress_mode: 'AUTO_TIME',
+      progress: 35,
       primary_worker_id: 'w1',
       assignees: [
         { worker_id: 'w1', name: '박용진', country_code: 'KR', assignment_role: 'PRIMARY', allocation_percent: 100 },
@@ -28,8 +29,41 @@ describe('Multi-Assignees & Progress Mode Unit Tests', () => {
 
     const metrics = calculateTaskProgressServer(task, mockWorkers, [], [], 'ACTIVE', {}, '2026-08-05');
     expect(metrics.planned_working_days).toBe(5);
-    expect(metrics.actual_progress).toBe(40); // 2 elapsed days (Mon, Tue) / 5 = 40%
+    expect(metrics.planned_progress).toBe(40); // planned progress still follows the calendar
+    expect(metrics.actual_progress).toBe(35); // actual progress is an explicit stored fact
     expect(metrics.actual_progress_source).toBe('AUTO_TIME');
+  });
+
+  it('1-A. A past-due 60% task remains 60% and becomes delayed, not completed', () => {
+    const task = {
+      id: 'past-incomplete',
+      start_date: '2026-08-03',
+      end_date: '2026-08-07',
+      progress_mode: 'AUTO_TIME',
+      progress: 60,
+      completion_confirmed: 0,
+      primary_worker_id: 'w1',
+    };
+
+    const metrics = calculateTaskProgressServer(task, mockWorkers, [], [], 'ACTIVE', {}, '2026-08-11');
+    expect(metrics.actual_progress).toBe(60);
+    expect(metrics.schedule_state).toBe('DELAYED');
+  });
+
+  it('1-B. An existing explicit 100% completion remains completed', () => {
+    const task = {
+      id: 'explicit-complete',
+      start_date: '2026-08-03',
+      end_date: '2026-08-07',
+      progress_mode: 'AUTO_TIME',
+      progress: 100,
+      completion_confirmed: 1,
+      primary_worker_id: 'w1',
+    };
+
+    const metrics = calculateTaskProgressServer(task, mockWorkers, [], [], 'ACTIVE', {}, '2026-08-11');
+    expect(metrics.actual_progress).toBe(100);
+    expect(metrics.schedule_state).toBe('COMPLETED');
   });
 
   it('2. Calculates STATUS_BASED task progress using daily statuses', () => {

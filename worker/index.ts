@@ -39,6 +39,14 @@ import { OPENAPI_V1_SPEC } from './services/openapiSpec';
 import { getTodayDashboardSummaryServer, getOverdueTaskDetailsServer } from './services/todaySummaryService';
 import { getProjectAllocations, updateProjectAllocations, getAllocationHistory, getProjectAllocationHistory } from './services/projectAllocationService';
 import { completeProjectService } from './services/projectCompletionService';
+import {
+  ActorContextServer,
+  applyV3FoundationServer,
+  getAllProjectProgressFoundationsServer,
+  getLegacyBootstrapTaskInfoServer,
+  getProjectProgressFoundationServer,
+  previewV3FoundationServer,
+} from './services/v3FoundationService';
 
 export interface WorkerEnv {
   DB: Env['DB'];
@@ -49,6 +57,8 @@ export interface WorkerEnv {
   BUILD_TIMESTAMP?: string;
   ENVIRONMENT_NAME?: string;
   DEPLOYED_AT?: string;
+  V3_CUTOVER_DATE?: string;
+  V3_SOURCE_SCHEMA_FINGERPRINT?: string;
 }
 
 function jsonResponse(data: any, status = 200) {
@@ -85,6 +95,17 @@ function getEditorName(body: any, request: Request): string {
   const header = request.headers.get('x-editor-name');
   if (header) return decodeURIComponent(header).trim();
   return '';
+}
+
+function getActorContextServer(request: Request, worker?: any | null): ActorContextServer {
+  const header = (name: string) => request.headers.get(name)?.trim() || null;
+  return {
+    actorMode: 'TEST_SELECTOR',
+    actorUserId: header('x-actor-user-id') || worker?.id || null,
+    actorEmployeeId: worker?.id || header('x-actor-employee-id'),
+    selectedViewEmployeeId: header('x-selected-view-employee-id') || worker?.id || null,
+    testSessionId: header('x-test-session-id'),
+  };
 }
 
 async function getActiveWorkerProfile(db: any, editorName: string): Promise<any | null> {
@@ -285,7 +306,7 @@ export default {
         headers: {
           'Access-Control-Allow-Origin': '*',
           'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
-          'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-editor-name',
+          'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-editor-name, x-actor-mode, x-actor-user-id, x-actor-employee-id, x-selected-view-employee-id, x-test-session-id',
         },
       });
     }
@@ -308,6 +329,72 @@ export default {
           builtAt: env.BUILD_TIMESTAMP || env.DEPLOYED_AT || null,
           environment: env.ENVIRONMENT_NAME || (isQa ? 'qa' : 'production'),
         });
+      }
+
+      // 0.005 V3 Checkpoint 1 foundation status / guarded migration commands
+      if (method === 'GET' && cleanPath === '/api/v3/foundation/status') {
+        const [baselineCount, forecastCount, actualCount, completionCount, snapshotCount, policyCount] = await Promise.all([
+          db.prepare(`SELECT COUNT(*) AS count FROM project_baselines WHERE version = 1`).first(),
+          db.prepare(`SELECT COUNT(*) AS count FROM schedule_versions WHERE version_number = 1`).first(),
+          db.prepare(`SELECT COUNT(*) AS count FROM task_actuals WHERE source_type = 'LEGACY_BOOTSTRAP'`).first(),
+          db.prepare(`SELECT COUNT(*) AS count FROM task_completion_events WHERE source_type = 'LEGACY_BOOTSTRAP'`).first(),
+          db.prepare(`SELECT COUNT(*) AS count FROM progress_snapshots WHERE source_type = 'V3_FOUNDATION_INITIAL'`).first(),
+          db.prepare(`SELECT COUNT(*) AS count FROM office_work_policies`).first(),
+        ]);
+        return jsonResponse({
+          cutover_date: env.V3_CUTOVER_DATE || null,
+          source_schema_fingerprint: env.V3_SOURCE_SCHEMA_FINGERPRINT || null,
+          baseline_v1_count: Number(baselineCount?.count || 0),
+          forecast_v1_count: Number(forecastCount?.count || 0),
+          legacy_bootstrap_count: Number(actualCount?.count || 0),
+          legacy_completion_event_count: Number(completionCount?.count || 0),
+          progress_snapshot_count: Number(snapshotCount?.count || 0),
+          office_policy_count: Number(policyCount?.count || 0),
+        });
+      }
+
+      if (method === 'POST' && (cleanPath === '/api/admin/v3-foundation/preview' || cleanPath === '/api/admin/v3-foundation/apply')) {
+        const body: any = await request.json().catch(() => ({}));
+        const editorName = getEditorName(body, request);
+        const editCheck = await requireEditableWorker(db, editorName);
+        if (!editCheck.allowed) {
+          return errorResponse(editCheck.errorMsg!, 403, editCheck.errorCode!);
+        }
+        if (!env.V3_CUTOVER_DATE || !env.V3_SOURCE_SCHEMA_FINGERPRINT) {
+          return errorResponse('V3 foundation environment configuration is missing.', 503, 'V3_FOUNDATION_CONFIG_MISSING');
+        }
+
+        const preview = await previewV3FoundationServer(db, env.V3_CUTOVER_DATE);
+        if (cleanPath.endsWith('/preview')) {
+          return jsonResponse({ ...preview, mode: 'DRY_RUN', rows_written: 0 });
+        }
+
+        if (
+          body.confirm_cutover_date !== env.V3_CUTOVER_DATE ||
+          body.confirm_source_schema_fingerprint !== env.V3_SOURCE_SCHEMA_FINGERPRINT ||
+          Number(body.confirm_total_tasks) !== Number(preview.total_tasks)
+        ) {
+          return errorResponse(
+            'Dry-run confirmation does not match the configured cutover, schema fingerprint, and current Task count.',
+            409,
+            'V3_FOUNDATION_CONFIRMATION_MISMATCH',
+            {
+              expected_cutover_date: env.V3_CUTOVER_DATE,
+              expected_source_schema_fingerprint: env.V3_SOURCE_SCHEMA_FINGERPRINT,
+              expected_total_tasks: preview.total_tasks,
+            },
+          );
+        }
+
+        const actor = getActorContextServer(request, editCheck.worker);
+        const result = await applyV3FoundationServer(db, {
+          cutoverDate: env.V3_CUTOVER_DATE,
+          environmentName: env.ENVIRONMENT_NAME || 'unknown',
+          sourceSchemaFingerprint: env.V3_SOURCE_SCHEMA_FINGERPRINT,
+          sourceHead: env.BUILD_SHA || null,
+          actor,
+        });
+        return jsonResponse({ ...result, mode: 'APPLY' });
       }
 
       // 0.01 GET /api/health/completion-integrity
@@ -1401,6 +1488,12 @@ async function validateAndNormalizeTaskAssigneesServer(
         const allActiveProjects = allActiveProjectsRes.results || [];
         const allActiveTasks = allActiveTasksRes.results || [];
         const ackRecords = ackRes.results || [];
+        let foundationMap = new Map<string, any>();
+        try {
+          foundationMap = await getAllProjectProgressFoundationsServer(db, getTodayStrForWorkerServer(null));
+        } catch (error) {
+          console.warn('[V3 Foundation] Project list fallback:', error);
+        }
 
         const dailyStatusMap: Record<string, Record<string, string>> = {};
         (allDailyStatusesRes.results || []).forEach((st: any) => {
@@ -1420,6 +1513,7 @@ async function validateAndNormalizeTaskAssigneesServer(
             calendarBatch.overrides,
             dailyStatusMap
           );
+          const foundation = foundationMap.get(prj.id) || null;
 
           let conflict_count = 0;
           if (prj.status === 'ACTIVE') {
@@ -1438,12 +1532,29 @@ async function validateAndNormalizeTaskAssigneesServer(
           return {
             ...prj,
             ...progressMetrics,
+            ...(foundation ? {
+              ...foundation,
+              planned_progress: foundation.baseline_planned_progress_as_of_today,
+              actual_progress: foundation.current_actual_overall_progress,
+              progress_gap: foundation.progress_variance_percentage_point,
+              schedule_state: foundation.schedule_state,
+              foundation_progress: foundation,
+            } : {}),
             conflict_count,
             participating_workers: participating,
           };
         });
 
         return jsonResponse(projects);
+      }
+
+      const getProgressFoundationMatch = cleanPath.match(/^\/api\/projects\/([^/]+)\/progress-foundation$/);
+      if (method === 'GET' && getProgressFoundationMatch) {
+        const projectId = getProgressFoundationMatch[1];
+        const referenceDate = url.searchParams.get('date') || getTodayStrForWorkerServer(null);
+        const foundation = await getProjectProgressFoundationServer(db, projectId, referenceDate);
+        if (!foundation) return errorResponse('Project not found.', 404, 'PROJECT_NOT_FOUND');
+        return jsonResponse(foundation);
       }
 
       // 3. POST /api/projects
@@ -1563,15 +1674,27 @@ async function validateAndNormalizeTaskAssigneesServer(
 
         const rawTaskIds = rawTasks.map((t: any) => t.id);
         const taskAssigneesMap = await fetchTaskAssigneesMapServer(db, rawTaskIds);
+        let legacyBootstrapMap = new Map<string, any>();
+        let projectFoundation: any = null;
+        try {
+          [legacyBootstrapMap, projectFoundation] = await Promise.all([
+            getLegacyBootstrapTaskInfoServer(db, projectId),
+            getProjectProgressFoundationServer(db, projectId, getTodayStrForWorkerServer(null)),
+          ]);
+        } catch (error) {
+          console.warn('[V3 Foundation] Project detail fallback:', error);
+        }
 
         const defaultGroupId = taskGroups[0]?.id || null;
 
         const formattedTasks = await Promise.all(
           rawTasks.map(async (t: any) => {
             const daily_statuses = dailyStatusMap[t.id] || {};
+            const legacyBootstrap = legacyBootstrapMap.get(t.id) || null;
             const assignees = taskAssigneesMap[t.id] || (t.worker_name ? [{ worker_id: t.worker_name, name: t.worker_name, assignment_role: 'PRIMARY', allocation_percent: 100 }] : []);
             const tWithAssignees = {
               ...t,
+              actual_progress: legacyBootstrap?.actual_progress ?? t.actual_progress ?? t.progress ?? 0,
               task_group_id: t.task_group_id || defaultGroupId,
               assignees,
               assignee_ids: assignees.map((a: any) => a.worker_id),
@@ -1601,6 +1724,8 @@ async function validateAndNormalizeTaskAssigneesServer(
             return {
               ...tWithAssignees,
               ...progressMetrics,
+              legacy_bootstrap_info: legacyBootstrap,
+              is_legacy_bootstrap: Boolean(legacyBootstrap),
               has_schedule_conflict: conflicts.length > 0,
               schedule_conflicts: conflicts,
               daily_statuses,
@@ -1630,11 +1755,20 @@ async function validateAndNormalizeTaskAssigneesServer(
           project: {
             ...project,
             ...projectMetrics,
+            ...(projectFoundation ? {
+              ...projectFoundation,
+              planned_progress: projectFoundation.baseline_planned_progress_as_of_today,
+              actual_progress: projectFoundation.current_actual_overall_progress,
+              progress_gap: projectFoundation.progress_variance_percentage_point,
+              schedule_state: projectFoundation.schedule_state,
+              foundation_progress: projectFoundation,
+            } : {}),
             conflict_count: total_conflicts,
             participating_workers: participating,
           },
           tasks: formattedTasks,
           task_groups: taskGroups,
+          foundation: projectFoundation,
         });
       }
 

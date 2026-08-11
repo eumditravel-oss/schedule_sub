@@ -25,6 +25,55 @@ export type DayType =
 export type AccessRole = 'VIEWER' | 'EDITOR';
 export type UiLanguage = 'ko' | 'vi';
 
+export interface ActorContext {
+  actorMode: 'TEST_SELECTOR';
+  actorUserId: string | null;
+  actorEmployeeId: string | null;
+  selectedViewEmployeeId: string | null;
+  testSessionId: string;
+}
+
+export interface ProjectProgressFoundation {
+  project_id: string;
+  baseline_planned_progress_as_of_today: number;
+  current_actual_overall_progress: number;
+  progress_variance_percentage_point: number;
+  legacy_project_progress: number;
+  legacy_v3_difference: number;
+  difference_reason: string;
+  baseline_start_date: string | null;
+  baseline_end_date: string | null;
+  current_forecast_start_date: string | null;
+  current_forecast_end_date: string | null;
+  schedule_variance_workdays: number;
+  progress_weight_source: string;
+  progress_confidence: 'CONFIRMED' | 'PROVISIONAL';
+  progress_confidence_label_ko: string;
+  progress_confidence_label_vi: string;
+  baseline_version: number | null;
+  forecast_version: number | null;
+  legacy_bootstrap_count: number;
+  has_legacy_bootstrap: boolean;
+  schedule_state: Exclude<ScheduleState, 'COMPLETION_REVIEW'>;
+}
+
+export interface LegacyBootstrapInfo {
+  task_id: string;
+  cutover_date: string;
+  source_type: 'LEGACY_BOOTSTRAP';
+  source_detail: string;
+  legacy_progress_source: 'MANUAL' | 'AUTO_TIME' | 'SYSTEM' | 'UNKNOWN';
+  existing_progress: number;
+  actual_progress: number;
+  remaining_effort_minutes: number;
+  bootstrap_rule: string;
+  exception_code?: string | null;
+  generated_by: 'SYSTEM_MIGRATION';
+  display_label_ko: string;
+  display_label_vi: string;
+  created_at: string;
+}
+
 export interface Worker {
   id: string;
   name: string;
@@ -214,6 +263,24 @@ export interface Project {
   // Baseline fields
   baseline_start_date?: string | null;
   baseline_end_date?: string | null;
+  current_forecast_start_date?: string | null;
+  current_forecast_end_date?: string | null;
+  baseline_planned_progress_as_of_today?: number;
+  current_actual_overall_progress?: number;
+  progress_variance_percentage_point?: number;
+  schedule_variance_workdays?: number;
+  progress_weight_source?: string;
+  progress_confidence?: 'CONFIRMED' | 'PROVISIONAL';
+  progress_confidence_label_ko?: string;
+  progress_confidence_label_vi?: string;
+  baseline_version?: number | null;
+  forecast_version?: number | null;
+  legacy_bootstrap_count?: number;
+  has_legacy_bootstrap?: boolean;
+  legacy_project_progress?: number;
+  legacy_v3_difference?: number;
+  difference_reason?: string;
+  foundation_progress?: ProjectProgressFoundation;
 }
 
 export type TaskGroupColorKey = 'BLUE' | 'GREEN' | 'ORANGE' | 'VIOLET' | 'SLATE';
@@ -282,6 +349,8 @@ export interface Task {
   // Baseline fields
   baseline_start_date?: string | null;
   baseline_end_date?: string | null;
+  legacy_bootstrap_info?: LegacyBootstrapInfo | null;
+  is_legacy_bootstrap?: boolean;
 
   // Blocker fields
   is_blocked?: number | boolean;

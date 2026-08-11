@@ -123,10 +123,16 @@ export async function getTodayDashboardSummaryServer(
   const tasksRes = await db
     .prepare(
       `SELECT t.id, t.project_id, t.task_name, t.start_date, t.end_date, t.progress,
+              COALESCE(ta.actual_progress, t.progress, 0) AS actual_progress,
               t.completion_confirmed, t.schedule_status, t.progress_mode,
               t.primary_worker_id, t.worker_name
        FROM tasks t
        JOIN projects p ON t.project_id = p.id
+       LEFT JOIN task_actuals ta ON ta.id = (
+         SELECT ta2.id FROM task_actuals ta2
+         WHERE ta2.task_id = t.id
+         ORDER BY ta2.created_at DESC, ta2.id DESC LIMIT 1
+       )
        WHERE p.status = 'ACTIVE'
          AND t.schedule_status = 'SCHEDULED'
          AND t.start_date IS NOT NULL
@@ -290,10 +296,16 @@ export async function getOverdueTaskDetailsServer(
   const tasksRes = await db
     .prepare(
       `SELECT t.id, t.project_id, t.task_name, t.start_date, t.end_date, t.progress,
+              COALESCE(ta.actual_progress, t.progress, 0) AS actual_progress,
               t.completion_confirmed, t.schedule_status, t.progress_mode,
               t.primary_worker_id, t.worker_name, p.name as project_name
        FROM tasks t
        JOIN projects p ON t.project_id = p.id
+       LEFT JOIN task_actuals ta ON ta.id = (
+         SELECT ta2.id FROM task_actuals ta2
+         WHERE ta2.task_id = t.id
+         ORDER BY ta2.created_at DESC, ta2.id DESC LIMIT 1
+       )
        WHERE t.id IN (${placeholders})`
     )
     .bind(...overdueIds)

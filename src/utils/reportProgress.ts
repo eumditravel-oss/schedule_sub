@@ -53,16 +53,18 @@ export function resolveReportProjectProgress(
   const actualProgress = project.actual_progress ?? computed.actual_progress;
   const scheduleState = (project.schedule_state || computed.schedule_state) as ReportProjectProgress['scheduleState'];
 
-  // CASE B: Project is Lifecycle ACTIVE, but schedule is 100% / COMPLETED
+  // Lifecycle ACTIVE never becomes a synthetic "completion review" state.
+  // Actual 100% can be a valid task fact, but project completion remains an
+  // explicit lifecycle action and date passage must not manufacture a status.
   if (actualProgress === 100 || scheduleState === 'COMPLETED' || scheduleState === 'COMPLETION_REVIEW') {
     return {
-      plannedProgress: 100,
-      actualProgress: 100,
-      scheduleState: 'COMPLETION_REVIEW',
-      statusDisplayKo: '완료 확인 필요',
-      statusDisplayVi: 'Cần xác nhận hoàn thành',
-      completedAtDisplayKo: '완료 확정 전',
-      completedAtDisplayVi: 'Chưa xác nhận',
+      plannedProgress,
+      actualProgress,
+      scheduleState: 'IN_PROGRESS',
+      statusDisplayKo: '진행 중',
+      statusDisplayVi: 'Đang thực hiện',
+      completedAtDisplayKo: '-',
+      completedAtDisplayVi: '-',
       isLifecycleCompleted: false,
     };
   }

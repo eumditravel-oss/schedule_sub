@@ -78,13 +78,14 @@ export function calculateProjectReadiness(
   allocations: ProjectWorkerAllocation[],
   workers: Worker[],
   holidays: CountryHoliday[] = [],
-  overrides: CalendarOverride[] = []
+  overrides: CalendarOverride[] = [],
+  referenceTodayStr?: string,
 ): ProjectReadiness {
   const issues: ReadinessIssue[] = [];
   const groupsMap: Record<string, ReadinessGroupSummary> = {};
 
   const projectTasks = tasks.filter((t) => t.project_id === project.id);
-  const todayStr = getKoreaDateString();
+  const todayStr = referenceTodayStr || getKoreaDateString();
   const isCompletedProject = project.status === 'COMPLETED';
 
   // 1. Audit Completed Project Data Consistency

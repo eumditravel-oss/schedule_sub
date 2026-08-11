@@ -5,13 +5,13 @@ import { Project, Task, Worker, CountryHoliday, CalendarOverride, isExecutiveVie
 import { api, getCurrentWorkerId, setCurrentWorker as setCurrentWorkerApi } from '../services/api';
 import { calculateVisibleGanttSpan } from '../utils/dateUtils';
 import { getCountryOffState } from '../utils/workCalendar';
-import { calcVisibleTrackAutoTimeFillPercent } from '../utils/ganttVisualFill';
 import { getCalendarVisualStyle, CalendarVisualState, buildCalendarHatchPattern } from '../utils/calendarVisualTokens';
 import { useGanttDateRange } from '../hooks/useGanttDateRange';
 import { useGanttGeometry } from '../hooks/useGanttGeometry';
 import { useResponsiveLayout } from '../hooks/useResponsiveLayout';
 import { useI18n } from '../hooks/useI18n';
 import { getLocalizedErrorMessage } from '../i18n';
+import { TestActorModeBadge } from '../components/common/TestActorModeBadge';
 import {
   GANTT_DAY_WIDTH_PX,
   PRIMARY_BUTTON_H36_CLASS,
@@ -607,6 +607,7 @@ export const ProjectOverviewPage: React.FC = () => {
             )}
 
             {/* [3] Worker Selector */}
+            <TestActorModeBadge />
             <WorkerSelector
               currentWorker={currentWorker}
               onWorkerChange={handleSelectWorkerProfile}
@@ -1181,19 +1182,30 @@ export const ProjectOverviewPage: React.FC = () => {
                                   </div>
                                 </div>
 
-                                {/* Line 2: Date */}
-                                <div className="text-[10px] text-slate-500 font-medium leading-tight">
-                                  {project.start_date} ~ {project.end_date}
+                                {/* Line 2: Baseline / Forecast */}
+                                <div
+                                  data-testid={`project-foundation-dates-${project.id}`}
+                                  className="text-[9px] text-slate-500 font-medium leading-tight whitespace-nowrap"
+                                >
+                                  {lang === 'vi' ? 'Cơ sở' : '기준'} {(project.baseline_end_date || project.end_date)?.slice(5)}
+                                  <span className="mx-1">·</span>
+                                  {lang === 'vi' ? 'Dự kiến' : '예상'} {(project.current_forecast_end_date || project.end_date)?.slice(5)}
+                                  <span className="mx-1">·</span>
+                                  {lang === 'vi' ? 'Chênh' : '변동'} {project.schedule_variance_workdays ?? 0}{lang === 'vi' ? ' ngày' : '일'}
                                 </div>
 
-                                {/* Line 3: Progress % */}
+                                {/* Line 3: Foundation Progress */}
                                 <div
                                   data-testid={`project-progress-summary-${project.id}`}
-                                  className="text-[10px] font-semibold text-slate-600 flex items-center gap-1 select-none whitespace-nowrap leading-tight"
+                                  className="text-[9px] font-semibold text-slate-600 flex items-center gap-1 select-none whitespace-nowrap leading-tight"
                                 >
-                                  <span>{lang === 'vi' ? 'KH' : '예정'} {project.planned_progress ?? project.progress ?? 0}%</span>
-                                  <span>/</span>
-                                  <span className="font-extrabold text-emerald-700">{lang === 'vi' ? 'TT' : '실제'} {project.actual_progress ?? project.progress ?? 0}%</span>
+                                  <span>{lang === 'vi' ? 'KH' : '계획'} {project.baseline_planned_progress_as_of_today ?? project.planned_progress ?? project.progress ?? 0}%</span>
+                                  <span>·</span>
+                                  <span className="font-extrabold text-emerald-700">{lang === 'vi' ? 'TT' : '실제'} {project.current_actual_overall_progress ?? project.actual_progress ?? project.progress ?? 0}%</span>
+                                  <span>·</span>
+                                  <span className={(project.progress_variance_percentage_point ?? 0) < 0 ? 'text-rose-700' : 'text-blue-700'}>
+                                    {lang === 'vi' ? 'Δ' : '편차'} {(project.progress_variance_percentage_point ?? 0) > 0 ? '+' : ''}{project.progress_variance_percentage_point ?? 0}%p
+                                  </span>
                                 </div>
 
                                 {/* Line 4: Warning Badges (Flex-Wrap) */}
@@ -1212,6 +1224,24 @@ export const ProjectOverviewPage: React.FC = () => {
                                       {lang === 'vi' ? `Trùng ${project.conflict_count}` : `⚠ 충돌 ${project.conflict_count}건`}
                                     </button>
                                   ) : null}
+                                  {project.progress_confidence === 'PROVISIONAL' && (
+                                    <span
+                                      data-testid={`project-progress-confidence-${project.id}`}
+                                      title={project.difference_reason || ''}
+                                      className="shrink-0 text-[9px] font-extrabold text-amber-800 bg-amber-50 px-1 py-0.5 rounded border border-amber-300"
+                                    >
+                                      {lang === 'vi' ? 'Tạm tính' : '임시 산정'}
+                                    </span>
+                                  )}
+                                  {project.has_legacy_bootstrap && (
+                                    <span
+                                      data-testid={`project-legacy-bootstrap-${project.id}`}
+                                      title={lang === 'vi' ? 'Dữ liệu do hệ thống tạo tại thời điểm chuyển đổi; không phải nhật ký công việc của nhân viên.' : '시스템이 전환 시 생성한 기준 데이터이며 직원 업무일지가 아닙니다.'}
+                                      className="shrink-0 text-[9px] font-bold text-violet-700 bg-violet-50 px-1 py-0.5 rounded border border-violet-200"
+                                    >
+                                      {lang === 'vi' ? 'Cơ sở chuyển đổi' : '전환 기준 데이터'}
+                                    </span>
+                                  )}
                                   {!isAllocationsLoading ? (
                                     <ProjectReadinessPopover
                                       readiness={calculateProjectReadiness(project, allTasks, allocationsMap[project.id] || [], workers, [...krHolidays, ...vnHolidays], calendarOverrides)}
@@ -1270,10 +1300,8 @@ export const ProjectOverviewPage: React.FC = () => {
                             {/* Layer 5: Today Overlay */}
                             <TodayColumnOverlay dateColumns={dateColumns} dayWidthPx={timelineWidth / dateColumns.length} />
 
-                            {/* Layer 10: ScheduleBar
-                                visualFillPercent: Full Project Span이 아닌 Visible Track(spanInfo) 기준으로 계산
-                                이유: Clipped Track에 Full % 적용하면 오늘 날짜 Cell 내부로 Fill 침범 (Case: CONCOST-HUB 07-06~08-07, today=08-07)
-                                showPlannedMarker=false: AUTO_TIME Overview에서 Planned Marker가 날짜 경계로 오인되는 것 방지 */}
+                            {/* Layer 10: ScheduleBar. The fill is actual progress only;
+                                elapsed calendar time must never manufacture actual work. */}
                             {(() => {
                               const spanInfo = getGanttSpanColumns(project.start_date, project.end_date, dateColumns);
                               if (!spanInfo) return null;
@@ -1307,14 +1335,7 @@ export const ProjectOverviewPage: React.FC = () => {
                                       plannedProgress={project.planned_progress ?? project.progress ?? 0}
                                       actualProgress={project.actual_progress ?? project.progress ?? 0}
                                       status={project.schedule_state || 'UPCOMING'}
-                                      visualFillPercent={calcVisibleTrackAutoTimeFillPercent({
-                                        projectStartDate: project.start_date,
-                                        projectEndDate: project.end_date,
-                                        todayStr,
-                                        dateColumns,
-                                        spanInfo,
-                                      })}
-                                      showPlannedMarker={false}
+                                      showPlannedMarker
                                     />
                                   </div>
                                 </div>

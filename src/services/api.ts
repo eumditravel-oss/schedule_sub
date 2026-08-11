@@ -1,8 +1,9 @@
 // src/services/api.ts
-import { ApiResponse, Project, Task, TaskGroup, Worker, DailyStatusType, CountryHoliday, CalendarOverride, ProjectWorkerAllocation } from '../types';
+import { ActorContext, ApiResponse, Project, ProjectProgressFoundation, Task, TaskGroup, Worker, DailyStatusType, CountryHoliday, CalendarOverride, ProjectWorkerAllocation } from '../types';
 
 const WORKER_ID_KEY = 'schedule_current_worker_id';
 const WORKER_NAME_KEY = 'schedule_current_worker_name';
+const TEST_SESSION_KEY = 'schedule_test_session_id';
 
 export const ACTUAL_WORKERS = [
   'CEO',
@@ -57,11 +58,40 @@ export function clearCurrentWorker(): void {
   } catch {}
 }
 
+export function getActorContext(): ActorContext {
+  let testSessionId = '';
+  try {
+    testSessionId = localStorage.getItem(TEST_SESSION_KEY) || '';
+    if (!testSessionId) {
+      testSessionId = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+        ? crypto.randomUUID()
+        : `test-session-${Date.now()}`;
+      localStorage.setItem(TEST_SESSION_KEY, testSessionId);
+    }
+  } catch {
+    testSessionId = 'test-session-unavailable';
+  }
+  const actorUserId = getCurrentWorkerId() || null;
+  return {
+    actorMode: 'TEST_SELECTOR',
+    actorUserId,
+    actorEmployeeId: actorUserId,
+    selectedViewEmployeeId: actorUserId,
+    testSessionId,
+  };
+}
+
 function getWriteHeaders() {
   const currentWorker = getCurrentWorkerName();
+  const actor = getActorContext();
   return {
     'Content-Type': 'application/json',
     'x-editor-name': encodeURIComponent(currentWorker),
+    'x-actor-mode': actor.actorMode,
+    'x-actor-user-id': actor.actorUserId || '',
+    'x-actor-employee-id': actor.actorEmployeeId || '',
+    'x-selected-view-employee-id': actor.selectedViewEmployeeId || '',
+    'x-test-session-id': actor.testSessionId,
   };
 }
 
@@ -126,6 +156,12 @@ export const api = {
   async getProjectDetail(id: string): Promise<{ project: Project; tasks: Task[]; task_groups: TaskGroup[] }> {
     const res = await fetch(`/api/projects/${id}/detail`);
     return handleResponse<{ project: Project; tasks: Task[]; task_groups: TaskGroup[] }>(res);
+  },
+
+  async getProjectProgressFoundation(id: string, date?: string): Promise<ProjectProgressFoundation> {
+    const query = date ? `?date=${encodeURIComponent(date)}` : '';
+    const res = await fetch(`/api/projects/${id}/progress-foundation${query}`);
+    return handleResponse<ProjectProgressFoundation>(res);
   },
 
   async getProjectWorkerAllocations(projectId: string): Promise<ProjectWorkerAllocation[]> {

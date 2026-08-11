@@ -33,7 +33,8 @@ test.describe('Deadline Real Engine Parity Suite (Single Source Integrity)', () 
     activeProjectId = prjJson.id || prjJson.project?.id || prjJson.data?.id;
     expect(activeProjectId).toBeTruthy();
 
-    // 1. AUTO_TIME task past end date reaches 100% and is automatically completed.
+    // 1. AUTO_TIME is a legacy compatibility mode only. A past end date must
+    // not manufacture completed work or a 100% actual.
     const autoRes = await fetch(`${QA_BASE_URL}/api/tasks`, {
       method: 'POST',
       headers: {
@@ -111,7 +112,7 @@ test.describe('Deadline Real Engine Parity Suite (Single Source Integrity)', () 
     }
   });
 
-  test('1. Verify AUTO_TIME 100% task is not overdue or exposed as completion review', async () => {
+  test('1. Verify past AUTO_TIME task remains overdue and is not exposed as completion review', async () => {
     const res = await fetch(`${QA_BASE_URL}/api/dashboard/today-summary?date=2026-08-10`);
     expect(res.status).toBe(200);
     const json: any = await res.json();
@@ -120,16 +121,17 @@ test.describe('Deadline Real Engine Parity Suite (Single Source Integrity)', () 
     const completionReviewTaskIds: string[] = data.completion_review?.task_ids || [];
     const overdueTaskIds: string[] = data.overdue?.task_ids || [];
 
-    // AUTO_TIME past end date is complete without a separate task confirmation action.
+    // Date passage alone cannot complete an AUTO_TIME task. It remains overdue
+    // until an explicit completion source exists.
     expect(completionReviewTaskIds).not.toContain(autoTaskId);
-    expect(overdueTaskIds).not.toContain(autoTaskId);
+    expect(overdueTaskIds).toContain(autoTaskId);
 
     // STATUS_BASED past end date with < 100% progress -> MUST be in overdue AND MUST NOT be in completion_review
     expect(overdueTaskIds).toContain(statusTaskId);
     expect(completionReviewTaskIds).not.toContain(statusTaskId);
   });
 
-  test('2. Verify Project Readiness Parity: AUTO_TIME is NOT OVERDUE and STATUS_BASED is OVERDUE', async () => {
+  test('2. Verify Project Readiness Parity: incomplete AUTO_TIME and STATUS_BASED tasks are overdue', async () => {
     const detailRes = await fetch(`${QA_BASE_URL}/api/projects/${activeProjectId}/detail`);
     expect(detailRes.status).toBe(200);
     const detailJson: any = await detailRes.json();
@@ -141,13 +143,14 @@ test.describe('Deadline Real Engine Parity Suite (Single Source Integrity)', () 
     expect(autoTask).toBeDefined();
     expect(statusTask).toBeDefined();
 
-    // Verify AUTO_TIME task automatic completion classification
+    // AUTO_TIME no longer derives actual progress or completion from dates.
     const autoProgress = Number(autoTask.actual_progress ?? autoTask.progress ?? 0);
-    expect(autoProgress).toBeGreaterThanOrEqual(100);
-    expect(autoTask.schedule_state).toBe('COMPLETED');
+    expect(autoProgress).toBe(0);
+    expect(autoTask.schedule_state).toBe('DELAYED');
 
     // Verify STATUS_BASED task overdue classification
     const statusProgress = Number(statusTask.actual_progress ?? statusTask.progress ?? 0);
     expect(statusProgress).toBeLessThan(100);
+    expect(statusTask.schedule_state).toBe('DELAYED');
   });
 });

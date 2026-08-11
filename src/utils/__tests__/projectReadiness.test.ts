@@ -28,7 +28,7 @@ describe('Project Readiness & Overdue Engine (CASE A ~ F Verification)', () => {
     };
 
     expect(isProjectOverdue(project, referenceToday)).toBe(false);
-    const readiness = calculateProjectReadiness(project, [], [], [dummyWorker]);
+    const readiness = calculateProjectReadiness(project, [], [], [dummyWorker], [], [], referenceToday);
     expect(readiness.badge_text_ko).not.toBe('기한 경과');
   });
 
@@ -76,7 +76,7 @@ describe('Project Readiness & Overdue Engine (CASE A ~ F Verification)', () => {
     };
 
     expect(isProjectOverdue(project, referenceToday)).toBe(false);
-    const readiness = calculateProjectReadiness(project, [], [], [dummyWorker]);
+    const readiness = calculateProjectReadiness(project, [], [], [dummyWorker], [], [], referenceToday);
     expect(readiness.badge_text_ko).not.toBe('기한 경과');
   });
 
@@ -92,7 +92,7 @@ describe('Project Readiness & Overdue Engine (CASE A ~ F Verification)', () => {
     };
 
     expect(isProjectOverdue(project, referenceToday)).toBe(true);
-    const readiness = calculateProjectReadiness(project, [], [], [dummyWorker]);
+    const readiness = calculateProjectReadiness(project, [], [], [dummyWorker], [], [], referenceToday);
     expect(readiness.badge_text_ko).toBe('기한 경과');
     expect(readiness.status).toBe('RISK');
   });
@@ -109,7 +109,7 @@ describe('Project Readiness & Overdue Engine (CASE A ~ F Verification)', () => {
     };
 
     expect(isProjectOverdue(project, referenceToday)).toBe(false);
-    const readiness = calculateProjectReadiness(project, [], [], [dummyWorker]);
+    const readiness = calculateProjectReadiness(project, [], [], [dummyWorker], [], [], referenceToday);
     expect(readiness.badge_text_ko).not.toBe('기한 경과');
     expect(readiness.status).toBe('READY');
   });
@@ -127,7 +127,7 @@ describe('Project Readiness & Overdue Engine (CASE A ~ F Verification)', () => {
 
     expect(isProjectOverdue(project, referenceToday)).toBe(false);
     expect(() => {
-      const readiness = calculateProjectReadiness(project, [], [], [dummyWorker]);
+      const readiness = calculateProjectReadiness(project, [], [], [dummyWorker], [], [], referenceToday);
       expect(readiness.badge_text_ko).not.toBe('기한 경과');
     }).not.toThrow();
   });

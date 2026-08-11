@@ -27,14 +27,18 @@ export function calculateTaskProgressServer(
   dailyStatuses: Record<string, string> = {},
   referenceTodayStr?: string
 ): TaskProgressMetricsServer {
+  const storedActualProgress = Math.min(100, Math.max(0, Number(task.actual_progress ?? task.progress ?? 0)));
+  const isExplicitlyCompleted = projectStatus === 'COMPLETED' || Number(task.completion_confirmed) === 1;
+
   if (task.schedule_status === 'UNSCHEDULED' || !task.start_date || !task.end_date) {
+    const actualProgress = isExplicitlyCompleted ? 100 : storedActualProgress;
     return {
       planned_working_days: 0,
       completed_working_days: 0,
       planned_progress: 0,
-      actual_progress: 0,
+      actual_progress: actualProgress,
       progress_gap: 0,
-      schedule_state: 'UPCOMING',
+      schedule_state: isExplicitlyCompleted || actualProgress === 100 ? 'COMPLETED' : 'UPCOMING',
       actual_progress_source: task.progress_mode || 'AUTO_TIME',
     };
   }
@@ -110,16 +114,13 @@ export function calculateTaskProgressServer(
   const progressMode: 'AUTO_TIME' | 'STATUS_BASED' = task.progress_mode || 'AUTO_TIME';
   let actual_progress = 0;
 
-  if (progressMode === 'AUTO_TIME') {
-    if (todayStr < task.start_date) {
-      actual_progress = 0;
-    } else if (todayStr > task.end_date) {
-      actual_progress = 100;
-    } else {
-      actual_progress = planned_working_days > 0
-        ? Math.min(100, Math.round((elapsed_planned_working_days / planned_working_days) * 100))
-        : 0;
-    }
+  if (isExplicitlyCompleted) {
+    actual_progress = 100;
+  } else if (progressMode === 'AUTO_TIME') {
+    // AUTO_TIME is retained as a legacy compatibility mode name only.
+    // Calendar time may advance planned progress, but it must never manufacture
+    // actual work or completion. Preserve the stored/manual actual value.
+    actual_progress = storedActualProgress;
   } else {
     actual_progress = planned_working_days > 0
       ? Math.min(100, Math.round((completed_working_days / planned_working_days) * 100))
@@ -129,7 +130,7 @@ export function calculateTaskProgressServer(
   const progress_gap = actual_progress - planned_progress;
 
   let schedule_state: 'UPCOMING' | 'IN_PROGRESS' | 'DELAYED' | 'COMPLETED' = 'UPCOMING';
-  if (projectStatus === 'COMPLETED' || Number(task.completion_confirmed) === 1 || actual_progress === 100) {
+  if (isExplicitlyCompleted || actual_progress === 100) {
     schedule_state = 'COMPLETED';
   } else if (todayStr > task.end_date && actual_progress < 100 && projectStatus === 'ACTIVE') {
     schedule_state = 'DELAYED';

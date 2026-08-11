@@ -26,14 +26,18 @@ export function calculateTaskProgress(
   projectStatus: 'ACTIVE' | 'COMPLETED' = 'ACTIVE',
   referenceTodayStr?: string
 ): TaskProgressMetrics {
+  const storedActualProgress = Math.min(100, Math.max(0, Number(task.actual_progress ?? task.progress ?? 0)));
+  const isExplicitlyCompleted = projectStatus === 'COMPLETED' || Number(task.completion_confirmed) === 1;
+
   if (task.schedule_status === 'UNSCHEDULED' || !task.start_date || !task.end_date) {
+    const actualProgress = isExplicitlyCompleted ? 100 : storedActualProgress;
     return {
       planned_working_days: 0,
       completed_working_days: 0,
       planned_progress: 0,
-      actual_progress: 0,
+      actual_progress: actualProgress,
       progress_gap: 0,
-      schedule_state: 'UPCOMING',
+      schedule_state: isExplicitlyCompleted || actualProgress === 100 ? 'COMPLETED' : 'UPCOMING',
     };
   }
 
@@ -84,7 +88,13 @@ export function calculateTaskProgress(
   }
 
   let actual_progress = 0;
-  if (planned_working_days > 0) {
+  if (isExplicitlyCompleted) {
+    actual_progress = 100;
+  } else if ((task.progress_mode || 'AUTO_TIME') === 'AUTO_TIME') {
+    // Keep the legacy mode name for compatibility, but never derive actual work
+    // from elapsed dates. The stored/manual value is the actual fallback.
+    actual_progress = storedActualProgress;
+  } else if (planned_working_days > 0) {
     actual_progress = Math.min(100, Math.round((completed_working_days / planned_working_days) * 100));
   } else if (dates.length > 0) {
     actual_progress = 0;
@@ -93,7 +103,7 @@ export function calculateTaskProgress(
   const progress_gap = actual_progress - planned_progress;
 
   let schedule_state: ScheduleState = 'UPCOMING';
-  if (actual_progress === 100 || projectStatus === 'COMPLETED') {
+  if (actual_progress === 100 || isExplicitlyCompleted) {
     schedule_state = 'COMPLETED';
   } else if (todayStr > task.end_date && actual_progress < 100 && projectStatus === 'ACTIVE') {
     schedule_state = 'DELAYED';
@@ -164,6 +174,7 @@ export function calculateProjectProgress(
   let total_planned_days = 0;
   let total_completed_days = 0;
   let weighted_planned_progress_sum = 0;
+  let weighted_actual_progress_sum = 0;
 
   for (const tItem of tasks) {
     const workerObj = workers.find((w) => w.id === tItem.worker_name || w.name === tItem.worker_name);
@@ -172,6 +183,7 @@ export function calculateProjectProgress(
     total_planned_days += metrics.planned_working_days;
     total_completed_days += metrics.completed_working_days;
     weighted_planned_progress_sum += metrics.planned_progress * metrics.planned_working_days;
+    weighted_actual_progress_sum += metrics.actual_progress * metrics.planned_working_days;
   }
 
   const planned_progress = total_planned_days > 0
@@ -179,7 +191,7 @@ export function calculateProjectProgress(
     : 0;
 
   const actual_progress = total_planned_days > 0
-    ? Math.min(100, Math.round((total_completed_days / total_planned_days) * 100))
+    ? Math.min(100, Math.round(weighted_actual_progress_sum / total_planned_days))
     : 0;
 
   const progress_gap = actual_progress - planned_progress;

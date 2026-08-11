@@ -200,6 +200,7 @@ describe('Phase 2 Automated Progress & Worker Conflict Test Suite (Requirement 2
       start_date: '2026-08-03',
       end_date: '2026-08-07', // 5 working days
       progress: 0,
+      progress_mode: 'STATUS_BASED',
       daily_statuses: {
         '2026-08-03': 'COMPLETED',
         '2026-08-04': 'COMPLETED',
@@ -248,6 +249,7 @@ describe('Phase 2 Automated Progress & Worker Conflict Test Suite (Requirement 2
         start_date: '2026-08-03',
         end_date: '2026-08-07', // 5 working days, 100% completed
         progress: 0,
+        progress_mode: 'STATUS_BASED',
         daily_statuses: {
           '2026-08-03': 'COMPLETED',
           '2026-08-04': 'COMPLETED',
@@ -310,6 +312,7 @@ describe('Phase 2 Automated Progress & Worker Conflict Test Suite (Requirement 2
     const taskUpcoming: Task = { id: 'u1', project_id: 'p1', worker_name: '박용진 수석', task_name: '예정', start_date: '2026-08-10', end_date: '2026-08-15', progress: 0 };
     const taskProgress: Task = { id: 'u2', project_id: 'p1', worker_name: '박용진 수석', task_name: '진행', start_date: '2026-08-03', end_date: '2026-08-10', progress: 0 };
     const taskDone: Task = { id: 'u3', project_id: 'p1', worker_name: '박용진 수석', task_name: '완료', start_date: '2026-08-03', end_date: '2026-08-05', progress: 0, daily_statuses: { '2026-08-03': 'COMPLETED', '2026-08-04': 'COMPLETED', '2026-08-05': 'COMPLETED' } };
+    taskDone.progress_mode = 'STATUS_BASED';
 
     expect(calculateTaskProgress(taskUpcoming, krWorker, [], [], 'ACTIVE', '2026-08-05').schedule_state).toBe('UPCOMING');
     expect(calculateTaskProgress(taskProgress, krWorker, [], [], 'ACTIVE', '2026-08-05').schedule_state).toBe('IN_PROGRESS');

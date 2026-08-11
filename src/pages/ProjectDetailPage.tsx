@@ -33,6 +33,7 @@ import { isMonthStartColumn, GANTT_MONTH_BOUNDARY_STYLE } from '../utils/GanttMo
 import { WorkerConflictSummaryModal } from '../components/modals/WorkerConflictSummaryModal';
 import { StatusPopover } from '../components/modals/StatusPopover';
 import { WorkerSelector } from '../components/common/WorkerSelector';
+import { TestActorModeBadge } from '../components/common/TestActorModeBadge';
 import { ProjectReadinessPopover } from '../components/common/ProjectReadinessPopover';
 import { calculateProjectReadiness } from '../utils/projectReadiness';
 import { resolvePrimaryWorkerId } from '../utils/crossProjectConflictDetector';
@@ -280,6 +281,15 @@ const SortableTaskRow: React.FC<SortableTaskRowProps> = ({
             >
               <AlertOctagon className="w-3 h-3 text-rose-600 shrink-0" />
               <span>{lang === 'vi' ? 'Tắc nghẽn' : '막힘'}</span>
+            </span>
+          )}
+          {tItem.legacy_bootstrap_info && (
+            <span
+              data-testid={`task-legacy-bootstrap-${tItem.id}`}
+              title={`${lang === 'vi' ? 'Hệ thống tạo' : '시스템 생성'} · ${tItem.legacy_bootstrap_info.cutover_date} · ${tItem.legacy_bootstrap_info.legacy_progress_source} · ${tItem.legacy_bootstrap_info.bootstrap_rule} · ${lang === 'vi' ? 'Không phải nhật ký công việc nhân viên' : '직원 업무일지 아님'}`}
+              className="px-1.5 py-0.5 rounded bg-violet-50 border border-violet-200 text-violet-700 font-bold text-[9px] shrink-0 ml-1"
+            >
+              {lang === 'vi' ? 'Cơ sở chuyển đổi' : '전환 기준 데이터'}
             </span>
           )}
           {tItem.baseline_end_date && tItem.end_date && tItem.baseline_end_date !== tItem.end_date && (
@@ -1866,6 +1876,7 @@ export const ProjectDetailPage: React.FC = () => {
               </div>
             )}
 
+            <TestActorModeBadge />
             <WorkerSelector
               currentWorker={currentWorker}
               onWorkerChange={handleSelectWorkerProfile}
@@ -2059,6 +2070,36 @@ export const ProjectDetailPage: React.FC = () => {
               </button>
             </div>
           </div>
+
+          {project && (
+            <div
+              data-testid="project-foundation-kpi"
+              className="grid grid-cols-6 gap-2 pt-2 border-t border-slate-100"
+            >
+              {[
+                [lang === 'vi' ? 'Kế hoạch cơ sở' : '기준 계획 공정률', `${project.baseline_planned_progress_as_of_today ?? project.planned_progress ?? 0}%`],
+                [lang === 'vi' ? 'Tiến độ thực tế' : '현재 전체 실제 공정률', `${project.current_actual_overall_progress ?? project.actual_progress ?? project.progress ?? 0}%`],
+                [lang === 'vi' ? 'Chênh lệch' : '공정 편차', `${(project.progress_variance_percentage_point ?? 0) > 0 ? '+' : ''}${project.progress_variance_percentage_point ?? 0}%p`],
+                [lang === 'vi' ? 'Kết thúc cơ sở' : '기준 종료일', project.baseline_end_date || project.end_date],
+                [lang === 'vi' ? 'Kết thúc dự kiến' : '현재 예상 종료일', project.current_forecast_end_date || project.end_date],
+                [lang === 'vi' ? 'Chênh lịch' : '일정 변동', `${project.schedule_variance_workdays ?? 0}${lang === 'vi' ? ' ngày' : '근무일'}`],
+              ].map(([label, value]) => (
+                <div key={label} className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-2 min-w-0">
+                  <div className="text-[9px] font-semibold text-slate-500 truncate">{label}</div>
+                  <div className="text-xs font-extrabold text-slate-900 truncate">{value}</div>
+                </div>
+              ))}
+              {project.progress_confidence === 'PROVISIONAL' && (
+                <span
+                  data-testid="project-foundation-provisional-badge"
+                  title={project.difference_reason || ''}
+                  className="col-span-6 justify-self-start text-[9px] font-extrabold text-amber-800 bg-amber-50 border border-amber-300 rounded px-2 py-0.5"
+                >
+                  {lang === 'vi' ? 'Tạm tính' : '임시 산정'} · {project.progress_weight_source}
+                </span>
+              )}
+            </div>
+          )}
 
           {/* Legend Row */}
           <div className="pt-1.5 border-t border-slate-100">
