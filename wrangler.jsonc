@@ -13,7 +13,7 @@
   },
   "vars": {
     "ENVIRONMENT_NAME": "production",
-    "BUILD_SHA": "2635a447c37e269f14fdb19b98c965bf1ca5324e"
+    "BUILD_SHA": "a905053b94df80a9695d7eb80edae0b83e390c56"
   },
   "ai": {
     "binding": "AI"
@@ -36,7 +36,7 @@
       },
       "vars": {
         "ENVIRONMENT_NAME": "qa",
-        "BUILD_SHA": "2635a447c37e269f14fdb19b98c965bf1ca5324e"
+        "BUILD_SHA": "a905053b94df80a9695d7eb80edae0b83e390c56"
       },
       "ai": {
         "binding": "AI"
