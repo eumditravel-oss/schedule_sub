@@ -144,12 +144,15 @@ const server = http.createServer((req, res) => {
     res.writeHead(statusCode, withoutHopByHopHeaders(proxyRes.headers));
     proxyRes.pipe(res, { end: true });
   });
+  let clientAborted = false;
+  let downstreamClosed = false;
 
   proxyReq.setTimeout(30_000, () => {
     proxyReq.destroy(new Error('Upstream QA request timed out after 30 seconds.'));
   });
 
   proxyReq.on('error', (err) => {
+    if (clientAborted || downstreamClosed) return;
     proxyErrors++;
     recordStatus(502);
     console.error(`[PROXY ERROR] ${req.method} ${req.url} -> ${err.message}`);
@@ -161,7 +164,16 @@ const server = http.createServer((req, res) => {
     }
   });
 
-  req.on('aborted', () => proxyReq.destroy());
+  req.on('aborted', () => {
+    clientAborted = true;
+    proxyReq.destroy();
+  });
+  res.on('close', () => {
+    if (!res.writableEnded) {
+      downstreamClosed = true;
+      proxyReq.destroy();
+    }
+  });
 
   req.pipe(proxyReq, { end: true });
 });

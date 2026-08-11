@@ -3,6 +3,7 @@ import { test, expect } from '@playwright/test';
 import { assertMutationSafety } from './productionMutationGuard';
 
 const TEST_BASE_URL = (process.env.TEST_BASE_URL || process.env.PLAYWRIGHT_TEST_BASE_URL || 'http://localhost:5173').trim();
+const QA_BASE_URL = TEST_BASE_URL;
 assertMutationSafety(TEST_BASE_URL, 'deadline-real-engine-parity');
 
 test.describe('Deadline Real Engine Parity Suite (Single Source Integrity)', () => {
