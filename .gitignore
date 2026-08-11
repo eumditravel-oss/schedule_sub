@@ -14,6 +14,7 @@ qa/layout/
 qa/live-production/
 qa/release-report.json
 qa/test-inventory.json
+qa/request-proxy-evidence.json
 qa/final-acceptance-active-specs.json
 qa/failure-triage/
 qa/generated/
