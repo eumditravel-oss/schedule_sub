@@ -3,7 +3,7 @@
 
 $ErrorActionPreference = "Stop"
 
-$globalQaBudget = 1500
+$globalQaBudget = 2500
 
 # 1. Verify working directory is clean
 $status = (git status --porcelain)
