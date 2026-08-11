@@ -5,10 +5,15 @@ import { execSync } from 'child_process';
 
 let commitSha = 'unknown';
 try {
-  commitSha = execSync('git rev-parse --short HEAD').toString().trim();
+  commitSha = execSync('git rev-parse HEAD').toString().trim();
 } catch (e) {
   // fallback if git command fails
 }
+
+const now = new Date();
+const kstDateStr = now.toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' });
+const kstTimeStr = now.toLocaleTimeString('en-GB', { timeZone: 'Asia/Seoul', hour: '2-digit', minute: '2-digit', hour12: false });
+const buildTimeKst = `${kstDateStr} ${kstTimeStr} KST`;
 
 // Vite config with path alias, Vitest test exclude, build SHA, and dev server setup
 export default defineConfig({
@@ -16,6 +21,7 @@ export default defineConfig({
   plugins: [react()],
   define: {
     'import.meta.env.VITE_BUILD_SHA': JSON.stringify(commitSha),
+    'import.meta.env.VITE_BUILD_TIME': JSON.stringify(buildTimeKst),
   },
   resolve: {
     alias: {

@@ -46,6 +46,7 @@ export interface Env {
   AI?: any;
   KASI_HOLIDAY_API_KEY?: string;
   BUILD_SHA?: string;
+  BUILD_TIMESTAMP?: string;
   ENVIRONMENT_NAME?: string;
   DEPLOYED_AT?: string;
 }
@@ -287,13 +288,22 @@ export default {
     }
 
     try {
-      // 0. GET /api/version
+      // 0. GET /api/version & /api/build-info
       if (method === 'GET' && (cleanPath === '/api/version' || path === '/api/version')) {
         const isQa = url.hostname.includes('-qa') || url.hostname.includes('qa-') || url.searchParams.get('env') === 'qa';
         return jsonResponse({
           commit: env.BUILD_SHA || 'unknown',
           environment: env.ENVIRONMENT_NAME || (isQa ? 'qa' : 'production'),
           deployed_at: env.DEPLOYED_AT || new Date().toISOString(),
+        });
+      }
+
+      if (method === 'GET' && (cleanPath === '/api/build-info' || path === '/api/build-info')) {
+        const isQa = url.hostname.includes('-qa') || url.hostname.includes('qa-') || url.searchParams.get('env') === 'qa';
+        return jsonResponse({
+          commit: env.BUILD_SHA || 'unknown',
+          builtAt: env.BUILD_TIMESTAMP || env.DEPLOYED_AT || new Date().toISOString(),
+          environment: env.ENVIRONMENT_NAME || (isQa ? 'qa' : 'production'),
         });
       }
 
