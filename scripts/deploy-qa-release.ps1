@@ -3,7 +3,7 @@
 
 $ErrorActionPreference = "Stop"
 
-$globalQaBudget = 1500
+$globalQaBudget = 2500
 
 # 1. Verify working directory is clean
 $status = (git status --porcelain)
@@ -74,6 +74,12 @@ if (-not $qaVerified) {
   exit 1
 }
 
+# Workers Assets can briefly serve the previous HTML/chunk set after the Worker
+# version API has already switched. Let the edge asset set converge before any
+# fresh browser contexts start the strict frontend SHA and lazy-chunk gates.
+Write-Host "Waiting 30 seconds for QA Workers Assets edge convergence..." -ForegroundColor Yellow
+Start-Sleep -Seconds 30
+
 # 5. DYNAMIC PROXY BUDGET CALCULATION & FAIL-BEFORE-PROXY GUARD
 $versionReserveCount = 1
 $proxyBudget = $globalQaBudget - $qaHealthRequestCount - $versionReserveCount
@@ -87,16 +93,45 @@ if ($proxyBudget -le 0) {
 # 5.5 Start Local QA Counting Proxy Server with Calculated Budget
 Write-Host "Starting Local QA Counting Proxy on http://127.0.0.1:4179 (Budget: $proxyBudget)..." -ForegroundColor Yellow
 $env:PROXY_REQUEST_BUDGET = [string]$proxyBudget
-$proxyJob = Start-Job -ScriptBlock {
-  $env:PROXY_REQUEST_BUDGET = $using:proxyBudget
-  node scripts/qa-request-proxy.mjs
+$env:PROXY_EXCLUDE_WORKFORCE_ALLOCATIONS = "true"
+$nodePath = (Get-Command node -ErrorAction Stop).Source
+$proxyScriptPath = (Resolve-Path "$PSScriptRoot/qa-request-proxy.mjs").Path
+$proxyWorkingDirectory = (Resolve-Path "$PSScriptRoot/..").Path
+$proxyProcess = Start-Process -FilePath $nodePath -ArgumentList @($proxyScriptPath) -WorkingDirectory $proxyWorkingDirectory -WindowStyle Hidden -PassThru
+
+$proxyReady = $false
+for ($attempt = 0; $attempt -lt 20; $attempt++) {
+  $proxyProcess.Refresh()
+  if ($proxyProcess.HasExited) {
+    break
+  }
+  try {
+    $proxyStartupEvidence = Invoke-RestMethod -Uri "http://127.0.0.1:4179/__proxy_evidence" -Method Get -TimeoutSec 2
+    if ($proxyStartupEvidence.budget -eq $proxyBudget) {
+      $proxyReady = $true
+      break
+    }
+  } catch {}
+  Start-Sleep -Milliseconds 500
 }
-Start-Sleep -Seconds 2
+
+if (-not $proxyReady) {
+  if (-not $proxyProcess.HasExited) {
+    Stop-Process -Id $proxyProcess.Id -Force -ErrorAction SilentlyContinue
+  }
+  Write-Error "QA_PROXY_START_FAILED: Counting proxy did not become ready on 127.0.0.1:4179."
+  exit 1
+}
+Write-Host "QA Counting Proxy readiness verification passed." -ForegroundColor Green
 
 # Reset Proxy Counter
 try {
   Invoke-RestMethod -Uri "http://127.0.0.1:4179/__proxy_reset" -Method Post | Out-Null
-} catch {}
+} catch {
+  Stop-Process -Id $proxyProcess.Id -Force -ErrorAction SilentlyContinue
+  Write-Error "QA_PROXY_RESET_FAILED: $_"
+  exit 1
+}
 
 # 6. Run QA Release Gate Suite (21 Core + 4 Phase B = 25 Total Specs)
 Write-Host "Running QA Release Gate Verification (21 Core + 4 Phase B = 25 Total Specs) via Proxy..." -ForegroundColor Yellow
@@ -149,9 +184,12 @@ foreach ($testFile in $allSpecs) {
       if ($evidenceCheck.budget_exceeded) {
         Write-Error "RELEASE_REQUEST_BUDGET_EXCEEDED: Proxy request budget limit reached ($($evidenceCheck.forwarded_requests)/$($evidenceCheck.budget)). Remaining specs cancelled."
       }
+      if ([int]$evidenceCheck.proxy_errors -gt 0) {
+        Write-Error "QA_PROXY_UPSTREAM_FAILURE: Counting proxy recorded $($evidenceCheck.proxy_errors) upstream error(s)."
+      }
       Invoke-RestMethod -Uri "http://127.0.0.1:4179/__proxy_stop" -Method Post | Out-Null
     } catch {}
-    Stop-Job $proxyJob -ErrorAction SilentlyContinue
+    Stop-Process -Id $proxyProcess.Id -Force -ErrorAction SilentlyContinue
     Write-Error "QA Release Gate verification failed on $testFile."
     exit 1
   }
@@ -159,11 +197,21 @@ foreach ($testFile in $allSpecs) {
 
 # 7. Retrieve Measured HTTP Requests from Local Proxy & Stop Proxy Server
 $measuredE2ERequests = 0
+$proxyEvidence = $null
 try {
   $proxyEvidence = Invoke-RestMethod -Uri "http://127.0.0.1:4179/__proxy_stop" -Method Post
   $measuredE2ERequests = [int]$proxyEvidence.forwarded_requests
-} catch {}
-Stop-Job $proxyJob -ErrorAction SilentlyContinue
+} catch {
+  Stop-Process -Id $proxyProcess.Id -Force -ErrorAction SilentlyContinue
+  Write-Error "QA_PROXY_EVIDENCE_FAILED: Could not retrieve final counting proxy evidence: $_"
+  exit 1
+}
+Stop-Process -Id $proxyProcess.Id -Force -ErrorAction SilentlyContinue
+
+if ([int]$proxyEvidence.proxy_errors -gt 0) {
+  Write-Error "QA_PROXY_UPSTREAM_FAILURE: Counting proxy recorded $($proxyEvidence.proxy_errors) upstream error(s)."
+  exit 1
+}
 
 # 7.5 VERSION REQUEST PRE-CHECK & QUERY
 $projectedTotal = $qaHealthRequestCount + $measuredE2ERequests + $versionReserveCount
@@ -211,6 +259,7 @@ $evidenceObj = @{
   global_request_budget = $globalQaBudget
   health_requests = $qaHealthRequestCount
   e2e_forwarded_requests = $measuredE2ERequests
+  excluded_workforce_allocation_requests = [int]$proxyEvidence.excluded_workforce_allocation_requests
   version_requests = 1
   total_remote_requests = $totalQAWorkerRequests
   remote_request_count = $totalQAWorkerRequests

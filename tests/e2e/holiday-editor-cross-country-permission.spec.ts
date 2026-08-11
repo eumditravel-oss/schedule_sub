@@ -3,6 +3,7 @@ import { test, expect } from '@playwright/test';
 import { assertMutationSafety } from './productionMutationGuard';
 
 const TEST_BASE_URL = (process.env.TEST_BASE_URL || process.env.PLAYWRIGHT_TEST_BASE_URL || 'http://localhost:5173').trim();
+const QA_BASE_URL = TEST_BASE_URL;
 assertMutationSafety(TEST_BASE_URL, 'holiday-editor-cross-country-permission');
 
 test.describe('Cross-Country Holiday Permission Integration Suite', () => {
@@ -79,6 +80,7 @@ test.describe('Cross-Country Holiday Permission Integration Suite', () => {
     const postRes = await fetch(`${QA_BASE_URL}/api/calendar/manual-holidays`, {
       method: 'POST',
       headers: {
+        'x-editor-id': 'wrk_00_ceo',
         'Content-Type': 'application/json',
         'x-editor-name': encodeURIComponent('김대표(CEO)'), // wrk_01 (CEO Viewer)
       },
@@ -97,6 +99,7 @@ test.describe('Cross-Country Holiday Permission Integration Suite', () => {
     const putRes = await fetch(`${QA_BASE_URL}/api/calendar/manual-holidays/month`, {
       method: 'PUT',
       headers: {
+        'x-editor-id': 'wrk_00_ceo',
         'Content-Type': 'application/json',
         'x-editor-name': encodeURIComponent('김대표(CEO)'),
       },

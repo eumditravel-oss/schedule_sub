@@ -11,6 +11,13 @@ if (!fs.existsSync(QA_VISUAL_DIR)) {
 }
 
 async function dismissWorkerPromptModal(page: any) {
+  await page.route('**/api/calendar/pending-schedule-decisions**', async (route: any) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ success: true, data: [] }),
+    });
+  });
   await page.addInitScript(() => {
     try {
       window.localStorage.setItem('schedule_current_worker_id', 'wrk_02');
@@ -34,6 +41,8 @@ test.describe('Project Overview Schedule Bar Layering Suite', () => {
     await page.goto(`${BASE_URL}/`, { waitUntil: 'domcontentloaded' });
     await page.waitForTimeout(1500);
 
+    await expect(page.locator('[data-testid="calendar-manager-modal"]')).toBeHidden();
+
     const scheduleBarTrack = page.locator('[data-testid^="gantt-schedule-bar-track-"]').first();
     await scheduleBarTrack.waitFor({ state: 'visible', timeout: 15000 });
 
@@ -52,6 +61,7 @@ test.describe('Project Overview Schedule Bar Layering Suite', () => {
           tagName: el.tagName,
           className: el.className,
           testId: el.getAttribute('data-testid'),
+          scheduleBarTrackId: el.closest('[data-testid^="gantt-schedule-bar-track-"]')?.getAttribute('data-testid') || null,
           projectState: el.getAttribute('data-project-calendar-state'),
           surface: el.getAttribute('data-calendar-surface'),
         };
@@ -62,6 +72,7 @@ test.describe('Project Overview Schedule Bar Layering Suite', () => {
       // Top element must NOT be the project hatch overlay
       expect(topElementInfo?.surface).not.toBe('PROJECT_OVERVIEW');
       expect(topElementInfo?.testId).not.toContain('project-calendar-hatch');
+      expect(topElementInfo?.scheduleBarTrackId).toBe(await scheduleBarTrack.getAttribute('data-testid'));
     }
 
     const screenshotPath = path.join(QA_VISUAL_DIR, 'overview-bar-above-hatch.png');

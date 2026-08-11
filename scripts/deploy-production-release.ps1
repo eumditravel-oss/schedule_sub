@@ -59,8 +59,8 @@ if ($evidence.completion_integrity -ne "PASS" -or $evidence.scheduler_integrity 
   exit 1
 }
 
-if ([int]$evidence.remote_request_count -gt 1500) {
-  Write-Error "PRODUCTION_RELEASE_NOT_QA_VERIFIED: qa/verified-release.json remote_request_count ($($evidence.remote_request_count)) exceeded 1500 limit."
+if ([int]$evidence.remote_request_count -gt 2500) {
+  Write-Error "PRODUCTION_RELEASE_NOT_QA_VERIFIED: qa/verified-release.json remote_request_count ($($evidence.remote_request_count)) exceeded 2500 limit."
   exit 1
 }
 

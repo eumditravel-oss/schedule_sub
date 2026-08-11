@@ -3,6 +3,7 @@ import { test, expect } from '@playwright/test';
 import { assertMutationSafety } from './productionMutationGuard';
 
 const TEST_BASE_URL = (process.env.TEST_BASE_URL || process.env.PLAYWRIGHT_TEST_BASE_URL || 'http://localhost:5173').trim();
+const QA_BASE_URL = TEST_BASE_URL;
 assertMutationSafety(TEST_BASE_URL, 'vietnam-bulk-holiday-save-regression');
 
 async function dismissAllModals(page: any) {
@@ -20,6 +21,16 @@ test.describe('Vietnam Bulk Holiday Save & Impact Modal Regression Suite', () =>
   const testYear = 2031;
   const testMonth = 8;
   const testDate = '2031-08-18';
+
+  test.beforeEach(async ({ page }) => {
+    await page.route('**/api/calendar/pending-schedule-decisions**', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ success: true, data: [] }),
+      });
+    });
+  });
 
   test.afterEach(async () => {
     // Ensure clean state on QA by sending empty holiday list for 2031-08
@@ -77,7 +88,16 @@ test.describe('Vietnam Bulk Holiday Save & Impact Modal Regression Suite', () =>
     // Select Month 2031-08
     const monthInput = page.locator('[data-testid="vn-holiday-month-input"]');
     await expect(monthInput).toBeVisible();
+    const monthLoadPromise = page.waitForResponse(
+      (resp) => resp.request().method() === 'GET'
+        && resp.url().includes('/api/calendar/manual-holidays')
+        && resp.url().includes('country=VN')
+        && resp.url().includes(`year=${testYear}`)
+        && resp.url().includes(`month=${testMonth}`),
+      { timeout: 10_000 }
+    );
     await monthInput.fill(`${testYear}-${String(testMonth).padStart(2, '0')}`);
+    await monthLoadPromise;
 
     // Click Date 2031-08-18 to toggle holiday selection
     const dateCell = page.locator(`[data-testid="vn-holiday-date-${testDate}"]`);
@@ -174,7 +194,16 @@ test.describe('Vietnam Bulk Holiday Save & Impact Modal Regression Suite', () =>
 
     // Select Month 2031-08
     const monthInput = page.locator('[data-testid="vn-holiday-month-input"]');
+    const monthLoadPromise = page.waitForResponse(
+      (resp) => resp.request().method() === 'GET'
+        && resp.url().includes('/api/calendar/manual-holidays')
+        && resp.url().includes('country=VN')
+        && resp.url().includes(`year=${testYear}`)
+        && resp.url().includes(`month=${testMonth}`),
+      { timeout: 10_000 }
+    );
     await monthInput.fill(`${testYear}-${String(testMonth).padStart(2, '0')}`);
+    await monthLoadPromise;
 
     // Click Date 2031-08-18
     const dateCell = page.locator(`[data-testid="vn-holiday-date-${testDate}"]`);
