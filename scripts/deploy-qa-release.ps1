@@ -87,16 +87,44 @@ if ($proxyBudget -le 0) {
 # 5.5 Start Local QA Counting Proxy Server with Calculated Budget
 Write-Host "Starting Local QA Counting Proxy on http://127.0.0.1:4179 (Budget: $proxyBudget)..." -ForegroundColor Yellow
 $env:PROXY_REQUEST_BUDGET = [string]$proxyBudget
-$proxyJob = Start-Job -ScriptBlock {
-  $env:PROXY_REQUEST_BUDGET = $using:proxyBudget
-  node scripts/qa-request-proxy.mjs
+$nodePath = (Get-Command node -ErrorAction Stop).Source
+$proxyScriptPath = (Resolve-Path "$PSScriptRoot/qa-request-proxy.mjs").Path
+$proxyWorkingDirectory = (Resolve-Path "$PSScriptRoot/..").Path
+$proxyProcess = Start-Process -FilePath $nodePath -ArgumentList @($proxyScriptPath) -WorkingDirectory $proxyWorkingDirectory -WindowStyle Hidden -PassThru
+
+$proxyReady = $false
+for ($attempt = 0; $attempt -lt 20; $attempt++) {
+  $proxyProcess.Refresh()
+  if ($proxyProcess.HasExited) {
+    break
+  }
+  try {
+    $proxyStartupEvidence = Invoke-RestMethod -Uri "http://127.0.0.1:4179/__proxy_evidence" -Method Get -TimeoutSec 2
+    if ($proxyStartupEvidence.budget -eq $proxyBudget) {
+      $proxyReady = $true
+      break
+    }
+  } catch {}
+  Start-Sleep -Milliseconds 500
 }
-Start-Sleep -Seconds 2
+
+if (-not $proxyReady) {
+  if (-not $proxyProcess.HasExited) {
+    Stop-Process -Id $proxyProcess.Id -Force -ErrorAction SilentlyContinue
+  }
+  Write-Error "QA_PROXY_START_FAILED: Counting proxy did not become ready on 127.0.0.1:4179."
+  exit 1
+}
+Write-Host "QA Counting Proxy readiness verification passed." -ForegroundColor Green
 
 # Reset Proxy Counter
 try {
   Invoke-RestMethod -Uri "http://127.0.0.1:4179/__proxy_reset" -Method Post | Out-Null
-} catch {}
+} catch {
+  Stop-Process -Id $proxyProcess.Id -Force -ErrorAction SilentlyContinue
+  Write-Error "QA_PROXY_RESET_FAILED: $_"
+  exit 1
+}
 
 # 6. Run QA Release Gate Suite (21 Core + 4 Phase B = 25 Total Specs)
 Write-Host "Running QA Release Gate Verification (21 Core + 4 Phase B = 25 Total Specs) via Proxy..." -ForegroundColor Yellow
@@ -151,7 +179,7 @@ foreach ($testFile in $allSpecs) {
       }
       Invoke-RestMethod -Uri "http://127.0.0.1:4179/__proxy_stop" -Method Post | Out-Null
     } catch {}
-    Stop-Job $proxyJob -ErrorAction SilentlyContinue
+    Stop-Process -Id $proxyProcess.Id -Force -ErrorAction SilentlyContinue
     Write-Error "QA Release Gate verification failed on $testFile."
     exit 1
   }
@@ -163,7 +191,7 @@ try {
   $proxyEvidence = Invoke-RestMethod -Uri "http://127.0.0.1:4179/__proxy_stop" -Method Post
   $measuredE2ERequests = [int]$proxyEvidence.forwarded_requests
 } catch {}
-Stop-Job $proxyJob -ErrorAction SilentlyContinue
+Stop-Process -Id $proxyProcess.Id -Force -ErrorAction SilentlyContinue
 
 # 7.5 VERSION REQUEST PRE-CHECK & QUERY
 $projectedTotal = $qaHealthRequestCount + $measuredE2ERequests + $versionReserveCount
