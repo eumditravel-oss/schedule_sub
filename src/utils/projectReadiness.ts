@@ -61,6 +61,17 @@ export interface ProjectReadiness {
   issue_groups: Record<string, ReadinessGroupSummary>;
 }
 
+export function isProjectOverdue(
+  project: Partial<Project>,
+  todayStr: string = getKoreaDateString()
+): boolean {
+  if (!project.end_date) return false;
+  if (project.status === 'COMPLETED') return false;
+  const actualProgress = project.actual_progress ?? project.progress ?? 0;
+  if (actualProgress >= 100) return false;
+  return todayStr > project.end_date;
+}
+
 export function calculateProjectReadiness(
   project: Project,
   tasks: Task[],
@@ -109,6 +120,27 @@ export function calculateProjectReadiness(
     const picMissingTasks: Task[] = [];
     const translationErrTasks: Task[] = [];
 
+    // Project-level plannedEndDate overdue check
+    const projIsOverdue = isProjectOverdue(project, todayStr);
+    if (projIsOverdue) {
+      issues.push({
+        type: 'OVERDUE_TASK',
+        severity: 'RISK',
+        title_ko: '기한 경과',
+        title_vi: 'Quá hạn dự án',
+        description_ko: `프로젝트 종료일(${project.end_date})이 경과했습니다.`,
+        description_vi: `Ngày kết thúc dự án (${project.end_date}) đã quá hạn.`,
+      });
+
+      groupsMap['PROJECT_OVERDUE'] = {
+        type: 'OVERDUE_TASK',
+        severity: 'RISK',
+        count: 1,
+        label_ko: '기한 경과',
+        label_vi: 'Quá hạn',
+      };
+    }
+
     projectTasks.forEach((task) => {
       // PIC Check
       const hasPic = Boolean(
@@ -155,10 +187,10 @@ export function calculateProjectReadiness(
         issues.push({
           type: 'OVERDUE_TASK',
           severity: 'RISK',
-          title_ko: '기한 경과 작업',
-          title_vi: 'Công việc quá hạn',
-          description_ko: `작업 '${task.task_name}'의 종료일(${task.end_date})이 경과했습니다.`,
-          description_vi: `Công việc '${task.task_name}' đã quá hạn (${task.end_date}).`,
+          title_ko: '지연 작업',
+          title_vi: 'Công việc trễ',
+          description_ko: `작업 '${task.task_name}'의 마감일(${task.end_date})이 경과했습니다.`,
+          description_vi: `Công việc '${task.task_name}' đã trễ hạn (${task.end_date}).`,
           target_id: task.id,
           target_name: task.task_name,
         });
@@ -203,8 +235,8 @@ export function calculateProjectReadiness(
         type: 'OVERDUE_TASK',
         severity: 'RISK',
         count: overdueTasks.length,
-        label_ko: `기한 경과 (${overdueTasks.length}건)`,
-        label_vi: `Quá hạn (${overdueTasks.length})`,
+        label_ko: `지연 작업 (${overdueTasks.length}건)`,
+        label_vi: `Công việc trễ (${overdueTasks.length})`,
         tasks: overdueTasks,
       };
     }
@@ -238,9 +270,6 @@ export function calculateProjectReadiness(
         tasks: outsideRangeTasks,
       };
     }
-
-    // Allocation Unset Check (DISABLED_BY_PRODUCT_POLICY under Capacity Feature Hold)
-    // Fixed project allocation % is temporarily on hold, so unallocated workers do not trigger readiness issues.
   }
 
   // Calculate Aggregates
@@ -268,7 +297,13 @@ export function calculateProjectReadiness(
       badge_color_class = 'bg-slate-100 text-slate-700 border-slate-300';
     }
   } else {
-    if (riskCount > 0) {
+    const projIsOverdue = isProjectOverdue(project, todayStr);
+    if (projIsOverdue) {
+      status = 'RISK';
+      badge_text_ko = '기한 경과';
+      badge_text_vi = 'Quá hạn';
+      badge_color_class = 'bg-rose-100 text-rose-800 border-rose-300 font-extrabold';
+    } else if (riskCount > 0) {
       status = 'RISK';
       if (categoryCount === 1) {
         const group = Object.values(groupsMap)[0];

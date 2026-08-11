@@ -1040,8 +1040,8 @@ export const ProjectOverviewPage: React.FC = () => {
                           data-project-start={project.start_date}
                           data-project-end={project.end_date}
                           onClick={() => navigate(`/projects/${project.id}`)}
-                          style={{ position: 'relative', isolation: 'isolate' }}
-                          className="flex hover:bg-blue-50/50 transition cursor-pointer group h-[60px]"
+                          style={{ position: 'relative', isolation: 'isolate', minHeight: '72px', height: 'auto' }}
+                          className="flex hover:bg-blue-50/50 transition cursor-pointer group"
                         >
                           {/* Left Sticky Info Cell */}
                           <div
@@ -1060,7 +1060,7 @@ export const ProjectOverviewPage: React.FC = () => {
                             }}
                             className="sticky left-0 bg-white group-hover:!bg-[#f8fafc] px-3 py-2 border-r border-slate-200 shrink-0 flex items-center h-full relative"
                           >
-                            <div className="flex items-center justify-between w-full h-full gap-2">
+                            <div className="flex items-start justify-between w-full h-full gap-2 py-1">
                               {/* Selection Checkbox for A3 Combined Print */}
                               <input
                                 type="checkbox"
@@ -1079,31 +1079,127 @@ export const ProjectOverviewPage: React.FC = () => {
                                     setSelectedProjectIds(selectedProjectIds.filter((id) => id !== project.id));
                                   }
                                 }}
-                                className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer shrink-0 mr-1"
+                                className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer shrink-0 mt-0.5"
                                 title={lang === 'vi' ? 'Chọn dự án để in kết hợp A3' : 'A3 통합 일정표 출력을 위한 프로젝트 선택 (2~3개)'}
                               />
-                              <div className="pr-1 overflow-hidden min-w-0 flex-1 flex flex-col justify-center gap-0.5">
-                                {/* Row 1: Dedicated Project Name Line */}
-                                <div
-                                  data-testid={`project-name-row-${project.id}`}
-                                  className="font-bold text-slate-900 group-hover:text-blue-600 transition flex items-center gap-1.5 text-xs min-w-0"
-                                  title={displayName}
-                                >
-                                  <span className="line-clamp-2 leading-tight min-w-0 shrink break-words">{displayName}</span>
-                                  {isFallback && (
-                                    <span className="text-[9px] text-slate-500 bg-slate-100 px-1 rounded shrink-0 border border-slate-200 font-normal">
-                                      {t('originalTag')}
-                                    </span>
-                                  )}
-                                  <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                              <div className="pr-1 overflow-hidden min-w-0 flex-1 flex flex-col justify-center gap-1">
+                                {/* Line 1: Dedicated Project Name & Top Action Group */}
+                                <div className="flex items-start justify-between gap-1.5 w-full min-w-0">
+                                  <div
+                                    data-testid={`project-name-row-${project.id}`}
+                                    className="font-bold text-slate-900 group-hover:text-blue-600 transition flex items-center gap-1 text-xs min-w-0 flex-1"
+                                    title={displayName}
+                                  >
+                                    <span className="line-clamp-2 leading-tight min-w-0 shrink break-words">{displayName}</span>
+                                    {isFallback && (
+                                      <span className="text-[9px] text-slate-500 bg-slate-100 px-1 rounded shrink-0 border border-slate-200 font-normal">
+                                        {t('originalTag')}
+                                      </span>
+                                    )}
+                                    <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                  </div>
+
+                                  <div
+                                    data-testid={`project-action-group-${project.id}`}
+                                    className="shrink-0 flex items-center gap-1 whitespace-nowrap"
+                                  >
+                                    {activeTab === 'ACTIVE' && !isExecutiveViewer(currentWorker) && (
+                                      <>
+                                        <button
+                                          type="button"
+                                          data-testid={`project-edit-btn-${project.id}`}
+                                          aria-label={lang === 'vi' ? 'Chỉnh sửa dự án' : '프로젝트 수정'}
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleEditProject(project);
+                                          }}
+                                          className="w-5 h-5 rounded-md border border-slate-200 bg-white hover:bg-slate-100 text-slate-600 hover:text-slate-900 flex items-center justify-center transition shadow-2xs cursor-pointer focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                        >
+                                          <Pencil className="w-2.5 h-2.5" />
+                                        </button>
+                                        <button
+                                          type="button"
+                                          data-testid={`project-delete-btn-${project.id}`}
+                                          aria-label={lang === 'vi' ? 'Xóa dự án' : '프로젝트 삭제'}
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleOpenDeleteModal(project);
+                                          }}
+                                          className="w-5 h-5 rounded-md border border-slate-200 bg-white hover:bg-rose-50 hover:border-rose-200 text-slate-500 hover:text-rose-600 flex items-center justify-center transition shadow-2xs cursor-pointer focus:outline-none focus:ring-1 focus:ring-rose-500"
+                                        >
+                                          <Trash2 className="w-2.5 h-2.5" />
+                                        </button>
+                                      </>
+                                    )}
+                                    {(() => {
+                                      const isLifecycleCompleted = project.status === 'COMPLETED';
+                                      const isPendingCompletion = project.status === 'ACTIVE' && project.schedule_state === 'COMPLETED';
+                                      const isDelayed = project.status === 'ACTIVE' && project.schedule_state === 'DELAYED';
+                                      const isInProgress = project.status === 'ACTIVE' && project.schedule_state === 'IN_PROGRESS';
+
+                                      return (
+                                        <span
+                                          data-testid={`project-status-badge-${project.id}`}
+                                          title={
+                                            isPendingCompletion
+                                              ? (lang === 'vi'
+                                                  ? 'Tiến độ đã đạt 100% nhưng dự án chưa được xác nhận hoàn thành.'
+                                                  : '예정된 일정과 세부 작업은 100% 완료되었지만, 프로젝트 완료 확정이 아직 처리되지 않았습니다.')
+                                              : undefined
+                                          }
+                                          className={`text-[9px] font-bold px-1.5 py-0.5 rounded border select-none whitespace-nowrap ${
+                                            isLifecycleCompleted
+                                              ? 'bg-emerald-100 text-emerald-800 border-emerald-200 cursor-default'
+                                              : isPendingCompletion
+                                              ? 'bg-amber-100 text-amber-900 border-amber-300 font-extrabold cursor-pointer hover:bg-amber-200'
+                                              : isDelayed
+                                              ? 'bg-rose-100 text-rose-800 border-rose-200 cursor-default'
+                                              : isInProgress
+                                              ? 'bg-blue-100 text-blue-800 border-blue-200 cursor-default'
+                                              : 'bg-slate-100 text-slate-700 border-slate-200 cursor-default'
+                                          }`}
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            if (isPendingCompletion && !isExecutiveViewer(currentWorker)) {
+                                              handleCompleteProject(project);
+                                            }
+                                          }}
+                                        >
+                                          {isLifecycleCompleted
+                                            ? (lang === 'vi' ? 'Hoàn thành' : '완료')
+                                            : isPendingCompletion
+                                            ? (lang === 'vi' ? 'Cần xác nhận' : '완료 확인 필요')
+                                            : isDelayed
+                                            ? (lang === 'vi' ? 'Chậm' : '지연')
+                                            : isInProgress
+                                            ? (lang === 'vi' ? '진행' : '진행 중')
+                                            : (lang === 'vi' ? 'Sắp' : '예정')}
+                                        </span>
+                                      );
+                                    })()}
+                                  </div>
                                 </div>
 
-                                {/* Row 2: Date + Warning Metadata (Conflict Badge & Readiness Warning) */}
+                                {/* Line 2: Date */}
+                                <div className="text-[10px] text-slate-500 font-medium leading-tight">
+                                  {project.start_date} ~ {project.end_date}
+                                </div>
+
+                                {/* Line 3: Progress % */}
+                                <div
+                                  data-testid={`project-progress-summary-${project.id}`}
+                                  className="text-[10px] font-semibold text-slate-600 flex items-center gap-1 select-none whitespace-nowrap leading-tight"
+                                >
+                                  <span>{lang === 'vi' ? 'KH' : '예정'} {project.planned_progress ?? project.progress ?? 0}%</span>
+                                  <span>/</span>
+                                  <span className="font-extrabold text-emerald-700">{lang === 'vi' ? 'TT' : '실제'} {project.actual_progress ?? project.progress ?? 0}%</span>
+                                </div>
+
+                                {/* Line 4: Warning Badges (Flex-Wrap) */}
                                 <div
                                   data-testid={`project-meta-row-${project.id}`}
-                                  className="text-[10px] text-slate-500 flex items-center gap-1.5 flex-wrap min-w-0"
+                                  className="flex items-center gap-1.5 flex-wrap min-w-0 mt-0.5"
                                 >
-                                  <span className="shrink-0 font-medium">{project.start_date} ~ {project.end_date}</span>
                                   {project.conflict_count && project.conflict_count > 0 ? (
                                     <button
                                       type="button"
@@ -1127,100 +1223,6 @@ export const ProjectOverviewPage: React.FC = () => {
                                       ...
                                     </span>
                                   )}
-                                </div>
-                              </div>
-
-                              <div
-                                data-testid={`project-action-group-${project.id}`}
-                                className="w-[112px] shrink-0 flex flex-col items-end justify-center gap-0.5"
-                              >
-                                <div
-                                  data-testid={`project-action-top-row-${project.id}`}
-                                  className="flex items-center justify-end gap-1 w-full whitespace-nowrap"
-                                >
-                                  {activeTab === 'ACTIVE' && !isExecutiveViewer(currentWorker) && (
-                                    <>
-                                      <button
-                                        type="button"
-                                        data-testid={`project-edit-btn-${project.id}`}
-                                        aria-label={lang === 'vi' ? 'Chỉnh sửa dự án' : '프로젝트 수정'}
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          handleEditProject(project);
-                                        }}
-                                        className="w-6 h-6 rounded-md border border-slate-200 bg-white hover:bg-slate-100 text-slate-600 hover:text-slate-900 flex items-center justify-center transition shadow-2xs cursor-pointer focus:outline-none focus:ring-1 focus:ring-blue-500"
-                                      >
-                                        <Pencil className="w-3 h-3" />
-                                      </button>
-                                      <button
-                                        type="button"
-                                        data-testid={`project-delete-btn-${project.id}`}
-                                        aria-label={lang === 'vi' ? 'Xóa dự án' : '프로젝트 삭제'}
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          handleOpenDeleteModal(project);
-                                        }}
-                                        className="w-6 h-6 rounded-md border border-slate-200 bg-white hover:bg-rose-50 hover:border-rose-200 text-slate-500 hover:text-rose-600 flex items-center justify-center transition shadow-2xs cursor-pointer focus:outline-none focus:ring-1 focus:ring-rose-500"
-                                      >
-                                        <Trash2 className="w-3 h-3" />
-                                      </button>
-                                    </>
-                                  )}
-                                  {(() => {
-                                    const isLifecycleCompleted = project.status === 'COMPLETED';
-                                    const isPendingCompletion = project.status === 'ACTIVE' && project.schedule_state === 'COMPLETED';
-                                    const isDelayed = project.status === 'ACTIVE' && project.schedule_state === 'DELAYED';
-                                    const isInProgress = project.status === 'ACTIVE' && project.schedule_state === 'IN_PROGRESS';
-
-                                    return (
-                                      <span
-                                        data-testid={`project-status-badge-${project.id}`}
-                                        title={
-                                          isPendingCompletion
-                                            ? (lang === 'vi'
-                                                ? 'Tiến độ đã đạt 100% nhưng dự án chưa được xác nhận hoàn thành.'
-                                                : '예정된 일정과 세부 작업은 100% 완료되었지만, 프로젝트 완료 확정이 아직 처리되지 않았습니다.')
-                                            : undefined
-                                        }
-                                        className={`text-[9px] font-bold px-1.5 py-0.5 rounded border select-none whitespace-nowrap ${
-                                          isLifecycleCompleted
-                                            ? 'bg-emerald-100 text-emerald-800 border-emerald-200 cursor-default'
-                                            : isPendingCompletion
-                                            ? 'bg-amber-100 text-amber-900 border-amber-300 font-extrabold cursor-pointer hover:bg-amber-200'
-                                            : isDelayed
-                                            ? 'bg-rose-100 text-rose-800 border-rose-200 cursor-default'
-                                            : isInProgress
-                                            ? 'bg-blue-100 text-blue-800 border-blue-200 cursor-default'
-                                            : 'bg-slate-100 text-slate-700 border-slate-200 cursor-default'
-                                        }`}
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          if (isPendingCompletion && !isExecutiveViewer(currentWorker)) {
-                                            handleCompleteProject(project);
-                                          }
-                                        }}
-                                      >
-                                        {isLifecycleCompleted
-                                          ? (lang === 'vi' ? 'Hoàn thành' : '완료')
-                                          : isPendingCompletion
-                                          ? (lang === 'vi' ? 'Cần xác nhận' : '완료 확인 필요')
-                                          : isDelayed
-                                          ? (lang === 'vi' ? 'Chậm' : '지연')
-                                          : isInProgress
-                                          ? (lang === 'vi' ? '진행' : '진행 중')
-                                          : (lang === 'vi' ? 'Sắp' : '예정')}
-                                      </span>
-                                    );
-                                  })()}
-                                </div>
-
-                                <div
-                                  data-testid={`project-progress-summary-${project.id}`}
-                                  className="text-[9px] font-semibold text-slate-600 flex items-center gap-1 select-none whitespace-nowrap"
-                                >
-                                  <span>{lang === 'vi' ? 'KH' : '예정'} {project.planned_progress ?? project.progress ?? 0}%</span>
-                                  <span>/</span>
-                                  <span className="font-extrabold text-emerald-700">{lang === 'vi' ? 'TT' : '실제'} {project.actual_progress ?? project.progress ?? 0}%</span>
                                 </div>
                               </div>
                             </div>

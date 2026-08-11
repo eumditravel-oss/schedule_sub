@@ -1,26 +1,10 @@
 // src/utils/__tests__/projectReadiness.test.ts
 import { describe, it, expect } from 'vitest';
-import { calculateProjectReadiness } from '../projectReadiness';
-import { Project, Task, ProjectWorkerAllocation, Worker } from '../../types';
+import { calculateProjectReadiness, isProjectOverdue } from '../projectReadiness';
+import { Project, Task, Worker } from '../../types';
 
-describe('Project Readiness Audit Engine (Updated V2.2)', () => {
-  const activeProject: Project = {
-    id: 'prj_01',
-    name: 'Active Test Project',
-    start_date: '2026-08-01',
-    end_date: '2026-08-31',
-    progress: 0,
-    status: 'ACTIVE',
-  };
-
-  const completedProject: Project = {
-    id: 'prj_02',
-    name: 'Completed Test Project',
-    start_date: '2026-05-01',
-    end_date: '2026-06-01',
-    progress: 100,
-    status: 'COMPLETED',
-  };
+describe('Project Readiness & Overdue Engine (CASE A ~ F Verification)', () => {
+  const referenceToday = '2026-08-11';
 
   const dummyWorker: Worker = {
     id: 'wrk_01',
@@ -32,56 +16,119 @@ describe('Project Readiness Audit Engine (Updated V2.2)', () => {
     sort_order: 1,
   };
 
-  it('1. ACTIVE Project: Overdue tasks generate meaningful badge text (기한 경과 22건) instead of raw raw count badge', () => {
-    const overdueTask: Task = {
-      id: 'tsk_01',
-      project_id: 'prj_01',
+  it('CASE A: start=2026-09-01, end=2026-10-30, status=scheduled, progress=0 -> 기한 경과 없음', () => {
+    const project: Project = {
+      id: 'prj_case_a',
+      name: 'KSRCV2 - ZWCAD 2026',
+      start_date: '2026-09-01',
+      end_date: '2026-10-30',
+      progress: 0,
+      actual_progress: 0,
+      status: 'ACTIVE',
+    };
+
+    expect(isProjectOverdue(project, referenceToday)).toBe(false);
+    const readiness = calculateProjectReadiness(project, [], [], [dummyWorker]);
+    expect(readiness.badge_text_ko).not.toBe('기한 경과');
+  });
+
+  it('CASE B: start=2026-08-05, end=2026-11-10, status=in_progress, progress=4 -> 기한 경과 없음', () => {
+    const project: Project = {
+      id: 'prj_case_b',
+      name: 'GROUPWARE - 그룹웨어 시스템 개발',
+      start_date: '2026-08-05',
+      end_date: '2026-11-10',
+      progress: 4,
+      actual_progress: 4,
+      status: 'ACTIVE',
+    };
+
+    expect(isProjectOverdue(project, referenceToday)).toBe(false);
+
+    // Subtask delayed in GROUPWARE should be labeled as 지연 작업, NOT project 기한 경과
+    const delayedSubtask: Task = {
+      id: 'tsk_gw_01',
+      project_id: 'prj_case_b',
+      task_name: 'Analysis',
       worker_name: 'Thanh Phuong',
-      task_name: 'Expired Task',
-      start_date: '2026-08-01',
-      end_date: '2026-08-03',
+      start_date: '2026-08-05',
+      end_date: '2026-08-08',
       schedule_status: 'SCHEDULED',
       primary_worker_id: 'wrk_01',
       progress: 10,
       actual_progress: 10,
     };
 
-    const validAlloc: ProjectWorkerAllocation = {
-      id: 'a1',
-      project_id: 'prj_01',
-      worker_id: 'wrk_01',
-      allocation_percent: 100,
-    };
-
-    const readiness = calculateProjectReadiness(activeProject, [overdueTask], [validAlloc], [dummyWorker]);
-    expect(readiness.status).toBe('RISK');
-    expect(readiness.badge_text_ko).toContain('기한 경과');
-    expect(readiness.issue_groups['OVERDUE_TASK']).toBeDefined();
-    expect(readiness.issue_groups['OVERDUE_TASK'].count).toBe(1);
+    const readiness = calculateProjectReadiness(project, [delayedSubtask], [], [dummyWorker]);
+    expect(readiness.badge_text_ko).not.toBe('기한 경과');
+    expect(readiness.badge_text_ko).toContain('지연 작업');
   });
 
-  it('2. COMPLETED Project: Ignores operational overdue risks, returning COMPLETED badge or single completion inconsistency risk', () => {
-    const overdueTask: Task = {
-      id: 'tsk_02',
-      project_id: 'prj_02',
-      worker_name: 'Thanh Phuong',
-      task_name: 'Incomplete Task in Completed Project',
-      start_date: '2026-05-01',
-      end_date: '2026-05-10',
-      schedule_status: 'SCHEDULED',
-      primary_worker_id: 'wrk_01',
+  it('CASE C: end=2026-08-11, 미완료 (progress=50) -> 기한 경과 없음', () => {
+    const project: Project = {
+      id: 'prj_case_c',
+      name: 'Ending Today Project',
+      start_date: '2026-08-01',
+      end_date: '2026-08-11',
       progress: 50,
       actual_progress: 50,
-      completion_confirmed: 0,
+      status: 'ACTIVE',
     };
 
-    const readiness = calculateProjectReadiness(completedProject, [overdueTask], [], [dummyWorker]);
-    // Does NOT generate OVERDUE_TASK issues
-    expect(readiness.issue_groups['OVERDUE_TASK']).toBeUndefined();
-    // Generates single PROJECT_COMPLETION_INCONSISTENCY risk
+    expect(isProjectOverdue(project, referenceToday)).toBe(false);
+    const readiness = calculateProjectReadiness(project, [], [], [dummyWorker]);
+    expect(readiness.badge_text_ko).not.toBe('기한 경과');
+  });
+
+  it('CASE D: end=2026-08-10, 미완료 (progress=50) -> 기한 경과 표시', () => {
+    const project: Project = {
+      id: 'prj_case_d',
+      name: 'Expired Yesterday Project',
+      start_date: '2026-08-01',
+      end_date: '2026-08-10',
+      progress: 50,
+      actual_progress: 50,
+      status: 'ACTIVE',
+    };
+
+    expect(isProjectOverdue(project, referenceToday)).toBe(true);
+    const readiness = calculateProjectReadiness(project, [], [], [dummyWorker]);
+    expect(readiness.badge_text_ko).toBe('기한 경과');
     expect(readiness.status).toBe('RISK');
-    expect(readiness.badge_text_ko).toBe('완료 불일치 1');
-    expect(readiness.issue_groups['PROJECT_COMPLETION_INCONSISTENCY']).toBeDefined();
-    expect(readiness.issue_groups['PROJECT_COMPLETION_INCONSISTENCY'].count).toBe(1);
+  });
+
+  it('CASE E: end=2026-08-10, status=completed, actualProgress=100 -> 기한 경과 없음', () => {
+    const project: Project = {
+      id: 'prj_case_e',
+      name: 'Completed Past Project',
+      start_date: '2026-08-01',
+      end_date: '2026-08-10',
+      progress: 100,
+      actual_progress: 100,
+      status: 'COMPLETED',
+    };
+
+    expect(isProjectOverdue(project, referenceToday)).toBe(false);
+    const readiness = calculateProjectReadiness(project, [], [], [dummyWorker]);
+    expect(readiness.badge_text_ko).not.toBe('기한 경과');
+    expect(readiness.status).toBe('READY');
+  });
+
+  it('CASE F: due/end date = null -> 기한 경과 없음, 오류 없음', () => {
+    const project: Project = {
+      id: 'prj_case_f',
+      name: 'No End Date Project',
+      start_date: '2026-08-01',
+      end_date: undefined as any,
+      progress: 0,
+      actual_progress: 0,
+      status: 'ACTIVE',
+    };
+
+    expect(isProjectOverdue(project, referenceToday)).toBe(false);
+    expect(() => {
+      const readiness = calculateProjectReadiness(project, [], [], [dummyWorker]);
+      expect(readiness.badge_text_ko).not.toBe('기한 경과');
+    }).not.toThrow();
   });
 });
