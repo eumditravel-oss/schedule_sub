@@ -27,7 +27,6 @@ async function dismissBlockingModals(page: any) {
   }
 }
 
-import { test, expect } from '@playwright/test';
 import { assertMutationSafety } from './productionMutationGuard';
 
 const TEST_BASE_URL = (process.env.TEST_BASE_URL || process.env.PLAYWRIGHT_TEST_BASE_URL || 'http://localhost:5173').trim();
@@ -46,7 +45,7 @@ test.describe('Strict Gantt Inline Content & Build SHA E2E Suite', () => {
 
     const runId = Date.now();
     // 1. Create QA Project (25-day span to ensure >= 260px bar width)
-    const prjRes = await fetch(`${QA_BASE_URL}/api/projects`, {
+    const prjRes = await fetch(`${TEST_BASE_URL}/api/projects`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -67,7 +66,7 @@ test.describe('Strict Gantt Inline Content & Build SHA E2E Suite', () => {
     createdProjectId = prjJson.id || prjJson.data?.id;
 
     // 2. Create QA Task inside the Project
-    const taskRes = await fetch(`${QA_BASE_URL}/api/tasks`, {
+    const taskRes = await fetch(`${TEST_BASE_URL}/api/tasks`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -92,7 +91,7 @@ test.describe('Strict Gantt Inline Content & Build SHA E2E Suite', () => {
   test.afterAll(async () => {
     // ID-based specific cleanup
     if (createdTaskId) {
-      const delTaskRes = await fetch(`${QA_BASE_URL}/api/tasks/${createdTaskId}`, {
+      const delTaskRes = await fetch(`${TEST_BASE_URL}/api/tasks/${createdTaskId}`, {
         method: 'DELETE',
         headers: { 'x-editor-name': encodeURIComponent('박용진 수석') },
       });
@@ -100,19 +99,26 @@ test.describe('Strict Gantt Inline Content & Build SHA E2E Suite', () => {
     }
 
     if (createdProjectId) {
-      const delPrjRes = await fetch(`${QA_BASE_URL}/api/projects/${createdProjectId}`, {
+      const delPrjRes = await fetch(`${TEST_BASE_URL}/api/projects/${createdProjectId}`, {
         method: 'DELETE',
         headers: { 'x-editor-name': encodeURIComponent('박용진 수석') },
       });
       expect(delPrjRes.status).toBe(200);
 
       // Verify ID absence (404)
-      const checkPrjRes = await fetch(`${QA_BASE_URL}/api/projects/${createdProjectId}`);
+      const checkPrjRes = await fetch(`${TEST_BASE_URL}/api/projects/${createdProjectId}`);
       expect(checkPrjRes.status).toBe(404);
     }
   });
 
   test.beforeEach(async ({ page }) => {
+    await page.route('**/api/calendar/pending-schedule-decisions**', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ success: true, data: [] }),
+      });
+    });
     await page.addInitScript(() => {
       localStorage.setItem('schedule_current_worker_id', 'wrk_02');
       localStorage.setItem('schedule_current_worker_name', '박용진 수석');
@@ -132,7 +138,7 @@ test.describe('Strict Gantt Inline Content & Build SHA E2E Suite', () => {
 
     const scheduleBar = page.locator('[data-testid="gantt-schedule-bar"]').first();
     if (!await scheduleBar.isVisible({ timeout: 15000 }).catch(() => false)) {
-      await page.goto(`${QA_BASE_URL}/projects/${createdProjectId}`);
+      await page.goto(`${TEST_BASE_URL}/projects/${createdProjectId}`);
       await dismissBlockingModals(page);
     }
 
@@ -163,7 +169,7 @@ test.describe('Strict Gantt Inline Content & Build SHA E2E Suite', () => {
 
     const firstBar = page.locator('[data-testid="gantt-schedule-bar"]').first();
     if (!await firstBar.isVisible({ timeout: 15000 }).catch(() => false)) {
-      await page.goto(`${QA_BASE_URL}/projects/${createdProjectId}`);
+      await page.goto(`${TEST_BASE_URL}/projects/${createdProjectId}`);
       await dismissBlockingModals(page);
     }
 
@@ -182,7 +188,7 @@ test.describe('Strict Gantt Inline Content & Build SHA E2E Suite', () => {
 
   test('3. Mandatory Verification of Project Detail Page Task Bar Zero Inline Content', async ({ page }) => {
     await page.setViewportSize({ width: 1366, height: 768 });
-    await page.goto(`${QA_BASE_URL}/projects/${createdProjectId}`);
+    await page.goto(`${TEST_BASE_URL}/projects/${createdProjectId}`);
     await dismissBlockingModals(page);
 
     const detailBar = page.locator('[data-testid="gantt-schedule-bar"]').first();
@@ -199,7 +205,7 @@ test.describe('Strict Gantt Inline Content & Build SHA E2E Suite', () => {
 
   test('4. Mandatory Verification of Mobile 30-Day Calendar Agenda View', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
-    await page.goto(`${QA_BASE_URL}/projects/${createdProjectId}`);
+    await page.goto(`${TEST_BASE_URL}/projects/${createdProjectId}`);
     await dismissBlockingModals(page);
 
     const mobileGanttBtn = page.locator('[data-testid="mobile-view-gantt-btn"]');
@@ -229,7 +235,7 @@ test.describe('Strict Gantt Inline Content & Build SHA E2E Suite', () => {
 
   test('5. Verify Strict Git Commit SHA Alignment and BuildVersionIndicator Attributes', async ({ page }) => {
     test.setTimeout(60000);
-    const versionRes = await fetch(`${QA_BASE_URL}/api/version?t=${Date.now()}`);
+    const versionRes = await fetch(`${TEST_BASE_URL}/api/version?t=${Date.now()}`);
     expect(versionRes.status).toBe(200);
 
     const versionJson: any = await versionRes.json();
@@ -238,7 +244,7 @@ test.describe('Strict Gantt Inline Content & Build SHA E2E Suite', () => {
     expect(typeof apiCommitSha).toBe('string');
 
     await page.setViewportSize({ width: 1366, height: 768 });
-    await page.goto(`${QA_BASE_URL}/projects`);
+    await page.goto(`${TEST_BASE_URL}/projects`);
     await dismissBlockingModals(page);
 
     const versionIndicator = page.locator('[data-testid="build-version-indicator"]');
@@ -247,26 +253,30 @@ test.describe('Strict Gantt Inline Content & Build SHA E2E Suite', () => {
 
     // Wait for Cloudflare Workers edge propagation with active cache-busting reloads
     const maxAttempts = 10;
+    let runtimeShaMatched = false;
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-      const versionRes = await fetch(`${QA_BASE_URL}/api/version?t=${Date.now()}`);
+      const versionRes = await fetch(`${TEST_BASE_URL}/api/version?t=${Date.now()}`);
       if (versionRes.ok) {
         const vJson: any = await versionRes.json();
         const currentSha = vJson.data?.commit || vJson.commit;
-        if (expectedCommitSha !== 'unknown' && currentSha === expectedCommitSha) {
+        if (expectedCommitSha !== 'unknown' && typeof currentSha === 'string' && currentSha.startsWith(expectedCommitSha)) {
+          runtimeShaMatched = true;
           break;
         }
       }
       if (attempt < maxAttempts) {
         await page.waitForTimeout(1000);
-        await page.goto(`${QA_BASE_URL}/projects?t=${Date.now()}`);
+        await page.goto(`${TEST_BASE_URL}/projects?t=${Date.now()}`);
         await dismissBlockingModals(page);
       }
     }
 
+    expect(runtimeShaMatched).toBe(true);
+
     const frontendSha = await versionIndicator.getAttribute('data-frontend-sha');
     const backendSha = await versionIndicator.getAttribute('data-backend-sha');
 
-    expect(backendSha).toBeTruthy();
-    expect(frontendSha).toBeTruthy();
+    expect(backendSha).toBe(expectedCommitSha);
+    expect(frontendSha).toBe(expectedCommitSha);
   });
 });
