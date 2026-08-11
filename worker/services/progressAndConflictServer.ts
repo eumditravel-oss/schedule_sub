@@ -14,7 +14,7 @@ export interface TaskProgressMetricsServer {
   planned_progress: number;
   actual_progress: number;
   progress_gap: number;
-  schedule_state: 'UPCOMING' | 'IN_PROGRESS' | 'DELAYED' | 'COMPLETED' | 'COMPLETION_REVIEW';
+  schedule_state: 'UPCOMING' | 'IN_PROGRESS' | 'DELAYED' | 'COMPLETED';
   actual_progress_source: 'AUTO_TIME' | 'STATUS_BASED';
 }
 
@@ -128,11 +128,9 @@ export function calculateTaskProgressServer(
 
   const progress_gap = actual_progress - planned_progress;
 
-  let schedule_state: 'UPCOMING' | 'IN_PROGRESS' | 'DELAYED' | 'COMPLETED' | 'COMPLETION_REVIEW' = 'UPCOMING';
-  if (projectStatus === 'COMPLETED' || Number(task.completion_confirmed) === 1) {
+  let schedule_state: 'UPCOMING' | 'IN_PROGRESS' | 'DELAYED' | 'COMPLETED' = 'UPCOMING';
+  if (projectStatus === 'COMPLETED' || Number(task.completion_confirmed) === 1 || actual_progress === 100) {
     schedule_state = 'COMPLETED';
-  } else if (progressMode === 'AUTO_TIME' && actual_progress === 100) {
-    schedule_state = 'COMPLETION_REVIEW';
   } else if (todayStr > task.end_date && actual_progress < 100 && projectStatus === 'ACTIVE') {
     schedule_state = 'DELAYED';
   } else if (todayStr < task.start_date) {

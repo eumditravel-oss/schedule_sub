@@ -43,14 +43,15 @@ describe('printVisualTokens Suite', () => {
     expect(badgeVi.label).toBe('Hoàn thành');
   });
 
-  it('uses translated, intentional styles for completion review and upcoming states', () => {
+  it('normalizes the removed legacy completion-review state to completed', () => {
     const reviewKo = getPrintStatusBadgeStyle('COMPLETION_REVIEW', 'color', 'ko');
     const reviewVi = getPrintStatusBadgeStyle('COMPLETION_REVIEW', 'color', 'vi');
     const upcoming = getPrintGanttBarStyle('UPCOMING', 'color');
 
-    expect(reviewKo.label).toBe('완료 확인 필요');
-    expect(reviewVi.label).toBe('Cần xác nhận hoàn thành');
-    expect(reviewKo.borderColor).toBe('#FDE68A');
+    expect(reviewKo.label).toBe('완료');
+    expect(reviewVi.label).toBe('Hoàn thành');
+    expect(reviewKo.borderColor).toBe('#A7F3D0');
+    expect(getPrintGanttBarStyle('COMPLETION_REVIEW', 'color').backgroundColor).toBe('#10B981');
     expect(upcoming.backgroundColor).toBe('#94A3B8');
   });
 

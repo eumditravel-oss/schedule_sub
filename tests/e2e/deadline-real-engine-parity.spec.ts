@@ -33,7 +33,7 @@ test.describe('Deadline Real Engine Parity Suite (Single Source Integrity)', () 
     activeProjectId = prjJson.id || prjJson.project?.id || prjJson.data?.id;
     expect(activeProjectId).toBeTruthy();
 
-    // 1. Create AUTO_TIME task past end date (2026-08-01 ~ 2026-08-05) -> should be COMPLETION_REVIEW
+    // 1. AUTO_TIME task past end date reaches 100% and is automatically completed.
     const autoRes = await fetch(`${QA_BASE_URL}/api/tasks`, {
       method: 'POST',
       headers: {
@@ -43,7 +43,7 @@ test.describe('Deadline Real Engine Parity Suite (Single Source Integrity)', () 
       },
       body: JSON.stringify({
         project_id: activeProjectId,
-        task_name: 'AUTO_TIME 완료확인필요 검증작업',
+        task_name: 'AUTO_TIME 자동완료 검증작업',
         primary_worker_id: 'wrk_01',
         worker_name: '박용진 수석',
         start_date: '2026-08-01',
@@ -111,7 +111,7 @@ test.describe('Deadline Real Engine Parity Suite (Single Source Integrity)', () 
     }
   });
 
-  test('1. Verify GET /api/dashboard/today-summary classifies AUTO_TIME task as COMPLETION_REVIEW and STATUS_BASED task as OVERDUE', async () => {
+  test('1. Verify AUTO_TIME 100% task is not overdue or exposed as completion review', async () => {
     const res = await fetch(`${QA_BASE_URL}/api/dashboard/today-summary?date=2026-08-10`);
     expect(res.status).toBe(200);
     const json: any = await res.json();
@@ -120,8 +120,8 @@ test.describe('Deadline Real Engine Parity Suite (Single Source Integrity)', () 
     const completionReviewTaskIds: string[] = data.completion_review?.task_ids || [];
     const overdueTaskIds: string[] = data.overdue?.task_ids || [];
 
-    // AUTO_TIME past end date -> MUST be in completion_review AND MUST NOT be in overdue
-    expect(completionReviewTaskIds).toContain(autoTaskId);
+    // AUTO_TIME past end date is complete without a separate task confirmation action.
+    expect(completionReviewTaskIds).not.toContain(autoTaskId);
     expect(overdueTaskIds).not.toContain(autoTaskId);
 
     // STATUS_BASED past end date with < 100% progress -> MUST be in overdue AND MUST NOT be in completion_review
@@ -141,9 +141,10 @@ test.describe('Deadline Real Engine Parity Suite (Single Source Integrity)', () 
     expect(autoTask).toBeDefined();
     expect(statusTask).toBeDefined();
 
-    // Verify AUTO_TIME task completion_review classification
+    // Verify AUTO_TIME task automatic completion classification
     const autoProgress = Number(autoTask.actual_progress ?? autoTask.progress ?? 0);
     expect(autoProgress).toBeGreaterThanOrEqual(100);
+    expect(autoTask.schedule_state).toBe('COMPLETED');
 
     // Verify STATUS_BASED task overdue classification
     const statusProgress = Number(statusTask.actual_progress ?? statusTask.progress ?? 0);

@@ -123,31 +123,30 @@ export const PrintProjectSummaryA4: React.FC<PrintProjectSummaryA4Props> = ({
     };
   });
 
-  // Calculate pages per phase (max 8 tasks per page chunk for legible printing)
-  const TASKS_PER_PAGE = 8;
-  const phasePagesConfig: Array<{
-    groupSummary: (typeof groupSummaries)[0];
-    groupIndex: number;
-    chunkIndex: number;
-    totalChunks: number;
-    chunkTasks: Task[];
+  // Pack tasks across phase boundaries so a one-task phase does not consume a
+  // full sheet. Phase identity is retained per row through WBS and group name.
+  const TASKS_PER_DETAIL_PAGE = 12;
+  const detailRows = groupSummaries.flatMap((groupSummary, groupIndex) =>
+    groupSummary.tasks.map((task, taskIndex) => ({
+      task,
+      groupSummary,
+      groupIndex,
+      taskIndex,
+    }))
+  );
+  const detailPagesConfig: Array<{
+    rows: typeof detailRows;
+    pageIndex: number;
   }> = [];
 
-  groupSummaries.forEach((gSum, gIdx) => {
-    const totalChunks = Math.max(1, Math.ceil(gSum.tasks.length / TASKS_PER_PAGE));
-    for (let cIdx = 0; cIdx < totalChunks; cIdx++) {
-      const chunkTasks = gSum.tasks.slice(cIdx * TASKS_PER_PAGE, (cIdx + 1) * TASKS_PER_PAGE);
-      phasePagesConfig.push({
-        groupSummary: gSum,
-        groupIndex: gIdx,
-        chunkIndex: cIdx,
-        totalChunks,
-        chunkTasks,
-      });
-    }
-  });
+  for (let pageIndex = 0; pageIndex < Math.ceil(detailRows.length / TASKS_PER_DETAIL_PAGE); pageIndex++) {
+    detailPagesConfig.push({
+      rows: detailRows.slice(pageIndex * TASKS_PER_DETAIL_PAGE, (pageIndex + 1) * TASKS_PER_DETAIL_PAGE),
+      pageIndex,
+    });
+  }
 
-  const totalPageCount = 1 + phasePagesConfig.length;
+  const totalPageCount = 1 + detailPagesConfig.length;
 
   // Timeline Compression for Page 1 Executive Summary
   const startDate = project.start_date ? parseISO(project.start_date) : new Date();
@@ -369,259 +368,150 @@ export const PrintProjectSummaryA4: React.FC<PrintProjectSummaryA4Props> = ({
       </div>
     </PrintPageShell>
 
-      {/* ========================================================================= */}
-      {/* PAGE 2 ~ N: DETAILED PHASE PAGES (0단계 ~ 6단계) */}
-      {/* ========================================================================= */}
-      {phasePagesConfig.map((pConfig, pIdx) => {
+      {/* PAGE 2 ~ N: PACKED TASK DETAIL PAGES */}
+      {detailPagesConfig.map((pageConfig, pIdx) => {
         const currentPageNum = 2 + pIdx;
-        const { groupSummary: gSum, groupIndex, chunkIndex, totalChunks, chunkTasks } = pConfig;
-        const chunkSuffix = totalChunks > 1 ? ` (${chunkIndex + 1}/${totalChunks})` : '';
-
-        // Phase date range for auto-scaling phase Gantt timeline
-        const validTaskStarts = gSum.tasks.map((t) => t.start_date).filter(Boolean) as string[];
-        const validTaskEnds = gSum.tasks.map((t) => t.end_date).filter(Boolean) as string[];
-
-        let phaseMinStart = project.start_date ? parseISO(project.start_date) : new Date();
-        let phaseMaxEnd = project.end_date ? parseISO(project.end_date) : new Date();
-
-        if (validTaskStarts.length > 0) {
-          const minTime = Math.min(...validTaskStarts.map((d) => parseISO(d).getTime()));
-          phaseMinStart = new Date(minTime);
+        const pageTasks = pageConfig.rows.map((row) => row.task);
+        const validTaskStarts = pageTasks.map((task) => task.start_date).filter(Boolean) as string[];
+        const validTaskEnds = pageTasks.map((task) => task.end_date).filter(Boolean) as string[];
+        const pageMinStart = validTaskStarts.length > 0
+          ? new Date(Math.min(...validTaskStarts.map((date) => parseISO(date).getTime())))
+          : startDate;
+        const pageMaxEnd = validTaskEnds.length > 0
+          ? new Date(Math.max(...validTaskEnds.map((date) => parseISO(date).getTime())))
+          : endDate;
+        const totalDetailDays = Math.max(1, differenceInCalendarDays(pageMaxEnd, pageMinStart) + 1);
+        const detailDaysArray: Date[] = [];
+        const stepDays = Math.max(1, Math.ceil(totalDetailDays / 24));
+        for (let dayOffset = 0; dayOffset < totalDetailDays; dayOffset += stepDays) {
+          detailDaysArray.push(addDays(pageMinStart, dayOffset));
         }
-        if (validTaskEnds.length > 0) {
-          const maxTime = Math.max(...validTaskEnds.map((d) => parseISO(d).getTime()));
-          phaseMaxEnd = new Date(maxTime);
-        }
-
-        const totalPhaseDays = Math.max(1, differenceInCalendarDays(phaseMaxEnd, phaseMinStart) + 1);
-
-        // Daily array for Phase Gantt Header (capped to 24 columns max per page for clarity)
-        const phaseDaysArray: Date[] = [];
-        const stepDays = Math.max(1, Math.ceil(totalPhaseDays / 24));
-        for (let i = 0; i < totalPhaseDays; i += stepDays) {
-          phaseDaysArray.push(addDays(phaseMinStart, i));
-        }
+        const groupNames = Array.from(new Set(pageConfig.rows.map((row) => row.groupSummary.name)));
+        const completedOnPage = pageTasks.filter((task) =>
+          (task.actual_progress ?? task.progress ?? 0) >= 100 ||
+          task.schedule_state === 'COMPLETED' ||
+          task.schedule_state === 'COMPLETION_REVIEW'
+        ).length;
 
         return (
-          <PrintPageShell key={`phase_page_${groupIndex}_${chunkIndex}`} paper="a4" orientation="landscape" colorMode={colorMode}>
+          <PrintPageShell key={`detail-page-${pageConfig.pageIndex}`} paper="a4" orientation="landscape" colorMode={colorMode}>
             <div className="print-page-band flex flex-col justify-between w-full h-full">
-            <div>
-              {/* Header */}
-              <PrintHeader
-                title="CON-COST × VIETQS 개발팀 프로젝트 스케줄러"
-                subtitle={`프로젝트: ${pName} | 공정: ${gSum.name}${chunkSuffix}`}
-                referenceDate={referenceDate}
-                authorName={viewerName}
-                pageNumber={currentPageNum}
-                totalPages={totalPageCount}
-                colorMode={colorMode}
-                lang={lang}
-              />
+              <div>
+                <PrintHeader
+                  title={pName}
+                  subtitle={isKo
+                    ? `프로젝트 작업 상세 ${pIdx + 1}/${detailPagesConfig.length}`
+                    : `Chi tiết công việc ${pIdx + 1}/${detailPagesConfig.length}`}
+                  referenceDate={referenceDate}
+                  authorName={viewerName}
+                  pageNumber={currentPageNum}
+                  totalPages={totalPageCount}
+                  colorMode={colorMode}
+                  lang={lang}
+                />
 
-              {/* Phase Summary KPI Box */}
-              <div className="border border-slate-300 rounded p-2 bg-slate-50 mb-3">
-                <div className="flex items-center justify-between border-b border-slate-200 pb-1.5 mb-2">
-                  <h3 className="font-extrabold text-xs text-slate-900 flex items-center gap-2">
-                    <span className="px-2 py-0.5 bg-slate-800 text-white rounded text-[10.5px]">
-                      {groupIndex}단계
-                    </span>
-                    <span>{gSum.name}</span>
-                    {chunkSuffix && <span className="text-slate-500 font-normal">{chunkSuffix}</span>}
-                  </h3>
-
-                  <div className="flex items-center gap-2 text-xs">
-                    <span className="text-slate-500">{isKo ? '공정률:' : 'Tiến độ:'}</span>
-                    <span className="font-mono font-black text-emerald-700 text-sm">{gSum.progressPercent}%</span>
+                <div className="grid grid-cols-[1.4fr_0.7fr_0.7fr_1fr] gap-2 mb-2 text-[10px]">
+                  <div className="border border-slate-200 rounded bg-slate-50 px-2 py-1.5 min-w-0">
+                    <span className="text-slate-500 font-semibold mr-2">{isKo ? '포함 공정' : 'Nhóm'}</span>
+                    <strong className="text-slate-800 break-words">{groupNames.join(' · ')}</strong>
+                  </div>
+                  <div className="border border-slate-200 rounded bg-slate-50 px-2 py-1.5 text-center">
+                    <span className="text-slate-500 mr-1">{isKo ? '표시 작업' : 'Công việc'}</span>
+                    <strong>{pageConfig.rows.length}</strong>
+                  </div>
+                  <div className="border border-emerald-200 rounded bg-emerald-50 px-2 py-1.5 text-center">
+                    <span className="text-emerald-700 mr-1">{isKo ? '완료' : 'Xong'}</span>
+                    <strong className="text-emerald-900">{completedOnPage}</strong>
+                  </div>
+                  <div className="border border-slate-200 rounded bg-slate-50 px-2 py-1.5 text-center font-mono">
+                    {format(pageMinStart, 'MM-dd')} ~ {format(pageMaxEnd, 'MM-dd')}
                   </div>
                 </div>
 
-                {/* KPI Cards Strip */}
-                <div className="grid grid-cols-6 gap-2 text-center text-[10.5px]">
-                  <div className="bg-white border border-slate-200 rounded p-1">
-                    <span className="block text-[9.5px] text-slate-500">{isKo ? '공정률' : 'Tiến độ'}</span>
-                    <span className="font-mono font-bold text-slate-900">{gSum.progressPercent}%</span>
-                  </div>
-                  <div className="bg-white border border-slate-200 rounded p-1">
-                    <span className="block text-[9.5px] text-slate-500">{isKo ? '전체 작업' : 'Tổng số'}</span>
-                    <span className="font-mono font-bold text-slate-900">{gSum.tasksCount}</span>
-                  </div>
-                  <div className="bg-emerald-50 border border-emerald-200 rounded p-1">
-                    <span className="block text-[9.5px] text-emerald-700">{isKo ? '완료' : 'Đã xong'}</span>
-                    <span className="font-mono font-bold text-emerald-900">{gSum.doneCount}</span>
-                  </div>
-                  <div className="bg-blue-50 border border-blue-200 rounded p-1">
-                    <span className="block text-[9.5px] text-blue-700">{isKo ? '진행 중' : 'Đang làm'}</span>
-                    <span className="font-mono font-bold text-blue-900">{gSum.inProgressCount}</span>
-                  </div>
-                  <div className="bg-amber-50 border border-amber-200 rounded p-1">
-                    <span className="block text-[9.5px] text-amber-700">{isKo ? '지연' : 'Trễ hạn'}</span>
-                    <span className="font-mono font-bold text-amber-900">{gSum.delayedCount}</span>
-                  </div>
-                  <div className="bg-rose-50 border border-rose-200 rounded p-1">
-                    <span className="block text-[9.5px] text-rose-700">{isKo ? '막힘' : 'Tắc nghẽn'}</span>
-                    <span className="font-mono font-bold text-rose-900">{gSum.blockedCount}</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Detailed Tasks Table & Gantt Timeline */}
-              <div className="w-full border border-slate-300 rounded overflow-hidden mb-3">
-                <table className="w-full border-collapse text-[10px]">
-                  <thead>
-                    <tr className="bg-slate-800 text-white font-bold border-b border-slate-700">
-                      <th className="border-r border-slate-700 px-1.5 py-1 text-center w-10">WBS</th>
-                      <th className="border-r border-slate-700 px-2 py-1 text-left w-48">{isKo ? '세부 공정명' : 'Tên công việc'}</th>
-                      <th className="border-r border-slate-700 px-1.5 py-1 text-left w-24">{isKo ? '담당자' : 'Người phụ trách'}</th>
-                      <th className="border-r border-slate-700 px-1 py-1 text-center w-24">{isKo ? '기간' : 'Thời gian'}</th>
-                      <th className="border-r border-slate-700 px-1 py-1 text-center w-14">{isKo ? '상태' : 'Trạng thái'}</th>
-                      <th className="border-r border-slate-700 px-1 py-1 text-center w-12">{isKo ? '예정 %' : 'KH %'}</th>
-                      <th className="border-r border-slate-700 px-1 py-1 text-center w-12">{isKo ? '실제 %' : 'Thực %'}</th>
-
-                      {/* Phase Scaled Gantt Header Columns */}
-                      {phaseDaysArray.map((dayDate, dIdx) => {
-                        const dateStr = format(dayDate, 'yyyy-MM-dd');
-                        const dayNum = format(dayDate, 'dd');
-                        return (
-                          <th key={dIdx} className="border-r border-slate-700 px-0.5 py-1 text-center font-mono text-[8px] bg-slate-700 text-slate-200">
-                            <div>{dayNum}</div>
+                <div className="w-full border border-slate-300 rounded overflow-hidden mb-2">
+                  <table className="w-full border-collapse text-[9.5px]">
+                    <thead>
+                      <tr className="bg-slate-800 text-white font-bold border-b border-slate-700">
+                        <th className="border-r border-slate-700 px-1 py-1 text-center w-10">WBS</th>
+                        <th className="border-r border-slate-700 px-2 py-1 text-left w-48">{isKo ? '공정 / 세부 작업명' : 'Nhóm / Công việc'}</th>
+                        <th className="border-r border-slate-700 px-1 py-1 text-left w-24">PIC</th>
+                        <th className="border-r border-slate-700 px-1 py-1 text-center w-24">{isKo ? '기간' : 'Thời gian'}</th>
+                        <th className="border-r border-slate-700 px-1 py-1 text-center w-14">{isKo ? '상태' : 'Trạng thái'}</th>
+                        <th className="border-r border-slate-700 px-1 py-1 text-center w-12">{isKo ? '예정' : 'KH'}</th>
+                        <th className="border-r border-slate-700 px-1 py-1 text-center w-12">{isKo ? '실제' : 'Thực'}</th>
+                        {detailDaysArray.map((dayDate, dayIndex) => (
+                          <th key={dayIndex} className="border-r border-slate-700 px-0.5 py-1 text-center font-mono text-[8px] bg-slate-700 text-slate-200">
+                            {format(dayDate, 'dd')}
                           </th>
-                        );
-                      })}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {chunkTasks.map((task, tIdx) => {
-                      const wbsIndex = `${groupIndex}.${chunkIndex * TASKS_PER_PAGE + tIdx + 1}`;
-                      const taskStatus = task.schedule_state || (task.actual_progress === 100 ? 'COMPLETED' : 'IN_PROGRESS');
-                      const taskBadge = getPrintStatusBadgeStyle(taskStatus, colorMode, lang);
-                      const tBarStyle = getPrintGanttBarStyle(taskStatus, colorMode);
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {pageConfig.rows.map(({ task, groupSummary, groupIndex, taskIndex }) => {
+                        const tProgress = task.actual_progress ?? (task.schedule_state === 'COMPLETED' ? 100 : 0);
+                        const rawTaskStatus = task.schedule_state || (tProgress >= 100 ? 'COMPLETED' : 'IN_PROGRESS');
+                        const taskStatus = tProgress >= 100 || rawTaskStatus === 'COMPLETION_REVIEW' ? 'COMPLETED' : rawTaskStatus;
+                        const taskBadge = getPrintStatusBadgeStyle(taskStatus, colorMode, lang);
+                        const taskBar = getPrintGanttBarStyle(taskStatus, colorMode);
+                        const picWorker = workers.find((worker) => worker.id === task.primary_worker_id || worker.name === task.worker_name);
+                        const taskPic = picWorker ? picWorker.name : task.worker_name || '-';
+                        const taskName = isKo ? task.task_name_ko || task.task_name : task.task_name_vi || task.task_name;
+                        const planned = task.planned_progress ?? task.progress ?? 0;
+                        let taskStartColumn = 0;
+                        let taskEndColumn = detailDaysArray.length - 1;
+                        if (task.start_date) {
+                          const index = detailDaysArray.findIndex((date) => format(date, 'yyyy-MM-dd') >= task.start_date!);
+                          if (index !== -1) taskStartColumn = index;
+                        }
+                        if (task.end_date) {
+                          const index = detailDaysArray.findIndex((date) => format(date, 'yyyy-MM-dd') > task.end_date!);
+                          if (index !== -1) taskEndColumn = Math.max(0, index - 1);
+                        }
+                        const taskColumnSpan = Math.max(1, taskEndColumn - taskStartColumn + 1);
 
-                      const picWorker = workers.find(
-                        (w) => w.id === task.primary_worker_id || w.name === task.worker_name
-                      );
-                      const tPic = picWorker ? picWorker.name : task.worker_name || '-';
-                      const tName = isKo ? (task.task_name_ko || task.task_name) : (task.task_name_vi || task.task_name);
-
-                      const tStartStr = task.start_date;
-                      const tEndStr = task.end_date;
-                      const tPlannedProgress = task.planned_progress ?? task.progress ?? 0;
-                      const tProgress = task.actual_progress ?? (task.schedule_state === 'COMPLETED' ? 100 : 0);
-
-                      // Calculate span inside scaled phase timeline
-                      let tStartCol = 0;
-                      let tEndCol = phaseDaysArray.length - 1;
-
-                      if (tStartStr) {
-                        const idx = phaseDaysArray.findIndex((d) => format(d, 'yyyy-MM-dd') >= tStartStr);
-                        if (idx !== -1) tStartCol = idx;
-                      }
-                      if (tEndStr) {
-                        const idx = phaseDaysArray.findIndex((d) => format(d, 'yyyy-MM-dd') > tEndStr);
-                        if (idx !== -1) tEndCol = Math.max(0, idx - 1);
-                      }
-
-                      const tSpanCount = Math.max(1, tEndCol - tStartCol + 1);
-
-                      return (
-                        <tr key={task.id} className="border-b border-slate-200 hover:bg-slate-50">
-                          <td className="border-r border-slate-300 px-1 py-1 text-center font-mono font-bold text-slate-500">
-                            {wbsIndex}
-                          </td>
-                          <td className="border-r border-slate-300 px-2 py-1 font-medium text-slate-900">
-                            {tName}
-                          </td>
-                          <td className="border-r border-slate-300 px-1.5 py-1 text-slate-700 text-[9.5px] truncate">
-                            {tPic}
-                          </td>
-                          <td className="border-r border-slate-300 px-1 py-1 text-center font-mono text-[9px] text-slate-500">
-                            {task.start_date?.substring(5)} ~ {task.end_date?.substring(5)}
-                          </td>
-                          <td className="border-r border-slate-300 px-1 py-1 text-center">
-                            <span
-                              data-testid={`print-task-status-${task.id}`}
-                              className="px-1 py-0.5 rounded text-[8.5px] font-bold border inline-block"
-                              style={{
-                                backgroundColor: taskBadge.backgroundColor,
-                                borderColor: taskBadge.borderColor,
-                                color: taskBadge.textColor,
-                              }}
-                            >
-                              {taskBadge.label}
-                            </span>
-                          </td>
-                          <td data-testid={`print-task-planned-${task.id}`} className="border-r border-slate-300 px-1 py-1 text-center font-mono text-slate-500">
-                            {tPlannedProgress}%
-                          </td>
-                          <td data-testid={`print-task-actual-${task.id}`} className="border-r border-slate-300 px-1 py-1 text-center font-mono font-bold text-emerald-700">
-                            {tProgress}%
-                          </td>
-
-                          {/* Phase Gantt Timeline Cell */}
-                          <td colSpan={phaseDaysArray.length} className="p-0 relative h-6 bg-white overflow-hidden">
-                            <div className="absolute inset-0 grid w-full h-full" style={{ gridTemplateColumns: `repeat(${phaseDaysArray.length}, minmax(0, 1fr))` }}>
-                              {phaseDaysArray.map((dayDate, dIdx) => {
-                                const dateStr = format(dayDate, 'yyyy-MM-dd');
-                                const isTodayCol = dateStr === referenceDate;
-
-                                return (
-                                  <div
-                                    key={dIdx}
-                                    className={`h-full border-r border-slate-200/40 relative ${isTodayCol ? 'bg-blue-50/40' : ''}`}
-                                  >
-                                    {isTodayCol && (
-                                      <div className="absolute top-0 bottom-0 left-1/2 -translate-x-1/2 w-0.5 bg-blue-600 z-20 pointer-events-none opacity-80" />
-                                    )}
-                                  </div>
-                                );
-                              })}
-                            </div>
-
-                            {/* Task Bar */}
-                            <div
-                              className="absolute inset-0 grid w-full h-full pointer-events-none z-10"
-                              style={{ gridTemplateColumns: `repeat(${phaseDaysArray.length}, minmax(0, 1fr))` }}
-                            >
-                              <div
-                                style={{ gridColumn: `${tStartCol + 1} / span ${tSpanCount}` }}
-                                className="flex items-center h-full w-full px-0.5"
-                              >
-                                <div
-                                  className="w-full h-3.5 rounded-xs border relative overflow-hidden flex items-center shadow-2xs"
-                                  style={{
-                                    backgroundColor: colorMode === 'color' ? '#F1F5F9' : '#F8FAFC',
-                                    borderColor: tBarStyle.borderColor,
-                                    borderStyle: tBarStyle.borderStyle || 'solid',
-                                  }}
-                                >
-                                  {tProgress > 0 && (
-                                    <div
-                                      className="absolute top-0 bottom-0 left-0 z-0"
-                                      style={{
-                                        width: `${Math.min(100, tProgress)}%`,
-                                        backgroundColor: tBarStyle.backgroundColor,
-                                        backgroundImage: tBarStyle.pattern || 'none',
-                                      }}
-                                    />
-                                  )}
-                                  <div className="relative z-10 px-1 text-[8px] font-bold font-mono text-slate-800">
-                                    {tProgress}%
+                        return (
+                          <tr key={task.id} className="border-b border-slate-200">
+                            <td className="border-r border-slate-300 px-1 py-1 text-center font-mono font-bold text-slate-500">{groupIndex}.{taskIndex + 1}</td>
+                            <td className="border-r border-slate-300 px-2 py-1 text-slate-900">
+                              <div className="text-[8px] text-slate-500 font-semibold leading-tight">{groupSummary.name}</div>
+                              <div className="font-medium leading-tight">{taskName}</div>
+                            </td>
+                            <td className="border-r border-slate-300 px-1 py-1 text-slate-700 truncate">{taskPic}</td>
+                            <td className="border-r border-slate-300 px-1 py-1 text-center font-mono text-[8.5px] text-slate-500 whitespace-nowrap">{task.start_date?.substring(5)} ~ {task.end_date?.substring(5)}</td>
+                            <td className="border-r border-slate-300 px-1 py-1 text-center">
+                              <span
+                                data-testid={`print-task-status-${task.id}`}
+                                className="px-1 py-0.5 rounded text-[8px] font-bold border inline-block whitespace-nowrap"
+                                style={{ backgroundColor: taskBadge.backgroundColor, borderColor: taskBadge.borderColor, color: taskBadge.textColor }}
+                              >{taskBadge.label}</span>
+                            </td>
+                            <td data-testid={`print-task-planned-${task.id}`} className="border-r border-slate-300 px-1 py-1 text-center font-mono text-slate-500">{planned}%</td>
+                            <td data-testid={`print-task-actual-${task.id}`} className="border-r border-slate-300 px-1 py-1 text-center font-mono font-bold text-emerald-700">{tProgress}%</td>
+                            <td colSpan={detailDaysArray.length} className="p-0 relative h-7 bg-white overflow-hidden">
+                              <div className="absolute inset-0 grid" style={{ gridTemplateColumns: `repeat(${detailDaysArray.length}, minmax(0, 1fr))` }}>
+                                {detailDaysArray.map((dayDate, dayIndex) => {
+                                  const isToday = format(dayDate, 'yyyy-MM-dd') === referenceDate;
+                                  return <div key={dayIndex} className={`border-r border-slate-200/50 ${isToday ? 'bg-blue-50' : ''}`} />;
+                                })}
+                              </div>
+                              <div className="absolute inset-0 grid z-10 pointer-events-none" style={{ gridTemplateColumns: `repeat(${detailDaysArray.length}, minmax(0, 1fr))` }}>
+                                <div style={{ gridColumn: `${taskStartColumn + 1} / span ${taskColumnSpan}` }} className="flex items-center px-0.5">
+                                  <div className="w-full h-3.5 rounded-xs border relative overflow-hidden" style={{ backgroundColor: '#F1F5F9', borderColor: taskBar.borderColor }}>
+                                    {tProgress > 0 && <div className="absolute inset-y-0 left-0" style={{ width: `${Math.min(100, tProgress)}%`, backgroundColor: taskBar.backgroundColor, backgroundImage: taskBar.pattern || 'none' }} />}
                                   </div>
                                 </div>
                               </div>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
               </div>
+              <PrintFooter colorMode={colorMode} lang={lang} viewerName={viewerName} />
             </div>
-
-            {/* Footer */}
-            <PrintFooter colorMode={colorMode} lang={lang} viewerName={viewerName} />
-          </div>
-        </PrintPageShell>
+          </PrintPageShell>
         );
       })}
     </div>

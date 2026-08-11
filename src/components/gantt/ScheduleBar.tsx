@@ -78,6 +78,9 @@ export const ScheduleBar: React.FC<ScheduleBarProps> = ({
     };
   }, [calendarSpanDays]);
 
+  const effectiveStatus: ScheduleBarStatus =
+    actualProgress >= 100 || status === 'COMPLETION_REVIEW' ? 'COMPLETED' : status;
+
   // ─────────────────────────────────────────────────────
   // Status Styling
   //
@@ -93,26 +96,26 @@ export const ScheduleBar: React.FC<ScheduleBarProps> = ({
   let statusLabelKo = '예정';
   let statusLabelVi = 'Sắp tới';
 
-  if (status === 'COMPLETED') {
+  if (effectiveStatus === 'COMPLETED') {
     baseColorClass = 'bg-emerald-100/70 text-emerald-950';
     progressFillClass = 'bg-emerald-600';
     trackBoxShadow = 'inset 0 0 0 1px #10b981'; // emerald-500
     statusLabelKo = '완료';
     statusLabelVi = 'Hoàn thành';
-  } else if (status === 'DELAYED') {
+  } else if (effectiveStatus === 'DELAYED') {
     baseColorClass = 'bg-rose-100/70 text-rose-950';
     progressFillClass = 'bg-rose-600';
     trackBoxShadow = 'inset 0 0 0 1px #f43f5e'; // rose-500
     statusLabelKo = '지연';
     statusLabelVi = 'Trễ hạn';
-  } else if (status === 'IN_PROGRESS') {
+  } else if (effectiveStatus === 'IN_PROGRESS') {
     // 미진행 구간을 명확히 구분: bg-transparent/very-light + inset shadow border
     baseColorClass = 'bg-indigo-50/40 text-indigo-950';
     progressFillClass = 'bg-indigo-600';
     trackBoxShadow = 'inset 0 0 0 1px #818cf8'; // indigo-400
     statusLabelKo = '진행 중';
     statusLabelVi = 'Đang làm';
-  } else if (status === 'UNKNOWN') {
+  } else if (effectiveStatus === 'UNKNOWN') {
     baseColorClass = 'bg-slate-100/50 text-slate-700';
     progressFillClass = 'bg-slate-400';
     trackBoxShadow = 'inset 0 0 0 1px #94a3b8'; // slate-400

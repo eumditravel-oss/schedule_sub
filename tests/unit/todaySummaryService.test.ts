@@ -1,6 +1,6 @@
 // tests/unit/todaySummaryService.test.ts
 import { describe, it, expect } from 'vitest';
-import { getTodayDashboardSummaryServer } from '../../worker/services/todaySummaryService';
+import { classifyTaskDeadlineStateServer, getTodayDashboardSummaryServer } from '../../worker/services/todaySummaryService';
 
 describe('Today Summary Monthly Completion KPI Suite (todaySummaryService.ts)', () => {
   const mockDb = () => {
@@ -97,5 +97,14 @@ describe('Today Summary Monthly Completion KPI Suite (todaySummaryService.ts)', 
     expect(result.scheduled_today).not.toHaveProperty('task_ids');
     expect(result.in_progress).not.toHaveProperty('task_ids');
     expect(result.completed_today).not.toHaveProperty('task_ids');
+  });
+
+  it('6. Treats a 100% task as completed without a nonexistent task confirmation action', () => {
+    const state = classifyTaskDeadlineStateServer(
+      { completion_confirmed: 0, schedule_status: 'SCHEDULED', start_date: '2026-08-01', end_date: '2026-08-05' },
+      100,
+      '2026-08-11'
+    );
+    expect(state).toBe('COMPLETED');
   });
 });
