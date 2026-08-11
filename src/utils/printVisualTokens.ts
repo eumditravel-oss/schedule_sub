@@ -67,6 +67,35 @@ export function getProjectPicSummary(
   return pics.join(', ');
 }
 
+export function getProjectPicWithSupportSummary(
+  projectTasks: Task[],
+  workerMap: Map<string, string>,
+  lang: 'ko' | 'vi' = 'ko'
+): string {
+  const pics = getProjectPicNames(projectTasks, workerMap);
+  const supportNames = new Set<string>();
+
+  for (const t of projectTasks) {
+    const supports = getSupportAssignees(t);
+    for (const sup of supports) {
+      const name = sup.name || workerMap.get(sup.worker_id);
+      if (name && !pics.includes(name)) supportNames.add(name);
+    }
+  }
+
+  if (pics.length === 0) {
+    return lang === 'vi' ? 'Chưa chỉ định' : '미지정';
+  }
+
+  const primaryName = pics[0];
+  const supportCount = supportNames.size + Math.max(0, pics.length - 1);
+
+  if (supportCount > 0) {
+    return `${primaryName} + Support ${supportCount}`;
+  }
+  return primaryName;
+}
+
 /**
  * Returns project's Support Worker names strictly derived from Task CO_ASSIGNEE assignees.
  */

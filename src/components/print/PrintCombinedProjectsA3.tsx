@@ -3,7 +3,7 @@ import React from 'react';
 import { Project, Task, TaskGroup, Worker, CountryHoliday, CalendarOverride } from '../../types';
 import { PrintHeader } from './PrintHeader';
 import { PrintFooter } from './PrintFooter';
-import { PrintColorMode, getPrintStatusBadgeStyle, getPrintGanttBarStyle, resolvePrintCalendarVisualState, getProjectPicSummary, PRINT_DAY_CELL_STYLE } from '../../utils/printVisualTokens';
+import { PrintColorMode, getPrintStatusBadgeStyle, getPrintGanttBarStyle, resolvePrintCalendarVisualState, getProjectPicSummary, getProjectPicWithSupportSummary, PRINT_DAY_CELL_STYLE } from '../../utils/printVisualTokens';
 import { resolveWorkDayStatus } from '../../utils/workCalendar';
 import { resolveReportProjectProgress } from '../../utils/reportProgress';
 import { parseISO, format, addDays, differenceInCalendarDays } from 'date-fns';
@@ -135,25 +135,48 @@ export const PrintCombinedProjectsA3: React.FC<PrintCombinedProjectsA3Props> = (
                       const pTasks = allTasks.filter((t) => t.project_id === project.id);
                       const reportProgress = resolveReportProjectProgress(project, pTasks);
                       const badgeStyle = getPrintStatusBadgeStyle(reportProgress.scheduleState === 'COMPLETED' ? 'COMPLETED' : project.status, colorMode, lang);
-                      // V2 Domain: PIC derived from Task PRIMARY
-                      const picName = getProjectPicSummary(pTasks, workerMap, lang);
+                      // V2 Domain: PIC with Support summary
+                      const picName = getProjectPicWithSupportSummary(pTasks, workerMap, lang);
                       const pName = isKo ? (project.name_ko || project.name) : (project.name_vi || project.name);
 
-                      const pStart = project.start_date ? parseISO(project.start_date) : null;
-                      const pEnd = project.end_date ? parseISO(project.end_date) : null;
+                      const pStartStr = project.start_date;
+                      const pEndStr = project.end_date;
                       const pBarStyle = getPrintGanttBarStyle(project.status, colorMode);
+
+                      // Calculate span columns for band range
+                      const bandStartStr = format(band.start, 'yyyy-MM-dd');
+                      const bandEndStr = format(band.end, 'yyyy-MM-dd');
+                      const isClippedLeft = Boolean(pStartStr && pStartStr < bandStartStr);
+                      const isClippedRight = Boolean(pEndStr && pEndStr > bandEndStr);
+
+                      // Calculate column indices (0 ~ 29)
+                      let startCol = 0;
+                      let endCol = daysArray.length - 1;
+                      if (pStartStr) {
+                        const idx = daysArray.findIndex((d) => format(d, 'yyyy-MM-dd') === pStartStr);
+                        if (idx !== -1) startCol = idx;
+                        else if (pStartStr > bandEndStr) startCol = 30; // Out of view right
+                      }
+                      if (pEndStr) {
+                        const idx = daysArray.findIndex((d) => format(d, 'yyyy-MM-dd') === pEndStr);
+                        if (idx !== -1) endCol = idx;
+                        else if (pEndStr < bandStartStr) endCol = -1; // Out of view left
+                      }
+
+                      const isVisibleInBand = startCol < daysArray.length && endCol >= 0 && startCol <= endCol;
+                      const colSpanCount = Math.max(1, endCol - startCol + 1);
 
                       return (
                         <React.Fragment key={project.id}>
                           {/* Project Section Header Row */}
                           <tr className="bg-slate-100 font-bold border-b border-slate-300">
-                            <td className="border-r border-slate-300 px-2 py-1 text-slate-900 bg-slate-200">
+                            <td className="border-r border-slate-300 px-2 py-1.5 text-slate-900 bg-slate-200">
                               [Project] {pName}
                             </td>
-                            <td className="border-r border-slate-300 px-1 py-1 text-center font-mono text-[9px]">
+                            <td className="border-r border-slate-300 px-1 py-1.5 text-center font-mono text-[9px]">
                               {project.start_date?.substring(5)} ~ {project.end_date?.substring(5)}
                             </td>
-                            <td className="border-r border-slate-300 px-1 py-1 text-center">
+                            <td className="border-r border-slate-300 px-1 py-1.5 text-center">
                               <span
                                 className="px-1.5 py-0.5 rounded text-[9px] font-bold border inline-block"
                                 style={{
@@ -165,49 +188,87 @@ export const PrintCombinedProjectsA3: React.FC<PrintCombinedProjectsA3Props> = (
                                 {isKo ? reportProgress.statusDisplayKo : reportProgress.statusDisplayVi}
                               </span>
                             </td>
-                            <td className="border-r border-slate-300 px-1.5 py-1 text-slate-700">{picName}</td>
-                            <td className="border-r border-slate-300 px-1 py-1 text-center font-mono font-bold text-emerald-700">
+                            <td className="border-r border-slate-300 px-1.5 py-1.5 text-slate-700 text-[10px]">{picName}</td>
+                            <td className="border-r border-slate-300 px-1 py-1.5 text-center font-mono font-bold text-emerald-700">
                               {reportProgress.actualProgress}%
                             </td>
 
-                            {/* Project level bar row */}
-                            {daysArray.map((dayDate, dIdx) => {
-                              const dateStr = format(dayDate, 'yyyy-MM-dd');
-                              const printToken = resolvePrintCalendarVisualState(dateStr, krHolidays, vnHolidays, calendarOverrides, colorMode);
-                              const isPDay = pStart && pEnd && dayDate >= pStart && dayDate <= pEnd;
+                            {/* Continuous Timeline Container for 30 Date Columns */}
+                            <td colSpan={daysArray.length} className="p-0 relative h-7 bg-white overflow-hidden">
+                              {/* Background Date Grid & Holiday Layer */}
+                              <div className="absolute inset-0 grid w-full h-full" style={{ gridTemplateColumns: `repeat(${daysArray.length}, minmax(0, 1fr))` }}>
+                                {daysArray.map((dayDate, dIdx) => {
+                                  const dateStr = format(dayDate, 'yyyy-MM-dd');
+                                  const printToken = resolvePrintCalendarVisualState(dateStr, krHolidays, vnHolidays, calendarOverrides, colorMode);
+                                  const isTodayCol = dateStr === referenceDate;
 
-                              return (
-                                <td
-                                  key={dIdx}
-                                  data-date={dateStr}
-                                  data-visual-state={printToken.visualState}
-                                  className="border-r border-slate-200 p-0 text-center relative h-6 bg-slate-100"
-                                  style={{
-                                    ...PRINT_DAY_CELL_STYLE,
-                                    backgroundImage: printToken.hatch.pattern || 'none',
-                                  }}
-                                >
-                                  {isPDay && (
+                                  return (
                                     <div
-                                      className="absolute inset-y-1 inset-x-0.5 rounded-xs border shadow-xs"
+                                      key={dIdx}
+                                      data-date={dateStr}
+                                      className={`h-full border-r border-slate-200/60 relative ${isTodayCol ? 'bg-blue-50/40' : ''}`}
                                       style={{
-                                        backgroundColor: pBarStyle.backgroundColor,
-                                        borderColor: pBarStyle.borderColor,
-                                        backgroundImage: pBarStyle.pattern || 'none',
+                                        backgroundColor: printToken.baseColor === '#FFFFFF' ? undefined : printToken.baseColor,
+                                        backgroundImage: printToken.hatch.pattern || 'none',
                                       }}
-                                    />
-                                  )}
-                                </td>
-                              );
-                            })}
+                                    >
+                                      {isTodayCol && (
+                                        <div className="absolute top-0 bottom-0 left-1/2 -translate-x-1/2 w-0.5 bg-blue-600 z-20 pointer-events-none opacity-80" />
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+
+                              {/* Continuous Schedule Bar Overlay Layer */}
+                              {isVisibleInBand && (
+                                <div
+                                  className="absolute inset-0 grid w-full h-full pointer-events-none z-10"
+                                  style={{ gridTemplateColumns: `repeat(${daysArray.length}, minmax(0, 1fr))` }}
+                                >
+                                  <div
+                                    style={{ gridColumn: `${startCol + 1} / span ${colSpanCount}` }}
+                                    className="flex items-center h-full w-full px-0.5"
+                                  >
+                                    <div
+                                      className="w-full h-4 rounded-sm border relative overflow-hidden flex items-center shadow-2xs text-[9px] font-bold px-1"
+                                      style={{
+                                        backgroundColor: colorMode === 'color' ? '#E2E8F0' : '#F1F5F9', // Muted neutral track
+                                        borderColor: pBarStyle.borderColor,
+                                        borderStyle: pBarStyle.borderStyle || 'solid',
+                                      }}
+                                    >
+                                      {/* Actual Progress Fill */}
+                                      {reportProgress.actualProgress > 0 && (
+                                        <div
+                                          className="absolute top-0 bottom-0 left-0 z-0 transition-all"
+                                          style={{
+                                            width: `${Math.min(100, reportProgress.actualProgress)}%`,
+                                            backgroundColor: pBarStyle.backgroundColor,
+                                            backgroundImage: pBarStyle.pattern || 'none',
+                                          }}
+                                        />
+                                      )}
+
+                                      {/* Bar Indicators */}
+                                      <div className="relative z-10 flex items-center justify-between w-full text-slate-800 px-0.5">
+                                        <span className="font-bold shrink-0">{isClippedLeft ? '←' : ''}</span>
+                                        <span className="truncate text-[8.5px] px-1 bg-white/70 rounded border border-slate-200 font-mono font-bold">
+                                          {reportProgress.actualProgress}%
+                                        </span>
+                                        <span className="font-bold shrink-0">{isClippedRight ? '→' : ''}</span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+                            </td>
                           </tr>
 
                           {/* Task Rows inside project */}
                           {pTasks.slice(0, 10).map((task) => {
                             const taskStatus = task.schedule_state || (task.actual_progress === 100 ? 'COMPLETED' : 'IN_PROGRESS');
                             const taskBadge = getPrintStatusBadgeStyle(taskStatus, colorMode, lang);
-                            const taskStart = task.start_date ? parseISO(task.start_date) : null;
-                            const taskEnd = task.end_date ? parseISO(task.end_date) : null;
                             const tBarStyle = getPrintGanttBarStyle(taskStatus, colorMode);
 
                             const picWorker = workers.find(
@@ -215,6 +276,28 @@ export const PrintCombinedProjectsA3: React.FC<PrintCombinedProjectsA3Props> = (
                             );
                             const tPic = picWorker ? picWorker.name : task.worker_name || '-';
                             const tName = isKo ? (task.task_name_ko || task.task_name) : (task.task_name_vi || task.task_name);
+
+                            const tStartStr = task.start_date;
+                            const tEndStr = task.end_date;
+                            const tClippedLeft = Boolean(tStartStr && tStartStr < bandStartStr);
+                            const tClippedRight = Boolean(tEndStr && tEndStr > bandEndStr);
+
+                            let tStartCol = 0;
+                            let tEndCol = daysArray.length - 1;
+                            if (tStartStr) {
+                              const idx = daysArray.findIndex((d) => format(d, 'yyyy-MM-dd') === tStartStr);
+                              if (idx !== -1) tStartCol = idx;
+                              else if (tStartStr > bandEndStr) tStartCol = 30;
+                            }
+                            if (tEndStr) {
+                              const idx = daysArray.findIndex((d) => format(d, 'yyyy-MM-dd') === tEndStr);
+                              if (idx !== -1) tEndCol = idx;
+                              else if (tEndStr < bandStartStr) tEndCol = -1;
+                            }
+
+                            const isTVisible = tStartCol < daysArray.length && tEndCol >= 0 && tStartCol <= tEndCol;
+                            const tSpanCount = Math.max(1, tEndCol - tStartCol + 1);
+                            const tProgress = task.actual_progress ?? (task.schedule_state === 'COMPLETED' ? 100 : 0);
 
                             return (
                               <tr key={task.id} className="border-b border-slate-200 hover:bg-slate-50">
@@ -238,54 +321,84 @@ export const PrintCombinedProjectsA3: React.FC<PrintCombinedProjectsA3Props> = (
                                 </td>
                                 <td className="border-r border-slate-300 px-1.5 py-1 text-slate-600 text-[9.5px]">{tPic}</td>
                                 <td className="border-r border-slate-300 px-1 py-1 text-center font-mono text-[9.5px] text-slate-500">
-                                  {task.actual_progress ?? (task.schedule_state === 'COMPLETED' ? 100 : 0)}%
+                                  {tProgress}%
                                 </td>
 
-                                {/* Task Bar Cells: PIC Worker specific dayStatus */}
-                                {daysArray.map((dayDate, dIdx) => {
-                                  const dateStr = format(dayDate, 'yyyy-MM-dd');
-                                  const dayStatus = picWorker
-                                    ? resolveWorkDayStatus(dateStr, picWorker, allHolidays, calendarOverrides)
-                                    : null;
+                                {/* Continuous Task Timeline Cell */}
+                                <td colSpan={daysArray.length} className="p-0 relative h-6 bg-white overflow-hidden">
+                                  <div className="absolute inset-0 grid w-full h-full" style={{ gridTemplateColumns: `repeat(${daysArray.length}, minmax(0, 1fr))` }}>
+                                    {daysArray.map((dayDate, dIdx) => {
+                                      const dateStr = format(dayDate, 'yyyy-MM-dd');
+                                      const dayStatus = picWorker
+                                        ? resolveWorkDayStatus(dateStr, picWorker, allHolidays, calendarOverrides)
+                                        : null;
 
-                                  const printToken = resolvePrintCalendarVisualState(
-                                    dateStr,
-                                    krHolidays,
-                                    vnHolidays,
-                                    calendarOverrides,
-                                    colorMode,
-                                    dayStatus,
-                                    picWorker?.country_code
-                                  );
+                                      const printToken = resolvePrintCalendarVisualState(
+                                        dateStr,
+                                        krHolidays,
+                                        vnHolidays,
+                                        calendarOverrides,
+                                        colorMode,
+                                        dayStatus,
+                                        picWorker?.country_code
+                                      );
 
-                                  const isTDay = taskStart && taskEnd && dayDate >= taskStart && dayDate <= taskEnd;
+                                      const isTodayCol = dateStr === referenceDate;
 
-                                  return (
-                                    <td
-                                      key={dIdx}
-                                      data-date={dateStr}
-                                      data-visual-state={printToken.visualState}
-                                      className="border-r border-slate-200 p-0 text-center relative h-5"
-                                      style={{
-                                        ...PRINT_DAY_CELL_STYLE,
-                                        backgroundColor: printToken.baseColor,
-                                        backgroundImage: printToken.hatch.pattern || 'none',
-                                      }}
-                                    >
-                                      {isTDay && (
+                                      return (
                                         <div
-                                          className="absolute inset-y-1 inset-x-0.5 rounded-xs border shadow-xs"
+                                          key={dIdx}
+                                          data-date={dateStr}
+                                          className={`h-full border-r border-slate-200/40 relative ${isTodayCol ? 'bg-blue-50/40' : ''}`}
                                           style={{
-                                            backgroundColor: tBarStyle.backgroundColor,
+                                            backgroundColor: printToken.baseColor === '#FFFFFF' ? undefined : printToken.baseColor,
+                                            backgroundImage: printToken.hatch.pattern || 'none',
+                                          }}
+                                        >
+                                          {isTodayCol && (
+                                            <div className="absolute top-0 bottom-0 left-1/2 -translate-x-1/2 w-0.5 bg-blue-600 z-20 pointer-events-none opacity-80" />
+                                          )}
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+
+                                  {isTVisible && (
+                                    <div
+                                      className="absolute inset-0 grid w-full h-full pointer-events-none z-10"
+                                      style={{ gridTemplateColumns: `repeat(${daysArray.length}, minmax(0, 1fr))` }}
+                                    >
+                                      <div
+                                        style={{ gridColumn: `${tStartCol + 1} / span ${tSpanCount}` }}
+                                        className="flex items-center h-full w-full px-0.5"
+                                      >
+                                        <div
+                                          className="w-full h-3 rounded-xs border relative overflow-hidden flex items-center shadow-2xs"
+                                          style={{
+                                            backgroundColor: colorMode === 'color' ? '#F1F5F9' : '#F8FAFC',
                                             borderColor: tBarStyle.borderColor,
-                                            backgroundImage: tBarStyle.pattern || 'none',
                                             borderStyle: tBarStyle.borderStyle || 'solid',
                                           }}
-                                        />
-                                      )}
-                                    </td>
-                                  );
-                                })}
+                                        >
+                                          {tProgress > 0 && (
+                                            <div
+                                              className="absolute top-0 bottom-0 left-0 z-0"
+                                              style={{
+                                                width: `${Math.min(100, tProgress)}%`,
+                                                backgroundColor: tBarStyle.backgroundColor,
+                                                backgroundImage: tBarStyle.pattern || 'none',
+                                              }}
+                                            />
+                                          )}
+                                          <div className="relative z-10 flex items-center justify-between w-full text-slate-800 text-[8px] px-0.5 font-bold">
+                                            <span>{tClippedLeft ? '←' : ''}</span>
+                                            <span>{tClippedRight ? '→' : ''}</span>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  )}
+                                </td>
                               </tr>
                             );
                           })}

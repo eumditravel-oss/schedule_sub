@@ -156,18 +156,64 @@ export async function getTodayDashboardSummaryServer(
     taskDailyStatusRecords.get(row.task_id)![row.work_date] = row.status;
   });
 
-  const scheduledTodayIds: string[] = [];
-  const inProgressIds: string[] = [];
-  const completedTodayIds: string[] = [];
+  // 1. PROJECT-BASED DISTINCT COUNT METRICS (Part B Rules)
+  // Scheduled Today Projects: start_date <= businessDate AND end_date >= businessDate AND status != 'COMPLETED'
+  let scheduledTodayProjectIds: string[] = [];
+  let inProgressProjectIds: string[] = [];
+  let completedTodayProjectIds: string[] = [];
+
+  try {
+    const scheduledPrjsRes = await db
+      .prepare(
+        `SELECT DISTINCT id
+         FROM projects
+         WHERE status != 'COMPLETED'
+           AND start_date IS NOT NULL
+           AND end_date IS NOT NULL
+           AND start_date <= ?
+           AND end_date >= ?`
+      )
+      .bind(businessDate, businessDate)
+      .all();
+    scheduledTodayProjectIds = (scheduledPrjsRes.results || []).map((p: any) => p.id);
+
+    const inProgressPrjsRes = await db
+      .prepare(
+        `SELECT DISTINCT id
+         FROM projects
+         WHERE status = 'ACTIVE'
+           AND start_date IS NOT NULL
+           AND end_date IS NOT NULL
+           AND start_date <= ?
+           AND end_date >= ?`
+      )
+      .bind(businessDate, businessDate)
+      .all();
+    inProgressProjectIds = (inProgressPrjsRes.results || []).map((p: any) => p.id);
+
+    const completedTodayPrjsRes = await db
+      .prepare(
+        `SELECT DISTINCT id
+         FROM projects
+         WHERE status = 'COMPLETED'
+           AND completed_at IS NOT NULL
+           AND substr(completed_at, 1, 10) = ?`
+      )
+      .bind(businessDate)
+      .all();
+    completedTodayProjectIds = (completedTodayPrjsRes.results || []).map((p: any) => p.id);
+  } catch (e: any) {
+    console.error('[TodaySummary] PROJECT_DISTINCT_QUERY_FAILED:', e?.message || e);
+  }
+
+  // Task-based risk counters for secondary strips
   const overdueIds: string[] = [];
   const completionReviewIds: string[] = [];
 
   activeTasks.forEach((t) => {
-    // Attach assignees array from DB (Rule 9)
     t.assignees = assigneesMap.get(t.id) || [];
     const dailyStatuses = taskDailyStatusRecords.get(t.id) || {};
 
-    // STRICT V2 PROGRESS ENGINE: Calculate progress metrics using complete DB batch data
     const metrics = calculateTaskProgressServer(
       t,
       workers,
@@ -178,42 +224,16 @@ export async function getTodayDashboardSummaryServer(
       businessDate
     );
 
-    const isScheduledToday = t.start_date <= businessDate && businessDate <= t.end_date;
     const deadlineState = classifyTaskDeadlineStateServer(t, metrics, businessDate);
 
-    // 1. Scheduled Today
-    if (isScheduledToday) {
-      scheduledTodayIds.push(t.id);
-    }
-
-    // 2. In Progress
-    const ds = dailyStatusMap.get(t.id);
-    const isInProgressState =
-      ds === 'IN_PROGRESS' ||
-      (metrics.actual_progress > 0 && metrics.actual_progress < 100) ||
-      (isScheduledToday && Number(t.completion_confirmed) !== 1);
-
-    if (isScheduledToday && isInProgressState && Number(t.completion_confirmed) !== 1) {
-      if (!inProgressIds.includes(t.id)) {
-        inProgressIds.push(t.id);
-      }
-    }
-
-    // 3. Completed Today
-    if (ds === 'COMPLETED') {
-      if (!completedTodayIds.includes(t.id)) {
-        completedTodayIds.push(t.id);
-      }
-    }
-
-    // 4. Overdue (end_date < businessDate AND metrics.actual_progress < 100 AND completion_confirmed != 1)
+    // Overdue Tasks
     if (deadlineState === 'OVERDUE') {
       if (!overdueIds.includes(t.id)) {
         overdueIds.push(t.id);
       }
     }
 
-    // 5. Completion Review
+    // Completion Review Tasks
     if (deadlineState === 'COMPLETION_REVIEW' && Number(t.completion_confirmed) !== 1) {
       if (!completionReviewIds.includes(t.id)) {
         completionReviewIds.push(t.id);
@@ -233,9 +253,9 @@ export async function getTodayDashboardSummaryServer(
 
   return {
     date: businessDate,
-    scheduled_today: { count: scheduledTodayIds.length, task_ids: scheduledTodayIds },
-    in_progress: { count: inProgressIds.length, task_ids: inProgressIds },
-    completed_today: { count: completedTodayIds.length, task_ids: completedTodayIds },
+    scheduled_today: { count: scheduledTodayProjectIds.length, task_ids: scheduledTodayProjectIds },
+    in_progress: { count: inProgressProjectIds.length, task_ids: inProgressProjectIds },
+    completed_today: { count: completedTodayProjectIds.length, task_ids: completedTodayProjectIds },
     completed_this_month: {
       count: completedThisMonthProjectIds.length,
       project_ids: completedThisMonthProjectIds,

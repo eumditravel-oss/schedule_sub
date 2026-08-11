@@ -119,7 +119,7 @@ export const TodaySummaryCard: React.FC<TodaySummaryCardProps> = ({
             <Clock className="w-3.5 h-3.5 text-slate-400" />
           </div>
           <div className="text-sm font-black text-slate-900">
-            {loading ? <span className="animate-pulse">...</span> : `${scheduledTodayCount}개`}
+            {loading ? <span className="animate-pulse">...</span> : `${scheduledTodayCount}개 ${lang === 'vi' ? 'dự án' : '프로젝트'}`}
           </div>
         </div>
 
@@ -133,7 +133,7 @@ export const TodaySummaryCard: React.FC<TodaySummaryCardProps> = ({
             <Flame className="w-3.5 h-3.5 text-blue-500" />
           </div>
           <div className="text-sm font-black text-blue-900">
-            {loading ? <span className="animate-pulse">...</span> : `${inProgressCount}개`}
+            {loading ? <span className="animate-pulse">...</span> : `${inProgressCount}개 ${lang === 'vi' ? 'dự án' : '프로젝트'}`}
           </div>
         </div>
 
@@ -147,7 +147,7 @@ export const TodaySummaryCard: React.FC<TodaySummaryCardProps> = ({
             <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
           </div>
           <div className="text-sm font-black text-emerald-900">
-            {loading ? <span className="animate-pulse">...</span> : `${completedTodayCount}개`}
+            {loading ? <span className="animate-pulse">...</span> : `${completedTodayCount}개 ${lang === 'vi' ? 'dự án' : '프로젝트'}`}
           </div>
         </div>
 
@@ -161,7 +161,7 @@ export const TodaySummaryCard: React.FC<TodaySummaryCardProps> = ({
             <FolderCheck className="w-3.5 h-3.5 text-violet-500" />
           </div>
           <div className="text-sm font-black text-violet-900">
-            {loading ? <span className="animate-pulse">...</span> : `${completedThisMonthCount}개`}
+            {loading ? <span className="animate-pulse">...</span> : `${completedThisMonthCount}개 ${lang === 'vi' ? 'dự án' : '프로젝트'}`}
           </div>
         </div>
       </div>

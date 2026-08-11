@@ -114,13 +114,12 @@ export function calculateProjectReadiness(
     }
   } else {
     // 2. Audit ACTIVE Project Operational Schedule Risks
-    const overdueTasks: Task[] = [];
     const unscheduledTasks: Task[] = [];
     const outsideRangeTasks: Task[] = [];
     const picMissingTasks: Task[] = [];
     const translationErrTasks: Task[] = [];
 
-    // Project-level plannedEndDate overdue check
+    // Project-level plannedEndDate overdue check ONLY (Policy A-2: Overview checks ONLY project.end_date)
     const projIsOverdue = isProjectOverdue(project, todayStr);
     if (projIsOverdue) {
       issues.push({
@@ -160,16 +159,6 @@ export function calculateProjectReadiness(
         });
       }
 
-      // Schedule Status & Overdue Check using V2 Progress Engine Single Source
-      const computedMetrics = calculateTaskProgress(
-        task,
-        workers || [],
-        holidays || [],
-        overrides || [],
-        project.status
-      );
-      const deadlineState = classifyTaskDeadlineState(task, computedMetrics.actual_progress, todayStr);
-
       if (task.schedule_status === 'UNSCHEDULED' || (!task.start_date && !task.end_date)) {
         unscheduledTasks.push(task);
         issues.push({
@@ -179,18 +168,6 @@ export function calculateProjectReadiness(
           title_vi: 'Công việc chưa có lịch',
           description_ko: `작업 '${task.task_name}'의 시작일 및 종료일이 설정되지 않았습니다.`,
           description_vi: `Công việc '${task.task_name}' chưa 설정 ngày bắt đầu/kết thúc.`,
-          target_id: task.id,
-          target_name: task.task_name,
-        });
-      } else if (deadlineState === 'OVERDUE') {
-        overdueTasks.push(task);
-        issues.push({
-          type: 'OVERDUE_TASK',
-          severity: 'RISK',
-          title_ko: '지연 작업',
-          title_vi: 'Công việc trễ',
-          description_ko: `작업 '${task.task_name}'의 마감일(${task.end_date})이 경과했습니다.`,
-          description_vi: `Công việc '${task.task_name}' đã trễ hạn (${task.end_date}).`,
           target_id: task.id,
           target_name: task.task_name,
         });
@@ -230,16 +207,6 @@ export function calculateProjectReadiness(
     });
 
     // Populate Groups
-    if (overdueTasks.length > 0) {
-      groupsMap['OVERDUE_TASK'] = {
-        type: 'OVERDUE_TASK',
-        severity: 'RISK',
-        count: overdueTasks.length,
-        label_ko: `지연 작업 (${overdueTasks.length}건)`,
-        label_vi: `Công việc trễ (${overdueTasks.length})`,
-        tasks: overdueTasks,
-      };
-    }
     if (picMissingTasks.length > 0) {
       groupsMap['PIC_MISSING'] = {
         type: 'PIC_MISSING',

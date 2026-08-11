@@ -60,8 +60,8 @@ describe('Project Readiness & Overdue Engine (CASE A ~ F Verification)', () => {
     };
 
     const readiness = calculateProjectReadiness(project, [delayedSubtask], [], [dummyWorker]);
-    expect(readiness.badge_text_ko).not.toBe('기한 경과');
-    expect(readiness.badge_text_ko).toContain('지연 작업');
+    expect(readiness.badge_text_ko).toBe('정상');
+    expect(readiness.status).toBe('READY');
   });
 
   it('CASE C: end=2026-08-11, 미완료 (progress=50) -> 기한 경과 없음', () => {

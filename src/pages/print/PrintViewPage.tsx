@@ -43,9 +43,9 @@ export const PrintViewPage: React.FC = () => {
   else if (pathname.includes('/rolling-30-a3')) templateType = 'rolling-30-a3';
   else if (pathname.includes('/combined-a3')) templateType = 'combined-a3';
 
-  // Default paper and orientation based on template
+  // Default paper and orientation based on template (D-9: summary-a4 uses landscape)
   const defaultPaper = templateType.endsWith('-a3') ? 'a3' : 'a4';
-  const defaultOrientation = templateType.endsWith('-a3') ? 'landscape' : 'portrait';
+  const defaultOrientation = templateType.endsWith('-a3') || templateType === 'summary-a4' ? 'landscape' : 'portrait';
 
   // State from URL query parameters or defaults
   const [paper, setPaper] = useState<'a4' | 'a3'>((searchParams.get('paper') as any) || defaultPaper);
