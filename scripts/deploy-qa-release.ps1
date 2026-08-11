@@ -93,6 +93,7 @@ if ($proxyBudget -le 0) {
 # 5.5 Start Local QA Counting Proxy Server with Calculated Budget
 Write-Host "Starting Local QA Counting Proxy on http://127.0.0.1:4179 (Budget: $proxyBudget)..." -ForegroundColor Yellow
 $env:PROXY_REQUEST_BUDGET = [string]$proxyBudget
+$env:PROXY_EXCLUDE_WORKFORCE_ALLOCATIONS = "true"
 $nodePath = (Get-Command node -ErrorAction Stop).Source
 $proxyScriptPath = (Resolve-Path "$PSScriptRoot/qa-request-proxy.mjs").Path
 $proxyWorkingDirectory = (Resolve-Path "$PSScriptRoot/..").Path
@@ -258,6 +259,7 @@ $evidenceObj = @{
   global_request_budget = $globalQaBudget
   health_requests = $qaHealthRequestCount
   e2e_forwarded_requests = $measuredE2ERequests
+  excluded_workforce_allocation_requests = [int]$proxyEvidence.excluded_workforce_allocation_requests
   version_requests = 1
   total_remote_requests = $totalQAWorkerRequests
   remote_request_count = $totalQAWorkerRequests

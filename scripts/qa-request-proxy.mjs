@@ -10,6 +10,7 @@ const PORT = parseInt(process.env.PROXY_PORT || '4179', 10);
 const TARGET_HOST = process.env.PROXY_TARGET_HOST || 'concost-dev-scheduler-qa.eumditravel.workers.dev';
 const REQUEST_BUDGET = parseInt(process.env.PROXY_REQUEST_BUDGET || '1500', 10);
 const SIMULATION_MODE = process.env.PROXY_SIMULATION_MODE === 'true';
+const EXCLUDE_WORKFORCE_ALLOCATIONS = process.env.PROXY_EXCLUDE_WORKFORCE_ALLOCATIONS === 'true';
 const EVIDENCE_FILE = path.join(process.cwd(), 'qa', 'request-proxy-evidence.json');
 const HOP_BY_HOP_HEADERS = new Set([
   'connection',
@@ -26,6 +27,7 @@ let totalRequests = 0;
 let forwardedRequests = 0;
 let blockedRequests = 0;
 let proxyErrors = 0;
+let excludedWorkforceAllocationRequests = 0;
 const byMethod = {};
 const byPath = {};
 const byStatus = {};
@@ -47,9 +49,11 @@ function buildEvidenceObj() {
     forwarded_requests: forwardedRequests,
     blocked_requests: blockedRequests,
     proxy_errors: proxyErrors,
+    excluded_workforce_allocation_requests: excludedWorkforceAllocationRequests,
     budget: REQUEST_BUDGET,
     budget_exceeded: forwardedRequests >= REQUEST_BUDGET || blockedRequests > 0,
     simulation_mode: SIMULATION_MODE,
+    exclude_workforce_allocations: EXCLUDE_WORKFORCE_ALLOCATIONS,
     by_method: byMethod,
     by_path: byPath,
     by_status: byStatus,
@@ -77,6 +81,7 @@ const server = http.createServer((req, res) => {
     forwardedRequests = 0;
     blockedRequests = 0;
     proxyErrors = 0;
+    excludedWorkforceAllocationRequests = 0;
     Object.keys(byMethod).forEach(k => delete byMethod[k]);
     Object.keys(byPath).forEach(k => delete byPath[k]);
     Object.keys(byStatus).forEach(k => delete byStatus[k]);
@@ -93,6 +98,20 @@ const server = http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify(evidence));
     server.close();
+    return;
+  }
+
+  // Workforce allocation percentages are explicitly outside the current release
+  // scope. Keep browser behavior deterministic without spending remote QA budget.
+  if (
+    EXCLUDE_WORKFORCE_ALLOCATIONS
+    && req.method === 'GET'
+    && /^\/api\/projects\/[^/]+\/worker-allocations$/.test(parsedUrl.pathname)
+  ) {
+    totalRequests++;
+    excludedWorkforceAllocationRequests++;
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: true, data: [] }));
     return;
   }
 
