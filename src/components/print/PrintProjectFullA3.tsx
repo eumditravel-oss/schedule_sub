@@ -6,6 +6,7 @@ import { PrintFooter } from './PrintFooter';
 import { PrintColorMode, getPrintStatusBadgeStyle, getPrintGanttBarStyle, resolvePrintCalendarVisualState, getProjectPicSummary, PRINT_DAY_CELL_STYLE } from '../../utils/printVisualTokens';
 import { resolveWorkDayStatus } from '../../utils/workCalendar';
 import { resolveReportProjectProgress } from '../../utils/reportProgress';
+import { getAdaptiveColumnPercent, getRemainingColumnPercent } from '../../utils/printLayout';
 import { parseISO, format, addDays, differenceInCalendarDays, isSameDay } from 'date-fns';
 
 export interface PrintProjectFullA3Props {
@@ -45,25 +46,42 @@ export const PrintProjectFullA3: React.FC<PrintProjectFullA3Props> = ({
 
   // Split into 30-day bands if totalDays > 30
   const bandPagesCount = Math.ceil(totalDays / 30);
-  const bandPages: Array<{ pageIdx: number; start: Date; end: Date; daysCount: number }> = [];
+  const allBandPages: Array<{ start: Date; end: Date; daysCount: number }> = [];
 
   for (let b = 0; b < bandPagesCount; b++) {
     const bStart = addDays(startDate, b * 30);
     const bEnd = addDays(bStart, 29) > endDate ? endDate : addDays(bStart, 29);
     const bDays = Math.max(1, differenceInCalendarDays(bEnd, bStart) + 1);
-    bandPages.push({
-      pageIdx: b + 1,
+    allBandPages.push({
       start: bStart,
       end: bEnd,
       daysCount: bDays,
     });
   }
 
+  // A band only owns rows that intersect its date window. This prevents early
+  // phases from being repeated on every subsequent 30-day page.
+  const populatedBandPages = allBandPages.filter((band) =>
+    tasks.some((task) => Boolean(
+      task.start_date && task.end_date && parseISO(task.start_date) <= band.end && parseISO(task.end_date) >= band.start
+    ))
+  );
+  const bandPages = populatedBandPages.length > 0 ? populatedBandPages : allBandPages.slice(0, 1);
+
   // Single-Source Report Progress Engine
   const reportProgress = resolveReportProjectProgress(project, tasks);
   // V2 Domain: PIC derived from Task PRIMARY
   const primaryPic = getProjectPicSummary(tasks, workerMap, lang);
   const pName = isKo ? (project.name_ko || project.name) : (project.name_vi || project.name);
+  const taskNameWidth = getAdaptiveColumnPercent(
+    tasks.map((task) => isKo ? task.task_name_ko || task.task_name : task.task_name_vi || task.task_name),
+    17,
+    21
+  );
+  const groupWidth = 11;
+  const picWidth = 8;
+  const periodWidth = 10;
+  const statusWidth = 6;
 
   return (
     <div className="print-template-a3-full flex flex-col justify-between w-full h-full text-slate-900 font-sans text-xs">
@@ -72,22 +90,26 @@ export const PrintProjectFullA3: React.FC<PrintProjectFullA3Props> = ({
         for (let i = 0; i < band.daysCount; i++) {
           daysArray.push(addDays(band.start, i));
         }
+        const bandTasks = tasks.filter((task) => Boolean(
+          task.start_date && task.end_date && parseISO(task.start_date) <= band.end && parseISO(task.end_date) >= band.start
+        ));
+        const dayColumnsWidth = getRemainingColumnPercent(groupWidth + taskNameWidth + picWidth + periodWidth + statusWidth);
 
         return (
           <div key={bandIdx} className={`print-page-band flex flex-col justify-between h-full w-full ${bandIdx > 0 ? 'page-break-before' : ''}`}>
             <div>
               {/* Header */}
               <PrintHeader
-                title={`${pName} - ${isKo ? '전체 상세 일정표 (A3 Gantt 30-Day Band Split)' : 'Lịch trình chi tiết dự án (30-Day Band Split)'}`}
+                title={`${pName} - ${isKo ? '프로젝트 상세 일정표 · 30일 구간' : 'Lịch trình chi tiết · đoạn 30 ngày'}`}
                 subtitle={
                   isKo
-                    ? `구간 ${band.pageIdx}/${bandPagesCount}: ${format(band.start, 'yyyy-MM-dd')} ~ ${format(band.end, 'yyyy-MM-dd')} (${totalDays}일 중 ${band.daysCount}일 표시)`
-                    : `Đoạn ${band.pageIdx}/${bandPagesCount}: ${format(band.start, 'yyyy-MM-dd')} ~ ${format(band.end, 'yyyy-MM-dd')}`
+                    ? `구간 ${bandIdx + 1}/${bandPages.length}: ${format(band.start, 'yyyy-MM-dd')} ~ ${format(band.end, 'yyyy-MM-dd')} (${totalDays}일 중 ${band.daysCount}일 표시)`
+                    : `Đoạn ${bandIdx + 1}/${bandPages.length}: ${format(band.start, 'yyyy-MM-dd')} ~ ${format(band.end, 'yyyy-MM-dd')}`
                 }
                 referenceDate={referenceDate}
                 authorName={viewerName}
-                pageNumber={band.pageIdx}
-                totalPages={bandPagesCount}
+                pageNumber={bandIdx + 1}
+                totalPages={bandPages.length}
                 colorMode={colorMode}
                 lang={lang}
               />
@@ -117,7 +139,15 @@ export const PrintProjectFullA3: React.FC<PrintProjectFullA3Props> = ({
 
               {/* Detailed Gantt Matrix Table */}
               <div className="w-full overflow-x-auto mb-2 border border-slate-300 rounded">
-                <table className="w-full border-collapse text-[10.5px]">
+                <table className="w-full table-fixed border-collapse text-[10.5px]">
+                  <colgroup>
+                    <col style={{ width: `${groupWidth}%` }} />
+                    <col style={{ width: `${taskNameWidth}%` }} />
+                    <col style={{ width: `${picWidth}%` }} />
+                    <col style={{ width: `${periodWidth}%` }} />
+                    <col style={{ width: `${statusWidth}%` }} />
+                    {daysArray.map((_, index) => <col key={index} style={{ width: `${dayColumnsWidth / daysArray.length}%` }} />)}
+                  </colgroup>
                   <thead>
                     <tr className="bg-slate-800 text-white font-bold border-b border-slate-700">
                       <th className="border-r border-slate-700 px-2 py-1 text-left w-32">{isKo ? '공정 대분류' : 'Nhóm'}</th>
@@ -155,7 +185,7 @@ export const PrintProjectFullA3: React.FC<PrintProjectFullA3Props> = ({
                   </thead>
                   <tbody>
                     {taskGroups.map((group) => {
-                      const groupTasks = tasks.filter((t) => t.task_group_id === group.id);
+                      const groupTasks = bandTasks.filter((t) => t.task_group_id === group.id);
                       if (groupTasks.length === 0) return null;
 
                       const gName = isKo ? (group.group_name_ko || group.group_name) : (group.group_name_vi || group.group_name);

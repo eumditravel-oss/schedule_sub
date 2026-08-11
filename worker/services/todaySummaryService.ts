@@ -8,7 +8,11 @@ export interface TodaySummaryResult {
   completed_today: { count: number; project_ids: string[] };
   completed_this_month: { count: number; project_ids: string[] };
   overdue: { count: number; task_ids: string[] };
-  completion_review?: { count: number; task_ids: string[] };
+  completion_review?: {
+    count: number;
+    task_ids: string[];
+    items: Array<{ task_id: string; task_name: string; project_id: string; project_name: string }>;
+  };
   blocked_count?: number;
 }
 
@@ -65,7 +69,9 @@ export async function getTodayDashboardSummaryServer(
   }
   const nextMonthStart = `${nextYear}-${String(nextMonth).padStart(2, '0')}-01`;
 
-  // Fetch Monthly Completed Projects
+  // A project belongs to the monthly completion KPI when its scheduled end date
+  // falls in the business month. completed_at is the operator action timestamp and
+  // must not move an older project into the current month's delivery result.
   let completedThisMonthProjectIds: string[] = [];
   try {
     const completedPrjsRes = await db
@@ -73,9 +79,9 @@ export async function getTodayDashboardSummaryServer(
         `SELECT id
          FROM projects
          WHERE status = 'COMPLETED'
-           AND completed_at IS NOT NULL
-           AND substr(completed_at, 1, 10) >= ?
-           AND substr(completed_at, 1, 10) < ?`
+           AND end_date IS NOT NULL
+           AND end_date >= ?
+           AND end_date < ?`
       )
       .bind(monthStart, nextMonthStart)
       .all();
@@ -110,7 +116,7 @@ export async function getTodayDashboardSummaryServer(
         project_ids: completedThisMonthProjectIds,
       },
       overdue: { count: 0, task_ids: [] },
-      completion_review: { count: 0, task_ids: [] },
+      completion_review: { count: 0, task_ids: [], items: [] },
     };
   }
 
@@ -209,6 +215,12 @@ export async function getTodayDashboardSummaryServer(
   // Task-based risk counters for secondary strips
   const overdueIds: string[] = [];
   const completionReviewIds: string[] = [];
+  const completionReviewItems: Array<{
+    task_id: string;
+    task_name: string;
+    project_id: string;
+    project_name: string;
+  }> = [];
 
   activeTasks.forEach((t) => {
     t.assignees = assigneesMap.get(t.id) || [];
@@ -237,6 +249,13 @@ export async function getTodayDashboardSummaryServer(
     if (deadlineState === 'COMPLETION_REVIEW' && Number(t.completion_confirmed) !== 1) {
       if (!completionReviewIds.includes(t.id)) {
         completionReviewIds.push(t.id);
+        const project = activeProjectMap.get(t.project_id);
+        completionReviewItems.push({
+          task_id: t.id,
+          task_name: t.task_name || '-',
+          project_id: t.project_id,
+          project_name: project?.name_ko || project?.name || '-',
+        });
       }
     }
   });
@@ -261,7 +280,11 @@ export async function getTodayDashboardSummaryServer(
       project_ids: completedThisMonthProjectIds,
     },
     overdue: { count: overdueIds.length, task_ids: overdueIds },
-    completion_review: { count: completionReviewIds.length, task_ids: completionReviewIds },
+    completion_review: {
+      count: completionReviewIds.length,
+      task_ids: completionReviewIds,
+      items: completionReviewItems,
+    },
     blocked_count: blockedCount,
   };
 }

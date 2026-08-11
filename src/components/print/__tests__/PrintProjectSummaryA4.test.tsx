@@ -56,9 +56,15 @@ describe('PrintProjectSummaryA4 task semantics', () => {
     );
 
     expect(html).toContain('data-testid="print-project-pic"');
-    expect(html).toContain('data-testid="print-project-pic" class="text-slate-900">Minh</strong>');
-    expect(html).toContain('data-testid="print-project-support" class="font-medium text-slate-800">An</span>');
+    expect(html).toContain('data-testid="print-project-pic" class="font-semibold text-slate-900 break-words">Minh</span>');
+    expect(html).toContain('data-testid="print-project-support" class="font-medium text-slate-800 break-words">An</span>');
     expect(html).not.toContain('Minh + Support 1');
+    expect(html).not.toContain('Capacity / FTE');
+    const firstPageHtml = html.slice(0, html.indexOf('페이지 2 /'));
+    expect(firstPageHtml).not.toContain('달력 범례');
+    expect(html).toContain('주간 진행 요약');
+    expect(html).toContain('data-testid="summary-week-08-03" data-week-state="COMPLETED"');
+    expect(html).toContain('data-testid="summary-week-08-10" data-week-state="COMPLETED"');
     expect(html).toContain('data-testid="print-task-planned-task-print"');
     expect(html).toMatch(/data-testid="print-task-planned-task-print"[^>]*>64%<\/td>/);
     expect(html).toMatch(/data-testid="print-task-actual-task-print"[^>]*>82%<\/td>/);

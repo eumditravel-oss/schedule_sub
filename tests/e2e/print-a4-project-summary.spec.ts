@@ -21,18 +21,19 @@ test.describe('Print Template 1: A4 Project Summary Report', () => {
     await page.goto(`/print/project/${realProjectId}/summary-a4?lang=ko&colorMode=color`);
 
     const shell = page.locator('.print-page-shell');
-    await expect(shell).toBeVisible();
-    await expect(shell).toHaveClass(/print-paper-a4/);
-    await expect(shell).toHaveClass(/print-portrait/);
+    await expect(shell.first()).toBeVisible();
+    await expect(shell.first()).toHaveClass(/print-paper-a4/);
+    await expect(shell.first()).toHaveClass(/print-landscape/);
 
-    await expect(page.locator('.print-header')).toBeVisible();
-    await expect(page.locator('.print-header')).toContainText('CON-COST');
-    await expect(page.locator('.print-header')).toContainText('VIETQS');
+    await expect(page.locator('.print-header').first()).toBeVisible();
+    await expect(page.locator('.print-header').first()).toContainText('CON-COST');
+    await expect(page.locator('.print-header').first()).toContainText('VIETQS');
 
-    await expect(page.locator('.print-footer')).toBeVisible();
-    await expect(page.locator('.print-footer')).toContainText('본 문서는 Scheduler V2.5 데이터 기준으로 자동 생성되었습니다.');
+    await expect(page.locator('.print-footer').first()).toBeVisible();
+    await expect(page.locator('.print-footer').first()).toContainText('본 문서는 Scheduler V2.5 데이터 기준으로 자동 생성되었습니다.');
 
     const toolbar = page.locator('.print-toolbar');
     await expect(toolbar).toBeVisible();
+    await expect(page.getByTestId('print-orientation-fixed')).toContainText('가로 고정');
   });
 });

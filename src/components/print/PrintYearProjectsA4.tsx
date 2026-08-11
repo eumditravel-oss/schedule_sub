@@ -1,14 +1,20 @@
-// src/components/print/PrintYearProjectsA4.tsx
 import React from 'react';
 import { Project, Task, Worker } from '../../types';
 import { PrintHeader } from './PrintHeader';
 import { PrintFooter } from './PrintFooter';
-import { PrintColorMode, getPrintStatusBadgeStyle, getPrintGanttBarStyle } from '../../utils/printVisualTokens';
+import { PrintPageShell } from './PrintPageShell';
+import {
+  PrintColorMode,
+  getPrintStatusBadgeStyle,
+  getPrintGanttBarStyle,
+  getProjectPicSummary,
+} from '../../utils/printVisualTokens';
 import { resolveReportProjectProgress } from '../../utils/reportProgress';
+import { getAdaptiveColumnPercent, getRemainingColumnPercent } from '../../utils/printLayout';
 import { parseISO, startOfMonth, endOfMonth } from 'date-fns';
 
 export interface PrintYearProjectsA4Props {
-  yearStr?: string; // YYYY
+  yearStr?: string;
   projects: Project[];
   tasks: Task[];
   workers?: Worker[];
@@ -29,148 +35,157 @@ export const PrintYearProjectsA4: React.FC<PrintYearProjectsA4Props> = ({
   referenceDate = new Date().toISOString().substring(0, 10),
 }) => {
   const isKo = lang === 'ko';
-
-  // Generate 12 months sequence for the year
-  const monthsSequence: Date[] = [];
-  for (let m = 0; m < 12; m++) {
-    const mStr = `${yearStr}-${String(m + 1).padStart(2, '0')}-01`;
-    monthsSequence.push(parseISO(mStr));
-  }
-
-  const yearStart = startOfMonth(monthsSequence[0]);
-  const yearEnd = endOfMonth(monthsSequence[11]);
-
-  // Filter projects overlapping this year
-  const yearProjects = projects.filter((p) => {
-    if (!p.start_date || !p.end_date) return false;
-    const pStart = parseISO(p.start_date);
-    const pEnd = parseISO(p.end_date);
-    return pStart <= yearEnd && pEnd >= yearStart;
+  const workerMap = new Map(workers.map((worker) => [worker.id, worker.name]));
+  const months = Array.from({ length: 12 }, (_, index) => parseISO(`${yearStr}-${String(index + 1).padStart(2, '0')}-01`));
+  const yearStart = startOfMonth(months[0]);
+  const yearEnd = endOfMonth(months[11]);
+  const yearProjects = projects.filter((project) => Boolean(
+    project.start_date && project.end_date && parseISO(project.start_date) <= yearEnd && parseISO(project.end_date) >= yearStart
+  ));
+  const completed = yearProjects.filter((project) => project.status === 'COMPLETED').length;
+  const active = yearProjects.filter((project) => project.status !== 'COMPLETED').length;
+  const projectNames = yearProjects.map((project) => isKo ? project.name_ko || project.name : project.name_vi || project.name);
+  const nameWidth = getAdaptiveColumnPercent(projectNames, 21, 27);
+  const periodWidth = 14;
+  const statusWidth = 8;
+  const progressWidth = 7;
+  const monthWidth = getRemainingColumnPercent(nameWidth + periodWidth + statusWidth + progressWidth);
+  const quarterSummaries = [0, 1, 2, 3].map((quarterIndex) => {
+    const quarterStart = startOfMonth(months[quarterIndex * 3]);
+    const quarterEnd = endOfMonth(months[quarterIndex * 3 + 2]);
+    const overlapping = yearProjects.filter((project) => parseISO(project.start_date!) <= quarterEnd && parseISO(project.end_date!) >= quarterStart);
+    const ending = yearProjects.filter((project) => parseISO(project.end_date!) >= quarterStart && parseISO(project.end_date!) <= quarterEnd);
+    return { quarter: quarterIndex + 1, overlapping: overlapping.length, ending: ending.length };
   });
 
+  const header = (pageNumber: number, subtitle: string) => (
+    <PrintHeader
+      title={isKo ? `${yearStr} 경영 보고용 프로젝트 로드맵` : `Lộ trình dự án quản trị ${yearStr}`}
+      subtitle={subtitle}
+      referenceDate={referenceDate}
+      authorName={viewerName}
+      pageNumber={pageNumber}
+      totalPages={2}
+      colorMode={colorMode}
+      lang={lang}
+    />
+  );
+
   return (
-    <div className="print-template-a4-year flex flex-col justify-between w-full h-full text-slate-900 font-sans text-xs">
-      <div>
-        <PrintHeader
-          title={isKo ? `${yearStr}년 연간 경영 보고용 연간 로드맵 (Annual Roadmap)` : `Lộ trình tổng thể năm ${yearStr}`}
-          subtitle={isKo ? '12개월전체 프로젝트 추진 일정 및 월별 진행 구간 (A4 Year Summary)' : 'Tiến trình 12 tháng dự án trong năm'}
-          referenceDate={referenceDate}
-          authorName={viewerName}
-          colorMode={colorMode}
-          lang={lang}
-        />
+    <div className="print-template-a4-year space-y-6 print:space-y-0">
+      <PrintPageShell paper="a4" orientation="landscape" colorMode={colorMode}>
+        <div className="flex flex-col justify-between w-full h-full text-slate-900 font-sans text-xs">
+          <div>
+            {header(1, isKo ? '포트폴리오 요약 · 12개월 추진 구간' : 'Tổng quan danh mục · Tiến trình 12 tháng')}
+            <div className="grid grid-cols-4 gap-2 mb-3 text-center text-[10px]">
+              {[
+                [isKo ? '연간 대상 프로젝트' : 'Tổng dự án', yearProjects.length, 'text-slate-900'],
+                [isKo ? '완료 프로젝트' : 'Hoàn thành', completed, 'text-emerald-700'],
+                [isKo ? '진행 프로젝트' : 'Đang làm', active, 'text-blue-700'],
+                [isKo ? '포트폴리오 달성률' : 'Tỷ lệ hoàn thành', yearProjects.length ? `${Math.round(completed / yearProjects.length * 100)}%` : '0%', 'text-purple-700'],
+              ].map(([label, value, tone]) => (
+                <div key={String(label)} className="bg-slate-50 border border-slate-200 rounded p-2">
+                  <span className="text-[9px] text-slate-500 font-medium block">{label}</span>
+                  <span className={`font-extrabold text-sm ${tone}`}>{value}</span>
+                </div>
+              ))}
+            </div>
 
-        {/* Executive Year KPI Bar */}
-        <div className="grid grid-cols-4 gap-2 mb-3 text-center text-[10px]">
-          <div className="bg-slate-50 border border-slate-200 rounded p-1.5">
-            <span className="text-[9px] text-slate-500 font-medium block">{isKo ? '연간 총 프로젝트' : 'Tổng số dự án'}</span>
-            <span className="font-extrabold text-slate-900 text-xs">{yearProjects.length}</span>
+            <table data-testid="annual-roadmap-table" className="w-full table-fixed border-collapse border border-slate-300 text-[9.5px]">
+              <colgroup>
+                <col style={{ width: `${nameWidth}%` }} /><col style={{ width: `${periodWidth}%` }} />
+                <col style={{ width: `${statusWidth}%` }} /><col style={{ width: `${progressWidth}%` }} />
+                {months.map((_, index) => <col key={index} style={{ width: `${monthWidth / 12}%` }} />)}
+              </colgroup>
+              <thead>
+                <tr className="bg-slate-100 text-slate-700 font-semibold">
+                  <th className="border border-slate-300 px-2 py-1 text-left">{isKo ? '프로젝트명' : 'Tên dự án'}</th>
+                  <th className="border border-slate-300 px-1 py-1">{isKo ? '전체 기간' : 'Thời gian'}</th>
+                  <th className="border border-slate-300 px-1 py-1">{isKo ? '상태' : 'Trạng thái'}</th>
+                  <th className="border border-slate-300 px-1 py-1">{isKo ? '실제 공정' : 'Tiến độ'}</th>
+                  {months.map((_, index) => <th key={index} className="border border-slate-300 p-0.5 font-mono text-[8px]">{index + 1}월</th>)}
+                </tr>
+              </thead>
+              <tbody>
+                {yearProjects.map((project) => {
+                  const projectTasks = tasks.filter((task) => task.project_id === project.id);
+                  const progress = resolveReportProjectProgress(project, projectTasks);
+                  const badge = getPrintStatusBadgeStyle(progress.scheduleState === 'COMPLETED' ? 'COMPLETED' : project.status, colorMode, lang);
+                  const bar = getPrintGanttBarStyle(project.status, colorMode);
+                  const start = parseISO(project.start_date!);
+                  const end = parseISO(project.end_date!);
+                  return (
+                    <tr key={project.id}>
+                      <td className="border border-slate-300 px-2 py-1.5 font-bold break-words">{isKo ? project.name_ko || project.name : project.name_vi || project.name}</td>
+                      <td className="border border-slate-300 px-1 py-1 text-center font-mono text-[8.5px] whitespace-nowrap">{project.start_date?.substring(2)} ~ {project.end_date?.substring(2)}</td>
+                      <td className="border border-slate-300 px-1 py-1 text-center"><span className="px-1 py-0.5 rounded border font-bold" style={{ backgroundColor: badge.backgroundColor, borderColor: badge.borderColor, color: badge.textColor }}>{badge.label}</span></td>
+                      <td className="border border-slate-300 px-1 py-1 text-center font-mono font-bold text-emerald-700">{progress.actualProgress}%</td>
+                      {months.map((month, index) => {
+                        const overlap = start <= endOfMonth(month) && end >= startOfMonth(month);
+                        return <td key={index} className="border border-slate-300 p-0.5"><div className="w-full h-3 border rounded-xs" style={{ backgroundColor: overlap ? bar.backgroundColor : '#F8FAFC', borderColor: overlap ? bar.borderColor : '#E2E8F0', backgroundImage: overlap ? bar.pattern || 'none' : 'none' }} /></td>;
+                      })}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
-          <div className="bg-slate-50 border border-slate-200 rounded p-1.5">
-            <span className="text-[9px] text-slate-500 font-medium block">{isKo ? '완료 프로젝트' : 'Đã hoàn thành'}</span>
-            <span className="font-extrabold text-emerald-700 text-xs">
-              {yearProjects.filter((p) => p.status === 'COMPLETED' || p.completed_at).length}
-            </span>
-          </div>
-          <div className="bg-slate-50 border border-slate-200 rounded p-1.5">
-            <span className="text-[9px] text-slate-500 font-medium block">{isKo ? '진행 중' : 'Đang làm'}</span>
-            <span className="font-extrabold text-blue-700 text-xs">
-              {yearProjects.filter((p) => p.status !== 'COMPLETED').length}
-            </span>
-          </div>
-          <div className="bg-slate-50 border border-slate-200 rounded p-1.5">
-            <span className="text-[9px] text-slate-500 font-medium block">{isKo ? '연간 목표 달성률' : 'Tỷ lệ hoàn thành'}</span>
-            <span className="font-extrabold text-purple-700 text-xs">
-              {yearProjects.length > 0
-                ? Math.round((yearProjects.filter((p) => p.status === 'COMPLETED' || p.completed_at).length / yearProjects.length) * 100)
-                : 0}
-              %
-            </span>
-          </div>
+          <PrintFooter colorMode={colorMode} lang={lang} viewerName={viewerName} />
         </div>
+      </PrintPageShell>
 
-        {/* 12-Month Executive Matrix Table */}
-        <div className="mb-3">
-          <table className="w-full border-collapse border border-slate-300 text-[10px]">
-            <thead>
-              <tr className="bg-slate-100 text-slate-700 font-semibold border-b border-slate-300">
-                <th className="border border-slate-300 px-2 py-1 text-left">{isKo ? '프로젝트명' : 'Tên dự án'}</th>
-                <th className="border border-slate-300 px-1 py-1 text-center w-20">{isKo ? '기간' : 'Thời gian'}</th>
-                <th className="border border-slate-300 px-1 py-1 text-center w-14">{isKo ? '상태' : 'Trạng thái'}</th>
-                <th className="border border-slate-300 px-1 py-1 text-center w-12">{isKo ? '공정' : 'Tiến độ'}</th>
-                {monthsSequence.map((mDate, idx) => (
-                  <th key={idx} className="border border-slate-300 px-0.5 py-1 text-center font-mono text-[9px] w-6">
-                    {idx + 1}월
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {yearProjects.map((p) => {
-                const pTasks = tasks.filter((t) => t.project_id === p.id);
-                const reportProgress = resolveReportProjectProgress(p, pTasks);
-                const badgeStyle = getPrintStatusBadgeStyle(reportProgress.scheduleState === 'COMPLETED' ? 'COMPLETED' : p.status, colorMode, lang);
-                const pName = isKo ? (p.name_ko || p.name) : (p.name_vi || p.name);
-                const pStart = p.start_date ? parseISO(p.start_date) : yearStart;
-                const pEnd = p.end_date ? parseISO(p.end_date) : yearEnd;
-                const barStyle = getPrintGanttBarStyle(p.status, colorMode);
+      <PrintPageShell paper="a4" orientation="landscape" colorMode={colorMode}>
+        <div className="flex flex-col justify-between w-full h-full text-slate-900 font-sans text-xs">
+          <div>
+            {header(2, isKo ? '분기별 실행 검토 · 프로젝트 책임 및 진척 상세' : 'Rà soát theo quý · Trách nhiệm và tiến độ')}
+            <div className="grid grid-cols-4 gap-2 mb-3">
+              {quarterSummaries.map((summary) => (
+                <div key={summary.quarter} className="border border-slate-200 rounded bg-slate-50 p-2">
+                  <div className="font-extrabold text-slate-900">Q{summary.quarter}</div>
+                  <div className="text-[10px] text-slate-600 mt-1">{isKo ? '추진' : 'Triển khai'} <b>{summary.overlapping}</b> · {isKo ? '종료 예정' : 'Kết thúc'} <b>{summary.ending}</b></div>
+                </div>
+              ))}
+            </div>
 
-                return (
-                  <tr key={p.id} className="hover:bg-slate-50 border-b border-slate-200">
-                    <td className="border border-slate-300 px-2 py-1 font-bold text-slate-900 truncate max-w-[140px]">
-                      {pName}
-                    </td>
-                    <td className="border border-slate-300 px-1 py-1 text-center font-mono text-[9px]">
-                      {p.start_date?.substring(2)} ~ {p.end_date?.substring(5)}
-                    </td>
-                    <td className="border border-slate-300 px-1 py-1 text-center">
-                      <span
-                        className="px-1 py-0.5 rounded text-[9px] font-bold border inline-block"
-                        style={{
-                          backgroundColor: badgeStyle.backgroundColor,
-                          borderColor: badgeStyle.borderColor,
-                          color: badgeStyle.textColor,
-                        }}
-                      >
-                        {isKo ? reportProgress.statusDisplayKo : reportProgress.statusDisplayVi}
-                      </span>
-                    </td>
-                    <td className="border border-slate-300 px-1 py-1 text-center font-mono font-bold text-emerald-700 text-[9.5px]">
-                      {reportProgress.actualProgress}%
-                    </td>
-
-                    {/* 12 Months Columns */}
-                    {monthsSequence.map((mDate, idx) => {
-                      const mStart = startOfMonth(mDate);
-                      const mEnd = endOfMonth(mDate);
-                      const isOverlap = pStart <= mEnd && pEnd >= mStart;
-
-                      return (
-                        <td key={idx} className="border border-slate-300 p-0.5 text-center">
-                          {isOverlap ? (
-                            <div
-                              className="w-full h-3 rounded-xs border"
-                              style={{
-                                backgroundColor: barStyle.backgroundColor,
-                                borderColor: barStyle.borderColor,
-                                backgroundImage: barStyle.pattern || 'none',
-                              }}
-                            />
-                          ) : (
-                            <div className="w-full h-3 bg-slate-50 border border-slate-100" />
-                          )}
-                        </td>
-                      );
-                    })}
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+            <h3 className="font-bold text-slate-800 mb-1.5">{isKo ? '프로젝트별 연간 실행 상세' : 'Chi tiết thực hiện theo dự án'}</h3>
+            <table className="w-full table-fixed border-collapse border border-slate-300 text-[9.5px]">
+              <colgroup>
+                <col style={{ width: `${nameWidth}%` }} /><col style={{ width: '15%' }} /><col style={{ width: '20%' }} />
+                <col style={{ width: '10%' }} /><col style={{ width: '12%' }} /><col style={{ width: `${getRemainingColumnPercent(nameWidth + 57)}%` }} />
+              </colgroup>
+              <thead>
+                <tr className="bg-slate-800 text-white">
+                  <th className="border border-slate-700 px-2 py-1 text-left">{isKo ? '프로젝트명' : 'Tên dự án'}</th>
+                  <th className="border border-slate-700 px-1 py-1">{isKo ? '기간' : 'Thời gian'}</th>
+                  <th className="border border-slate-700 px-2 py-1 text-left">PIC</th>
+                  <th className="border border-slate-700 px-1 py-1">{isKo ? '상태' : 'Trạng thái'}</th>
+                  <th className="border border-slate-700 px-1 py-1">{isKo ? '예정 / 실제' : 'KH / Thực'}</th>
+                  <th className="border border-slate-700 px-2 py-1 text-left">{isKo ? '경영 검토 포인트' : 'Điểm rà soát'}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {yearProjects.map((project) => {
+                  const projectTasks = tasks.filter((task) => task.project_id === project.id);
+                  const progress = resolveReportProjectProgress(project, projectTasks);
+                  const badge = getPrintStatusBadgeStyle(progress.scheduleState === 'COMPLETED' ? 'COMPLETED' : project.status, colorMode, lang);
+                  const overdue = projectTasks.filter((task) => task.schedule_state === 'DELAYED' || task.is_blocked).length;
+                  return (
+                    <tr key={project.id}>
+                      <td className="border border-slate-300 px-2 py-1.5 font-bold break-words">{isKo ? project.name_ko || project.name : project.name_vi || project.name}</td>
+                      <td className="border border-slate-300 px-1 py-1 text-center font-mono text-[8.5px] whitespace-nowrap">{project.start_date?.substring(2)} ~ {project.end_date?.substring(2)}</td>
+                      <td className="border border-slate-300 px-2 py-1 break-words">{getProjectPicSummary(projectTasks, workerMap, lang)}</td>
+                      <td className="border border-slate-300 px-1 py-1 text-center"><span className="px-1 py-0.5 rounded border font-bold" style={{ backgroundColor: badge.backgroundColor, borderColor: badge.borderColor, color: badge.textColor }}>{badge.label}</span></td>
+                      <td className="border border-slate-300 px-1 py-1 text-center font-mono whitespace-nowrap"><span className="text-blue-700">{progress.plannedProgress}%</span> / <span className="text-emerald-700 font-bold">{progress.actualProgress}%</span></td>
+                      <td className="border border-slate-300 px-2 py-1 text-slate-700">{overdue > 0 ? (isKo ? `주의 작업 ${overdue}건 점검` : `${overdue} công việc cần rà soát`) : (isKo ? '특이사항 없음' : 'Không có vấn đề')}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          <PrintFooter colorMode={colorMode} lang={lang} viewerName={viewerName} />
         </div>
-      </div>
-
-      <PrintFooter colorMode={colorMode} lang={lang} viewerName={viewerName} />
+      </PrintPageShell>
     </div>
   );
 };

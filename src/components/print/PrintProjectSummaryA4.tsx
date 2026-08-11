@@ -31,7 +31,6 @@ export const PrintProjectSummaryA4: React.FC<PrintProjectSummaryA4Props> = ({
   project,
   tasks = [],
   taskGroups = [],
-  allocations = [],
   workers = [],
   colorMode = 'color',
   lang = 'ko',
@@ -232,45 +231,22 @@ export const PrintProjectSummaryA4: React.FC<PrintProjectSummaryA4Props> = ({
             </div>
           </div>
 
-          {/* Task KPI Counters & Workforce Summary */}
+          {/* Task KPI Counters & Responsibility Summary */}
           <div className="grid grid-cols-2 gap-3 mb-3">
-            {/* Workforce Summary Box */}
+            {/* Responsibility Summary Box */}
             <div className="border border-slate-200 rounded p-2.5 bg-white">
-              <h3 className="font-bold text-slate-800 text-xs mb-1.5 border-b border-slate-200 pb-1 flex items-center justify-between">
-                <span>{isKo ? '담당자 (Task PRIMARY) & 투입 인력' : 'PIC & Phân công nhân sự'}</span>
-                <span className="text-[10px] font-normal text-slate-600">
-                  주요 PIC: <strong data-testid="print-project-pic" className="text-slate-900">{projectPic}</strong>
-                </span>
+              <h3 className="font-bold text-slate-800 text-xs mb-2 border-b border-slate-200 pb-1">
+                {isKo ? '담당 체계' : 'Phân công trách nhiệm'}
               </h3>
-
-              <div className="mb-2 text-[11px] text-slate-700 flex items-center gap-2">
-                <span className="text-slate-500">{isKo ? 'Support 인력:' : 'Hỗ trợ:'}</span>
-                <span data-testid="print-project-support" className="font-medium text-slate-800">{projectSupport}</span>
-              </div>
-
-              <div className="border-t border-slate-100 pt-1.5">
-                <span className="text-[10px] text-slate-500 font-bold block mb-1">
-                  {isKo ? '프로젝트 투입률 (Capacity / FTE):' : 'Tỷ lệ phân công (Capacity):'}
-                </span>
-                {allocations && allocations.length > 0 ? (
-                  <div className="space-y-1">
-                    {allocations.map((alloc) => {
-                      const name = workerMap.get(alloc.worker_id) || alloc.worker_id;
-                      return (
-                        <div key={alloc.worker_id} className="flex items-center justify-between text-[11px]">
-                          <span className="font-medium text-slate-700">{name}</span>
-                          <span className="font-mono text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded">
-                            {alloc.allocation_percent}% FTE
-                          </span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <p className="text-[10.5px] text-slate-400 italic">
-                    {isKo ? '설정된 Capacity 투입 비율이 없습니다.' : 'Chưa thiết lập định mức capacity.'}
-                  </p>
-                )}
+              <div className="space-y-2 text-[11px]">
+                <div className="grid grid-cols-[56px_minmax(0,1fr)] gap-2 items-start">
+                  <span className="text-slate-500 font-semibold whitespace-nowrap">PIC</span>
+                  <span data-testid="print-project-pic" className="font-semibold text-slate-900 break-words">{projectPic}</span>
+                </div>
+                <div className="grid grid-cols-[56px_minmax(0,1fr)] gap-2 items-start">
+                  <span className="text-slate-500 font-semibold whitespace-nowrap">{isKo ? '지원 인력' : 'Hỗ trợ'}</span>
+                  <span data-testid="print-project-support" className="font-medium text-slate-800 break-words">{projectSupport}</span>
+                </div>
               </div>
             </div>
 
@@ -351,10 +327,10 @@ export const PrintProjectSummaryA4: React.FC<PrintProjectSummaryA4Props> = ({
             </table>
           </div>
 
-          {/* Compressed 1-line Timeline Summary */}
+          {/* Weekly Timeline Summary */}
           <div className="mb-2 border border-slate-300 rounded p-2.5 bg-slate-50">
             <h3 className="font-bold text-slate-800 text-[11px] mb-1.5 flex items-center justify-between">
-              <span>{isKo ? '주 단위 요약 타임라인 (Compressed 1-Line Timeline)' : 'Tiến trình tóm tắt theo tuần'}</span>
+              <span>{isKo ? '주간 진행 요약' : 'Tiến trình tóm tắt theo tuần'}</span>
               <span className="text-[10px] font-normal text-slate-500">
                 {project.start_date} ~ {project.end_date}
               </span>
@@ -364,12 +340,15 @@ export const PrintProjectSummaryA4: React.FC<PrintProjectSummaryA4Props> = ({
               <div className="grid gap-0.5 text-center text-[9px]" style={{ gridTemplateColumns: `repeat(${Math.max(1, timelineWeeks.length)}, minmax(0, 1fr))` }}>
                 {timelineWeeks.slice(0, 16).map((wkDate, idx) => {
                   const wkStr = format(wkDate, 'MM/dd');
-                  const barStyle = getPrintGanttBarStyle(project.status, colorMode);
+                  const isReportedWeek = format(wkDate, 'yyyy-MM-dd') <= referenceDate;
+                  const barStyle = getPrintGanttBarStyle(isReportedWeek ? 'COMPLETED' : 'NOT_STARTED', colorMode);
 
                   return (
                     <div key={idx} className="flex flex-col items-center">
                       <span className="text-[8.5px] text-slate-500 font-mono mb-0.5">{wkStr}</span>
                       <div
+                        data-testid={`summary-week-${wkStr.replace('/', '-')}`}
+                        data-week-state={isReportedWeek ? 'COMPLETED' : 'UPCOMING'}
                         className="w-full h-3.5 rounded-xs border"
                         style={{
                           backgroundColor: barStyle.backgroundColor,
@@ -386,7 +365,7 @@ export const PrintProjectSummaryA4: React.FC<PrintProjectSummaryA4Props> = ({
         </div>
 
         {/* Footer */}
-        <PrintFooter colorMode={colorMode} lang={lang} viewerName={viewerName} />
+        <PrintFooter colorMode={colorMode} lang={lang} viewerName={viewerName} showCalendarLegend={false} />
       </div>
     </PrintPageShell>
 

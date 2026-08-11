@@ -43,13 +43,12 @@ export const PrintViewPage: React.FC = () => {
   else if (pathname.includes('/rolling-30-a3')) templateType = 'rolling-30-a3';
   else if (pathname.includes('/combined-a3')) templateType = 'combined-a3';
 
-  // Default paper and orientation based on template (D-9: summary-a4 uses landscape)
+  // Every report is intentionally landscape-only for a consistent management-report layout.
   const defaultPaper = templateType.endsWith('-a3') ? 'a3' : 'a4';
-  const defaultOrientation = templateType.endsWith('-a3') || templateType === 'summary-a4' ? 'landscape' : 'portrait';
 
   // State from URL query parameters or defaults
   const [paper, setPaper] = useState<'a4' | 'a3'>((searchParams.get('paper') as any) || defaultPaper);
-  const [orientation, setOrientation] = useState<'portrait' | 'landscape'>((searchParams.get('orientation') as any) || defaultOrientation);
+  const orientation = 'landscape' as const;
   const [colorMode, setColorMode] = useState<PrintColorMode>((searchParams.get('colorMode') as any) || 'color');
   const [lang, setLang] = useState<'ko' | 'vi'>((searchParams.get('lang') as any) || appLang || 'ko');
 
@@ -79,11 +78,6 @@ export const PrintViewPage: React.FC = () => {
   const handlePaperChange = (p: 'a4' | 'a3') => {
     setPaper(p);
     updateUrlParam('paper', p);
-  };
-
-  const handleOrientationChange = (o: 'portrait' | 'landscape') => {
-    setOrientation(o);
-    updateUrlParam('orientation', o);
   };
 
   const handleColorModeChange = (mode: PrintColorMode) => {
@@ -394,7 +388,6 @@ export const PrintViewPage: React.FC = () => {
         colorMode={colorMode}
         lang={lang}
         onPaperChange={handlePaperChange}
-        onOrientationChange={handleOrientationChange}
         onColorModeChange={handleColorModeChange}
         onLangChange={handleLangChange}
         onPrint={handlePrint}
@@ -403,7 +396,7 @@ export const PrintViewPage: React.FC = () => {
 
       {/* Printable Document Container */}
       <main className="print-document-container flex justify-center">
-        {templateType === 'summary-a4' ? (
+        {['summary-a4', 'month-a4', 'year-a4'].includes(templateType) ? (
           renderTemplateContent()
         ) : (
           <PrintPageShell paper={paper} orientation={orientation} colorMode={colorMode}>

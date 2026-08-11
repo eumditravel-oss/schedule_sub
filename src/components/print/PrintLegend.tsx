@@ -7,12 +7,14 @@ export interface PrintLegendProps {
   colorMode?: PrintColorMode;
   lang?: 'ko' | 'vi';
   showGanttStatuses?: boolean;
+  showCalendarStates?: boolean;
 }
 
 export const PrintLegend: React.FC<PrintLegendProps> = ({
   colorMode = 'color',
   lang = 'ko',
   showGanttStatuses = true,
+  showCalendarStates = true,
 }) => {
   const isKo = lang === 'ko';
 
@@ -37,7 +39,7 @@ export const PrintLegend: React.FC<PrintLegendProps> = ({
     <div className="print-legend w-full bg-slate-50 border border-slate-200 rounded p-2 text-[10px] text-slate-700">
       <div className="flex flex-wrap items-center justify-between gap-y-1.5 gap-x-4">
         {/* Calendar Off/Leave Tokens */}
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+        {showCalendarStates && <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
           <span className="font-bold text-slate-900 pr-1 border-r border-slate-300">
             {isKo ? '달력 범례:' : 'Chú giải:'}
           </span>
@@ -58,11 +60,11 @@ export const PrintLegend: React.FC<PrintLegendProps> = ({
               </div>
             );
           })}
-        </div>
+        </div>}
 
         {/* Gantt Bar Statuses */}
         {showGanttStatuses && (
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pl-2 border-l border-slate-300">
+          <div className={`flex flex-wrap items-center gap-x-3 gap-y-1 ${showCalendarStates ? 'pl-2 border-l border-slate-300' : ''}`}>
             <span className="font-bold text-slate-900 pr-1">
               {isKo ? '일정 상태:' : 'Trạng thái:'}
             </span>
