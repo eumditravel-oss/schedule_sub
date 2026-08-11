@@ -130,28 +130,18 @@ test.describe('Strict Gantt Inline Content & Build SHA E2E Suite', () => {
     await page.goto('/projects');
     await dismissBlockingModals(page);
 
-    const allTabBtn = page.locator('[data-testid="all-tab-btn"]').first();
-    if (await allTabBtn.isVisible().catch(() => false)) {
-      await allTabBtn.click({ force: true }).catch(() => {});
-      await page.waitForTimeout(500);
-    }
+    const projectRow = page.locator(`[data-testid="project-row-${createdProjectId}"]`);
+    await expect(projectRow).toBeVisible({ timeout: 15000 });
+    const scheduleBar = projectRow.locator('[data-testid="gantt-schedule-bar"]');
+    await expect(scheduleBar).toBeVisible();
+    await scheduleBar.hover();
+    await page.waitForTimeout(300);
 
-    const scheduleBar = page.locator('[data-testid="gantt-schedule-bar"]').first();
-    if (!await scheduleBar.isVisible({ timeout: 15000 }).catch(() => false)) {
-      await page.goto(`${TEST_BASE_URL}/projects/${createdProjectId}`);
-      await dismissBlockingModals(page);
-    }
+    const tooltipCount = await page.locator('[data-testid="gantt-bar-tooltip"]').count();
+    expect(tooltipCount).toBe(0);
 
-    if (await scheduleBar.isVisible({ timeout: 5000 }).catch(() => false)) {
-      await scheduleBar.hover();
-      await page.waitForTimeout(300);
-
-      const tooltipCount = await page.locator('[data-testid="gantt-bar-tooltip"]').count();
-      expect(tooltipCount).toBe(0);
-
-      const titleAttrCount = await page.locator('[data-testid="gantt-schedule-bar"][title]').count();
-      expect(titleAttrCount).toBe(0);
-    }
+    const titleAttrCount = await projectRow.locator('[data-testid="gantt-schedule-bar"][title]').count();
+    expect(titleAttrCount).toBe(0);
 
     await page.screenshot({ path: path.join(SCREENSHOT_DIR, 'gantt-no-tooltip.png') });
   });
@@ -161,22 +151,12 @@ test.describe('Strict Gantt Inline Content & Build SHA E2E Suite', () => {
     await page.goto('/projects');
     await dismissBlockingModals(page);
 
-    const allTabBtn = page.locator('[data-testid="all-tab-btn"]').first();
-    if (await allTabBtn.isVisible().catch(() => false)) {
-      await allTabBtn.click({ force: true }).catch(() => {});
-      await page.waitForTimeout(500);
-    }
-
-    const firstBar = page.locator('[data-testid="gantt-schedule-bar"]').first();
-    if (!await firstBar.isVisible({ timeout: 15000 }).catch(() => false)) {
-      await page.goto(`${TEST_BASE_URL}/projects/${createdProjectId}`);
-      await dismissBlockingModals(page);
-    }
-
-    if (await firstBar.isVisible({ timeout: 5000 }).catch(() => false)) {
-      const inlineTitle = firstBar.locator('[data-testid="gantt-bar-inline-title"]');
-      await expect(inlineTitle).toHaveCount(0);
-    }
+    const projectRow = page.locator(`[data-testid="project-row-${createdProjectId}"]`);
+    await expect(projectRow).toBeVisible({ timeout: 15000 });
+    const firstBar = projectRow.locator('[data-testid="gantt-schedule-bar"]');
+    await expect(firstBar).toBeVisible();
+    const inlineTitle = firstBar.locator('[data-testid="gantt-bar-inline-title"]');
+    await expect(inlineTitle).toHaveCount(0);
 
     const track = firstBar.locator('[data-testid="gantt-schedule-track"]');
     const trackBox = await track.boundingBox();
@@ -192,10 +172,7 @@ test.describe('Strict Gantt Inline Content & Build SHA E2E Suite', () => {
     await dismissBlockingModals(page);
 
     const detailBar = page.locator('[data-testid="gantt-schedule-bar"]').first();
-    if (!await detailBar.isVisible({ timeout: 15000 }).catch(() => false)) {
-      return;
-    }
-    await expect(detailBar).toBeVisible();
+    await expect(detailBar).toBeVisible({ timeout: 15000 });
 
     const detailInlineTitle = detailBar.locator('[data-testid="gantt-bar-inline-title"]');
     await expect(detailInlineTitle).toHaveCount(0);
