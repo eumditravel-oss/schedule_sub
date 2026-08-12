@@ -314,6 +314,22 @@ export function validateEntryAssignmentShape(entry: any) {
   }
 }
 
+export function validateMorningAssignmentRole(entry: any, assignment: any) {
+  if (assignment?.role !== 'PRIMARY' && entry.target_progress !== undefined && entry.target_progress !== null) {
+    throw new WorklogError('SUPPORT_PROGRESS_FORBIDDEN', 403);
+  }
+}
+
+export function collectAggregateRefreshTargets(previous: any[], current: any[]) {
+  const targets = new Map<string, string>();
+  for (const row of [...previous, ...current]) {
+    const taskId = row?.task_id || row?.task?.id;
+    const projectId = row?.project_id || row?.task?.project_id;
+    if (taskId && projectId) targets.set(taskId, projectId);
+  }
+  return targets;
+}
+
 export function resolveEffectiveRevision(worklog: any, revisions: any[]) {
   const effectiveRows = revisions.filter((row) => Number(row.is_effective) === 1);
   const effectiveRevision = effectiveRows[0] || null;
@@ -480,7 +496,8 @@ export async function submitMorning(db: any, actorContext: ActorContextServer, b
     validateEntryAssignmentShape(entry);
     validateIncrement(entry.planned_minutes, 30);
     if (entry.task_id) {
-      await assignmentForEntry(db, employeeId, body.local_work_date, entry);
+      const assignment = await assignmentForEntry(db, employeeId, body.local_work_date, entry);
+      validateMorningAssignmentRole(entry, assignment);
       const actual = await currentTaskActual(db, entry.task_id);
       if (Number(actual.current_progress || 0) >= 100) throw new WorklogError('TASK_ALREADY_COMPLETED', 409, { task_id: entry.task_id });
     }
@@ -620,6 +637,9 @@ async function submitEodRevision(db: any, actor: WorklogActor, worklog: any, bod
   };
   const statements: any[] = [];
   statements.push(db.prepare(`UPDATE daily_worklog_revisions SET is_effective=0 WHERE worklog_id=? AND is_effective=1`).bind(worklog.id));
+  const previousContributions = mode !== 'INITIAL_EOD' && worklog.current_eod_revision_id
+    ? await db.prepare(`SELECT task_id,project_id FROM task_actual_contributions WHERE worklog_id=? AND is_effective=1`).bind(worklog.id).all()
+    : { results: [] };
   if (mode !== 'INITIAL_EOD' && worklog.current_eod_revision_id) {
     statements.push(db.prepare(`UPDATE task_actual_contributions SET is_effective=0 WHERE worklog_id=? AND is_effective=1`).bind(worklog.id));
     statements.push(db.prepare(`UPDATE employee_capacity_events SET approval_status='SUPERSEDED' WHERE worklog_id=? AND approval_status='EFFECTIVE'`).bind(worklog.id));
@@ -656,7 +676,7 @@ async function submitEodRevision(db: any, actor: WorklogActor, worklog: any, bod
      VALUES (?,?,?,'EOD',?,?,?,?,?,?,1,?,?,?,?,?)`
   ).bind(revisionId, worklog.id, nextRevisionNumber, previousRevisionId, actor.worker.id, now.toISOString(), body.reason || null,
     mode, stableStringify(body), actor.actorMode, actor.actorUserId, worklog.employee_id, actor.testSessionId, idem.hash));
-  const affectedTasks = new Map<string, string>();
+  const affectedTasks = collectAggregateRefreshTargets(previousContributions.results || [], []);
   for (const entry of validated) {
     const entryId = id('wle');
     statements.push(db.prepare(
@@ -675,7 +695,9 @@ async function submitEodRevision(db: any, actor: WorklogActor, worklog: any, bod
       entry.leave_link_id || null, now.toISOString()));
     if (entry.assignment) {
       const projectId = entry.assignment.task.project_id;
-      affectedTasks.set(entry.task_id, projectId);
+      for (const [taskId, targetProjectId] of collectAggregateRefreshTargets([], [{ task_id: entry.task_id, project_id: projectId }])) {
+        affectedTasks.set(taskId, targetProjectId);
+      }
       statements.push(db.prepare(
         `INSERT INTO task_actual_contributions (id,task_id,project_id,employee_id,worklog_id,revision_id,local_work_date,
          assignment_role,raw_actual_minutes,approved_actual_minutes,progress_before,progress_after,remaining_estimated_minutes,
