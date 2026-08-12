@@ -1,10 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import {
   WorklogError,
+  buildTaskActualView,
   isMorningLate,
+  resolveEffectiveRevision,
   stableStringify,
   utcToLocalDateTime,
   validateIncrement,
+  validateEntryAssignmentShape,
   validatePrimaryProgress,
   validateTimeRanges,
   zonedLocalToUtc,
@@ -69,5 +72,33 @@ describe('Checkpoint 2 daily worklog policy', () => {
   it('recognizes impossible calendar dates through public capacity validation helpers', () => {
     expect(() => zonedLocalToUtc('2026-02-28', '09:00', 'Asia/Seoul')).not.toThrow();
     expect(utcToLocalDateTime(zonedLocalToUtc('2026-02-28', '09:00', 'Asia/Seoul'), 'Asia/Seoul').date).toBe('2026-02-28');
+  });
+
+  it('returns exactly one effective revision aligned to the worklog header', () => {
+    expect(resolveEffectiveRevision({ status: 'MANAGER_CORRECTED', current_revision_number: 3 }, [
+      { id: 'r1', revision_number: 1, is_effective: 0 },
+      { id: 'r2', revision_number: 2, is_effective: 0 },
+      { id: 'r3', revision_number: 3, is_effective: 1 },
+    ])).toMatchObject({ effectiveRevisionCount: 1, integrity: 'PASS', effectiveRevision: { id: 'r3' } });
+
+    expect(resolveEffectiveRevision({ status: 'EOD_SUBMITTED', current_revision_number: 2 }, [
+      { id: 'r1', revision_number: 1, is_effective: 1 },
+      { id: 'r2', revision_number: 2, is_effective: 1 },
+    ])).toMatchObject({ effectiveRevisionCount: 2, integrity: 'FAIL' });
+  });
+
+  it('never serializes an assigned Task Actual as an empty object', () => {
+    const view = buildTaskActualView('task-1', 'project-1', {}, []);
+    expect(view.taskActual).toEqual({
+      taskId: 'task-1', rawActualMinutes: 0, approvedActualMinutes: 0, currentProgress: 0,
+      remainingEstimatedMinutes: 0, completionReported: false, lastActualWorkDate: null,
+      lastEffectiveWorklogId: null, lastEffectiveRevisionId: null, progressSource: 'TASK_FALLBACK', updatedAt: null,
+    });
+  });
+
+  it('blocks task-scoped or progress input without an assignment while allowing non-task duty', () => {
+    expectCode(() => validateEntryAssignmentShape({ work_category: 'NORMAL_ASSIGNED_TASK', actual_minutes: 60 }), 'ASSIGNMENT_REQUIRED');
+    expectCode(() => validateEntryAssignmentShape({ work_category: 'COMPANY_DUTY', actual_minutes: 60, progress_after: 10 }), 'ASSIGNMENT_REQUIRED');
+    expect(() => validateEntryAssignmentShape({ work_category: 'COMPANY_DUTY', actual_minutes: 60 })).not.toThrow();
   });
 });

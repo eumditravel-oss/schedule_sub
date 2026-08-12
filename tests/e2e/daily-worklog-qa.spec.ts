@@ -2,75 +2,94 @@ import { expect, test } from '@playwright/test';
 import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
 
-const screenshotDir = process.env.CP2_SCREENSHOT_DIR;
-
+const screenshotDir = process.env.CP21_SCREENSHOT_DIR || process.env.CP2_SCREENSHOT_DIR;
 async function capture(page: any, fileName: string) {
   if (!screenshotDir) return;
   await mkdir(screenshotDir, { recursive: true });
   await page.screenshot({ path: path.join(screenshotDir, fileName), fullPage: true });
 }
 
-test.describe('Checkpoint 2 Daily Worklog QA Harness', () => {
-  test('shows VN/KR office policy and separates executive read-only mode', async ({ page, request }) => {
+test.describe('Checkpoint 2.1 Worklog QA consistency', () => {
+  test('ignores a late Actor A response after Actor B becomes current', async ({ page }) => {
+    await page.addInitScript(() => localStorage.setItem('schedule_current_worker_id', 'wrk_03'));
+    await page.route('**/api/v3/worklogs/context?*', async (route) => {
+      const employeeId = new URL(route.request().url()).searchParams.get('employee_id');
+      if (employeeId === 'wrk_03') await new Promise((resolve) => setTimeout(resolve, 1200));
+      await route.continue();
+    });
     await page.goto('/qa/daily-worklog');
-    await expect(page.getByTestId('daily-worklog-qa-page')).toBeVisible();
-    await expect(page.getByText('Checkpoint 2: Actual / Capacity Foundation')).toBeVisible();
-
+    await expect(page.getByTestId('worker-select-btn')).toContainText('Thanh Phuong');
     await page.getByTestId('worker-select-btn').click();
     await page.getByRole('button', { name: /박용진 수석/ }).click();
     await expect(page.getByTestId('qa-office')).toContainText('KR · Asia/Seoul');
-    await expect(page.getByTestId('qa-capacity')).toContainText('420 min');
-    await capture(page, '02-korea-capacity-420.png');
+    await page.waitForTimeout(1400);
+    await expect(page.getByTestId('qa-office')).toContainText('KR · Asia/Seoul');
+    await expect(page.getByTestId('daily-worklog-qa-page')).toHaveAttribute('data-context-key', /wrk_02::2026-08-12::NO_TASK/);
+  });
+
+  test('separates draft/stored state and keeps actor context atomic', async ({ page, request }) => {
+    await page.goto('/qa/daily-worklog');
+    await expect(page.getByText('QA HARNESS')).toBeVisible();
+    await expect(page.getByText(/최종 직원 업무일지 UI가 아닙니다|không phải giao diện nhật ký công việc chính thức/)).toBeVisible();
 
     await page.getByTestId('worker-select-btn').click();
     await page.getByRole('button', { name: /Thanh Phuong/ }).click();
-    await expect(page.getByTestId('qa-result')).toHaveCount(0);
+    await expect(page.getByTestId('qa-loading')).toHaveCount(0);
+    await expect(page.getByTestId('daily-worklog-qa-page')).toHaveAttribute('data-context-key', /wrk_03::2026-08-12::tsk_/);
+    await expect(page.getByTestId('qa-revision')).toContainText('3');
+    await expect(page.getByTestId('qa-stored-fact')).toContainText('MANAGER_CORRECTED');
+    await expect(page.getByTestId('qa-stored-fact')).toContainText('465 min');
+    await expect(page.getByTestId('qa-audit')).toContainText('Revision 3 · MANAGER_CORRECTION');
+    await expect(page.getByTestId('qa-aggregate')).not.toContainText('{}');
+    await expect(page.getByTestId('qa-aggregate')).toContainText('rawActualMinutes');
+    await page.getByTestId('qa-actual').fill('540');
+    await expect(page.getByTestId('qa-variance')).toContainText('+60');
+    await expect(page.getByTestId('qa-stored-fact')).toContainText('465 min');
+    await capture(page, '01-draft-stored-separated.png');
+
+    await page.getByTestId('worker-select-btn').click();
+    await page.getByRole('button', { name: /박용진 수석/ }).click();
+    await page.getByTestId('worker-select-btn').click();
+    await page.getByRole('button', { name: /Thanh Phuong/ }).click();
+    await expect(page.getByTestId('daily-worklog-qa-page')).toHaveAttribute('data-context-key', /wrk_03::2026-08-12::tsk_/);
     await expect(page.getByTestId('qa-office')).toContainText('VN · Asia/Ho_Chi_Minh');
-    await expect(page.getByTestId('qa-hours')).toContainText('08:00–17:00 · 12:00–13:00');
-    await expect(page.getByTestId('qa-capacity')).toContainText('480 min');
-    await expect(page.getByTestId('qa-assignment-role')).toContainText('PRIMARY');
-    await expect(page.getByTestId('qa-role-guard')).toContainText('PRIMARY_PROGRESS_ALLOWED');
-    await expect(page.getByTestId('qa-stored-fact')).toContainText('Stored Actual');
-    await capture(page, '01-vietnam-capacity-480.png');
-    await capture(page, '03-primary-eod-actual-progress-revision.png');
+    await expect(page.getByTestId('qa-stored-fact')).toContainText('465 min');
+    await capture(page, '02-actor-switch-context-consistent.png');
 
     await page.getByTestId('worker-select-btn').click();
     await page.getByRole('button', { name: /Manh Cuong/ }).click();
-    await expect(page.getByTestId('qa-result')).toHaveCount(0);
-    await expect(page.getByTestId('qa-assignment-role')).toContainText('CO_ASSIGNEE');
+    await expect(page.getByTestId('qa-assignment-role')).toContainText('SUPPORT');
+    await expect(page.getByTestId('qa-support-notice')).toBeVisible();
+    await expect(page.getByTestId('qa-progress')).toHaveCount(0);
+    await expect(page.getByTestId('qa-remaining')).toHaveCount(0);
     await expect(page.getByTestId('qa-role-guard')).toContainText('SUPPORT_PROGRESS_FORBIDDEN');
-    await capture(page, '05-support-progress-forbidden.png');
+    await capture(page, '03-support-role-guard.png');
 
     await page.getByTestId('worker-select-btn').click();
     await page.getByRole('button', { name: /Quoc Nhut/ }).click();
-    await expect(page.getByTestId('qa-result')).toHaveCount(0);
-    await expect(page.getByTestId('qa-stored-fact')).toContainText('60 min · PENDING_REVIEW');
-    await capture(page, '04-overtime-pending-review.png');
+    await expect(page.getByTestId('qa-task-select')).toHaveValue('');
+    await expect(page.getByTestId('qa-aggregate-empty')).toBeVisible();
+    await expect(page.getByTestId('qa-category')).toHaveValue('COMPANY_DUTY');
+    await expect(page.getByTestId('qa-progress')).toHaveCount(0);
+    await expect(page.getByTestId('qa-role-guard')).toContainText('UNASSIGNED_TASK_WRITE_BLOCKED');
+    await capture(page, '04-unassigned-non-task-policy.png');
+
+    const unassignedTask = await request.post('/api/v3/worklogs/new/eod', {
+      headers: {
+        'Content-Type': 'application/json', 'Idempotency-Key': `cp21-unassigned-${Date.now()}`,
+        'x-actor-employee-id': 'wrk_05', 'x-actor-user-id': 'wrk_05', 'x-test-session-id': 'CP21_E2E',
+      },
+      data: { employee_id: 'wrk_05', local_work_date: '2026-08-13', entries: [{ task_id: 'tsk_1785983270469_00jy', work_category: 'NORMAL_ASSIGNED_TASK', actual_minutes: 60, work_result: 'forbidden' }], gap_reason_code: 'RECORDING_OMISSION', gap_reason_text: 'QA' },
+    });
+    expect(unassignedTask.status()).toBe(403);
+    expect(['WORKLOG_PERMISSION_DENIED', 'ASSIGNMENT_REQUIRED']).toContain((await unassignedTask.json()).error.code);
 
     await page.getByTestId('worker-select-btn').click();
     await page.getByRole('button', { name: /CEO 보기 전용/ }).click();
-    await expect(page.getByTestId('qa-result')).toHaveCount(0);
-    await expect(page.getByTestId('qa-office')).toContainText('KR · Asia/Seoul');
-    await expect(page.getByTestId('qa-hours')).toContainText('09:00–17:00 · 12:00–13:00');
-    await expect(page.getByTestId('qa-capacity')).toContainText('420 min');
-    await expect(page.getByTestId('qa-readonly-guard')).toBeVisible();
-    await expect(page.getByTestId('qa-submit-morning')).toBeDisabled();
-    await expect(page.getByTestId('qa-submit-eod')).toBeDisabled();
-    await expect(page.getByTestId('qa-role-guard')).toContainText('WORKLOG_READ_ONLY_ACTOR');
-    await capture(page, '06-ceo-read-only-403.png');
-
-    const response = await request.post('/api/v3/worklogs/morning', {
-      headers: {
-        'Content-Type': 'application/json',
-        'Idempotency-Key': `e2e-ceo-${Date.now()}`,
-        'x-actor-employee-id': 'wrk_00_ceo',
-        'x-actor-user-id': 'wrk_00_ceo',
-        'x-selected-view-employee-id': 'wrk_03',
-        'x-test-session-id': 'CP2_E2E_READ_ONLY',
-      },
-      data: { employee_id: 'wrk_00_ceo', local_work_date: '2026-08-12', entries: [{ work_category: 'COMPANY_DUTY', planned_minutes: 60 }] },
-    });
-    expect(response.status()).toBe(403);
-    expect((await response.json()).error.code).toBe('WORKLOG_READ_ONLY_ACTOR');
+    await expect(page.getByTestId('qa-submit-morning')).toHaveCount(0);
+    await expect(page.getByTestId('qa-submit-eod')).toHaveCount(0);
+    await page.getByTestId('qa-verify-403').click();
+    await expect(page.getByTestId('qa-result')).toContainText('WORKLOG_READ_ONLY_ACTOR · HTTP 403');
+    await capture(page, '05-executive-readonly-403.png');
   });
 });
