@@ -97,6 +97,13 @@ describe.runIf(enabled)('Checkpoint 3A local restored D1 integration', () => {
     expect(countsAfter).toEqual(countsBefore);
     expect(await officialDataFingerprint(platform.env.DB)).toBe(before);
 
+    await platform.env.DB.prepare(`UPDATE shadow_schedule_versions SET status='STALE' WHERE run_id=?`).bind(first.run.run_id).run();
+    const reactivated = await runShadowForActor(platform.env.DB, managerActor, {
+      project_id: projectId, trigger_type: 'MANUAL', planning_cutoff_utc: '2026-08-12T05:00:00.000Z', planning_cutoff_local_date: '2026-08-12',
+    }, 'checkpoint3a-local-run-reactivate');
+    expect(reactivated.reused).toBe(true);
+    expect(reactivated.versions.every((version: any) => version.status === 'CURRENT')).toBe(true);
+
     const current = await getCurrentProjectShadow(platform.env.DB, executiveActor, projectId);
     expect(current.run.run_id).toBe(first.run.run_id);
     expect(current.officialForecastChanged).toBe(false);

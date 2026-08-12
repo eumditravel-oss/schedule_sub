@@ -603,9 +603,20 @@ export async function executeShadowRun(db: any, options: RunOptions) {
   const existingRun = await db.prepare(`SELECT run_id FROM schedule_recalculation_runs WHERE engine_version=? AND input_fingerprint=?`).bind(SHADOW_ENGINE_VERSION, inputFingerprint).first();
   if (existingRun) {
     const reusedRun = await readRun(db, existingRun.run_id);
-    await db.prepare(`UPDATE schedule_recalculation_requests SET status=?1,updated_at=CURRENT_TIMESTAMP WHERE request_id=?2`)
-      .bind(reusedRun.run.status === 'BLOCKED' ? 'FAILED_BLOCKED' : 'COMPLETED', requestId).run();
-    return { ...reusedRun, reused: true, officialForecastChanged: false };
+    const reusedVersions = reusedRun.versions || [];
+    const activationStatements = reusedVersions.flatMap((version: any) => [
+      db.prepare(`UPDATE shadow_schedule_versions SET status='STALE' WHERE project_id=?1 AND status='CURRENT' AND run_id<>?2`)
+        .bind(version.project_id, existingRun.run_id),
+      db.prepare(`UPDATE shadow_schedule_versions SET status=?1 WHERE shadow_version_id=?2`)
+        .bind(reusedRun.run.status === 'BLOCKED' ? 'BLOCKED' : 'CURRENT', version.shadow_version_id),
+    ]);
+    await db.batch([
+      ...activationStatements,
+      db.prepare(`UPDATE schedule_recalculation_requests SET status=?1,updated_at=CURRENT_TIMESTAMP WHERE request_id=?2`)
+        .bind(reusedRun.run.status === 'BLOCKED' ? 'FAILED_BLOCKED' : 'COMPLETED', requestId),
+    ]);
+    const reactivatedRun = await readRun(db, existingRun.run_id);
+    return { ...reactivatedRun, reused: true, officialForecastChanged: false };
   }
 
   const officialBefore = await officialDataFingerprint(db);
@@ -985,7 +996,7 @@ export async function getCurrentProjectShadow(db: any, actorContext: ActorContex
   const actor = await resolveShadowActor(db, actorContext);
   const current = await db.prepare(`SELECT run_id FROM shadow_schedule_versions
     WHERE project_id=? AND status IN ('CURRENT','BLOCKED','STALE')
-    ORDER BY shadow_version_number DESC LIMIT 1`).bind(projectId).first();
+    ORDER BY CASE status WHEN 'CURRENT' THEN 0 WHEN 'BLOCKED' THEN 1 ELSE 2 END, shadow_version_number DESC LIMIT 1`).bind(projectId).first();
   if (!current) return { run: null, versions: [], tasks: [], allocations: [], impacts: [], diffs: [], officialForecastChanged: false };
   return { ...(await readRun(db, current.run_id, actor)), officialForecastChanged: false };
 }
