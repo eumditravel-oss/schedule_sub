@@ -479,6 +479,11 @@ async function submitEodRevision(db: any, actor: WorklogActor, worklog: any, bod
   const revisionNumber = Number(worklog.current_revision_number || 0) + 1;
   if (mode !== 'INITIAL_EOD' && Number(body.expected_revision) !== Number(worklog.current_revision_number)) throw new WorklogError('VERSION_CONFLICT', 409);
   const revisionId = id('wlr');
+  const latestRevision = Number(worklog.current_revision_number || 0) > 0
+    ? await db.prepare(`SELECT id FROM daily_worklog_revisions WHERE worklog_id=? AND revision_number=?`)
+      .bind(worklog.id, Number(worklog.current_revision_number)).first()
+    : null;
+  const previousRevisionId = latestRevision?.id || worklog.current_eod_revision_id || worklog.current_morning_revision_id || null;
   const deadline = worklog.self_edit_deadline_utc || await getSelfEditDeadline(db, worklog.employee_id, worklog.local_work_date);
   const retroactive = mode === 'INITIAL_EOD' && now.getTime() > new Date(deadline).getTime();
   const status = isManager ? 'MANAGER_CORRECTED' : mode === 'SELF_REVISION' ? 'SELF_REVISED' : retroactive ? 'RETROACTIVE_PENDING_REVIEW' : 'EOD_SUBMITTED';
@@ -528,7 +533,7 @@ async function submitEodRevision(db: any, actor: WorklogActor, worklog: any, bod
     `INSERT INTO daily_worklog_revisions (id,worklog_id,revision_number,phase,previous_revision_id,created_by_employee_id,
      created_at,reason,change_type,payload_snapshot,is_effective,actor_mode,actor_user_id,subject_employee_id,test_session_id,request_fingerprint)
      VALUES (?,?,?,'EOD',?,?,?,?,?,?,1,?,?,?,?,?)`
-  ).bind(revisionId, worklog.id, revisionNumber, worklog.current_eod_revision_id || null, actor.worker.id, now.toISOString(), body.reason || null,
+  ).bind(revisionId, worklog.id, revisionNumber, previousRevisionId, actor.worker.id, now.toISOString(), body.reason || null,
     mode, stableStringify(body), actor.actorMode, actor.actorUserId, worklog.employee_id, actor.testSessionId, idem.hash));
   const affectedTasks = new Map<string, string>();
   for (const entry of validated) {
