@@ -1,4 +1,4 @@
-export const SHADOW_ENGINE_VERSION = '3A.1.3';
+export const SHADOW_ENGINE_VERSION = '3A.1.4';
 
 export type ShadowConfidence = 'HIGH' | 'PROVISIONAL' | 'LOW' | 'BLOCKED';
 export type ApprovalClassification = 'AUTO_APPLY_ELIGIBLE' | 'APPROVAL_REQUIRED' | 'BLOCKED' | 'NO_CHANGE';
@@ -536,49 +536,71 @@ export function runShadowScheduleEngine(rawInput: ShadowEngineInput): ShadowEngi
   const unscheduled = new Set(input.tasks.map((task) => task.id));
   let prioritySequence = 0;
 
+  const releaseAfterWorkLag = (
+    task: ShadowTaskInput,
+    releaseUtc: string | null,
+    releaseLocalDate: string | null,
+    lagWorkMinutes: number,
+  ): { date: string; offsetMinutes: number } => {
+    let employeeId = resolveEffectivePrimary(task, releaseLocalDate || input.planningCutoffLocalDate);
+    let employee = employeeId ? employeeMap.get(employeeId) : null;
+    let date = releaseUtc && employee ? utcToLocalDate(releaseUtc, employee.timezone) : releaseLocalDate || input.planningCutoffLocalDate;
+    employeeId = resolveEffectivePrimary(task, date);
+    employee = employeeId ? employeeMap.get(employeeId) : null;
+    if (releaseUtc && employee) date = utcToLocalDate(releaseUtc, employee.timezone);
+    let offsetMinutes = releaseUtc && employee
+      ? workMinuteOffset(utcToLocalTime(releaseUtc, employee.timezone), employee)
+      : employee?.defaultCapacityMinutes || 0;
+    let remainingLag = Math.max(0, lagWorkMinutes);
+    if (remainingLag === 0) return { date, offsetMinutes };
+
+    for (const candidateDate of capacityDates.filter((candidate) => candidate >= date)) {
+      const candidateEmployeeId = resolveEffectivePrimary(task, candidateDate);
+      const candidateEmployee = candidateEmployeeId ? employeeMap.get(candidateEmployeeId) : null;
+      const day = candidateEmployeeId ? capacity.get(`${candidateEmployeeId}|${candidateDate}`) : null;
+      if (!candidateEmployee || !day || day.total <= 0) continue;
+      const startOffset = candidateDate === date ? offsetMinutes : 0;
+      const availableAfterRelease = Math.max(0, Math.min(day.total, candidateEmployee.defaultCapacityMinutes - startOffset));
+      if (remainingLag < availableAfterRelease) return { date: candidateDate, offsetMinutes: startOffset + remainingLag };
+      remainingLag -= availableAfterRelease;
+      date = nextDate(candidateDate);
+      offsetMinutes = 0;
+      if (remainingLag === 0) return { date, offsetMinutes };
+    }
+    return { date, offsetMinutes };
+  };
+
   const earliestFromPredecessors = (task: ShadowTaskInput): { date: string; releaseOffsetMinutes: number; dependencyResult: string; reasons: string[] } => {
-    let earliest = input.planningCutoffLocalDate;
-    let releaseOffsetMinutes = 0;
+    let latestRelease = { date: input.planningCutoffLocalDate, offsetMinutes: 0 };
     const reasons: string[] = [];
     for (const dependency of predecessorMap.get(task.id) || []) {
       const predecessor = taskMap.get(dependency.predecessorTaskId);
       const predecessorResult = results.get(dependency.predecessorTaskId);
+      const predecessorAllocation = [...allocations].reverse().find((allocation) => allocation.taskId === dependency.predecessorTaskId);
+      let releaseUtc: string | null = predecessorAllocation?.endsAtUtc || null;
       let releaseDate: string | null = predecessorResult?.shadowEnd || predecessor?.officialEnd || null;
       if (predecessor?.completed && predecessor.actualEndUtc) {
-        const successorEmployeeId = resolveEffectivePrimary(task, input.planningCutoffLocalDate);
-        const successorTimezone = successorEmployeeId ? employeeMap.get(successorEmployeeId)?.timezone : null;
-        const actualDate = successorTimezone
-          ? utcToLocalDate(predecessor.actualEndUtc, successorTimezone)
-          : predecessor.actualEndUtc.slice(0, 10);
-        releaseDate = nextDate(actualDate);
+        releaseUtc = predecessor.actualEndUtc;
+        releaseDate = predecessor.actualEndLocalDate || predecessor.actualEndUtc.slice(0, 10);
         reasons.push('ACTUAL_COMPLETION_RELEASE');
       } else if (predecessor?.completed && predecessor.actualEndLocalDate) {
-        releaseDate = nextDate(predecessor.actualEndLocalDate);
+        releaseUtc = null;
+        releaseDate = predecessor.actualEndLocalDate;
         reasons.push('ACTUAL_COMPLETION_RELEASE');
-      } else if (releaseDate) {
-        releaseDate = nextDate(releaseDate);
       }
-      if (releaseDate && releaseDate > earliest) earliest = releaseDate;
-      if (dependency.lagWorkMinutes > 0) {
-        reasons.push('DEPENDENCY_LAG');
-        const employeeId = resolveEffectivePrimary(task, releaseDate || earliest);
-        let lagRemaining = dependency.lagWorkMinutes;
-        let lagDate = releaseDate || earliest;
-        for (const day of input.capacityDays.filter((item) => item.employeeId === employeeId && item.localWorkDate >= lagDate && item.availableCapacityMinutes > 0)) {
-          if (lagRemaining < day.availableCapacityMinutes) {
-            lagDate = day.localWorkDate;
-            releaseOffsetMinutes = Math.max(releaseOffsetMinutes, lagRemaining);
-            lagRemaining = 0;
-            break;
-          }
-          lagRemaining -= day.availableCapacityMinutes;
-          lagDate = nextDate(day.localWorkDate);
-          releaseOffsetMinutes = 0;
-        }
-        if (lagDate > earliest) earliest = lagDate;
+      if (dependency.lagWorkMinutes > 0) reasons.push('DEPENDENCY_LAG');
+      const release = releaseAfterWorkLag(task, releaseUtc, releaseDate, dependency.lagWorkMinutes);
+      if (release.date > latestRelease.date ||
+          (release.date === latestRelease.date && release.offsetMinutes > latestRelease.offsetMinutes)) {
+        latestRelease = release;
       }
     }
-    return { date: earliest, releaseOffsetMinutes, dependencyResult: (predecessorMap.get(task.id) || []).length ? 'CONFIRMED_FS_APPLIED' : 'NO_CONFIRMED_DEPENDENCY', reasons };
+    return {
+      date: latestRelease.date,
+      releaseOffsetMinutes: latestRelease.offsetMinutes,
+      dependencyResult: (predecessorMap.get(task.id) || []).length ? 'CONFIRMED_FS_APPLIED' : 'NO_CONFIRMED_DEPENDENCY',
+      reasons,
+    };
   };
 
   const canSchedule = (taskId: string) => (predecessorMap.get(taskId) || []).every((dependency) =>

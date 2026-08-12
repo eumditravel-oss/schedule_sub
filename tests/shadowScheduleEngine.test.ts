@@ -68,6 +68,41 @@ describe('Checkpoint 3A A-Z shadow engine simulations', () => {
     expect(canonicalJson(source.projects)).toBe(before);
   });
 
+  it('A2 — future Shadow FS zero-lag releases a successor at the predecessor finish minute', () => {
+    const result = runShadowScheduleEngine(input({
+      planningCutoffUtc: '2026-08-12T00:00:00.000Z',
+      tasks: [
+        task('task-1', { remainingEstimatedMinutes: 60, officialStart: '2026-08-12', officialEnd: '2026-08-12' }),
+        task('task-2', { wbsOrder: 2, remainingEstimatedMinutes: 60, officialStart: '2026-08-12', officialEnd: '2026-08-12' }),
+      ],
+      dependencies: [{ id: 'dep-a2', projectId: 'project-a', predecessorTaskId: 'task-1', successorTaskId: 'task-2', type: 'FINISH_TO_START', lagWorkMinutes: 0, status: 'CONFIRMED' }],
+    }));
+    expect(result.allocations.find((allocation) => allocation.taskId === 'task-1')).toMatchObject({
+      startsAtUtc: '2026-08-12T00:00:00.000Z', endsAtUtc: '2026-08-12T01:00:00.000Z',
+    });
+    expect(result.allocations.find((allocation) => allocation.taskId === 'task-2')).toMatchObject({
+      startsAtUtc: '2026-08-12T01:00:00.000Z', endsAtUtc: '2026-08-12T02:00:00.000Z',
+    });
+  });
+
+  it('A3 — multiple predecessor releases compare independent date and work-lag instants', () => {
+    const result = runShadowScheduleEngine(input({
+      planningCutoffUtc: '2026-08-12T00:00:00.000Z',
+      tasks: [
+        task('task-1', { completed: true, remainingEstimatedMinutes: 0, actualEndUtc: '2026-08-12T08:00:00.000Z' }),
+        task('task-2', { completed: true, remainingEstimatedMinutes: 0, actualEndUtc: '2026-08-13T08:00:00.000Z' }),
+        task('task-3', { wbsOrder: 3, remainingEstimatedMinutes: 60 }),
+      ],
+      dependencies: [
+        { id: 'dep-a3-a', projectId: 'project-a', predecessorTaskId: 'task-1', successorTaskId: 'task-3', type: 'FINISH_TO_START', lagWorkMinutes: 300, status: 'CONFIRMED' },
+        { id: 'dep-a3-b', projectId: 'project-a', predecessorTaskId: 'task-2', successorTaskId: 'task-3', type: 'FINISH_TO_START', lagWorkMinutes: 0, status: 'CONFIRMED' },
+      ],
+    }));
+    expect(result.allocations.find((allocation) => allocation.taskId === 'task-3')).toMatchObject({
+      localWorkDate: '2026-08-14', startsAtUtc: '2026-08-14T00:00:00.000Z',
+    });
+  });
+
   it('B — other-project actual capacity forces cross-project impact and approval', () => {
     const result = runShadowScheduleEngine(input({
       projects: [
