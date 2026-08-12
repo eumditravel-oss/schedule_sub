@@ -16,6 +16,8 @@ test.describe('Checkpoint 2 Daily Worklog QA Harness', () => {
     await expect(page.getByTestId('daily-worklog-qa-page')).toBeVisible();
     await expect(page.getByText('Checkpoint 2: Actual / Capacity Foundation')).toBeVisible();
 
+    await page.getByTestId('worker-select-btn').click();
+    await page.getByRole('button', { name: /박용진 수석/ }).click();
     await expect(page.getByTestId('qa-office')).toContainText('KR · Asia/Seoul');
     await expect(page.getByTestId('qa-capacity')).toContainText('420 min');
     await capture(page, '02-korea-capacity-420.png');
