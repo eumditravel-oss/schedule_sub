@@ -789,7 +789,7 @@ export function runShadowScheduleEngine(rawInput: ShadowEngineInput): ShadowEngi
       }
       const usedBefore = usedMinutes.get(key) || 0;
       const dependencyOffset = localDate === dependencyStart.date ? dependencyStart.releaseOffsetMinutes : 0;
-      const constraintOffset = constraintLocalDate === localDate && constraintLocalTime
+      const constraintOffset = constraint?.type !== 'FIXED_END' && constraintLocalDate === localDate && constraintLocalTime
         ? workMinuteOffset(constraintLocalTime, employee)
         : 0;
       const requiredOffset = Math.max(dependencyOffset, constraintOffset);
@@ -817,8 +817,16 @@ export function runShadowScheduleEngine(rawInput: ShadowEngineInput): ShadowEngi
       approvalRequired = true;
       reasons.push('CAPACITY_CALCULATION_FAILED');
     }
-    if (constraint?.type === 'FIXED_END' && constraintLocalDate && shadowEnd && shadowEnd > constraintLocalDate) {
-      validationIssues.push({ code: 'FIXED_END_VIOLATION', taskId: task.id, projectId: task.projectId, details: { fixedEnd: constraintLocalDate, shadowEnd } });
+    const lastTaskAllocation = [...allocations].reverse().find((allocation) => allocation.taskId === task.id);
+    const fixedEndOverrun = constraint?.type === 'FIXED_END' && constraintLocalDate && shadowEnd && (
+      shadowEnd > constraintLocalDate || Boolean(constraint.timestampUtc && lastTaskAllocation?.endsAtUtc
+        && new Date(lastTaskAllocation.endsAtUtc).getTime() > new Date(constraint.timestampUtc).getTime())
+    );
+    if (fixedEndOverrun) {
+      validationIssues.push({
+        code: 'FIXED_END_VIOLATION', taskId: task.id, projectId: task.projectId,
+        details: { fixedEnd: constraint.timestampUtc || constraintLocalDate, shadowEnd, shadowEndUtc: lastTaskAllocation?.endsAtUtc || null },
+      });
       approvalRequired = true;
       reasons.push('FIXED_END_VIOLATION');
       constraintResult = 'FIXED_END_VIOLATION';

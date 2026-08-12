@@ -261,6 +261,23 @@ describe('Checkpoint 3A A-Z shadow engine simulations', () => {
     expect(result.tasks[0].approvalRequired).toBe(true);
   });
 
+  it('R2 — timestamp-only FIXED_END is an end deadline, never a start offset', () => {
+    const result = runShadowScheduleEngine(input({
+      tasks: [task('task-1', { remainingEstimatedMinutes: 120 })],
+      constraints: [{ id: 'c-ts-end', taskId: 'task-1', type: 'FIXED_END', date: null, timestampUtc: '2026-08-12T05:00:00.000Z', minutes: null, status: 'ACTIVE' }],
+    }));
+    expect(result.allocations[0].startsAtUtc).toBe('2026-08-12T00:00:00.000Z');
+    expect(result.allocations.at(-1)?.endsAtUtc).toBe('2026-08-12T02:00:00.000Z');
+    expect(result.tasks[0].impactReasonCodes).not.toContain('FIXED_END_VIOLATION');
+
+    const overrun = runShadowScheduleEngine(input({
+      tasks: [task('task-1', { remainingEstimatedMinutes: 360 })],
+      constraints: [{ id: 'c-ts-end-overrun', taskId: 'task-1', type: 'FIXED_END', date: null, timestampUtc: '2026-08-12T05:00:00.000Z', minutes: null, status: 'ACTIVE' }],
+    }));
+    expect(overrun.tasks[0].impactReasonCodes).toContain('FIXED_END_VIOLATION');
+    expect(overrun.tasks[0]).toMatchObject({ constraintResult: 'FIXED_END_VIOLATION', approvalRequired: true });
+  });
+
   it('S — pending overtime is informational and blocks auto-apply eligibility', () => {
     const result = runShadowScheduleEngine(input({ pendingOvertimeTaskIds: ['task-1'] }));
     expect(result.tasks[0].impactReasonCodes).toContain('PENDING_OVERTIME');
