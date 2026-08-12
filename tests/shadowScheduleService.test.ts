@@ -7,6 +7,7 @@ import {
   recordedWorkTimestampUtc,
   worklogHasShadowDataGap,
 } from '../worker/services/shadowScheduleService';
+import { isValidIsoLocalDate, isValidUtcTimestamp } from '../worker/services/shadowScheduleEngine';
 
 describe('Checkpoint 3A Shadow service timestamp mapping', () => {
   const employee = {
@@ -52,6 +53,17 @@ describe('Checkpoint 3A Shadow service timestamp mapping', () => {
       sourceWorklog: { current_eod_revision_id: 'revision-old', status: 'EOD_SUBMITTED' },
       sourceRevisionId: 'revision-old', effectiveRevisionIds: new Set(),
     })).toBe(false);
+  });
+
+  it('strictly validates constraint dates and canonical UTC timestamps', () => {
+    expect(isValidIsoLocalDate('2026-08-12')).toBe(true);
+    expect(isValidIsoLocalDate('2026-02-30')).toBe(false);
+    expect(isValidIsoLocalDate('2026-99-99')).toBe(false);
+    expect(isValidUtcTimestamp('2026-08-12T05:00:00.000Z')).toBe(true);
+    expect(isValidUtcTimestamp('2026-08-12T05:00:00Z')).toBe(true);
+    expect(isValidUtcTimestamp('2026-02-30T05:00:00Z')).toBe(false);
+    expect(isValidUtcTimestamp('2026-08-12T14:00:00+09:00')).toBe(false);
+    expect(isValidUtcTimestamp('not-an-iso-timestamp')).toBe(false);
   });
 
   it('returns null when the recorded work date or employee calendar is unavailable', () => {

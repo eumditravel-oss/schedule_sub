@@ -56,7 +56,7 @@ describe('Checkpoint 3A A-Z shadow engine simulations', () => {
   it('A — early completion releases successor on next valid local work date without official mutation', () => {
     const source = input({
       tasks: [
-        task('task-1', { completed: true, remainingEstimatedMinutes: 0, actualStartUtc: '2026-08-12T00:00:00.000Z', actualEndUtc: '2026-08-12T08:00:00.000Z' }),
+        task('task-1', { completed: true, remainingEstimatedMinutes: 0, actualStartUtc: '2026-08-12T00:00:00.000Z', actualEndUtc: '2026-08-12T01:00:00.000Z' }),
         task('task-2', { wbsOrder: 2, officialStart: '2026-08-14', officialEnd: '2026-08-17' }),
       ],
       dependencies: [{ id: 'dep-1', projectId: 'project-a', predecessorTaskId: 'task-1', successorTaskId: 'task-2', type: 'FINISH_TO_START', lagWorkMinutes: 0, status: 'CONFIRMED' }],
@@ -65,6 +65,7 @@ describe('Checkpoint 3A A-Z shadow engine simulations', () => {
     const result = runShadowScheduleEngine(source);
     expect(result.tasks.find((item) => item.taskId === 'task-1')?.shadowEnd).toBe('2026-08-12');
     expect(result.tasks.find((item) => item.taskId === 'task-2')?.shadowStart).toBe('2026-08-13');
+    expect(result.allocations.find((allocation) => allocation.taskId === 'task-2')?.startsAtUtc).toBe('2026-08-13T00:00:00.000Z');
     expect(canonicalJson(source.projects)).toBe(before);
   });
 
@@ -103,6 +104,38 @@ describe('Checkpoint 3A A-Z shadow engine simulations', () => {
     });
   });
 
+  it('A4 — dependency work-lag can release inside an approved-overtime window', () => {
+    const result = runShadowScheduleEngine(input({
+      planningCutoffUtc: '2026-08-12T00:00:00.000Z',
+      tasks: [
+        task('task-1', { completed: true, remainingEstimatedMinutes: 0, actualEndUtc: '2026-08-12T01:00:00.000Z' }),
+        task('task-2', { wbsOrder: 2, remainingEstimatedMinutes: 60 }),
+      ],
+      dependencies: [{ id: 'dep-a4', projectId: 'project-a', predecessorTaskId: 'task-1', successorTaskId: 'task-2', type: 'FINISH_TO_START', lagWorkMinutes: 480, status: 'CONFIRMED' }],
+      capacityDays: days('emp-kr').map((day) => day.localWorkDate === '2026-08-13'
+        ? { ...day, availableCapacityMinutes: 540, capacityWindowMinutes: 540, capacitySource: 'WORKDAY+APPROVED_OVERTIME' }
+        : day),
+    }));
+    expect(result.allocations.find((allocation) => allocation.taskId === 'task-2')).toMatchObject({
+      localWorkDate: '2026-08-13', startsAtUtc: '2026-08-13T09:00:00.000Z', endsAtUtc: '2026-08-13T10:00:00.000Z',
+    });
+  });
+
+  it('A5 — timestamp milestone releases a zero-lag successor at the same instant', () => {
+    const result = runShadowScheduleEngine(input({
+      planningCutoffUtc: '2026-08-12T00:00:00.000Z',
+      tasks: [
+        task('task-1', { remainingEstimatedMinutes: 0 }),
+        task('task-2', { wbsOrder: 2, remainingEstimatedMinutes: 60 }),
+      ],
+      constraints: [{ id: 'milestone-a5', taskId: 'task-1', type: 'MILESTONE', date: null, timestampUtc: '2026-08-12T01:00:00.000Z', minutes: null, status: 'ACTIVE' }],
+      dependencies: [{ id: 'dep-a5', projectId: 'project-a', predecessorTaskId: 'task-1', successorTaskId: 'task-2', type: 'FINISH_TO_START', lagWorkMinutes: 0, status: 'CONFIRMED' }],
+    }));
+    expect(result.allocations.find((allocation) => allocation.taskId === 'task-2')).toMatchObject({
+      localWorkDate: '2026-08-12', startsAtUtc: '2026-08-12T01:00:00.000Z',
+    });
+  });
+
   it('B — other-project actual capacity forces cross-project impact and approval', () => {
     const result = runShadowScheduleEngine(input({
       projects: [
@@ -135,11 +168,38 @@ describe('Checkpoint 3A A-Z shadow engine simulations', () => {
     expect(result.projects[0].approvalClassification).toBe('APPROVAL_REQUIRED');
   });
 
+  it('D2 — partial company duty remains an explicit approval reason even without date movement', () => {
+    const result = runShadowScheduleEngine(input({
+      planningCutoffUtc: '2026-08-12T00:00:00.000Z',
+      tasks: [task('task-1', { remainingEstimatedMinutes: 60, officialStart: '2026-08-12', officialEnd: '2026-08-12' })],
+      capacityDays: days('emp-kr').map((day) => day.localWorkDate === '2026-08-12'
+        ? { ...day, availableCapacityMinutes: 360, capacityWindowMinutes: 420, capacitySource: 'WORKDAY+COMPANY_DUTY+ACTUAL_CONSUMED' }
+        : day),
+    }));
+    expect(result.tasks[0].impactReasonCodes).toContain('COMPANY_DUTY');
+    expect(result.projects[0].approvalClassification).toBe('APPROVAL_REQUIRED');
+  });
+
   it('E — emergency leave capacity is zero once and is not double-deducted', () => {
     const capacityDays = days('emp-kr').map((day) => day.localWorkDate === '2026-08-12' ? { ...day, availableCapacityMinutes: 0, capacitySource: 'LEAVE' } : day);
     const result = runShadowScheduleEngine(input({ capacityDays }));
     expect(result.allocations.filter((allocation) => allocation.localWorkDate === '2026-08-12')).toHaveLength(0);
     expect(result.allocations.reduce((sum, row) => sum + row.allocatedMinutes, 0)).toBe(420);
+  });
+
+  it('E2 — approved overtime extends the deterministic same-day capacity window', () => {
+    const result = runShadowScheduleEngine(input({
+      planningCutoffUtc: '2026-08-12T00:00:00.000Z',
+      tasks: [task('task-1', { remainingEstimatedMinutes: 540 })],
+      capacityDays: days('emp-kr').map((day) => day.localWorkDate === '2026-08-12'
+        ? { ...day, availableCapacityMinutes: 540, capacityWindowMinutes: 540, capacitySource: 'WORKDAY+APPROVED_OVERTIME' }
+        : day),
+    }));
+    expect(result.allocations).toHaveLength(1);
+    expect(result.allocations[0]).toMatchObject({
+      localWorkDate: '2026-08-12', allocatedMinutes: 540,
+      startsAtUtc: '2026-08-12T00:00:00.000Z', endsAtUtc: '2026-08-12T10:00:00.000Z',
+    });
   });
 
   it('F — support actual is never subtracted again from authoritative primary remaining', () => {
@@ -379,6 +439,55 @@ describe('Checkpoint 3A A-Z shadow engine simulations', () => {
     expect(result.allocations).toHaveLength(0);
   });
 
+  it('R3b — a fixed slot reserves only its interval and leaves earlier capacity usable', () => {
+    const result = runShadowScheduleEngine(input({
+      planningCutoffUtc: '2026-08-12T00:00:00.000Z',
+      tasks: [
+        task('task-fixed', { remainingEstimatedMinutes: 60, officialStart: '2026-08-12', officialEnd: '2026-08-12' }),
+        task('task-asap', { wbsOrder: 2, remainingEstimatedMinutes: 240, officialStart: '2026-08-12', officialEnd: '2026-08-12' }),
+      ],
+      constraints: [{ id: 'fixed-slot', taskId: 'task-fixed', type: 'FIXED_START', date: null, timestampUtc: '2026-08-12T04:00:00.000Z', minutes: null, status: 'ACTIVE' }],
+    }));
+    expect(result.allocations.filter((allocation) => allocation.taskId === 'task-fixed')).toEqual([
+      expect.objectContaining({ startsAtUtc: '2026-08-12T04:00:00.000Z', endsAtUtc: '2026-08-12T05:00:00.000Z' }),
+    ]);
+    expect(result.allocations.filter((allocation) => allocation.taskId === 'task-asap').map((allocation) => allocation.allocatedMinutes)).toEqual([180, 60]);
+    expect(result.tasks.find((taskResult) => taskResult.taskId === 'task-asap')?.shadowEnd).toBe('2026-08-12');
+  });
+
+  it('R3c — valid fixed constraints and temporary-primary handoffs always require approval', () => {
+    const fixed = runShadowScheduleEngine(input({
+      planningCutoffUtc: '2026-08-12T00:00:00.000Z',
+      tasks: [task('task-1', { remainingEstimatedMinutes: 60, officialStart: '2026-08-12', officialEnd: '2026-08-12' })],
+      constraints: [{ id: 'fixed-valid', taskId: 'task-1', type: 'FIXED_END', date: '2026-08-12', timestampUtc: null, minutes: null, status: 'ACTIVE' }],
+    }));
+    expect(fixed.tasks[0].impactReasonCodes).toContain('FIXED_CONSTRAINT');
+    expect(fixed.projects[0].approvalClassification).toBe('APPROVAL_REQUIRED');
+
+    const temporary = runShadowScheduleEngine(input({
+      planningCutoffUtc: '2026-08-12T00:00:00.000Z',
+      employees: [employee('emp-kr'), employee('emp-temp')],
+      capacityDays: [...days('emp-kr'), ...days('emp-temp')],
+      tasks: [task('task-1', {
+        remainingEstimatedMinutes: 60, officialStart: '2026-08-12', officialEnd: '2026-08-12',
+        temporaryPrimaries: [{ employeeId: 'emp-temp', effectiveStartDate: '2026-08-12', effectiveEndDate: '2026-08-12' }],
+      })],
+    }));
+    expect(temporary.tasks[0].impactReasonCodes).toContain('TEMPORARY_PRIMARY');
+    expect(temporary.projects[0].approvalClassification).toBe('APPROVAL_REQUIRED');
+  });
+
+  it.each([
+    [{ id: 'bad-ts', taskId: 'task-1', type: 'FIXED_START' as const, date: null, timestampUtc: 'not-an-iso-timestamp', minutes: null, status: 'ACTIVE' }],
+    [{ id: 'bad-date', taskId: 'task-1', type: 'NOT_BEFORE' as const, date: 'not-a-date', timestampUtc: null, minutes: null, status: 'ACTIVE' }],
+    [{ id: 'bad-calendar', taskId: 'task-1', type: 'FIXED_END' as const, date: '2026-99-99', timestampUtc: null, minutes: null, status: 'ACTIVE' }],
+  ])('R4 — invalid constraint snapshots block with a stable code instead of throwing', (constraint) => {
+    const result = runShadowScheduleEngine(input({ constraints: [constraint] }));
+    expect(result.status).toBe('BLOCKED');
+    expect(result.validationIssues.map((issue) => issue.code)).toContain('CONSTRAINT_CONFLICT');
+    expect(result.tasks[0]).toMatchObject({ dataConfidence: 'BLOCKED', changeDirection: 'BLOCKED', approvalRequired: true });
+  });
+
   it('S — pending overtime is informational and blocks auto-apply eligibility', () => {
     const result = runShadowScheduleEngine(input({ pendingOvertimeTaskIds: ['task-1'] }));
     expect(result.tasks[0].impactReasonCodes).toContain('PENDING_OVERTIME');
@@ -401,6 +510,19 @@ describe('Checkpoint 3A A-Z shadow engine simulations', () => {
     }));
     const successor = result.tasks.find((item) => item.taskId === 'task-2');
     expect(successor?.shadowStart).toBe('2026-08-12');
+    expect(successor?.impactReasonCodes).toContain('ACTUAL_PRECEDES_CONFIRMED_DEPENDENCY');
+    expect(successor?.approvalRequired).toBe(true);
+  });
+
+  it('U2 — date-only predecessor completion still detects an impossible Actual sequence', () => {
+    const result = runShadowScheduleEngine(input({
+      tasks: [
+        task('task-1', { completed: true, actualEndUtc: null, actualEndLocalDate: '2026-08-13', remainingEstimatedMinutes: 0 }),
+        task('task-2', { completed: true, actualStartUtc: '2026-08-12T00:00:00Z', actualEndUtc: '2026-08-12T08:00:00Z', remainingEstimatedMinutes: 0 }),
+      ],
+      dependencies: [{ id: 'd-u2', projectId: 'project-a', predecessorTaskId: 'task-1', successorTaskId: 'task-2', type: 'FINISH_TO_START', lagWorkMinutes: 0, status: 'CONFIRMED' }],
+    }));
+    const successor = result.tasks.find((item) => item.taskId === 'task-2');
     expect(successor?.impactReasonCodes).toContain('ACTUAL_PRECEDES_CONFIRMED_DEPENDENCY');
     expect(successor?.approvalRequired).toBe(true);
   });

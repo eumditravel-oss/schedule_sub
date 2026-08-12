@@ -15,6 +15,8 @@ import {
   ShadowEngineInput,
   ShadowEngineResult,
   validateDependencyGraph,
+  isValidIsoLocalDate,
+  isValidUtcTimestamp,
 } from './shadowScheduleEngine';
 
 export class ShadowScheduleError extends Error {
@@ -459,6 +461,7 @@ async function buildShadowEngineInput(db: any, options: RunOptions): Promise<Sha
     return {
       employeeId: employee.id, localWorkDate, timezone: employee.timezone,
       availableCapacityMinutes: Math.max(0, base + eventAdjustment + approvedOvertime - actualConsumed),
+      capacityWindowMinutes: Math.max(0, base + eventAdjustment + approvedOvertime),
       capacitySource: [
         status.day_type,
         uniqueEvents.size ? 'CAPACITY_EVENT' : null,
@@ -954,7 +957,18 @@ export async function setTaskConstraint(db: any, actorContext: ActorContextServe
   requireManager(actor);
   const validTypes = ['AS_SOON_AS_POSSIBLE','NOT_BEFORE','FIXED_START','FIXED_END','MILESTONE'];
   if (!validTypes.includes(input.constraint_type)) throw new ShadowScheduleError('CONSTRAINT_CONFLICT', 400);
-  if (input.constraint_type !== 'AS_SOON_AS_POSSIBLE' && !input.constraint_date && !input.constraint_timestamp_utc) throw new ShadowScheduleError('CONSTRAINT_CONFLICT', 400);
+  const date = input.constraint_date ?? null;
+  const timestampUtc = input.constraint_timestamp_utc ?? null;
+  const minutes = input.constraint_minutes ?? null;
+  const validDate = date === null || isValidIsoLocalDate(date);
+  const validTimestamp = timestampUtc === null || isValidUtcTimestamp(timestampUtc);
+  const validMinutes = minutes === null || (Number.isInteger(minutes) && minutes >= 0);
+  const boundaryCount = Number(Boolean(date)) + Number(Boolean(timestampUtc));
+  const asapClean = input.constraint_type !== 'AS_SOON_AS_POSSIBLE' || (!date && !timestampUtc && minutes === null);
+  if (!validDate || !validTimestamp || !validMinutes ||
+      (input.constraint_type !== 'AS_SOON_AS_POSSIBLE' && boundaryCount !== 1) || !asapClean) {
+    throw new ShadowScheduleError('CONSTRAINT_CONFLICT', 400);
+  }
   const task = await db.prepare(`SELECT * FROM tasks WHERE id=?`).bind(taskId).first();
   if (!task) throw new ShadowScheduleError('DEPENDENCY_TASK_NOT_FOUND', 404);
   const constraintId = uuid('con');

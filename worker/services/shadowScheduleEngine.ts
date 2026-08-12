@@ -1,4 +1,4 @@
-export const SHADOW_ENGINE_VERSION = '3A.1.4';
+export const SHADOW_ENGINE_VERSION = '3A.1.6';
 
 export type ShadowConfidence = 'HIGH' | 'PROVISIONAL' | 'LOW' | 'BLOCKED';
 export type ApprovalClassification = 'AUTO_APPLY_ELIGIBLE' | 'APPROVAL_REQUIRED' | 'BLOCKED' | 'NO_CHANGE';
@@ -86,6 +86,7 @@ export interface CapacityDayInput {
   localWorkDate: string;
   timezone: string;
   availableCapacityMinutes: number;
+  capacityWindowMinutes?: number;
   capacitySource: string;
 }
 
@@ -291,6 +292,39 @@ export async function fingerprintEngineInput(input: ShadowEngineInput): Promise<
   return sha256Hex(canonicalJson(normalizeEngineInput(input)));
 }
 
+export function isValidIsoLocalDate(value: unknown): value is string {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const parsed = new Date(`${value}T00:00:00.000Z`);
+  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
+}
+
+export function isValidUtcTimestamp(value: unknown): value is string {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/.test(value)) return false;
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return false;
+  const canonical = parsed.toISOString();
+  return value === canonical || value === canonical.replace('.000Z', 'Z');
+}
+
+export function validateTaskConstraints(input: ShadowEngineInput): EngineValidationIssue[] {
+  const taskMap = new Map(input.tasks.map((task) => [task.id, task]));
+  const validTypes = new Set<ConstraintType>(['AS_SOON_AS_POSSIBLE', 'NOT_BEFORE', 'FIXED_START', 'FIXED_END', 'MILESTONE']);
+  return input.constraints.filter((constraint) => constraint.status === 'ACTIVE').flatMap((constraint) => {
+    const task = taskMap.get(constraint.taskId);
+    const dateValid = constraint.date === null || isValidIsoLocalDate(constraint.date);
+    const timestampValid = constraint.timestampUtc === null || isValidUtcTimestamp(constraint.timestampUtc);
+    const minutesValid = constraint.minutes === null || (Number.isInteger(constraint.minutes) && constraint.minutes >= 0);
+    const boundaryCount = Number(Boolean(constraint.date)) + Number(Boolean(constraint.timestampUtc));
+    const asapClean = constraint.type !== 'AS_SOON_AS_POSSIBLE' || (!constraint.date && !constraint.timestampUtc && constraint.minutes === null);
+    if (task && validTypes.has(constraint.type) && dateValid && timestampValid && minutesValid &&
+        (constraint.type === 'AS_SOON_AS_POSSIBLE' || boundaryCount === 1) && asapClean) return [];
+    return [{
+      code: 'CONSTRAINT_CONFLICT', taskId: constraint.taskId, projectId: task?.projectId,
+      details: { constraintId: constraint.id, constraintType: constraint.type },
+    }];
+  });
+}
+
 export function validateDependencyGraph(input: ShadowEngineInput): EngineValidationIssue[] {
   const tasks = new Map(input.tasks.map((task) => [task.id, task]));
   const confirmed = input.dependencies.filter((dependency) => dependency.status === 'CONFIRMED');
@@ -465,10 +499,10 @@ function allocationTimes(employee: ShadowEmployeeInput, localDate: string, usedB
 
 export function runShadowScheduleEngine(rawInput: ShadowEngineInput): ShadowEngineResult {
   const input = normalizeEngineInput(rawInput);
-  const validationIssues = validateDependencyGraph(input);
+  const validationIssues = [...validateDependencyGraph(input), ...validateTaskConstraints(input)];
   const dependencyBlockingCodes = new Set([
     'DEPENDENCY_CYCLE_DETECTED', 'DEPENDENCY_SELF_REFERENCE', 'DEPENDENCY_DUPLICATE',
-    'DEPENDENCY_TASK_NOT_FOUND', 'DEPENDENCY_CROSS_PROJECT_NOT_SUPPORTED', 'INVALID_DEPENDENCY_LAG',
+    'DEPENDENCY_TASK_NOT_FOUND', 'DEPENDENCY_CROSS_PROJECT_NOT_SUPPORTED', 'INVALID_DEPENDENCY_LAG', 'CONSTRAINT_CONFLICT',
   ]);
   const dependencyBlockingProjects = new Set(validationIssues
     .filter((issue) => dependencyBlockingCodes.has(issue.code))
@@ -520,17 +554,20 @@ export function runShadowScheduleEngine(rawInput: ShadowEngineInput): ShadowEngi
     predecessorMap.set(dependency.successorTaskId, [...(predecessorMap.get(dependency.successorTaskId) || []), dependency]);
   }
 
-  const capacity = new Map<string, { total: number; remaining: number; source: string; timezone: string }>();
+  const capacity = new Map<string, { total: number; window: number; remaining: number; source: string; timezone: string }>();
   for (const day of input.capacityDays) {
+    const employee = input.employees.find((item) => item.id === day.employeeId);
+    const total = Math.max(0, Math.round(day.availableCapacityMinutes));
     capacity.set(`${day.employeeId}|${day.localWorkDate}`, {
-      total: Math.max(0, Math.round(day.availableCapacityMinutes)),
-      remaining: Math.max(0, Math.round(day.availableCapacityMinutes)),
+      total,
+      window: Math.max(total, Math.round(day.capacityWindowMinutes ?? employee?.defaultCapacityMinutes ?? total)),
+      remaining: total,
       source: day.capacitySource,
       timezone: day.timezone,
     });
   }
   const capacityDates = [...new Set(input.capacityDays.map((day) => day.localWorkDate))].sort().slice(0, MAX_PLANNING_DAYS);
-  const usedMinutes = new Map<string, number>();
+  const occupiedIntervals = new Map<string, Array<{ start: number; end: number }>>();
   const allocations: ShadowAllocationResult[] = [];
   const results = new Map<string, ShadowTaskResult>();
   const unscheduled = new Set(input.tasks.map((task) => task.id));
@@ -541,6 +578,7 @@ export function runShadowScheduleEngine(rawInput: ShadowEngineInput): ShadowEngi
     releaseUtc: string | null,
     releaseLocalDate: string | null,
     lagWorkMinutes: number,
+    releaseAtDayStart = false,
   ): { date: string; offsetMinutes: number } => {
     let employeeId = resolveEffectivePrimary(task, releaseLocalDate || input.planningCutoffLocalDate);
     let employee = employeeId ? employeeMap.get(employeeId) : null;
@@ -548,7 +586,7 @@ export function runShadowScheduleEngine(rawInput: ShadowEngineInput): ShadowEngi
     employeeId = resolveEffectivePrimary(task, date);
     employee = employeeId ? employeeMap.get(employeeId) : null;
     if (releaseUtc && employee) date = utcToLocalDate(releaseUtc, employee.timezone);
-    let offsetMinutes = releaseUtc && employee
+    let offsetMinutes = releaseAtDayStart ? 0 : releaseUtc && employee
       ? workMinuteOffset(utcToLocalTime(releaseUtc, employee.timezone), employee)
       : employee?.defaultCapacityMinutes || 0;
     let remainingLag = Math.max(0, lagWorkMinutes);
@@ -560,7 +598,7 @@ export function runShadowScheduleEngine(rawInput: ShadowEngineInput): ShadowEngi
       const day = candidateEmployeeId ? capacity.get(`${candidateEmployeeId}|${candidateDate}`) : null;
       if (!candidateEmployee || !day || day.total <= 0) continue;
       const startOffset = candidateDate === date ? offsetMinutes : 0;
-      const availableAfterRelease = Math.max(0, Math.min(day.total, candidateEmployee.defaultCapacityMinutes - startOffset));
+      const availableAfterRelease = Math.max(0, day.window - startOffset);
       if (remainingLag < availableAfterRelease) return { date: candidateDate, offsetMinutes: startOffset + remainingLag };
       remainingLag -= availableAfterRelease;
       date = nextDate(candidateDate);
@@ -577,19 +615,37 @@ export function runShadowScheduleEngine(rawInput: ShadowEngineInput): ShadowEngi
       const predecessor = taskMap.get(dependency.predecessorTaskId);
       const predecessorResult = results.get(dependency.predecessorTaskId);
       const predecessorAllocation = [...allocations].reverse().find((allocation) => allocation.taskId === dependency.predecessorTaskId);
-      let releaseUtc: string | null = predecessorAllocation?.endsAtUtc || null;
+      const predecessorConstraint = constraints.get(dependency.predecessorTaskId);
+      let releaseUtc: string | null = predecessorAllocation?.endsAtUtc ||
+        (predecessorConstraint?.type === 'MILESTONE' ? predecessorConstraint.timestampUtc : null) || null;
       let releaseDate: string | null = predecessorResult?.shadowEnd || predecessor?.officialEnd || null;
+      let releaseAtDayStart = false;
       if (predecessor?.completed && predecessor.actualEndUtc) {
-        releaseUtc = predecessor.actualEndUtc;
-        releaseDate = predecessor.actualEndLocalDate || predecessor.actualEndUtc.slice(0, 10);
+        const successorEmployeeId = resolveEffectivePrimary(task, input.planningCutoffLocalDate);
+        const successorTimezone = successorEmployeeId ? employeeMap.get(successorEmployeeId)?.timezone : null;
+        const actualDate = successorTimezone
+          ? utcToLocalDate(predecessor.actualEndUtc, successorTimezone)
+          : predecessor.actualEndUtc.slice(0, 10);
+        releaseUtc = null;
+        releaseDate = capacityDates.find((candidateDate) => {
+          if (candidateDate <= actualDate) return false;
+          const candidateEmployeeId = resolveEffectivePrimary(task, candidateDate);
+          return Boolean(candidateEmployeeId && capacity.get(`${candidateEmployeeId}|${candidateDate}`)?.total);
+        }) || nextDate(actualDate);
+        releaseAtDayStart = true;
         reasons.push('ACTUAL_COMPLETION_RELEASE');
       } else if (predecessor?.completed && predecessor.actualEndLocalDate) {
         releaseUtc = null;
-        releaseDate = predecessor.actualEndLocalDate;
+        releaseDate = capacityDates.find((candidateDate) => {
+          if (candidateDate <= predecessor.actualEndLocalDate!) return false;
+          const candidateEmployeeId = resolveEffectivePrimary(task, candidateDate);
+          return Boolean(candidateEmployeeId && capacity.get(`${candidateEmployeeId}|${candidateDate}`)?.total);
+        }) || nextDate(predecessor.actualEndLocalDate);
+        releaseAtDayStart = true;
         reasons.push('ACTUAL_COMPLETION_RELEASE');
       }
       if (dependency.lagWorkMinutes > 0) reasons.push('DEPENDENCY_LAG');
-      const release = releaseAfterWorkLag(task, releaseUtc, releaseDate, dependency.lagWorkMinutes);
+      const release = releaseAfterWorkLag(task, releaseUtc, releaseDate, dependency.lagWorkMinutes, releaseAtDayStart);
       if (release.date > latestRelease.date ||
           (release.date === latestRelease.date && release.offsetMinutes > latestRelease.offsetMinutes)) {
         latestRelease = release;
@@ -639,6 +695,10 @@ export function runShadowScheduleEngine(rawInput: ShadowEngineInput): ShadowEngi
     let approvalRequired = effort.approvalRequired;
     let confidence = effort.confidence;
     let constraintResult: string = constraint?.type || 'AS_SOON_AS_POSSIBLE';
+    if (constraint && ['FIXED_START', 'FIXED_END'].includes(constraint.type)) {
+      approvalRequired = true;
+      reasons.push('FIXED_CONSTRAINT');
+    }
     const dependencyStart = earliestFromPredecessors(task);
     reasons.push(...dependencyStart.reasons);
     const hasUnconfirmedDependency = input.dependencies.some((dependency) =>
@@ -693,7 +753,13 @@ export function runShadowScheduleEngine(rawInput: ShadowEngineInput): ShadowEngi
       const actualEnd = task.actualEndLocalDate || task.actualEndUtc?.slice(0, 10) || task.officialEnd;
       const actualPrecedesDependency = Boolean(task.actualStartUtc && (predecessorMap.get(task.id) || []).some((dependency) => {
         const predecessor = taskMap.get(dependency.predecessorTaskId);
-        return predecessor?.actualEndUtc && task.actualStartUtc! < predecessor.actualEndUtc;
+        if (predecessor?.actualEndUtc) return task.actualStartUtc! < predecessor.actualEndUtc;
+        if (!predecessor?.actualEndLocalDate) return false;
+        const successorEmployee = primaryAtCutoff ? employeeMap.get(primaryAtCutoff) : null;
+        const successorStartDate = successorEmployee
+          ? utcToLocalDate(task.actualStartUtc!, successorEmployee.timezone)
+          : task.actualStartUtc!.slice(0, 10);
+        return successorStartDate < predecessor.actualEndLocalDate;
       }));
       const completedReasons = actualEnd !== task.officialEnd ? ['ACTUAL_COMPLETION_DATE'] : [];
       if (actualPrecedesDependency) completedReasons.push('ACTUAL_PRECEDES_CONFIRMED_DEPENDENCY');
@@ -836,10 +902,16 @@ export function runShadowScheduleEngine(rawInput: ShadowEngineInput): ShadowEngi
       if (!employee || !day) continue;
       const cutoffLocalDate = utcToLocalDate(input.planningCutoffUtc, employee.timezone);
       if (localDate < cutoffLocalDate) continue;
+      const capacityImpactReasons = [
+        day.source.includes('COMPANY_DUTY') ? 'COMPANY_DUTY' : null,
+        day.source.includes('TRAINING') ? 'TRAINING' : null,
+        day.source.includes('LEAVE') ? 'LEAVE_CAPACITY' : null,
+      ].filter(Boolean) as string[];
+      if (capacityImpactReasons.length > 0) {
+        reasons.push(...capacityImpactReasons);
+        approvalRequired = true;
+      }
       if (day.remaining <= 0) {
-        if (day.source.includes('COMPANY_DUTY')) { reasons.push('COMPANY_DUTY'); approvalRequired = true; }
-        if (day.source.includes('TRAINING')) { reasons.push('TRAINING'); approvalRequired = true; }
-        if (day.source.includes('LEAVE')) { reasons.push('LEAVE_CAPACITY'); approvalRequired = true; }
         continue;
       }
       if (constraint?.type === 'FIXED_START' && constraintLocalDate && !shadowStart && localDate !== constraintLocalDate) {
@@ -849,7 +921,6 @@ export function runShadowScheduleEngine(rawInput: ShadowEngineInput): ShadowEngi
         fixedStartCapacityConflict = true;
         break;
       }
-      const usedBefore = usedMinutes.get(key) || 0;
       const dependencyOffset = localDate === dependencyStart.date ? dependencyStart.releaseOffsetMinutes : 0;
       const constraintOffset = constraint?.type !== 'FIXED_END' && constraintLocalDate === localDate && constraintLocalTime
         ? workMinuteOffset(constraintLocalTime, employee)
@@ -858,23 +929,39 @@ export function runShadowScheduleEngine(rawInput: ShadowEngineInput): ShadowEngi
         ? workMinuteOffset(utcToLocalTime(input.planningCutoffUtc, employee.timezone), employee)
         : 0;
       const requiredOffset = Math.max(dependencyOffset, constraintOffset, cutoffOffset);
-      const startOffset = Math.max(usedBefore, requiredOffset);
-      const effectiveAvailable = Math.max(0, employee.defaultCapacityMinutes - startOffset);
-      const allocated = Math.min(day.remaining, effectiveAvailable, remaining);
-      if (allocated <= 0) continue;
-      const times = allocationTimes(employee, localDate, startOffset, allocated);
-      allocationSequence += 1;
-      allocations.push({
-        taskId: task.id, projectId: task.projectId, employeeId, localWorkDate: localDate,
-        timezone: employee.timezone, availableCapacityMinutes: day.total, allocatedMinutes: allocated,
-        capacitySource: day.source, priorityOrder: prioritySequence, allocationSequence,
-        startsAtUtc: times.start, endsAtUtc: times.end,
-      });
-      day.remaining -= allocated;
-      usedMinutes.set(key, startOffset + allocated);
-      remaining -= allocated;
-      if (!shadowStart) shadowStart = localDate;
-      shadowEnd = localDate;
+      while (remaining > 0 && day.remaining > 0) {
+        const intervals = [...(occupiedIntervals.get(key) || [])].sort((a, b) => a.start - b.start || a.end - b.end);
+        let startOffset = requiredOffset;
+        let gapEnd = day.window;
+        for (const interval of intervals) {
+          if (interval.end <= startOffset) continue;
+          if (interval.start > startOffset) { gapEnd = interval.start; break; }
+          startOffset = Math.max(startOffset, interval.end);
+        }
+        if (constraint?.type === 'FIXED_START' && !shadowStart && startOffset !== constraintOffset) {
+          confidence = 'BLOCKED';
+          approvalRequired = true;
+          reasons.push('FIXED_START_CAPACITY_CONFLICT');
+          fixedStartCapacityConflict = true;
+          break;
+        }
+        const allocated = Math.min(day.remaining, Math.max(0, gapEnd - startOffset), remaining);
+        if (allocated <= 0) break;
+        const times = allocationTimes(employee, localDate, startOffset, allocated);
+        allocationSequence += 1;
+        allocations.push({
+          taskId: task.id, projectId: task.projectId, employeeId, localWorkDate: localDate,
+          timezone: employee.timezone, availableCapacityMinutes: day.total, allocatedMinutes: allocated,
+          capacitySource: day.source, priorityOrder: prioritySequence, allocationSequence,
+          startsAtUtc: times.start, endsAtUtc: times.end,
+        });
+        occupiedIntervals.set(key, [...intervals, { start: startOffset, end: startOffset + allocated }]);
+        day.remaining -= allocated;
+        remaining -= allocated;
+        if (!shadowStart) shadowStart = localDate;
+        shadowEnd = localDate;
+      }
+      if (fixedStartCapacityConflict) break;
     }
     if (remaining > 0 && !fixedStartCapacityConflict) {
       validationIssues.push({ code: 'CAPACITY_CALCULATION_FAILED', taskId: task.id, projectId: task.projectId, details: { unallocatedMinutes: remaining } });
@@ -884,6 +971,10 @@ export function runShadowScheduleEngine(rawInput: ShadowEngineInput): ShadowEngi
     }
     const lastTaskAllocation = [...allocations].reverse().find((allocation) => allocation.taskId === task.id);
     const scheduledEmployeeId = lastTaskAllocation?.employeeId || primaryAtCutoff;
+    if (lastTaskAllocation && scheduledEmployeeId !== task.primaryEmployeeId) {
+      approvalRequired = true;
+      reasons.push('TEMPORARY_PRIMARY');
+    }
     const fixedEndOverrun = constraint?.type === 'FIXED_END' && constraintLocalDate && shadowEnd && (
       shadowEnd > constraintLocalDate || Boolean(constraint.timestampUtc && lastTaskAllocation?.endsAtUtc
         && new Date(lastTaskAllocation.endsAtUtc).getTime() > new Date(constraint.timestampUtc).getTime())
@@ -977,7 +1068,7 @@ export function runShadowScheduleEngine(rawInput: ShadowEngineInput): ShadowEngi
   }).sort((a, b) => a.projectId.localeCompare(b.projectId));
 
   const affectedProjects = projects.filter((project) => project.approvalClassification !== 'NO_CHANGE');
-  const affectedTasks = taskResults.filter((task) => task.changeDirection !== 'UNCHANGED');
+  const affectedTasks = taskResults.filter((task) => task.changeDirection !== 'UNCHANGED' || task.approvalRequired);
   const crossProjectImpact = crossProjectIds.size > 0;
   const allReasons = [...new Set(projects.flatMap((project) => project.approvalReasons))].sort();
   if (crossProjectImpact && !allReasons.includes('CROSS_PROJECT_IMPACT')) allReasons.push('CROSS_PROJECT_IMPACT');
