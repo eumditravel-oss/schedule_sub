@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
   expandSharedEmployeeTaskClosure,
+  filterEmployeeShadowView,
   firstPositiveActualContribution,
   hasShadowActualOrCapacityTrigger,
   findMissingWorklogDates,
   recordedWorkTimestampUtc,
+  selectEffectiveProjectPriorities,
   worklogHasShadowDataGap,
 } from '../worker/services/shadowScheduleService';
 import { isValidIsoLocalDate, isValidUtcTimestamp } from '../worker/services/shadowScheduleEngine';
@@ -104,5 +106,33 @@ describe('Checkpoint 3A Shadow service timestamp mapping', () => {
     ]);
     expect(expandSharedEmployeeTaskClosure(tasks, 'p1', assignments, temporary).map((task) => task.project_id))
       .toEqual(['p1', 'p2', 'p3', 'p4']);
+  });
+
+  it('keeps an employee-visible task and diff when only a temporary allocation belongs to them', () => {
+    const filtered = filterEmployeeShadowView({
+      employeeId: 'emp-temp',
+      tasks: [{ task_id: 'task-split', project_id: 'project-a', employee_id: 'emp-primary' }],
+      allocations: [
+        { task_id: 'task-split', project_id: 'project-a', employee_id: 'emp-temp' },
+        { task_id: 'task-split', project_id: 'project-a', employee_id: 'emp-primary' },
+      ],
+      diffs: [{ task_id: 'task-split', project_id: 'project-a' }],
+      versions: [{ project_id: 'project-a' }],
+      impacts: [{ employee_id: null, primary_project_id: 'project-a' }],
+    });
+    expect(filtered.tasks.map((row) => row.task_id)).toEqual(['task-split']);
+    expect(filtered.allocations.map((row) => row.employee_id)).toEqual(['emp-temp']);
+    expect(filtered.diffs.map((row) => row.task_id)).toEqual(['task-split']);
+    expect(filtered.versions.map((row) => row.project_id)).toEqual(['project-a']);
+    expect(filtered.impacts).toHaveLength(1);
+  });
+
+  it('applies only project priorities effective at the planning cutoff', () => {
+    const priorities = selectEffectiveProjectPriorities([
+      { project_id: 'current', priority_rank: 1, effective_from: '2026-08-01', effective_to: '2026-08-31' },
+      { project_id: 'future', priority_rank: 2, effective_from: '2026-09-01', effective_to: null },
+      { project_id: 'expired', priority_rank: 3, effective_from: '2026-07-01', effective_to: '2026-08-11' },
+    ], '2026-08-12');
+    expect([...priorities.keys()]).toEqual(['current']);
   });
 });

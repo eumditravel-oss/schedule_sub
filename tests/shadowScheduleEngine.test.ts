@@ -11,6 +11,7 @@ import {
   ShadowEngineInput,
   ShadowTaskInput,
   validateDependencyGraph,
+  validateTemporaryPrimaries,
 } from '../worker/services/shadowScheduleEngine';
 
 const employee = (id = 'emp-kr', countryCode: 'KR' | 'VN' = 'KR') => ({
@@ -549,6 +550,25 @@ describe('Checkpoint 3A A-Z shadow engine simulations', () => {
     const source = task('task-1', { temporaryPrimaries: [{ employeeId: 'emp-temp', effectiveStartDate: '2026-08-12', effectiveEndDate: '2026-08-13' }] });
     expect(resolveEffectivePrimary(source, '2026-08-12')).toBe('emp-temp');
     expect(resolveEffectivePrimary(source, '2026-08-14')).toBe('emp-kr');
+  });
+
+  it.each([
+    [[{ employeeId: 'emp-temp', effectiveStartDate: '2026-08-14', effectiveEndDate: '2026-08-12' }]],
+    [[{ employeeId: 'missing-employee', effectiveStartDate: '2026-08-12', effectiveEndDate: '2026-08-14' }]],
+    [[
+      { employeeId: 'emp-temp', effectiveStartDate: '2026-08-12', effectiveEndDate: '2026-08-14' },
+      { employeeId: 'emp-kr', effectiveStartDate: '2026-08-14', effectiveEndDate: '2026-08-16' },
+    ]],
+  ])('T2 — invalid temporary-primary snapshots block with TEMPORARY_PRIMARY_INVALID', (temporaryPrimaries) => {
+    const source = input({
+      employees: [employee('emp-kr'), employee('emp-temp')],
+      capacityDays: [...days('emp-kr'), ...days('emp-temp')],
+      tasks: [task('task-1', { temporaryPrimaries })],
+    });
+    expect(validateTemporaryPrimaries(source).map((issue) => issue.code)).toContain('TEMPORARY_PRIMARY_INVALID');
+    const result = runShadowScheduleEngine(source);
+    expect(result.status).toBe('BLOCKED');
+    expect(result.tasks[0]).toMatchObject({ dataConfidence: 'BLOCKED', approvalRequired: true });
   });
 
   it('U — actual before confirmed dependency is preserved as an actual fact', () => {

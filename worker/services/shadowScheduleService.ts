@@ -208,6 +208,43 @@ export function hasShadowActualOrCapacityTrigger(input: {
   return taskActual || effectiveSourceEod;
 }
 
+export function filterEmployeeShadowView(input: {
+  employeeId: string;
+  tasks: any[];
+  allocations: any[];
+  diffs: any[];
+  versions: any[];
+  impacts: any[];
+}) {
+  const employeeAllocationRows = input.allocations.filter((allocation) => allocation.employee_id === input.employeeId);
+  const visibleTaskIds = new Set<string>([
+    ...input.tasks.filter((task) => task.employee_id === input.employeeId).map((task) => String(task.task_id)),
+    ...employeeAllocationRows.map((allocation) => String(allocation.task_id)),
+  ]);
+  const tasks = input.tasks.filter((task) => visibleTaskIds.has(String(task.task_id)));
+  const visibleProjectIds = new Set<string>([
+    ...tasks.map((task) => String(task.project_id)),
+    ...input.diffs.filter((diff) => visibleTaskIds.has(String(diff.task_id))).map((diff) => String(diff.project_id)),
+  ]);
+  return {
+    tasks,
+    allocations: employeeAllocationRows,
+    diffs: input.diffs.filter((diff) => visibleTaskIds.has(String(diff.task_id))),
+    versions: input.versions.filter((version) => visibleProjectIds.has(String(version.project_id))),
+    impacts: input.impacts.filter((impact) => impact.employee_id === input.employeeId || visibleProjectIds.has(String(impact.primary_project_id))),
+  };
+}
+
+export function selectEffectiveProjectPriorities<T extends { project_id: string; effective_from: string; effective_to?: string | null }>(
+  priorities: T[],
+  planningCutoffLocalDate: string,
+): Map<string, T> {
+  return new Map(priorities
+    .filter((priority) => priority.effective_from <= planningCutoffLocalDate &&
+      (!priority.effective_to || priority.effective_to >= planningCutoffLocalDate))
+    .map((priority) => [priority.project_id, priority]));
+}
+
 async function resolveShadowActor(db: any, actorContext: ActorContextServer, write = false): Promise<ShadowActor> {
   const employeeId = actorContext.actorEmployeeId || actorContext.actorUserId;
   if (!employeeId) throw new ShadowScheduleError('DEPENDENCY_PERMISSION_DENIED', 403);
@@ -318,6 +355,13 @@ async function buildShadowEngineInput(db: any, options: RunOptions): Promise<Sha
       };
     });
   const employeeMap = new Map(employees.map((employee) => [employee.id, employee]));
+  const now = options.planningCutoffUtc ? new Date(options.planningCutoffUtc) : new Date();
+  const sourceEmployee: any = options.sourceWorklogId
+    ? (worklogsResult.results || []).find((worklog: any) => worklog.id === options.sourceWorklogId)?.employee_id
+    : null;
+  const sourceEmployeeProfile = sourceEmployee ? employeeMap.get(sourceEmployee) : null;
+  const planningCutoffLocalDate = options.planningCutoffLocalDate ||
+    localDateInTimezone(now, sourceEmployeeProfile?.timezone || 'Asia/Seoul');
 
   const latestVersionByProject = new Map<string, any>();
   for (const version of snapshot.scheduleVersions) {
@@ -347,7 +391,7 @@ async function buildShadowEngineInput(db: any, options: RunOptions): Promise<Sha
   for (const contribution of contributionsResult.results || []) contributionsMap.set(contribution.task_id, [...(contributionsMap.get(contribution.task_id) || []), contribution]);
   const completionMap = new Map<string, any>();
   for (const completion of completionResult.results || []) completionMap.set(completion.task_id, completion);
-  const priorityMap = new Map<string, any>((prioritiesResult.results || []).map((priority: any) => [priority.project_id, priority]));
+  const priorityMap = selectEffectiveProjectPriorities<any>(prioritiesResult.results || [], planningCutoffLocalDate);
 
   let candidateTasks = snapshot.tasks.filter((task: any) => {
     const project = snapshot.projects.find((item: any) => item.id === task.project_id);
@@ -414,13 +458,6 @@ async function buildShadowEngineInput(db: any, options: RunOptions): Promise<Sha
     };
   });
 
-  const now = options.planningCutoffUtc ? new Date(options.planningCutoffUtc) : new Date();
-  const sourceEmployee: any = options.sourceWorklogId
-    ? (worklogsResult.results || []).find((worklog: any) => worklog.id === options.sourceWorklogId)?.employee_id
-    : null;
-  const sourceEmployeeProfile = sourceEmployee ? employeeMap.get(sourceEmployee) : null;
-  const planningCutoffLocalDate = options.planningCutoffLocalDate ||
-    localDateInTimezone(now, sourceEmployeeProfile?.timezone || 'Asia/Seoul');
   const calendarDates = dateRange(planningCutoffLocalDate, 730);
   const holidays = holidaysResult.results || [];
   const overrides = overridesResult.results || [];
@@ -570,13 +607,15 @@ async function readRun(db: any, runId: string, actor?: ShadowActor | null) {
   let versionRows = versions.results || [];
   let impactRows = impacts.results || [];
   if (actor && !actor.isManager && actor.worker.access_role !== 'VIEWER') {
-    taskRows = taskRows.filter((task: any) => task.employee_id === actor.worker.id);
-    const visibleTaskIds = new Set(taskRows.map((task: any) => task.task_id));
-    allocationRows = allocationRows.filter((allocation: any) => allocation.employee_id === actor.worker.id);
-    diffRows = diffRows.filter((diff: any) => visibleTaskIds.has(diff.task_id));
-    const visibleProjectIds = new Set(taskRows.map((task: any) => task.project_id));
-    versionRows = versionRows.filter((version: any) => visibleProjectIds.has(version.project_id));
-    impactRows = impactRows.filter((impact: any) => impact.employee_id === actor.worker.id || visibleProjectIds.has(impact.primary_project_id));
+    const filtered = filterEmployeeShadowView({
+      employeeId: actor.worker.id, tasks: taskRows, allocations: allocationRows,
+      diffs: diffRows, versions: versionRows, impacts: impactRows,
+    });
+    taskRows = filtered.tasks;
+    allocationRows = filtered.allocations;
+    diffRows = filtered.diffs;
+    versionRows = filtered.versions;
+    impactRows = filtered.impacts;
   }
   return { run, versions: versionRows, tasks: taskRows, allocations: allocationRows, impacts: impactRows, diffs: diffRows };
 }
@@ -994,6 +1033,12 @@ export async function setProjectPriority(db: any, actorContext: ActorContextServ
   requireManager(actor);
   const rank = Number(input.priority_rank);
   if (!input.project_id || !Number.isInteger(rank) || rank <= 0) throw new ShadowScheduleError('PROJECT_PRIORITY_REQUIRED', 400);
+  const effectiveFrom = input.effective_from || new Date().toISOString().slice(0, 10);
+  const effectiveTo = input.effective_to || null;
+  if (!isValidIsoLocalDate(effectiveFrom) || (effectiveTo !== null && !isValidIsoLocalDate(effectiveTo)) ||
+      (effectiveTo !== null && effectiveFrom > effectiveTo)) {
+    throw new ShadowScheduleError('PROJECT_PRIORITY_REQUIRED', 400);
+  }
   const project = await db.prepare(`SELECT id FROM projects WHERE id=?`).bind(input.project_id).first();
   if (!project) throw new ShadowScheduleError('PROJECT_PRIORITY_REQUIRED', 404);
   const now = new Date().toISOString();
@@ -1003,7 +1048,7 @@ export async function setProjectPriority(db: any, actorContext: ActorContextServ
       VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?8)
       ON CONFLICT(project_id) DO UPDATE SET priority_rank=excluded.priority_rank,priority_label=excluded.priority_label,
       effective_from=excluded.effective_from,effective_to=excluded.effective_to,set_by=excluded.set_by,reason=excluded.reason,updated_at=excluded.updated_at`)
-      .bind(input.project_id, rank, input.priority_label || null, input.effective_from || now.slice(0, 10), input.effective_to || null, actor.worker.id, input.reason || null, now),
+      .bind(input.project_id, rank, input.priority_label || null, effectiveFrom, effectiveTo, actor.worker.id, input.reason || null, now),
     await auditStatement(db, actor, { eventType: 'PROJECT_PRIORITY_SET', entityType: 'PROJECT_PRIORITY', entityId: input.project_id, before, after: input, reason: input.reason }),
   ]);
   return { projectId: input.project_id, priorityRank: rank };
@@ -1055,10 +1100,17 @@ export async function getShadowImpacts(db: any, actorContext: ActorContextServer
   let summaries = summary.results || [];
   let taskDiffs = diffs.results || [];
   if (!actor.isManager && actor.worker.access_role !== 'VIEWER') {
-    const visible = await db.prepare(`SELECT task_id FROM shadow_schedule_tasks st JOIN shadow_schedule_versions sv ON sv.shadow_version_id=st.shadow_version_id WHERE sv.run_id=? AND st.employee_id=?`).bind(runId, actor.worker.id).all();
+    const visible = await db.prepare(`
+      SELECT st.task_id,sv.project_id
+      FROM shadow_schedule_tasks st JOIN shadow_schedule_versions sv ON sv.shadow_version_id=st.shadow_version_id
+      WHERE sv.run_id=?1 AND st.employee_id=?2
+      UNION
+      SELECT a.task_id,a.project_id FROM shadow_capacity_allocations a WHERE a.run_id=?1 AND a.employee_id=?2
+    `).bind(runId, actor.worker.id).all();
     const taskIds = new Set((visible.results || []).map((row: any) => row.task_id));
+    const projectIds = new Set((visible.results || []).map((row: any) => row.project_id));
     taskDiffs = taskDiffs.filter((diff: any) => taskIds.has(diff.task_id));
-    summaries = summaries.filter((item: any) => item.employee_id === actor.worker.id);
+    summaries = summaries.filter((item: any) => item.employee_id === actor.worker.id || projectIds.has(item.primary_project_id));
   }
   return { summaries, diffs: taskDiffs };
 }

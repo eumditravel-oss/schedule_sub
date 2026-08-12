@@ -1,4 +1,4 @@
-export const SHADOW_ENGINE_VERSION = '3A.1.9';
+export const SHADOW_ENGINE_VERSION = '3A.1.10';
 
 export type ShadowConfidence = 'HIGH' | 'PROVISIONAL' | 'LOW' | 'BLOCKED';
 export type ApprovalClassification = 'AUTO_APPLY_ELIGIBLE' | 'APPROVAL_REQUIRED' | 'BLOCKED' | 'NO_CHANGE';
@@ -325,6 +325,38 @@ export function validateTaskConstraints(input: ShadowEngineInput): EngineValidat
   });
 }
 
+export function validateTemporaryPrimaries(input: ShadowEngineInput): EngineValidationIssue[] {
+  const employeeIds = new Set(input.employees.map((employee) => employee.id));
+  const issues: EngineValidationIssue[] = [];
+  for (const task of input.tasks) {
+    const assignments = [...task.temporaryPrimaries].sort((left, right) =>
+      left.effectiveStartDate.localeCompare(right.effectiveStartDate) ||
+      left.effectiveEndDate.localeCompare(right.effectiveEndDate) ||
+      left.employeeId.localeCompare(right.employeeId));
+    for (const assignment of assignments) {
+      if (!employeeIds.has(assignment.employeeId) ||
+          !isValidIsoLocalDate(assignment.effectiveStartDate) ||
+          !isValidIsoLocalDate(assignment.effectiveEndDate) ||
+          assignment.effectiveStartDate > assignment.effectiveEndDate) {
+        issues.push({
+          code: 'TEMPORARY_PRIMARY_INVALID', taskId: task.id, projectId: task.projectId,
+          details: { employeeId: assignment.employeeId, effectiveStartDate: assignment.effectiveStartDate, effectiveEndDate: assignment.effectiveEndDate },
+        });
+      }
+    }
+    for (let left = 0; left < assignments.length; left += 1) {
+      for (let right = left + 1; right < assignments.length; right += 1) {
+        if (assignments[right].effectiveStartDate > assignments[left].effectiveEndDate) break;
+        issues.push({
+          code: 'TEMPORARY_PRIMARY_INVALID', taskId: task.id, projectId: task.projectId,
+          details: { reason: 'OVERLAPPING_EFFECTIVE_WINDOWS', employeeIds: [assignments[left].employeeId, assignments[right].employeeId] },
+        });
+      }
+    }
+  }
+  return issues;
+}
+
 export function validateDependencyGraph(input: ShadowEngineInput): EngineValidationIssue[] {
   const tasks = new Map(input.tasks.map((task) => [task.id, task]));
   const confirmed = input.dependencies.filter((dependency) => dependency.status === 'CONFIRMED');
@@ -509,10 +541,11 @@ function allocationTimes(employee: ShadowEmployeeInput, localDate: string, usedB
 
 export function runShadowScheduleEngine(rawInput: ShadowEngineInput): ShadowEngineResult {
   const input = normalizeEngineInput(rawInput);
-  const validationIssues = [...validateDependencyGraph(input), ...validateTaskConstraints(input)];
+  const validationIssues = [...validateDependencyGraph(input), ...validateTaskConstraints(input), ...validateTemporaryPrimaries(input)];
   const dependencyBlockingCodes = new Set([
     'DEPENDENCY_CYCLE_DETECTED', 'DEPENDENCY_SELF_REFERENCE', 'DEPENDENCY_DUPLICATE',
     'DEPENDENCY_TASK_NOT_FOUND', 'DEPENDENCY_CROSS_PROJECT_NOT_SUPPORTED', 'INVALID_DEPENDENCY_LAG', 'CONSTRAINT_CONFLICT',
+    'TEMPORARY_PRIMARY_INVALID',
   ]);
   const dependencyBlockingProjects = new Set(validationIssues
     .filter((issue) => dependencyBlockingCodes.has(issue.code))
