@@ -95,6 +95,10 @@ function getWriteHeaders() {
   };
 }
 
+function withIdempotencyKey(key?: string) {
+  return { ...getWriteHeaders(), 'Idempotency-Key': key || crypto.randomUUID() };
+}
+
 async function handleResponse<T>(res: Response): Promise<T> {
   let json: ApiResponse<T>;
   try {
@@ -120,6 +124,56 @@ async function handleResponse<T>(res: Response): Promise<T> {
 }
 
 export const api = {
+  async getWorklogContext(employeeId: string, localWorkDate: string): Promise<any> {
+    const params = new URLSearchParams({ employee_id: employeeId, local_work_date: localWorkDate });
+    const res = await fetch(`/api/v3/worklogs/context?${params}`, { headers: getWriteHeaders() });
+    return handleResponse<any>(res);
+  },
+
+  async getDailyCapacity(employeeId: string, localWorkDate: string): Promise<any> {
+    const params = new URLSearchParams({ employee_id: employeeId, local_work_date: localWorkDate });
+    const res = await fetch(`/api/v3/capacity/day?${params}`, { headers: getWriteHeaders() });
+    return handleResponse<any>(res);
+  },
+
+  async getWorklog(worklogId: string): Promise<any> {
+    const res = await fetch(`/api/v3/worklogs/${encodeURIComponent(worklogId)}`, { headers: getWriteHeaders() });
+    return handleResponse<any>(res);
+  },
+
+  async submitMorning(payload: any, idempotencyKey?: string): Promise<any> {
+    const res = await fetch('/api/v3/worklogs/morning', {
+      method: 'POST', headers: withIdempotencyKey(idempotencyKey), body: JSON.stringify(payload),
+    });
+    return handleResponse<any>(res);
+  },
+
+  async submitEod(worklogId: string, payload: any, idempotencyKey?: string): Promise<any> {
+    const res = await fetch(`/api/v3/worklogs/${encodeURIComponent(worklogId)}/eod`, {
+      method: 'POST', headers: withIdempotencyKey(idempotencyKey), body: JSON.stringify(payload),
+    });
+    return handleResponse<any>(res);
+  },
+
+  async reviseWorklog(worklogId: string, payload: any, idempotencyKey?: string): Promise<any> {
+    const res = await fetch(`/api/v3/worklogs/${encodeURIComponent(worklogId)}/revisions`, {
+      method: 'POST', headers: withIdempotencyKey(idempotencyKey), body: JSON.stringify(payload),
+    });
+    return handleResponse<any>(res);
+  },
+
+  async requestWorklogCorrection(worklogId: string, payload: any, idempotencyKey?: string): Promise<any> {
+    const res = await fetch(`/api/v3/worklogs/${encodeURIComponent(worklogId)}/correction-requests`, {
+      method: 'POST', headers: withIdempotencyKey(idempotencyKey), body: JSON.stringify(payload),
+    });
+    return handleResponse<any>(res);
+  },
+
+  async getTaskActual(taskId: string): Promise<any> {
+    const res = await fetch(`/api/v3/tasks/${encodeURIComponent(taskId)}/actual`, { headers: getWriteHeaders() });
+    return handleResponse<any>(res);
+  },
+
   // 0. Workers
   async getWorkers(): Promise<Worker[]> {
     const res = await fetch('/api/workers');

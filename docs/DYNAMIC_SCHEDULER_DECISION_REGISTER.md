@@ -15,7 +15,7 @@ This register records both resolved policy and intentionally deferred future dec
 | D-07 | Approval mode | `HYBRID_APPROVAL` | RESOLVED |
 | D-08 | Retroactive worklogs | Self-edit until next working day 09:00 employee local | RESOLVED |
 | D-09 | Missing worklog | No inference; status and manager notification only | RESOLVED |
-| D-10 | Meetings/outside/company duty | Minute capacity plus category-specific evidence | Future checkpoint |
+| D-10 | Meetings/outside/company duty | Minute Actual plus category-specific evidence; no schedule extension in Checkpoint 2 | RESOLVED |
 | D-11 | Dependency migration | Candidate-only, manager-reviewed | Recommended |
 | D-12 | Cross-project priority | Manager-defined project priority with stable tie-breakers | RESOLVED |
 | D-13 | Primary absence | Manager assigns effective-dated temporary Primary | RESOLVED |
@@ -354,4 +354,12 @@ Options:
 
 ## Remaining future decisions
 
-D-04 remains intentionally deferred and workforce weighting percentages stay non-authoritative. D-10, D-11, D-17, and D-18 belong to later checkpoints and do not block Checkpoint 1 foundation. Daily Worklog UI is not implemented in this checkpoint.
+D-04 remains intentionally deferred and workforce weighting percentages stay non-authoritative. D-11, D-17, and D-18 belong to later checkpoints. Checkpoint 2 implements the worklog API and temporary QA Harness; the final employee worklog UI and schedule recalculation remain deferred.
+
+## D-24 — Checkpoint 2 worklog fact boundary
+
+**Resolution:** Morning is planning metadata only. EOD is the Actual source. An EOD can be submitted without Morning and records `morning_missing`. Completion is `COMPLETION_REPORTED`, not a schedule-date or Project status mutation.
+
+## D-25 — Capacity and correction granularity
+
+**Resolution:** Regular employees submit 30-minute increments. Managers correct in 15-minute increments. Capacity uses the centralized office/work-calendar source and deduplicated events. Corrections are append-only replacements in effective contribution calculations.

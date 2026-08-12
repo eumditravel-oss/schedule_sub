@@ -14,6 +14,9 @@ const WorkforceCapacityPage = lazy(() =>
 const PrintViewPage = lazy(() =>
   import('./pages/print/PrintViewPage').then((module) => ({ default: module.PrintViewPage }))
 );
+const DailyWorklogQaPage = lazy(() =>
+  import('./pages/qa/DailyWorklogQaPage').then((module) => ({ default: module.DailyWorklogQaPage }))
+);
 
 function RouteLoadingFallback() {
   return (
@@ -60,6 +63,14 @@ export function App() {
             element={
               <ErrorBoundary fallbackViewName="Workforce Capacity Page">
                 <WorkforceCapacityPage />
+              </ErrorBoundary>
+            }
+          />
+          <Route
+            path="/qa/daily-worklog"
+            element={
+              <ErrorBoundary fallbackViewName="Daily Worklog QA Harness">
+                <DailyWorklogQaPage />
               </ErrorBoundary>
             }
           />
