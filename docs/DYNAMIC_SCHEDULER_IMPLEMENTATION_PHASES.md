@@ -12,7 +12,9 @@ Checkpoint 0.5 and Checkpoint 1 Foundation are authorized now, in strict order:
 6. verify QA;
 7. backup, apply, deploy, and verify the current test-LIVE environment.
 
-Any unexplained ledger/schema difference, `UNKNOWN`, or unsafe `PARTIALLY_APPLIED` stops the sequence. Daily Worklog UI, schedule recalculation engine, approval UI, notifications, dependency automation, capacity conflict automation, messenger integration, and real authentication remain explicitly excluded.
+Any unexplained ledger/schema difference, `UNKNOWN`, or unsafe `PARTIALLY_APPLIED` stops the sequence. Checkpoint 2 implements Daily Worklog APIs and the minimal QA Harness only. The final Daily Worklog drawer, schedule recalculation engine, approval UI, notifications, dependency automation, messenger integration, and real authentication remain explicitly excluded.
+
+Checkpoint 2 deliverables: 0027 additive schema, centralized office capacity, Morning/EOD/revision/correction APIs, Primary/Support/Executive guards, effective Actual contribution aggregation, idempotency, and `/qa/daily-worklog`. No scheduling date mutation is authorized.
 
 Resolved implementation policy for this checkpoint:
 

@@ -62,6 +62,7 @@ interface FoundationContext {
   scheduleVersions: any[];
   scheduleVersionTasks: any[];
   taskActuals: any[];
+  taskActualAggregates: any[];
   completionEvents: any[];
 }
 
@@ -267,6 +268,7 @@ async function loadFoundationContext(db: any): Promise<FoundationContext> {
     db.prepare(`SELECT * FROM schedule_version_tasks ORDER BY project_id, task_id`).all(),
     db.prepare(`SELECT * FROM task_actuals ORDER BY task_id, created_at`).all(),
     db.prepare(`SELECT * FROM task_completion_events ORDER BY task_id, created_at`).all(),
+    db.prepare(`SELECT * FROM task_actual_aggregates ORDER BY task_id`).all(),
   ]);
 
   const rows = (index: number) => results[index].results || [];
@@ -274,7 +276,7 @@ async function loadFoundationContext(db: any): Promise<FoundationContext> {
     projects: rows(0), tasks: rows(1), assignees: rows(2), workers: rows(3),
     holidays: rows(4), overrides: rows(5), dailyStatuses: rows(6), officePolicies: rows(7),
     projectBaselines: rows(8), taskBaselines: rows(9), scheduleVersions: rows(10),
-    scheduleVersionTasks: rows(11), taskActuals: rows(12), completionEvents: rows(13),
+    scheduleVersionTasks: rows(11), taskActuals: rows(12), completionEvents: rows(13), taskActualAggregates: rows(14),
   };
 }
 
@@ -359,6 +361,9 @@ function resolveProjectFoundation(
   const actualMap = new Map<string, any>();
   for (const actual of context.taskActuals.filter((row) => row.project_id === project.id)) {
     actualMap.set(actual.task_id, actual);
+  }
+  for (const aggregate of context.taskActualAggregates.filter((row) => row.project_id === project.id)) {
+    actualMap.set(aggregate.task_id, { ...aggregate, actual_progress: aggregate.current_progress });
   }
   const workerMap = new Map(context.workers.map((worker) => [worker.id, worker]));
   const workerNameMap = new Map(context.workers.map((worker) => [worker.name, worker]));

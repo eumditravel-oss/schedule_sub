@@ -47,6 +47,18 @@ import {
   getProjectProgressFoundationServer,
   previewV3FoundationServer,
 } from './services/v3FoundationService';
+import {
+  WorklogError,
+  createCorrectionRequest,
+  getDailyCapacity,
+  getTaskActual,
+  getWorklogForActor,
+  getWorklogContext,
+  listWorklogs,
+  reviseWorklog,
+  submitEod,
+  submitMorning,
+} from './services/dailyWorklogService';
 
 export interface WorkerEnv {
   DB: Env['DB'];
@@ -306,7 +318,7 @@ export default {
         headers: {
           'Access-Control-Allow-Origin': '*',
           'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
-          'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-editor-name, x-actor-mode, x-actor-user-id, x-actor-employee-id, x-selected-view-employee-id, x-test-session-id',
+          'Access-Control-Allow-Headers': 'Content-Type, Authorization, Idempotency-Key, x-editor-name, x-actor-mode, x-actor-user-id, x-actor-employee-id, x-selected-view-employee-id, x-test-session-id, x-test-now-utc',
         },
       });
     }
@@ -329,6 +341,66 @@ export default {
           builtAt: env.BUILD_TIMESTAMP || env.DEPLOYED_AT || null,
           environment: env.ENVIRONMENT_NAME || (isQa ? 'qa' : 'production'),
         });
+      }
+
+      // 0.004 V3 Checkpoint 2 - Daily Worklog / Capacity Foundation.
+      // TEST ACTOR and selected-view context stay separate: only x-actor-employee-id authorizes writes.
+      if (cleanPath.startsWith('/api/v3/worklogs') || cleanPath === '/api/v3/capacity/day' || /^\/api\/v3\/tasks\/[^/]+\/actual$/.test(cleanPath)) {
+        const actorHeader = request.headers.get('x-actor-employee-id') || '';
+        const actorWorker = actorHeader ? await getActiveWorkerProfile(db, actorHeader) : null;
+        const actor = getActorContextServer(request, actorWorker);
+        const testNowHeader = env.ENVIRONMENT_NAME === 'qa' ? request.headers.get('x-test-now-utc') : null;
+        const requestNow = testNowHeader && !Number.isNaN(Date.parse(testNowHeader)) ? new Date(testNowHeader) : new Date();
+        const idempotencyKey = request.headers.get('Idempotency-Key')?.trim() || '';
+
+        if (method === 'GET' && cleanPath === '/api/v3/worklogs/context') {
+          const employeeId = url.searchParams.get('employee_id') || actor.actorEmployeeId || '';
+          const localDate = url.searchParams.get('local_work_date') || '';
+          return jsonResponse(await getWorklogContext(db, actor, employeeId, localDate));
+        }
+
+        if (method === 'POST' && cleanPath === '/api/v3/worklogs/morning') {
+          const body: any = await request.json().catch(() => ({}));
+          return jsonResponse(await submitMorning(db, actor, body, idempotencyKey, requestNow), 201);
+        }
+
+        if (method === 'GET' && cleanPath === '/api/v3/worklogs') {
+          return jsonResponse(await listWorklogs(db, actor, Object.fromEntries(url.searchParams.entries())));
+        }
+
+        if (method === 'GET' && cleanPath === '/api/v3/capacity/day') {
+          const employeeId = url.searchParams.get('employee_id') || actor.actorEmployeeId || '';
+          const localDate = url.searchParams.get('local_work_date') || '';
+          return jsonResponse(await getDailyCapacity(db, employeeId, localDate));
+        }
+
+        const taskActualMatch = cleanPath.match(/^\/api\/v3\/tasks\/([^/]+)\/actual$/);
+        if (method === 'GET' && taskActualMatch) {
+          return jsonResponse(await getTaskActual(db, decodeURIComponent(taskActualMatch[1])));
+        }
+
+        const eodMatch = cleanPath.match(/^\/api\/v3\/worklogs\/([^/]+)\/eod$/);
+        if (method === 'POST' && eodMatch) {
+          const body: any = await request.json().catch(() => ({}));
+          return jsonResponse(await submitEod(db, actor, decodeURIComponent(eodMatch[1]), body, idempotencyKey, requestNow), 201);
+        }
+
+        const revisionMatch = cleanPath.match(/^\/api\/v3\/worklogs\/([^/]+)\/revisions$/);
+        if (method === 'POST' && revisionMatch) {
+          const body: any = await request.json().catch(() => ({}));
+          return jsonResponse(await reviseWorklog(db, actor, decodeURIComponent(revisionMatch[1]), body, idempotencyKey, requestNow), 201);
+        }
+
+        const correctionMatch = cleanPath.match(/^\/api\/v3\/worklogs\/([^/]+)\/correction-requests$/);
+        if (method === 'POST' && correctionMatch) {
+          const body: any = await request.json().catch(() => ({}));
+          return jsonResponse(await createCorrectionRequest(db, actor, decodeURIComponent(correctionMatch[1]), body, idempotencyKey, requestNow), 201);
+        }
+
+        const getWorklogMatch = cleanPath.match(/^\/api\/v3\/worklogs\/([^/]+)$/);
+        if (method === 'GET' && getWorklogMatch) {
+          return jsonResponse(await getWorklogForActor(db, actor, decodeURIComponent(getWorklogMatch[1])));
+        }
       }
 
       // 0.005 V3 Checkpoint 1 foundation status / guarded migration commands
@@ -1643,16 +1715,18 @@ async function validateAndNormalizeTaskAssigneesServer(
         }
 
         const calendarBatch = await fetchCalendarBatchData(db);
-        const [allActiveProjectsRes, allActiveTasksRes, tasksRes] = await Promise.all([
+        const [allActiveProjectsRes, allActiveTasksRes, tasksRes, actualAggregatesRes] = await Promise.all([
           db.prepare(`SELECT * FROM projects WHERE status = 'ACTIVE'`).all(),
           db.prepare(`SELECT * FROM tasks`).all(),
           db.prepare(`SELECT * FROM tasks WHERE project_id = ? ORDER BY task_sort_order ASC, start_date ASC, created_at ASC`).bind(projectId).all(),
+          db.prepare(`SELECT * FROM task_actual_aggregates WHERE project_id = ?`).bind(projectId).all().catch(() => ({ results: [] })),
         ]);
 
         const allActiveProjects = allActiveProjectsRes.results || [];
         const allActiveTasks = allActiveTasksRes.results || [];
 
         const rawTasks = tasksRes.results || [];
+        const actualAggregateMap = new Map((actualAggregatesRes.results || []).map((row: any) => [row.task_id, row]));
         const dailyStatusMap: Record<string, Record<string, string>> = {};
 
         await Promise.all(
@@ -1691,10 +1765,11 @@ async function validateAndNormalizeTaskAssigneesServer(
           rawTasks.map(async (t: any) => {
             const daily_statuses = dailyStatusMap[t.id] || {};
             const legacyBootstrap = legacyBootstrapMap.get(t.id) || null;
+            const worklogActual: any = actualAggregateMap.get(t.id) || null;
             const assignees = taskAssigneesMap[t.id] || (t.worker_name ? [{ worker_id: t.worker_name, name: t.worker_name, assignment_role: 'PRIMARY', allocation_percent: 100 }] : []);
             const tWithAssignees = {
               ...t,
-              actual_progress: legacyBootstrap?.actual_progress ?? t.actual_progress ?? t.progress ?? 0,
+              actual_progress: worklogActual?.current_progress ?? legacyBootstrap?.actual_progress ?? t.actual_progress ?? t.progress ?? 0,
               task_group_id: t.task_group_id || defaultGroupId,
               assignees,
               assignee_ids: assignees.map((a: any) => a.worker_id),
@@ -1725,6 +1800,7 @@ async function validateAndNormalizeTaskAssigneesServer(
               ...tWithAssignees,
               ...progressMetrics,
               legacy_bootstrap_info: legacyBootstrap,
+              worklog_actual_aggregate: worklogActual,
               is_legacy_bootstrap: Boolean(legacyBootstrap),
               has_schedule_conflict: conflicts.length > 0,
               schedule_conflicts: conflicts,
@@ -3681,7 +3757,7 @@ function addPureCalendarDays(dateStr: string, deltaDays: number): string {
         const { results } = await stmt.all();
         const rawTasks = results || [];
         const taskIds = rawTasks.map((t: any) => t.id);
-        const [assigneesMap, projectsRes, dailyStatusesRes, legacyActualsRes, calendarBatch] = await Promise.all([
+        const [assigneesMap, projectsRes, dailyStatusesRes, legacyActualsRes, actualAggregatesRes, calendarBatch] = await Promise.all([
           fetchTaskAssigneesMapServer(db, taskIds),
           db.prepare(`SELECT id, status FROM projects`).all(),
           db.prepare(`SELECT task_id, work_date, status FROM daily_status`).all(),
@@ -3693,6 +3769,7 @@ function addPureCalendarDays(dateStr: string, deltaDays: number): string {
              WHERE source_type = 'LEGACY_BOOTSTRAP'
              ORDER BY task_id, created_at`
           ).all().catch(() => ({ results: [] })),
+          db.prepare(`SELECT * FROM task_actual_aggregates`).all().catch(() => ({ results: [] })),
           fetchCalendarBatchData(db),
         ]);
 
@@ -3711,16 +3788,19 @@ function addPureCalendarDays(dateStr: string, deltaDays: number): string {
         for (const row of legacyActualsRes.results || []) {
           legacyBootstrapMap.set(row.task_id, row);
         }
+        const actualAggregateMap = new Map<string, any>();
+        for (const row of actualAggregatesRes.results || []) actualAggregateMap.set(row.task_id, row);
 
         // The overview print reports consume this collection endpoint. Return
         // the same Actual/Status projection as project detail so a completed
         // Legacy Bootstrap task cannot become "not started / 0%" in print.
         const tasks = rawTasks.map((t: any) => {
           const legacyBootstrap = legacyBootstrapMap.get(t.id) || null;
+          const worklogActual = actualAggregateMap.get(t.id) || null;
           const assignees = assigneesMap[t.id] || [];
           const taskWithActual = {
             ...t,
-            actual_progress: legacyBootstrap?.actual_progress ?? t.actual_progress ?? t.progress ?? 0,
+            actual_progress: worklogActual?.current_progress ?? legacyBootstrap?.actual_progress ?? t.actual_progress ?? t.progress ?? 0,
             assignees,
             assignee_ids: assignees.map((assignee: any) => assignee.worker_id),
             primary_worker_id: t.primary_worker_id || (assignees.find((assignee: any) => assignee.assignment_role === 'PRIMARY')?.worker_id || assignees[0]?.worker_id),
@@ -3739,6 +3819,7 @@ function addPureCalendarDays(dateStr: string, deltaDays: number): string {
             ...taskWithActual,
             ...progressMetrics,
             legacy_bootstrap_info: legacyBootstrap,
+            worklog_actual_aggregate: worklogActual,
             is_legacy_bootstrap: Boolean(legacyBootstrap),
             daily_statuses: dailyStatusMap[t.id] || {},
           };
@@ -4340,6 +4421,9 @@ function addPureCalendarDays(dateStr: string, deltaDays: number): string {
 
       return errorResponse('경로를 찾을 수 없습니다.', 404, 'NOT_FOUND');
     } catch (err: any) {
+      if (err instanceof WorklogError) {
+        return errorResponse(err.message, err.status, err.code, err.details);
+      }
       if (err.name === 'ZodError') {
         return errorResponse(err.errors[0]?.message || '입력값이 올바르지 않습니다.', 400);
       }

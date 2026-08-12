@@ -372,3 +372,9 @@ Use D1 backup restore only for catastrophic migration corruption, not normal bus
 - No baseline or forecast row was created.
 - No production data was modified.
 - No feature flag or deployment was changed.
+
+## 13. Checkpoint 2 rollout (0027)
+
+`0027_daily_worklog_capacity_foundation.sql` is additive: three office policy columns plus worklog, revision, entry, audit, capacity-event, overtime-candidate, actual-contribution/aggregate, correction-request, temporary-primary, and idempotency tables. It does not alter Baseline/Forecast dates or delete Legacy Bootstrap facts.
+
+Required order is QA D1 export backup, QA migration apply, second apply showing no pending migration, QA API/E2E, Production export backup, Production migration, Worker deployment, and Build SHA verification. D1 write operations use `batch()` so a failed Revision/Entry/Audit/Actual/Idempotency sequence rolls back together.

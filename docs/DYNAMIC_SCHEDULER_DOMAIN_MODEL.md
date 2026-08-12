@@ -17,7 +17,17 @@ This overlay is authoritative where older proposal language differs.
 - Correction is append-only. Notification is in-app immediate plus daily manager digest, grouped as one worklog Adjustment Summary.
 - `V3_CUTOVER_DATE` is configuration/migration input, initially `2026-08-11`.
 
-Checkpoint 1 creates only `schedule_versions`, `schedule_version_tasks`, `task_actuals`, `task_completion_events`, `progress_snapshots`, and the small policy/migration audit support strictly required by those entities. Daily Worklog and dependency/approval/notification tables remain future work.
+Checkpoint 1 created `schedule_versions`, `schedule_version_tasks`, Legacy Bootstrap `task_actuals`, `task_completion_events`, and `progress_snapshots`. Checkpoint 2 adds the Daily Worklog/Capacity/Actual contribution foundation described below; dependency movement, forecast recalculation, approval UI, notification UI, and the final employee drawer remain deferred.
+
+## Checkpoint 2 authoritative overlay
+
+- `daily_worklogs` is unique by `(employee_id, local_work_date)` and stores UTC submission timestamps separately from the employee-local work date.
+- `daily_worklog_revisions`, `daily_worklog_entries`, and `worklog_audit_events` are append-only. Corrections mark the former effective revision/contributions superseded without deleting history.
+- `task_actual_contributions` records per-employee minutes. Only Primary or effective Temporary Primary records authoritative progress/remaining/completion.
+- `task_actual_aggregates` is the current effective Actual source. Legacy `task_actuals` remains immutable bootstrap provenance and is used only when no worklog aggregate exists.
+- `employee_capacity_events` provides deduplicated partial leave/company adjustment facts. A whole-day non-work calendar result remains capacity zero and is never reduced twice.
+- `worklog_idempotency_keys` stores operation, stable payload fingerprint, and replay response. Same key/different payload is `IDEMPOTENCY_CONFLICT`.
+- `overtime_candidates` preserves raw actual time and the excess as `PENDING_REVIEW`; no approved scheduling capacity is inferred.
 
 ## 1. Domain principles
 
