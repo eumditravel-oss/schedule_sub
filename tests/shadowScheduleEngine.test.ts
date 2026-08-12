@@ -559,6 +559,25 @@ describe('Checkpoint 3A A-Z shadow engine simulations', () => {
     expect(successor?.approvalRequired).toBe(true);
   });
 
+  it.each([false, true])('U3 — successor Actual before predecessor Shadow finish requires review (completed=%s)', (completed) => {
+    const result = runShadowScheduleEngine(input({
+      planningCutoffUtc: '2026-08-12T00:00:00.000Z',
+      tasks: [
+        task('task-1', { remainingEstimatedMinutes: 420, officialStart: '2026-08-12', officialEnd: '2026-08-12' }),
+        task('task-2', {
+          wbsOrder: 2, actualStarted: true, completed, actualStartUtc: '2026-08-11T00:00:00.000Z',
+          actualEndUtc: completed ? '2026-08-11T08:00:00.000Z' : null,
+          actualEndLocalDate: completed ? '2026-08-11' : null,
+          remainingEstimatedMinutes: completed ? 0 : 60,
+        }),
+      ],
+      dependencies: [{ id: 'd-u3', projectId: 'project-a', predecessorTaskId: 'task-1', successorTaskId: 'task-2', type: 'FINISH_TO_START', lagWorkMinutes: 0, status: 'CONFIRMED' }],
+    }));
+    const successor = result.tasks.find((item) => item.taskId === 'task-2');
+    expect(successor?.impactReasonCodes).toContain('ACTUAL_PRECEDES_CONFIRMED_DEPENDENCY');
+    expect(successor?.approvalRequired).toBe(true);
+  });
+
   it('V — Korea/Vietnam local conversion does not produce a one-day handoff error', () => {
     expect(localDateTimeToUtc('2026-08-13', '08:00', 'Asia/Ho_Chi_Minh')).toBe('2026-08-13T01:00:00.000Z');
     expect(localDateTimeToUtc('2026-08-13', '09:00', 'Asia/Seoul')).toBe('2026-08-13T00:00:00.000Z');

@@ -1,4 +1,4 @@
-export const SHADOW_ENGINE_VERSION = '3A.1.7';
+export const SHADOW_ENGINE_VERSION = '3A.1.8';
 
 export type ShadowConfidence = 'HIGH' | 'PROVISIONAL' | 'LOW' | 'BLOCKED';
 export type ApprovalClassification = 'AUTO_APPLY_ELIGIBLE' | 'APPROVAL_REQUIRED' | 'BLOCKED' | 'NO_CHANGE';
@@ -711,6 +711,26 @@ export function runShadowScheduleEngine(rawInput: ShadowEngineInput): ShadowEngi
     }
     const dependencyStart = earliestFromPredecessors(task);
     reasons.push(...dependencyStart.reasons);
+    const actualPrecedesDependency = Boolean(task.actualStartUtc && (predecessorMap.get(task.id) || []).some((dependency) => {
+      const predecessor = taskMap.get(dependency.predecessorTaskId);
+      const predecessorResult = results.get(dependency.predecessorTaskId);
+      const predecessorAllocation = [...allocations].reverse().find((allocation) => allocation.taskId === dependency.predecessorTaskId);
+      const predecessorConstraint = constraints.get(dependency.predecessorTaskId);
+      const predecessorFinishUtc = predecessor?.actualEndUtc || predecessorAllocation?.endsAtUtc ||
+        (predecessorConstraint?.type === 'MILESTONE' ? predecessorConstraint.timestampUtc : null);
+      if (predecessorFinishUtc) return task.actualStartUtc! < predecessorFinishUtc;
+      const predecessorFinishDate = predecessor?.actualEndLocalDate || predecessorResult?.shadowEnd;
+      if (!predecessorFinishDate) return false;
+      const successorEmployee = primaryAtCutoff ? employeeMap.get(primaryAtCutoff) : null;
+      const successorStartDate = successorEmployee
+        ? utcToLocalDate(task.actualStartUtc!, successorEmployee.timezone)
+        : task.actualStartUtc!.slice(0, 10);
+      return successorStartDate < predecessorFinishDate;
+    }));
+    if (actualPrecedesDependency) {
+      reasons.push('ACTUAL_PRECEDES_CONFIRMED_DEPENDENCY');
+      approvalRequired = true;
+    }
     const hasUnconfirmedDependency = input.dependencies.some((dependency) =>
       dependency.status === 'PROPOSED' &&
       (dependency.predecessorTaskId === task.id || dependency.successorTaskId === task.id));
@@ -761,16 +781,6 @@ export function runShadowScheduleEngine(rawInput: ShadowEngineInput): ShadowEngi
 
     if (task.completed) {
       const actualEnd = task.actualEndLocalDate || task.actualEndUtc?.slice(0, 10) || task.officialEnd;
-      const actualPrecedesDependency = Boolean(task.actualStartUtc && (predecessorMap.get(task.id) || []).some((dependency) => {
-        const predecessor = taskMap.get(dependency.predecessorTaskId);
-        if (predecessor?.actualEndUtc) return task.actualStartUtc! < predecessor.actualEndUtc;
-        if (!predecessor?.actualEndLocalDate) return false;
-        const successorEmployee = primaryAtCutoff ? employeeMap.get(primaryAtCutoff) : null;
-        const successorStartDate = successorEmployee
-          ? utcToLocalDate(task.actualStartUtc!, successorEmployee.timezone)
-          : task.actualStartUtc!.slice(0, 10);
-        return successorStartDate < predecessor.actualEndLocalDate;
-      }));
       const completedReasons = actualEnd !== task.officialEnd ? ['ACTUAL_COMPLETION_DATE'] : [];
       if (actualPrecedesDependency) completedReasons.push('ACTUAL_PRECEDES_CONFIRMED_DEPENDENCY');
       results.set(task.id, {
