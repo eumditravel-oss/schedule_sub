@@ -10,6 +10,7 @@ import {
   recordedWorkTimestampUtc,
   selectEffectiveProjectPriorities,
   shadowVersionUsesEmployee,
+  shadowRunAuthorityIsCurrent,
   isValidShadowWorkPolicy,
   normalizeShadowCutoff,
   validateSourceWorklogRevisionPair,
@@ -141,6 +142,12 @@ describe('Checkpoint 3A Shadow service timestamp mapping', () => {
     expect(shadowVersionUsesEmployee({
       employeeId: 'emp-unrelated', taskEmployeeIds: ['emp-primary'], allocationEmployeeIds: ['emp-temp'],
     })).toBe(false);
+  });
+
+  it('treats a persisted Shadow run as stale whenever schedule authority advanced', () => {
+    expect(shadowRunAuthorityIsCurrent(12, 12)).toBe(true);
+    expect(shadowRunAuthorityIsCurrent(12, 13)).toBe(false);
+    expect(shadowRunAuthorityIsCurrent(undefined, 13)).toBe(false);
   });
 
   it('documents the Shadow capacity authority accepting APPROVED and EFFECTIVE event statuses', () => {

@@ -255,6 +255,11 @@ export function shadowVersionUsesEmployee(input: {
   return input.taskEmployeeIds.includes(input.employeeId) || input.allocationEmployeeIds.includes(input.employeeId);
 }
 
+export function shadowRunAuthorityIsCurrent(runRevision: unknown, currentRevision: unknown): boolean {
+  return Number.isInteger(Number(runRevision)) && Number.isInteger(Number(currentRevision)) &&
+    Number(runRevision) === Number(currentRevision);
+}
+
 export function filterEffectiveOvertimeCandidates<T extends { revision_id: string; approval_status: string }>(
   candidates: T[],
   effectiveRevisionIds: Set<string>,
@@ -714,8 +719,12 @@ async function buildShadowEngineInput(db: any, options: RunOptions): Promise<Sha
 }
 
 async function readRun(db: any, runId: string, actor?: ShadowActor | null) {
-  const run = await db.prepare(`SELECT * FROM schedule_recalculation_runs WHERE run_id=?`).bind(runId).first();
+  const [run, authorityGuard] = await Promise.all([
+    db.prepare(`SELECT * FROM schedule_recalculation_runs WHERE run_id=?`).bind(runId).first(),
+    db.prepare(`SELECT revision FROM shadow_schedule_authority_guard WHERE guard_id='GLOBAL'`).first(),
+  ]);
   if (!run) throw new ShadowScheduleError('SHADOW_RUN_STALE', 404, { runId });
+  const authorityStale = !authorityGuard || !shadowRunAuthorityIsCurrent(run.authority_revision, authorityGuard.revision);
   const [versions, tasks, allocations, impacts, diffs] = await Promise.all([
     db.prepare(`SELECT * FROM shadow_schedule_versions WHERE run_id=? ORDER BY project_id`).bind(runId).all(),
     db.prepare(`SELECT st.*,p.id AS project_id,t.task_name,t.task_name_ko,t.task_name_vi,t.task_sort_order,p.name AS project_name,p.name_ko AS project_name_ko,p.name_vi AS project_name_vi,w.name AS employee_name,
@@ -745,7 +754,8 @@ async function readRun(db: any, runId: string, actor?: ShadowActor | null) {
     versionRows = filtered.versions;
     impactRows = filtered.impacts;
   }
-  return { run, versions: versionRows, tasks: taskRows, allocations: allocationRows, impacts: impactRows, diffs: diffRows };
+  if (authorityStale) versionRows = versionRows.map((version: any) => ({ ...version, status: 'STALE' }));
+  return { run, versions: versionRows, tasks: taskRows, allocations: allocationRows, impacts: impactRows, diffs: diffRows, authorityStale };
 }
 
 function classifyProjectSummary(result: ShadowEngineResult, primaryProjectId: string | null) {
@@ -822,11 +832,16 @@ export async function executeShadowRun(db: any, options: RunOptions) {
       db.prepare(`UPDATE shadow_schedule_authority_guard SET lock_token=?1,updated_at=CURRENT_TIMESTAMP
         WHERE guard_id='GLOBAL' AND revision=?2`).bind(activationToken, authorityRevision),
       ...activationStatements,
+      db.prepare(`UPDATE schedule_recalculation_runs SET authority_revision=?1
+        WHERE run_id=?2 AND EXISTS (
+          SELECT 1 FROM shadow_schedule_authority_guard WHERE guard_id='GLOBAL' AND revision=?1 AND lock_token=?3
+        )`).bind(authorityRevision, existingRun.run_id, activationToken),
       db.prepare(`UPDATE schedule_recalculation_requests SET status=?1,updated_at=CURRENT_TIMESTAMP WHERE request_id=?2
           AND EXISTS (SELECT 1 FROM shadow_schedule_authority_guard WHERE guard_id='GLOBAL' AND revision=?3 AND lock_token=?4)`)
         .bind(reusedRun.run.status === 'BLOCKED' ? 'FAILED_BLOCKED' : 'COMPLETED', requestId, authorityRevision, activationToken),
     ]);
     if (Number(activationResults[0]?.meta?.changes || 0) !== 1 ||
+        Number(activationResults.at(-2)?.meta?.changes || 0) !== 1 ||
         Number(activationResults.at(-1)?.meta?.changes || 0) !== 1) {
       throw new ShadowScheduleError('SHADOW_RUN_INPUT_CHANGED', 409, { reason: 'SHADOW_AUTHORITY_CHANGED' });
     }
