@@ -245,6 +245,13 @@ export function selectEffectiveProjectPriorities<T extends { project_id: string;
     .map((priority) => [priority.project_id, priority]));
 }
 
+export function validateDependencyReviewAction(action: unknown): 'CONFIRM' | 'REJECT' {
+  if (action !== 'CONFIRM' && action !== 'REJECT') {
+    throw new ShadowScheduleError('DEPENDENCY_REVIEW_ACTION_INVALID', 400);
+  }
+  return action;
+}
+
 async function resolveShadowActor(db: any, actorContext: ActorContextServer, write = false): Promise<ShadowActor> {
   const employeeId = actorContext.actorEmployeeId || actorContext.actorUserId;
   if (!employeeId) throw new ShadowScheduleError('DEPENDENCY_PERMISSION_DENIED', 403);
@@ -929,6 +936,7 @@ export async function listDependencies(db: any, actorContext: ActorContextServer
 }
 
 export async function reviewDependencies(db: any, actorContext: ActorContextServer, ids: string[], action: 'CONFIRM' | 'REJECT', input: { lagWorkMinutes?: number; reason?: string }) {
+  action = validateDependencyReviewAction(action);
   const actor = await resolveShadowActor(db, actorContext, true);
   requireManager(actor);
   const uniqueIds = [...new Set(ids)].sort();

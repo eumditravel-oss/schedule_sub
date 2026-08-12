@@ -7,6 +7,7 @@ import {
   findMissingWorklogDates,
   recordedWorkTimestampUtc,
   selectEffectiveProjectPriorities,
+  validateDependencyReviewAction,
   worklogHasShadowDataGap,
 } from '../worker/services/shadowScheduleService';
 import { isValidIsoLocalDate, isValidUtcTimestamp } from '../worker/services/shadowScheduleEngine';
@@ -134,5 +135,12 @@ describe('Checkpoint 3A Shadow service timestamp mapping', () => {
       { project_id: 'expired', priority_rank: 3, effective_from: '2026-07-01', effective_to: '2026-08-11' },
     ], '2026-08-12');
     expect([...priorities.keys()]).toEqual(['current']);
+  });
+
+  it('rejects dependency batch-review action typos before any write path', () => {
+    expect(validateDependencyReviewAction('CONFIRM')).toBe('CONFIRM');
+    expect(validateDependencyReviewAction('REJECT')).toBe('REJECT');
+    expect(() => validateDependencyReviewAction('CONFIRMED')).toThrowError('DEPENDENCY_REVIEW_ACTION_INVALID');
+    expect(() => validateDependencyReviewAction('')).toThrowError('DEPENDENCY_REVIEW_ACTION_INVALID');
   });
 });
