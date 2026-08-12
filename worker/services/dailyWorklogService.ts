@@ -33,6 +33,19 @@ const asBool = (value: unknown) => value === true || value === 1 || value === '1
 const isoDate = /^\d{4}-\d{2}-\d{2}$/;
 const isoTime = /^([01]\d|2[0-3]):[0-5]\d$/;
 
+function isValidLocalDate(value: unknown): value is string {
+  if (typeof value !== 'string' || !isoDate.test(value)) return false;
+  const parsed = new Date(`${value}T00:00:00Z`);
+  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
+}
+
+function rejectDuplicateTaskEntries(entries: any[]) {
+  const taskIds = entries.map((entry) => entry.task_id).filter(Boolean);
+  if (new Set(taskIds).size !== taskIds.length) {
+    throw new WorklogError('WORKLOG_ALREADY_EXISTS', 409, { reason: 'DUPLICATE_TASK_ENTRY' });
+  }
+}
+
 function stableValue(value: any): any {
   if (Array.isArray(value)) return value.map(stableValue);
   if (value && typeof value === 'object') {
@@ -180,7 +193,7 @@ async function calendarData(db: any) {
 }
 
 export async function getDailyCapacity(db: any, employeeId: string, localWorkDate: string, excludeWorklogId?: string) {
-  if (!isoDate.test(localWorkDate)) throw new WorklogError('INVALID_LOCAL_WORK_DATE');
+  if (!isValidLocalDate(localWorkDate)) throw new WorklogError('INVALID_LOCAL_WORK_DATE');
   const { worker, policy } = await getPolicyAndWorker(db, employeeId);
   const { holidays, overrides } = await calendarData(db);
   const day = resolveWorkDayStatusServer(localWorkDate, worker, holidays, overrides);
@@ -305,7 +318,7 @@ export async function getWorklogContext(db: any, actorContext: ActorContextServe
     const worker = await db.prepare(`SELECT * FROM workers WHERE id = ?`).bind(actorContext.actorEmployeeId).first();
     return { ...actorContext, worker, isManager: false } as WorklogActor;
   });
-  if (!isoDate.test(localDate)) throw new WorklogError('INVALID_LOCAL_WORK_DATE');
+  if (!isValidLocalDate(localDate)) throw new WorklogError('INVALID_LOCAL_WORK_DATE');
   const capacity = await getDailyCapacity(db, employeeId, localDate);
   const deadline = await getSelfEditDeadline(db, employeeId, localDate);
   const worklog = await db.prepare(`SELECT * FROM daily_worklogs WHERE employee_id = ? AND local_work_date = ?`).bind(employeeId, localDate).first();
@@ -338,14 +351,19 @@ export async function submitMorning(db: any, actorContext: ActorContextServer, b
   const actor = await resolveActor(db, actorContext);
   const employeeId = body.employee_id || actor.worker.id;
   requireSubject(actor, employeeId);
-  if (!isoDate.test(body.local_work_date || '')) throw new WorklogError('INVALID_LOCAL_WORK_DATE');
+  if (!isValidLocalDate(body.local_work_date)) throw new WorklogError('INVALID_LOCAL_WORK_DATE');
   const { policy } = await getPolicyAndWorker(db, employeeId);
   const entries = Array.isArray(body.entries) ? body.entries : [];
   if (entries.length === 0) throw new WorklogError('PRIMARY_PROGRESS_REQUIRED', 400, { reason: 'MORNING_ENTRY_REQUIRED' });
+  rejectDuplicateTaskEntries(entries);
   for (const entry of entries) {
     if (!(WORK_CATEGORIES as readonly string[]).includes(entry.work_category)) throw new WorklogError('INVALID_LOCAL_WORK_DATE', 400, { reason: 'INVALID_WORK_CATEGORY' });
     validateIncrement(entry.planned_minutes, 30);
-    if (entry.task_id) await assignmentForEntry(db, employeeId, body.local_work_date, entry);
+    if (entry.task_id) {
+      await assignmentForEntry(db, employeeId, body.local_work_date, entry);
+      const actual = await currentTaskActual(db, entry.task_id);
+      if (Number(actual.current_progress || 0) >= 100) throw new WorklogError('TASK_ALREADY_COMPLETED', 409, { task_id: entry.task_id });
+    }
   }
   const existing = await db.prepare(`SELECT * FROM daily_worklogs WHERE employee_id = ? AND local_work_date = ?`).bind(employeeId, body.local_work_date).first();
   if (existing?.current_morning_revision_id) throw new WorklogError('WORKLOG_ALREADY_EXISTS', 409);
@@ -406,6 +424,7 @@ export async function submitMorning(db: any, actorContext: ActorContextServer, b
 async function validateEodEntries(db: any, employeeId: string, localDate: string, entries: any[], correction: boolean, increment: 15 | 30) {
   const { policy } = await getPolicyAndWorker(db, employeeId);
   validateTimeRanges(entries, policy);
+  rejectDuplicateTaskEntries(entries);
   const validated: any[] = [];
   for (let index = 0; index < entries.length; index += 1) {
     const entry = entries[index];
@@ -414,7 +433,7 @@ async function validateEodEntries(db: any, employeeId: string, localDate: string
     if (OTHER_PROJECT.has(entry.work_category) && (!entry.related_project_id || !entry.reason_source)) {
       throw new WorklogError('WORKLOG_PERMISSION_DENIED', 400, { entry_index: index, reason: 'OTHER_PROJECT_REFERENCE_REQUIRED' });
     }
-    if (MEETING_CATEGORIES.has(entry.work_category) && entry.work_category === 'MEETING' && (!entry.meeting_record || !entry.meeting_record.purpose || !entry.meeting_record.local_start_time || !entry.meeting_record.local_end_time)) {
+    if (MEETING_CATEGORIES.has(entry.work_category) && (!entry.meeting_record || !entry.meeting_record.purpose || !entry.meeting_record.local_start_time || !entry.meeting_record.local_end_time)) {
       throw new WorklogError('MEETING_RECORD_REQUIRED', 400, { entry_index: index });
     }
     if (entry.work_category === 'APPROVED_LEAVE' && !entry.leave_link_id) throw new WorklogError('LEAVE_LINK_REQUIRED', 400, { entry_index: index });
@@ -424,7 +443,7 @@ async function validateEodEntries(db: any, employeeId: string, localDate: string
       actual = await currentTaskActual(db, entry.task_id);
       const progressFieldsSent = ['progress_after','remaining_estimated_minutes','completion_reported'].some((field) => entry[field] !== undefined && entry[field] !== null);
       if (assignment.role !== 'PRIMARY' && progressFieldsSent) throw new WorklogError('SUPPORT_PROGRESS_FORBIDDEN', 403, { entry_index: index });
-      if (Number(actual.current_progress || 0) >= 100 && assignment.role === 'PRIMARY' && !correction) throw new WorklogError('TASK_ALREADY_COMPLETED', 409, { task_id: entry.task_id });
+      if (Number(actual.current_progress || 0) >= 100 && !correction) throw new WorklogError('TASK_ALREADY_COMPLETED', 409, { task_id: entry.task_id });
       if (assignment.role === 'PRIMARY') validatePrimaryProgress(entry, Number(actual.current_progress || 0), correction);
     }
     validated.push({ ...entry, actual_minutes: minutes, assignment, progress_before: Number(actual?.current_progress || 0) });
@@ -582,7 +601,7 @@ export async function submitEod(db: any, actorContext: ActorContextServer, workl
   const actor = await resolveActor(db, actorContext);
   const employeeId = body.employee_id || actor.worker.id;
   requireSubject(actor, employeeId);
-  if (!isoDate.test(body.local_work_date || '')) throw new WorklogError('INVALID_LOCAL_WORK_DATE');
+  if (!isValidLocalDate(body.local_work_date)) throw new WorklogError('INVALID_LOCAL_WORK_DATE');
   let worklog = await db.prepare(`SELECT * FROM daily_worklogs WHERE id = ?`).bind(worklogId).first();
   if (!worklog) worklog = await db.prepare(`SELECT * FROM daily_worklogs WHERE employee_id=? AND local_work_date=?`).bind(employeeId, body.local_work_date).first();
   if (!worklog) {

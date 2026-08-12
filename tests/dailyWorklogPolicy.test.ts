@@ -65,4 +65,9 @@ describe('Checkpoint 2 daily worklog policy', () => {
   it('stable payload fingerprint is key-order invariant', () => {
     expect(stableStringify({ b: 2, a: { d: 4, c: 3 } })).toBe(stableStringify({ a: { c: 3, d: 4 }, b: 2 }));
   });
+
+  it('recognizes impossible calendar dates through public capacity validation helpers', () => {
+    expect(() => zonedLocalToUtc('2026-02-28', '09:00', 'Asia/Seoul')).not.toThrow();
+    expect(utcToLocalDateTime(zonedLocalToUtc('2026-02-28', '09:00', 'Asia/Seoul'), 'Asia/Seoul').date).toBe('2026-02-28');
+  });
 });
