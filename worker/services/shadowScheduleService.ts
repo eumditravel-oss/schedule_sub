@@ -6,6 +6,7 @@ import {
   DependencyProposalTask,
   fingerprintEngineInput,
   generateDependencyProposals,
+  localDateTimeToUtc,
   normalizeEngineInput,
   runShadowScheduleEngine,
   sha256Hex,
@@ -43,6 +44,19 @@ interface RunOptions {
 }
 
 const uuid = (prefix: string) => `${prefix}_${crypto.randomUUID()}`;
+
+export function recordedWorkTimestampUtc(
+  contribution: { local_work_date?: string | null } | null | undefined,
+  employee: { workStartLocal: string; workEndLocal: string; timezone: string } | null | undefined,
+  phase: 'START' | 'END',
+): string | null {
+  if (!contribution?.local_work_date || !employee) return null;
+  return localDateTimeToUtc(
+    contribution.local_work_date,
+    phase === 'START' ? employee.workStartLocal : employee.workEndLocal,
+    employee.timezone,
+  );
+}
 
 function parseJson<T>(value: unknown, fallback: T): T {
   if (typeof value !== 'string' || value.length === 0) return fallback;
@@ -103,6 +117,70 @@ function localDateInTimezone(now: Date, timezone: string): string {
   return new Intl.DateTimeFormat('en-CA', {
     timeZone: timezone, year: 'numeric', month: '2-digit', day: '2-digit',
   }).format(now);
+}
+
+function previousDate(date: string): string {
+  const value = new Date(`${date}T00:00:00Z`);
+  value.setUTCDate(value.getUTCDate() - 1);
+  return value.toISOString().slice(0, 10);
+}
+
+function dateSpan(start: string, end: string): string[] {
+  if (start > end) return [];
+  const result: string[] = [];
+  const value = new Date(`${start}T00:00:00Z`);
+  while (value.toISOString().slice(0, 10) <= end) {
+    result.push(value.toISOString().slice(0, 10));
+    value.setUTCDate(value.getUTCDate() + 1);
+  }
+  return result;
+}
+
+function taskEmployeeIds(task: any, assignmentMap: Map<string, any[]>, temporaryMap: Map<string, any[]>): string[] {
+  return [...new Set([
+    ...(assignmentMap.get(task.id) || []).map((assignment: any) => assignment.worker_id),
+    ...(temporaryMap.get(task.id) || []).map((assignment: any) => assignment.temporary_primary_employee_id),
+    task.primary_worker_id,
+  ].filter(Boolean))] as string[];
+}
+
+export function expandSharedEmployeeTaskClosure(
+  allTasks: any[],
+  initialProjectId: string,
+  assignmentMap: Map<string, any[]>,
+  temporaryMap: Map<string, any[]>,
+): any[] {
+  const projectIds = new Set([initialProjectId]);
+  const employeeIds = new Set<string>();
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const task of allTasks.filter((item) => projectIds.has(item.project_id))) {
+      for (const employeeId of taskEmployeeIds(task, assignmentMap, temporaryMap)) {
+        if (!employeeIds.has(employeeId)) { employeeIds.add(employeeId); changed = true; }
+      }
+    }
+    for (const task of allTasks) {
+      if (taskEmployeeIds(task, assignmentMap, temporaryMap).some((employeeId) => employeeIds.has(employeeId)) && !projectIds.has(task.project_id)) {
+        projectIds.add(task.project_id);
+        changed = true;
+      }
+    }
+  }
+  return allTasks.filter((task) => projectIds.has(task.project_id));
+}
+
+export function findMissingWorklogDates(
+  employeeIds: string[],
+  startDate: string,
+  endDate: string,
+  existingEmployeeDateKeys: Set<string>,
+  isWorkingDay: (employeeId: string, localWorkDate: string) => boolean,
+): Array<{ employeeId: string; localWorkDate: string }> {
+  return employeeIds.flatMap((employeeId) => dateSpan(startDate, endDate)
+    .filter((localWorkDate) => isWorkingDay(employeeId, localWorkDate)
+      && !existingEmployeeDateKeys.has(`${employeeId}|${localWorkDate}`))
+    .map((localWorkDate) => ({ employeeId, localWorkDate })));
 }
 
 async function resolveShadowActor(db: any, actorContext: ActorContextServer, write = false): Promise<ShadowActor> {
@@ -174,7 +252,7 @@ async function buildShadowEngineInput(db: any, options: RunOptions): Promise<Sha
   const snapshot = await loadOfficialDataSnapshot(db);
   const [workersResult, policiesResult, holidaysResult, overridesResult, assigneesResult, temporaryResult,
     dependenciesResult, constraintsResult, prioritiesResult, contributionsResult, completionResult,
-    worklogsResult, capacityEventsResult, overtimeResult, revisionsResult, effectiveEntriesResult] = await db.batch([
+    worklogsResult, capacityEventsResult, overtimeResult, revisionsResult, effectiveEntriesResult, cutoverResult] = await db.batch([
     db.prepare(`SELECT * FROM workers WHERE is_active=1 ORDER BY id`),
     db.prepare(`SELECT * FROM office_work_policies ORDER BY office_code`),
     db.prepare(`SELECT * FROM country_holidays ORDER BY country_code,holiday_date`),
@@ -196,6 +274,7 @@ async function buildShadowEngineInput(db: any, options: RunOptions): Promise<Sha
                 JOIN daily_worklogs w ON w.id=e.worklog_id
                 WHERE e.phase='EOD'
                 ORDER BY e.employee_id,w.local_work_date,e.id`),
+    db.prepare(`SELECT MIN(cutover_date) AS cutover_date FROM task_actuals WHERE source_type='LEGACY_BOOTSTRAP'`),
   ]);
 
   const workers = workersResult.results || [];
@@ -250,11 +329,7 @@ async function buildShadowEngineInput(db: any, options: RunOptions): Promise<Sha
     return project?.status === 'ACTIVE';
   });
   if (options.projectId) {
-    const projectEmployeeIds = new Set(candidateTasks
-      .filter((task: any) => task.project_id === options.projectId)
-      .flatMap((task: any) => (assignmentMap.get(task.id) || []).map((assignment: any) => assignment.worker_id)));
-    candidateTasks = candidateTasks.filter((task: any) => task.project_id === options.projectId ||
-      (assignmentMap.get(task.id) || []).some((assignment: any) => projectEmployeeIds.has(assignment.worker_id)));
+    candidateTasks = expandSharedEmployeeTaskClosure(candidateTasks, options.projectId, assignmentMap, temporaryMap);
   }
   const projectIds = new Set(candidateTasks.map((task: any) => task.project_id));
   const projects = snapshot.projects.filter((project: any) => projectIds.has(project.id)).map((project: any) => {
@@ -280,13 +355,16 @@ async function buildShadowEngineInput(db: any, options: RunOptions): Promise<Sha
     const completion = completionMap.get(task.id);
     const firstContribution = contributions[0];
     const completionContribution = [...contributions].reverse().find((contribution: any) => Number(contribution.completion_reported) === 1);
-    const completed = Number(aggregate?.completion_reported || task.completion_confirmed || 0) === 1 || Number(aggregate?.current_progress || 0) >= 100;
+    const startEmployee = firstContribution ? employeeMap.get(firstContribution.employee_id) : null;
+    const completionEmployee = completionContribution ? employeeMap.get(completionContribution.employee_id) : null;
+    const completionReported = Number(aggregate?.completion_reported || 0) === 1;
+    const completionConfirmed = Number(task.completion_confirmed || 0) === 1 || Boolean(completion);
     const effortStatus = forecast?.effort_status || baseline?.effort_status || 'PROPOSED';
     const plannedEffort = forecast?.planned_effort_minutes ?? baseline?.proposed_effort_minutes ?? null;
     return {
       id: task.id, projectId: task.project_id, groupId: task.task_group_id || null,
       wbsOrder: Number(task.task_sort_order || 0), name: task.task_name,
-      status: completed ? 'COMPLETED' : Number(aggregate?.current_progress || 0) > 0 ? 'IN_PROGRESS' : 'FUTURE',
+      status: completionConfirmed ? 'COMPLETED' : Number(aggregate?.current_progress || 0) > 0 ? 'IN_PROGRESS' : 'FUTURE',
       baselineStart: baseline?.baseline_start_date || task.baseline_start_date || null,
       baselineEnd: baseline?.baseline_end_date || task.baseline_end_date || null,
       officialStart: forecast?.forecast_start || task.start_date || null,
@@ -298,10 +376,11 @@ async function buildShadowEngineInput(db: any, options: RunOptions): Promise<Sha
         effectiveStartDate: assignment.effective_start_date, effectiveEndDate: assignment.effective_end_date,
       })),
       actualStarted: contributions.some((contribution: any) => Number(contribution.approved_actual_minutes || 0) > 0),
-      actualStartUtc: firstContribution?.revision_created_at || null,
-      actualEndUtc: completionContribution?.revision_created_at || null,
+      actualStartUtc: recordedWorkTimestampUtc(firstContribution, startEmployee, 'START'),
+      actualEndUtc: recordedWorkTimestampUtc(completionContribution, completionEmployee, 'END'),
       actualEndLocalDate: completion?.actual_end_date || completionContribution?.local_work_date || null,
-      completed, completionReported: Number(aggregate?.completion_reported || 0) === 1,
+      completed: completionConfirmed, completionReported,
+      baselineWorkMinutes: null,
       remainingEstimatedMinutes: aggregate?.remaining_estimated_minutes === null || aggregate?.remaining_estimated_minutes === undefined
         ? null : Number(aggregate.remaining_estimated_minutes),
       confirmedEffortMinutes: effortStatus === 'CONFIRMED' && plannedEffort !== null ? Number(plannedEffort) : null,
@@ -369,14 +448,36 @@ async function buildShadowEngineInput(db: any, options: RunOptions): Promise<Sha
     };
   }));
 
+  for (const task of tasks) {
+    if (!task.baselineStart || !task.baselineEnd) continue;
+    const employeeId = task.primaryEmployeeId;
+    const employee = employeeId ? employeeMap.get(employeeId) : null;
+    const worker = employeeId ? workers.find((item: any) => item.id === employeeId) : null;
+    if (!employee || !worker) continue;
+    task.baselineWorkMinutes = dateSpan(task.baselineStart, task.baselineEnd).reduce((total, localWorkDate) => {
+      const status = resolveWorkDayStatusServer(localWorkDate, worker, holidays, overrides);
+      return total + (status.is_working_day ? employee.defaultCapacityMinutes : 0);
+    }, 0);
+  }
+
   const effectiveRevisionIds = new Set((revisionsResult.results || []).filter((revision: any) => Number(revision.is_effective) === 1).map((revision: any) => revision.id));
   const sourceRevisionId = options.sourceRevisionId || (options.sourceWorklogId
     ? (worklogsResult.results || []).find((worklog: any) => worklog.id === options.sourceWorklogId)?.current_eod_revision_id
     : null) || null;
   const sourceWorklog = options.sourceWorklogId ? (worklogsResult.results || []).find((worklog: any) => worklog.id === options.sourceWorklogId) : null;
-  const dataGapEmployeeDates = (worklogsResult.results || [])
+  const dataGapEmployeeDates: Array<{ employeeId: string; localWorkDate: string }> = (worklogsResult.results || [])
     .filter((worklog: any) => worklog.local_work_date <= planningCutoffLocalDate && (Number(worklog.morning_missing) === 1 || worklog.has_gap === 1))
     .map((worklog: any) => ({ employeeId: worklog.employee_id, localWorkDate: worklog.local_work_date }));
+  const configuredCutoverDate = (cutoverResult.results || [])[0]?.cutover_date;
+  const firstReliableDate = configuredCutoverDate || [...(worklogsResult.results || []).map((worklog: any) => worklog.local_work_date), planningCutoffLocalDate].sort()[0];
+  const gapEndDate = previousDate(planningCutoffLocalDate);
+  dataGapEmployeeDates.push(...findMissingWorklogDates(
+    employees.map((employee) => employee.id), firstReliableDate, gapEndDate,
+    new Set(worklogByEmployeeDate.keys()),
+    (employeeId, localWorkDate) => resolveWorkDayStatusServer(
+      localWorkDate, workers.find((item: any) => item.id === employeeId), holidays, overrides,
+    ).is_working_day,
+  ));
   if (sourceRevisionId && !effectiveRevisionIds.has(sourceRevisionId)) dataGapEmployeeDates.push({ employeeId: sourceWorklog?.employee_id || '', localWorkDate: sourceWorklog?.local_work_date || planningCutoffLocalDate });
 
   const uniqueBaselineVersions = [...new Set([...latestBaselineByProject.values()].map((baseline: any) => Number(baseline.version)))];
@@ -403,7 +504,10 @@ async function buildShadowEngineInput(db: any, options: RunOptions): Promise<Sha
       date: constraint.constraint_date || null, timestampUtc: constraint.constraint_timestamp_utc || null,
       minutes: constraint.constraint_minutes === null ? null : Number(constraint.constraint_minutes), status: constraint.status,
     })),
-    employees, capacityDays, pendingOvertimeTaskIds: [...pendingOvertimeTaskIds].sort(), dataGapEmployeeDates,
+    employees, capacityDays, pendingOvertimeTaskIds: [...pendingOvertimeTaskIds].sort(),
+    dataGapEmployeeDates: [...new Map<string, { employeeId: string; localWorkDate: string }>(
+      dataGapEmployeeDates.map((gap) => [`${gap.employeeId}|${gap.localWorkDate}`, gap]),
+    ).values()],
   });
 }
 
@@ -646,11 +750,20 @@ export async function enqueueShadowRecalculation(db: any, input: {
   }
   const requestId = uuid('srr');
   await db.batch([
-    db.prepare(`UPDATE shadow_schedule_versions SET status='STALE' WHERE status='CURRENT'`),
-    db.prepare(`UPDATE shadow_schedule_versions SET status='STALE' WHERE status='CURRENT' AND run_id IN (
-      SELECT run_id FROM schedule_recalculation_runs WHERE request_id IN (
-        SELECT request_id FROM schedule_recalculation_requests WHERE source_worklog_id=?1 AND source_revision_id<>?2
-      ))`).bind(input.worklogId, input.revisionId),
+    db.prepare(`UPDATE shadow_schedule_versions AS sv SET status='STALE'
+      WHERE sv.status='CURRENT' AND (
+        (?1 IS NOT NULL AND sv.project_id=?1)
+        OR EXISTS (
+          SELECT 1 FROM shadow_schedule_tasks st
+          WHERE st.shadow_version_id=sv.shadow_version_id AND st.employee_id=?2
+        )
+        OR sv.run_id IN (
+          SELECT run_id FROM schedule_recalculation_runs WHERE request_id IN (
+            SELECT request_id FROM schedule_recalculation_requests
+            WHERE source_worklog_id=?3 AND source_revision_id<>?4
+          )
+        )
+      )`).bind(input.projectId || null, input.employeeId, input.worklogId, input.revisionId),
     db.prepare(
       `INSERT INTO schedule_recalculation_requests
        (request_id,trigger_type,source_worklog_id,source_revision_id,project_id,employee_id,requested_by,requested_at,
@@ -867,7 +980,9 @@ export async function getShadowRun(db: any, actorContext: ActorContextServer, ru
 
 export async function getCurrentProjectShadow(db: any, actorContext: ActorContextServer, projectId: string) {
   const actor = await resolveShadowActor(db, actorContext);
-  const current = await db.prepare(`SELECT run_id FROM shadow_schedule_versions WHERE project_id=? AND status IN ('CURRENT','BLOCKED') ORDER BY shadow_version_number DESC LIMIT 1`).bind(projectId).first();
+  const current = await db.prepare(`SELECT run_id FROM shadow_schedule_versions
+    WHERE project_id=? AND status IN ('CURRENT','BLOCKED','STALE')
+    ORDER BY shadow_version_number DESC LIMIT 1`).bind(projectId).first();
   if (!current) return { run: null, versions: [], tasks: [], allocations: [], impacts: [], diffs: [], officialForecastChanged: false };
   return { ...(await readRun(db, current.run_id, actor)), officialForecastChanged: false };
 }

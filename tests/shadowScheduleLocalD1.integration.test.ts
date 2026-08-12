@@ -147,4 +147,17 @@ describe.runIf(enabled)('Checkpoint 3A local restored D1 integration', () => {
     ]);
     await expect(reviewDependencies(platform.env.DB, managerActor, [candidate.dependency_id], 'CONFIRM', {})).resolves.toMatchObject({ count: 1 });
   });
+
+  it('uses recorded local work date, not late revision creation time, for Actual timestamps', async () => {
+    const run = await executeShadowRun(platform.env.DB, {
+      projectId, planningCutoffUtc: '2026-08-12T00:00:00.000Z', planningCutoffLocalDate: '2026-08-12',
+      idempotencyKey: 'checkpoint3a-recorded-date', requestedBy: 'wrk_02', triggerType: 'MANUAL', actor: null,
+    });
+    const inputSnapshot = await platform.env.DB.prepare(`SELECT canonical_input_json FROM schedule_engine_input_snapshots WHERE run_id=?`)
+      .bind(run.run.run_id).first<{ canonical_input_json: string }>();
+    const snapshot = JSON.parse(inputSnapshot!.canonical_input_json);
+    for (const task of snapshot.tasks.filter((item: any) => item.actualStarted)) {
+      expect(String(task.actualStartUtc).slice(0, 10) >= '2026-05-01').toBe(true);
+    }
+  });
 });

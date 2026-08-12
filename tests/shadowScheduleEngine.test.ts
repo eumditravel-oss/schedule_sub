@@ -119,12 +119,48 @@ describe('Checkpoint 3A A-Z shadow engine simulations', () => {
     expect(result.tasks[0].shadowStart).toBe('2026-08-20');
   });
 
+  it('G2 — timestamp-only constraint is converted through the employee timezone and preserves time offset', () => {
+    const result = runShadowScheduleEngine(input({
+      tasks: [task('task-1', { remainingEstimatedMinutes: 120 })],
+      constraints: [{ id: 'con-ts', taskId: 'task-1', type: 'FIXED_START', date: null, timestampUtc: '2026-08-20T05:00:00.000Z', minutes: null, status: 'ACTIVE' }],
+    }));
+    expect(result.tasks[0].shadowStart).toBe('2026-08-20');
+    expect(result.allocations[0].startsAtUtc).toBe('2026-08-20T05:00:00.000Z');
+  });
+
   it('H — missing worklog is a data gap, not zero-actual auto-delay', () => {
     const result = runShadowScheduleEngine(input({
       dataGapEmployeeDates: [{ employeeId: 'emp-kr', localWorkDate: '2026-08-12' }],
     }));
     expect(result.tasks[0].impactReasonCodes).toContain('WORKLOG_DATA_GAP');
     expect(result.tasks[0].dataConfidence).toBe('PROVISIONAL');
+    expect(result.tasks[0].shadowStart).toBe(result.tasks[0].officialStart);
+    expect(result.tasks[0].shadowEnd).toBe(result.tasks[0].officialEnd);
+    expect(result.allocations).toHaveLength(0);
+  });
+
+  it('H2 — completion reported remains provisional until separately confirmed', () => {
+    const result = runShadowScheduleEngine(input({
+      tasks: [task('task-1', {
+        actualStarted: true, actualStartUtc: '2026-08-12T00:00:00.000Z', actualEndUtc: '2026-08-12T08:00:00.000Z',
+        actualEndLocalDate: '2026-08-12', completed: false, completionReported: true, remainingEstimatedMinutes: 0,
+      })],
+    }));
+    expect(result.tasks[0]).toMatchObject({
+      allocationSource: 'COMPLETION_REPORTED', approvalRequired: true, dataConfidence: 'PROVISIONAL',
+    });
+    expect(result.tasks[0].impactReasonCodes).toContain('COMPLETION_REPORTED_REVIEW');
+  });
+
+  it('H3 — explicit baseline effort does not collapse when the baseline is before cutoff', () => {
+    const result = runShadowScheduleEngine(input({
+      tasks: [task('task-1', {
+        baselineStart: '2026-08-03', baselineEnd: '2026-08-07', baselineWorkMinutes: 2100,
+        remainingEstimatedMinutes: null, confirmedEffortMinutes: null, proposedEffortMinutes: null,
+      })],
+    }));
+    expect(result.tasks[0].remainingMinutes).toBe(2100);
+    expect(result.allocations.reduce((sum, allocation) => sum + allocation.allocatedMinutes, 0)).toBe(2100);
   });
 
   it('I — identical inputs have the same fingerprint and result', async () => {
@@ -190,6 +226,18 @@ describe('Checkpoint 3A A-Z shadow engine simulations', () => {
     });
     expect(validateDependencyGraph(source).map((issue) => issue.code)).toContain('DEPENDENCY_CYCLE_DETECTED');
     expect(runShadowScheduleEngine(source).status).toBe('BLOCKED');
+  });
+
+  it.each([
+    ['DEPENDENCY_SELF_REFERENCE', [{ id: 'bad', projectId: 'project-a', predecessorTaskId: 'task-1', successorTaskId: 'task-1', type: 'FINISH_TO_START' as const, lagWorkMinutes: 0, status: 'CONFIRMED' as const }]],
+    ['DEPENDENCY_TASK_NOT_FOUND', [{ id: 'bad', projectId: 'project-a', predecessorTaskId: 'missing', successorTaskId: 'task-1', type: 'FINISH_TO_START' as const, lagWorkMinutes: 0, status: 'CONFIRMED' as const }]],
+    ['INVALID_DEPENDENCY_LAG', [{ id: 'bad', projectId: 'project-a', predecessorTaskId: 'task-1', successorTaskId: 'task-2', type: 'FINISH_TO_START' as const, lagWorkMinutes: -1, status: 'CONFIRMED' as const }]],
+  ])('P2 — %s blocks its project instead of being silently ignored', (code, dependencies) => {
+    const result = runShadowScheduleEngine(input({ tasks: [task('task-1'), task('task-2')], dependencies }));
+    expect(result.status).toBe('BLOCKED');
+    expect(result.validationIssues.map((issue) => issue.code)).toContain(code);
+    expect(result.tasks.every((item) => item.dataConfidence === 'BLOCKED')).toBe(true);
+    expect(result.tasks.every((item) => item.impactReasonCodes.includes(code))).toBe(true);
   });
 
   it('Q — FIXED_START conflict keeps date and reports a violation', () => {

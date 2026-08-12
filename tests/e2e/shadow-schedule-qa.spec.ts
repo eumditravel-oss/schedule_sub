@@ -25,6 +25,15 @@ test.describe('Checkpoint 3A live QA Shadow schedule evidence', () => {
     await expect(page.getByLabel('Baseline').first()).toBeVisible();
     await expect(page.getByLabel('Official Forecast').first()).toBeVisible();
     await expect(page.getByLabel('Shadow Candidate').first()).toBeVisible();
+    const layerZ = await page.evaluate(() => ({
+      hatch: getComputedStyle(document.querySelector('[data-testid^="shadow-hatch-"]')!).zIndex,
+      today: getComputedStyle(document.querySelector('[data-testid="shadow-today-line"]')!).zIndex,
+      baseline: getComputedStyle(document.querySelector('[aria-label="Baseline"]')!).zIndex,
+      official: getComputedStyle(document.querySelector('[aria-label="Official Forecast"]')!).zIndex,
+      shadow: getComputedStyle(document.querySelector('[aria-label="Shadow Candidate"]')!).zIndex,
+      actual: getComputedStyle(document.querySelector('[aria-label="Actual Progress"]')!).zIndex,
+    }));
+    expect(layerZ).toEqual({ hatch: '2', today: '3', baseline: '4', official: '5', shadow: '6', actual: '7' });
 
     const dependencySection = page.locator('section').filter({ has: page.getByRole('heading', { name: 'Dependency 후보 검토' }) });
     await expect(dependencySection.getByText('PROPOSED').first()).toBeVisible();
