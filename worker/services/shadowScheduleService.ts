@@ -739,8 +739,13 @@ export async function reviewDependencies(db: any, actorContext: ActorContextServ
   if (dependencies.length !== uniqueIds.length) throw new ShadowScheduleError('DEPENDENCY_TASK_NOT_FOUND', 404);
   const now = new Date().toISOString();
   if (action === 'CONFIRM') {
-    const allResult = await db.prepare(`SELECT * FROM task_dependencies WHERE status='CONFIRMED' OR dependency_id IN (${placeholders})`).bind(...uniqueIds).all();
-    const taskResult = await db.prepare(`SELECT * FROM tasks ORDER BY project_id,task_sort_order,id`).all();
+    const affectedProjectIds = [...new Set(dependencies.map((dependency: any) => String(dependency.project_id)))].sort();
+    const projectPlaceholders = affectedProjectIds.map(() => '?').join(',');
+    const allResult = await db.prepare(`SELECT * FROM task_dependencies
+      WHERE (status='CONFIRMED' AND project_id IN (${projectPlaceholders})) OR dependency_id IN (${placeholders})`)
+      .bind(...affectedProjectIds, ...uniqueIds).all();
+    const taskResult = await db.prepare(`SELECT * FROM tasks WHERE project_id IN (${projectPlaceholders}) ORDER BY project_id,task_sort_order,id`)
+      .bind(...affectedProjectIds).all();
     const inputForValidation: ShadowEngineInput = {
       engineVersion: SHADOW_ENGINE_VERSION, planningCutoffUtc: now, planningCutoffLocalDate: now.slice(0, 10),
       basedOnBaselineVersion: null, basedOnForecastVersion: null, sourceWorklogId: null, sourceRevisionId: null,

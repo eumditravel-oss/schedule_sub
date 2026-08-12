@@ -131,4 +131,20 @@ describe.runIf(enabled)('Checkpoint 3A local restored D1 integration', () => {
     await expect(idempotentShadowMutation(platform.env.DB, 'checkpoint3a-manager-idem', 'TEST_MUTATION', { value: 2 }, async () => ({ ok: true })))
       .rejects.toMatchObject({ code: 'IDEMPOTENCY_CONFLICT', status: 409 });
   });
+
+  it('isolates dependency graph validation to the projects being reviewed', async () => {
+    const candidate = (await listDependencies(platform.env.DB, managerActor, { project_id: projectId, status: 'PROPOSED' })).dependencies[0] as any;
+    expect(candidate).toBeTruthy();
+    const cycleProjectId = 'checkpoint3a_cycle_isolation_project';
+    const cycleTaskA = 'checkpoint3a_cycle_isolation_a';
+    const cycleTaskB = 'checkpoint3a_cycle_isolation_b';
+    await platform.env.DB.batch([
+      platform.env.DB.prepare(`INSERT INTO projects (id,name,start_date,end_date,progress,status) VALUES (?1,'Cycle isolation','2026-08-12','2026-08-20',0,'ACTIVE')`).bind(cycleProjectId),
+      platform.env.DB.prepare(`INSERT INTO tasks (id,project_id,task_sort_order,task_name,start_date,end_date,progress,primary_worker_id) VALUES (?1,?2,1,'A','2026-08-12','2026-08-13',0,'wrk_03')`).bind(cycleTaskA, cycleProjectId),
+      platform.env.DB.prepare(`INSERT INTO tasks (id,project_id,task_sort_order,task_name,start_date,end_date,progress,primary_worker_id) VALUES (?1,?2,2,'B','2026-08-14','2026-08-15',0,'wrk_03')`).bind(cycleTaskB, cycleProjectId),
+      platform.env.DB.prepare(`INSERT INTO task_dependencies (dependency_id,project_id,predecessor_task_id,successor_task_id,status,confidence_score,confidence_level,proposal_source,proposed_by) VALUES ('checkpoint3a_cycle_isolation_dep_a',?1,?2,?3,'CONFIRMED',100,'HIGH','TEST','wrk_02')`).bind(cycleProjectId, cycleTaskA, cycleTaskB),
+      platform.env.DB.prepare(`INSERT INTO task_dependencies (dependency_id,project_id,predecessor_task_id,successor_task_id,status,confidence_score,confidence_level,proposal_source,proposed_by) VALUES ('checkpoint3a_cycle_isolation_dep_b',?1,?2,?3,'CONFIRMED',100,'HIGH','TEST','wrk_02')`).bind(cycleProjectId, cycleTaskB, cycleTaskA),
+    ]);
+    await expect(reviewDependencies(platform.env.DB, managerActor, [candidate.dependency_id], 'CONFIRM', {})).resolves.toMatchObject({ count: 1 });
+  });
 });
