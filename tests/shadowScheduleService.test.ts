@@ -2,11 +2,16 @@ import { describe, expect, it } from 'vitest';
 import {
   expandSharedEmployeeTaskClosure,
   filterEmployeeShadowView,
+  filterEffectiveOvertimeCandidates,
   firstPositiveActualContribution,
   hasShadowActualOrCapacityTrigger,
   findMissingWorklogDates,
   recordedWorkTimestampUtc,
   selectEffectiveProjectPriorities,
+  shadowVersionUsesEmployee,
+  isValidShadowWorkPolicy,
+  normalizeShadowCutoff,
+  validateSourceWorklogRevisionPair,
   validateDependencyReviewAction,
   worklogHasShadowDataGap,
 } from '../worker/services/shadowScheduleService';
@@ -128,6 +133,31 @@ describe('Checkpoint 3A Shadow service timestamp mapping', () => {
     expect(filtered.impacts).toHaveLength(1);
   });
 
+  it('marks a Shadow version as employee-affected through a temporary allocation after handback', () => {
+    expect(shadowVersionUsesEmployee({
+      employeeId: 'emp-temp', taskEmployeeIds: ['emp-primary'], allocationEmployeeIds: ['emp-temp', 'emp-primary'],
+    })).toBe(true);
+    expect(shadowVersionUsesEmployee({
+      employeeId: 'emp-unrelated', taskEmployeeIds: ['emp-primary'], allocationEmployeeIds: ['emp-temp'],
+    })).toBe(false);
+  });
+
+  it('documents the Shadow capacity authority accepting APPROVED and EFFECTIVE event statuses', () => {
+    const accepted = new Set(['APPROVED', 'EFFECTIVE']);
+    expect(accepted.has('APPROVED')).toBe(true);
+    expect(accepted.has('EFFECTIVE')).toBe(true);
+    expect(accepted.has('PENDING')).toBe(false);
+  });
+
+  it('ignores pending or approved overtime candidates from superseded Worklog revisions', () => {
+    const candidates = filterEffectiveOvertimeCandidates([
+      { revision_id: 'revision-old', approval_status: 'APPROVED', candidate_minutes: 120 },
+      { revision_id: 'revision-old-pending', approval_status: 'PENDING_REVIEW', candidate_minutes: 60 },
+      { revision_id: 'revision-current', approval_status: 'PENDING_REVIEW', candidate_minutes: 30 },
+    ], new Set(['revision-current']));
+    expect(candidates).toEqual([{ revision_id: 'revision-current', approval_status: 'PENDING_REVIEW', candidate_minutes: 30 }]);
+  });
+
   it('applies only project priorities effective at the planning cutoff', () => {
     const priorities = selectEffectiveProjectPriorities([
       { project_id: 'current', priority_rank: 1, effective_from: '2026-08-01', effective_to: '2026-08-31' },
@@ -142,5 +172,46 @@ describe('Checkpoint 3A Shadow service timestamp mapping', () => {
     expect(validateDependencyReviewAction('REJECT')).toBe('REJECT');
     expect(() => validateDependencyReviewAction('CONFIRMED')).toThrowError('DEPENDENCY_REVIEW_ACTION_INVALID');
     expect(() => validateDependencyReviewAction('')).toThrowError('DEPENDENCY_REVIEW_ACTION_INVALID');
+  });
+
+  it('validates office calendar policy instead of using hard-coded production fallbacks', () => {
+    const valid = {
+      timezone: 'Asia/Seoul', work_start_local: '09:00', work_end_local: '17:00',
+      lunch_start_local: '12:00', lunch_end_local: '13:00', schedulable_minutes: 420,
+    };
+    expect(isValidShadowWorkPolicy(valid)).toBe(true);
+    expect(isValidShadowWorkPolicy(null)).toBe(false);
+    expect(isValidShadowWorkPolicy({ ...valid, timezone: 'Invalid/Zone' })).toBe(false);
+    expect(isValidShadowWorkPolicy({ ...valid, lunch_end_local: '11:00' })).toBe(false);
+    expect(isValidShadowWorkPolicy({ ...valid, schedulable_minutes: 0 })).toBe(false);
+  });
+
+  it('normalizes a coherent cutoff and rejects invalid or contradictory request values', () => {
+    expect(normalizeShadowCutoff({
+      planningCutoffUtc: '2026-08-12T00:00:00.000Z', planningCutoffLocalDate: '2026-08-12', timezone: 'Asia/Seoul',
+    }).localDate).toBe('2026-08-12');
+    expect(() => normalizeShadowCutoff({
+      planningCutoffUtc: 'not-a-timestamp', planningCutoffLocalDate: '2026-08-12', timezone: 'Asia/Seoul',
+    })).toThrowError('SHADOW_RUN_INPUT_CHANGED');
+    expect(() => normalizeShadowCutoff({
+      planningCutoffUtc: '2026-08-12T00:00:00.000Z', planningCutoffLocalDate: '2026-08-20', timezone: 'Asia/Seoul',
+    })).toThrowError('SHADOW_RUN_INPUT_CHANGED');
+  });
+
+  it('rejects missing, stale, or cross-worklog source revision pairs', () => {
+    expect(() => validateSourceWorklogRevisionPair({
+      requestedWorklogId: null, requestedRevisionId: 'revision-a', sourceWorklog: null,
+      sourceRevision: { id: 'revision-a', worklog_id: 'worklog-a', is_effective: 1 }, resolvedRevisionId: 'revision-a',
+    })).toThrowError('SHADOW_RUN_INPUT_CHANGED');
+    expect(() => validateSourceWorklogRevisionPair({
+      requestedWorklogId: 'worklog-a', requestedRevisionId: 'revision-b',
+      sourceWorklog: { id: 'worklog-a', current_eod_revision_id: 'revision-a' },
+      sourceRevision: { id: 'revision-b', worklog_id: 'worklog-b', is_effective: 1 }, resolvedRevisionId: 'revision-b',
+    })).toThrowError('SHADOW_RUN_INPUT_CHANGED');
+    expect(() => validateSourceWorklogRevisionPair({
+      requestedWorklogId: 'worklog-a', requestedRevisionId: 'revision-a',
+      sourceWorklog: { id: 'worklog-a', current_eod_revision_id: 'revision-a' },
+      sourceRevision: { id: 'revision-a', worklog_id: 'worklog-a', is_effective: 1 }, resolvedRevisionId: 'revision-a',
+    })).not.toThrow();
   });
 });

@@ -1,4 +1,4 @@
-export const SHADOW_ENGINE_VERSION = '3A.1.10';
+export const SHADOW_ENGINE_VERSION = '3A.1.11';
 
 export type ShadowConfidence = 'HIGH' | 'PROVISIONAL' | 'LOW' | 'BLOCKED';
 export type ApprovalClassification = 'AUTO_APPLY_ELIGIBLE' | 'APPROVAL_REQUIRED' | 'BLOCKED' | 'NO_CHANGE';
@@ -559,6 +559,12 @@ export function runShadowScheduleEngine(rawInput: ShadowEngineInput): ShadowEngi
   const projectMap = new Map(input.projects.map((project) => [project.id, project]));
   const taskMap = new Map(input.tasks.map((task) => [task.id, task]));
   const employeeMap = new Map(input.employees.map((employee) => [employee.id, employee]));
+  const actualLocalDate = (task: ShadowTaskInput, utc: string | null): string | null => {
+    if (!utc) return null;
+    const employeeId = resolveEffectivePrimaryAtUtc(task, utc, employeeMap);
+    const employee = employeeId ? employeeMap.get(employeeId) : null;
+    return employee ? utcToLocalDate(utc, employee.timezone) : utc.slice(0, 10);
+  };
 
   if (input.noActualTrigger && validationIssues.length === 0) {
     const tasks: ShadowTaskResult[] = input.tasks.map((task): ShadowTaskResult => ({
@@ -813,14 +819,14 @@ export function runShadowScheduleEngine(rawInput: ShadowEngineInput): ShadowEngi
     }
 
     if (task.completed) {
-      const actualEnd = task.actualEndLocalDate || task.actualEndUtc?.slice(0, 10) || task.officialEnd;
+      const actualEnd = task.actualEndLocalDate || actualLocalDate(task, task.actualEndUtc) || task.officialEnd;
       const completedReasons = actualEnd !== task.officialEnd ? ['ACTUAL_COMPLETION_DATE'] : [];
       if (actualPrecedesDependency) completedReasons.push('ACTUAL_PRECEDES_CONFIRMED_DEPENDENCY');
       results.set(task.id, {
         taskId: task.id, projectId: task.projectId, employeeId: primaryAtCutoff,
         baselineStart: task.baselineStart, baselineEnd: task.baselineEnd,
         officialStart: task.officialStart, officialEnd: task.officialEnd,
-        shadowStart: task.actualStartUtc?.slice(0, 10) || task.officialStart, shadowEnd: actualEnd,
+        shadowStart: actualLocalDate(task, task.actualStartUtc) || task.officialStart, shadowEnd: actualEnd,
         deltaStartWorkdays: 0, deltaEndWorkdays: workdayDelta(task.officialEnd, actualEnd, primaryAtCutoff, input.capacityDays),
         remainingMinutes: 0, allocationSource: 'ACTUAL_COMPLETED', constraintResult: 'ACTUAL_FIXED',
         dependencyResult: dependencyStart.dependencyResult, priorityResult: 'ACTUAL_FIXED',
@@ -839,7 +845,7 @@ export function runShadowScheduleEngine(rawInput: ShadowEngineInput): ShadowEngi
         taskId: task.id, projectId: task.projectId, employeeId: primaryAtCutoff,
         baselineStart: task.baselineStart, baselineEnd: task.baselineEnd,
         officialStart: task.officialStart, officialEnd: task.officialEnd,
-        shadowStart: task.actualStarted ? (task.actualStartUtc?.slice(0, 10) || task.officialStart) : task.officialStart,
+        shadowStart: task.actualStarted ? (actualLocalDate(task, task.actualStartUtc) || task.officialStart) : task.officialStart,
         shadowEnd: task.officialEnd,
         deltaStartWorkdays: 0, deltaEndWorkdays: 0, remainingMinutes: effort.minutes,
         allocationSource: effort.source, constraintResult, dependencyResult: dependencyStart.dependencyResult,
@@ -850,12 +856,12 @@ export function runShadowScheduleEngine(rawInput: ShadowEngineInput): ShadowEngi
     }
 
     if (task.completionReported && effort.minutes === 0) {
-      const reportedEnd = task.actualEndLocalDate || task.actualEndUtc?.slice(0, 10) || task.officialEnd;
+      const reportedEnd = task.actualEndLocalDate || actualLocalDate(task, task.actualEndUtc) || task.officialEnd;
       results.set(task.id, {
         taskId: task.id, projectId: task.projectId, employeeId: primaryAtCutoff,
         baselineStart: task.baselineStart, baselineEnd: task.baselineEnd,
         officialStart: task.officialStart, officialEnd: task.officialEnd,
-        shadowStart: task.actualStartUtc?.slice(0, 10) || task.officialStart, shadowEnd: reportedEnd,
+        shadowStart: actualLocalDate(task, task.actualStartUtc) || task.officialStart, shadowEnd: reportedEnd,
         deltaStartWorkdays: 0, deltaEndWorkdays: workdayDelta(task.officialEnd, reportedEnd, primaryAtCutoff, input.capacityDays),
         remainingMinutes: 0, allocationSource: 'COMPLETION_REPORTED', constraintResult: 'ACTUAL_REVIEW_REQUIRED',
         dependencyResult: dependencyStart.dependencyResult, priorityResult: 'ACTUAL_REVIEW_REQUIRED',
@@ -943,7 +949,7 @@ export function runShadowScheduleEngine(rawInput: ShadowEngineInput): ShadowEngi
     }
 
     let remaining = effort.minutes;
-    let shadowStart: string | null = task.actualStarted ? (task.actualStartUtc?.slice(0, 10) || task.officialStart) : null;
+    let shadowStart: string | null = task.actualStarted ? (actualLocalDate(task, task.actualStartUtc) || task.officialStart) : null;
     let shadowEnd: string | null = null;
     let allocationSequence = 0;
     let fixedStartCapacityConflict = false;
@@ -1200,7 +1206,9 @@ export function generateDependencyProposals(tasks: DependencyProposalTask[]): { 
       const overlaps = Boolean(predecessorEnd && successorStart && successorStart <= predecessorEnd);
       const sameStart = Boolean(predecessor.officialStart && successor.officialStart && predecessor.officialStart === successor.officialStart);
       const parallelName = /(백엔드|frontend|프론트엔드)/i.test(predecessor.name) && /(백엔드|frontend|프론트엔드)/i.test(successor.name);
-      if (overlaps || sameStart || parallelName) {
+      const distinctPrimaries = Boolean(predecessor.primaryEmployeeId && successor.primaryEmployeeId &&
+        predecessor.primaryEmployeeId !== successor.primaryEmployeeId);
+      if (overlaps || sameStart || parallelName || distinctPrimaries) {
         parallel.add(predecessor.id);
         parallel.add(successor.id);
         continue;

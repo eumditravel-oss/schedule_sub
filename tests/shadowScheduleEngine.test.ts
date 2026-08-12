@@ -622,6 +622,26 @@ describe('Checkpoint 3A A-Z shadow engine simulations', () => {
     expect(localDateTimeToUtc('2026-08-13', '09:00', 'Asia/Seoul')).toBe('2026-08-13T00:00:00.000Z');
   });
 
+  it('V2 — Actual display dates use the responsible employee local calendar, not UTC slicing', () => {
+    const night = employee('emp-night');
+    night.timezone = 'Pacific/Kiritimati';
+    night.workStartLocal = '01:00';
+    night.lunchStartLocal = '06:00';
+    night.lunchEndLocal = '07:00';
+    night.workEndLocal = '09:00';
+    const result = runShadowScheduleEngine(input({
+      employees: [night],
+      planningCutoffUtc: '2026-08-11T11:00:00.000Z', planningCutoffLocalDate: '2026-08-12',
+      capacityDays: days('emp-night', '2026-08-12', 10, 420, 'Pacific/Kiritimati'),
+      tasks: [task('task-1', {
+        primaryEmployeeId: 'emp-night', completed: true, remainingEstimatedMinutes: 0,
+        actualStartUtc: '2026-08-11T11:00:00.000Z', actualEndUtc: '2026-08-11T19:00:00.000Z',
+        actualEndLocalDate: null,
+      })],
+    }));
+    expect(result.tasks[0]).toMatchObject({ shadowStart: '2026-08-12', shadowEnd: '2026-08-12' });
+  });
+
   it('W — engine output is separate and leaves official Forecast input byte-identical', () => {
     const source = input();
     const officialBefore = canonicalJson({ projects: source.projects, tasks: source.tasks.map(({ officialStart, officialEnd }) => ({ officialStart, officialEnd })) });
@@ -666,6 +686,15 @@ describe('Checkpoint 3A dependency proposal policy', () => {
     expect(result.proposals[0]).toMatchObject({ predecessorTaskId: 'a', successorTaskId: 'b' });
     expect(result.parallelTaskIds).toContain('b');
     expect(result.parallelTaskIds).toContain('c');
+  });
+
+  it('does not propose a dependency for adjacent non-overlapping tasks with different explicit Primaries', () => {
+    const result = generateDependencyProposals([
+      { id: 'a', projectId: 'p', groupId: 'g', groupOrder: 1, taskOrder: 1, name: 'Task A', baselineStart: '2026-08-12', baselineEnd: '2026-08-12', officialStart: '2026-08-12', officialEnd: '2026-08-12', primaryEmployeeId: 'employee-a' },
+      { id: 'b', projectId: 'p', groupId: 'g', groupOrder: 1, taskOrder: 2, name: 'Task B', baselineStart: '2026-08-13', baselineEnd: '2026-08-14', officialStart: '2026-08-13', officialEnd: '2026-08-14', primaryEmployeeId: 'employee-b' },
+    ]);
+    expect(result.proposals).toHaveLength(0);
+    expect(result.parallelTaskIds).toEqual(['a', 'b']);
   });
 
   it('canonical JSON is key-order invariant', () => {

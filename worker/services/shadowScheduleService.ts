@@ -204,7 +204,7 @@ export function hasShadowActualOrCapacityTrigger(input: {
     typeof contribution.task_id === 'string' && input.candidateTaskIds.has(contribution.task_id));
   const effectiveSourceEod = Boolean(input.sourceWorklog && input.sourceRevisionId &&
     input.effectiveRevisionIds.has(input.sourceRevisionId) &&
-    (input.sourceWorklog.current_eod_revision_id === input.sourceRevisionId || input.sourceWorklog.status === 'EOD_SUBMITTED'));
+    input.sourceWorklog.current_eod_revision_id === input.sourceRevisionId);
   return taskActual || effectiveSourceEod;
 }
 
@@ -235,6 +235,22 @@ export function filterEmployeeShadowView(input: {
   };
 }
 
+export function shadowVersionUsesEmployee(input: {
+  employeeId: string;
+  taskEmployeeIds: string[];
+  allocationEmployeeIds: string[];
+}): boolean {
+  return input.taskEmployeeIds.includes(input.employeeId) || input.allocationEmployeeIds.includes(input.employeeId);
+}
+
+export function filterEffectiveOvertimeCandidates<T extends { revision_id: string; approval_status: string }>(
+  candidates: T[],
+  effectiveRevisionIds: Set<string>,
+): T[] {
+  return candidates.filter((candidate) => effectiveRevisionIds.has(candidate.revision_id) &&
+    ['PENDING_REVIEW', 'APPROVED'].includes(candidate.approval_status));
+}
+
 export function selectEffectiveProjectPriorities<T extends { project_id: string; effective_from: string; effective_to?: string | null }>(
   priorities: T[],
   planningCutoffLocalDate: string,
@@ -250,6 +266,59 @@ export function validateDependencyReviewAction(action: unknown): 'CONFIRM' | 'RE
     throw new ShadowScheduleError('DEPENDENCY_REVIEW_ACTION_INVALID', 400);
   }
   return action;
+}
+
+export function isValidShadowWorkPolicy(policy: any): boolean {
+  if (!policy || typeof policy.timezone !== 'string') return false;
+  try { new Intl.DateTimeFormat('en-US', { timeZone: policy.timezone }).format(new Date(0)); } catch { return false; }
+  const time = (value: unknown) => typeof value === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(value);
+  if (![policy.work_start_local, policy.work_end_local, policy.lunch_start_local, policy.lunch_end_local].every(time)) return false;
+  const minute = (value: string) => Number(value.slice(0, 2)) * 60 + Number(value.slice(3, 5));
+  if (!(minute(policy.work_start_local) < minute(policy.lunch_start_local) &&
+        minute(policy.lunch_start_local) < minute(policy.lunch_end_local) &&
+        minute(policy.lunch_end_local) < minute(policy.work_end_local))) return false;
+  return Number.isInteger(Number(policy.schedulable_minutes)) && Number(policy.schedulable_minutes) > 0;
+}
+
+export function normalizeShadowCutoff(input: {
+  planningCutoffUtc?: unknown;
+  planningCutoffLocalDate?: unknown;
+  timezone: string;
+  fallbackNow?: Date;
+}): { now: Date; localDate: string } {
+  if (input.planningCutoffUtc !== undefined && input.planningCutoffUtc !== null &&
+      !isValidUtcTimestamp(input.planningCutoffUtc)) {
+    throw new ShadowScheduleError('SHADOW_RUN_INPUT_CHANGED', 400, { reason: 'INVALID_PLANNING_CUTOFF_UTC' });
+  }
+  const now = input.planningCutoffUtc ? new Date(String(input.planningCutoffUtc)) : input.fallbackNow || new Date();
+  const derivedLocalDate = localDateInTimezone(now, input.timezone);
+  if (input.planningCutoffLocalDate !== undefined && input.planningCutoffLocalDate !== null) {
+    if (!isValidIsoLocalDate(input.planningCutoffLocalDate) || input.planningCutoffLocalDate !== derivedLocalDate) {
+      throw new ShadowScheduleError('SHADOW_RUN_INPUT_CHANGED', 400, {
+        reason: 'PLANNING_CUTOFF_LOCAL_DATE_MISMATCH', expected: derivedLocalDate,
+      });
+    }
+  }
+  return { now, localDate: derivedLocalDate };
+}
+
+export function validateSourceWorklogRevisionPair(input: {
+  requestedWorklogId?: string | null;
+  requestedRevisionId?: string | null;
+  sourceWorklog: { id?: unknown; current_eod_revision_id?: unknown } | null | undefined;
+  sourceRevision: { id?: unknown; worklog_id?: unknown; is_effective?: unknown } | null | undefined;
+  resolvedRevisionId: string | null;
+}): void {
+  if (input.requestedRevisionId && !input.requestedWorklogId) {
+    throw new ShadowScheduleError('SHADOW_RUN_INPUT_CHANGED', 409, { reason: 'SOURCE_REVISION_WITHOUT_WORKLOG' });
+  }
+  if (!input.requestedWorklogId) return;
+  if (!input.sourceWorklog || !input.sourceRevision ||
+      input.sourceRevision.worklog_id !== input.sourceWorklog.id ||
+      Number(input.sourceRevision.is_effective) !== 1 ||
+      input.sourceWorklog.current_eod_revision_id !== input.resolvedRevisionId) {
+    throw new ShadowScheduleError('SHADOW_RUN_INPUT_CHANGED', 409, { reason: 'SOURCE_WORKLOG_REVISION_MISMATCH' });
+  }
 }
 
 async function resolveShadowActor(db: any, actorContext: ActorContextServer, write = false): Promise<ShadowActor> {
@@ -334,8 +403,10 @@ async function buildShadowEngineInput(db: any, options: RunOptions): Promise<Sha
     db.prepare(`SELECT c.*,r.created_at AS revision_created_at FROM task_actual_contributions c JOIN daily_worklog_revisions r ON r.id=c.revision_id WHERE c.is_effective=1 ORDER BY c.task_id,c.local_work_date,r.created_at`),
     db.prepare(`SELECT * FROM task_completion_events ORDER BY task_id,actual_end_date`),
     db.prepare(`SELECT * FROM daily_worklogs ORDER BY employee_id,local_work_date`),
-    db.prepare(`SELECT * FROM employee_capacity_events WHERE approval_status='EFFECTIVE' ORDER BY employee_id,local_work_date,id`),
-    db.prepare(`SELECT * FROM overtime_candidates WHERE approval_status IN ('PENDING_REVIEW','APPROVED') ORDER BY employee_id,local_work_date`),
+    db.prepare(`SELECT * FROM employee_capacity_events WHERE approval_status IN ('EFFECTIVE','APPROVED') ORDER BY employee_id,local_work_date,id`),
+    db.prepare(`SELECT o.* FROM overtime_candidates o
+      JOIN daily_worklog_revisions r ON r.id=o.revision_id AND r.is_effective=1
+      WHERE o.approval_status IN ('PENDING_REVIEW','APPROVED') ORDER BY o.employee_id,o.local_work_date`),
     db.prepare(`SELECT id,worklog_id,revision_number,is_effective FROM daily_worklog_revisions ORDER BY worklog_id,revision_number`),
     db.prepare(`SELECT e.employee_id,w.local_work_date,e.work_category,e.actual_minutes
                 FROM daily_worklog_entries e
@@ -349,26 +420,30 @@ async function buildShadowEngineInput(db: any, options: RunOptions): Promise<Sha
   const workers = workersResult.results || [];
   const policyMap = new Map((policiesResult.results || []).map((policy: any) => [policy.country_code, policy]));
   const employees: ShadowEmployeeInput[] = workers
-    .filter((worker: any) => worker.access_role === 'EDITOR')
+    .filter((worker: any) => worker.access_role === 'EDITOR' && isValidShadowWorkPolicy(policyMap.get(worker.country_code)))
     .map((worker: any) => {
       const policy: any = policyMap.get(worker.country_code);
       return {
         id: worker.id, name: worker.name, countryCode: worker.country_code,
-        timezone: policy?.timezone || (worker.country_code === 'VN' ? 'Asia/Ho_Chi_Minh' : 'Asia/Seoul'),
-        workStartLocal: policy?.work_start_local || (worker.country_code === 'VN' ? '08:00' : '09:00'),
-        workEndLocal: policy?.work_end_local || '17:00',
-        lunchStartLocal: policy?.lunch_start_local || '12:00', lunchEndLocal: policy?.lunch_end_local || '13:00',
-        defaultCapacityMinutes: Number(policy?.schedulable_minutes || (worker.country_code === 'VN' ? 480 : 420)),
+        timezone: policy.timezone,
+        workStartLocal: policy.work_start_local,
+        workEndLocal: policy.work_end_local,
+        lunchStartLocal: policy.lunch_start_local, lunchEndLocal: policy.lunch_end_local,
+        defaultCapacityMinutes: Number(policy.schedulable_minutes),
       };
     });
   const employeeMap = new Map(employees.map((employee) => [employee.id, employee]));
-  const now = options.planningCutoffUtc ? new Date(options.planningCutoffUtc) : new Date();
   const sourceEmployee: any = options.sourceWorklogId
     ? (worklogsResult.results || []).find((worklog: any) => worklog.id === options.sourceWorklogId)?.employee_id
     : null;
   const sourceEmployeeProfile = sourceEmployee ? employeeMap.get(sourceEmployee) : null;
-  const planningCutoffLocalDate = options.planningCutoffLocalDate ||
-    localDateInTimezone(now, sourceEmployeeProfile?.timezone || 'Asia/Seoul');
+  const cutoff = normalizeShadowCutoff({
+    planningCutoffUtc: options.planningCutoffUtc,
+    planningCutoffLocalDate: options.planningCutoffLocalDate,
+    timezone: sourceEmployeeProfile?.timezone || 'Asia/Seoul',
+  });
+  const now = cutoff.now;
+  const planningCutoffLocalDate = cutoff.localDate;
 
   const latestVersionByProject = new Map<string, any>();
   for (const version of snapshot.scheduleVersions) {
@@ -537,6 +612,14 @@ async function buildShadowEngineInput(db: any, options: RunOptions): Promise<Sha
     ? (worklogsResult.results || []).find((worklog: any) => worklog.id === options.sourceWorklogId)?.current_eod_revision_id
     : null) || null;
   const sourceWorklog = options.sourceWorklogId ? (worklogsResult.results || []).find((worklog: any) => worklog.id === options.sourceWorklogId) : null;
+  const sourceRevision = sourceRevisionId ? (revisionsResult.results || []).find((revision: any) => revision.id === sourceRevisionId) : null;
+  validateSourceWorklogRevisionPair({
+    requestedWorklogId: options.sourceWorklogId,
+    requestedRevisionId: options.sourceRevisionId,
+    sourceWorklog,
+    sourceRevision,
+    resolvedRevisionId: sourceRevisionId,
+  });
   const dataGapEmployeeDates: Array<{ employeeId: string; localWorkDate: string }> = (worklogsResult.results || [])
     .filter((worklog: any) => worklog.local_work_date <= planningCutoffLocalDate && worklogHasShadowDataGap(worklog))
     .map((worklog: any) => ({ employeeId: worklog.employee_id, localWorkDate: worklog.local_work_date }));
@@ -850,6 +933,10 @@ export async function enqueueShadowRecalculation(db: any, input: {
         OR EXISTS (
           SELECT 1 FROM shadow_schedule_tasks st
           WHERE st.shadow_version_id=sv.shadow_version_id AND st.employee_id=?2
+        )
+        OR EXISTS (
+          SELECT 1 FROM shadow_capacity_allocations a
+          WHERE a.shadow_version_id=sv.shadow_version_id AND a.employee_id=?2
         )
         OR sv.run_id IN (
           SELECT run_id FROM schedule_recalculation_runs WHERE request_id IN (
