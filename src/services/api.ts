@@ -124,9 +124,9 @@ async function handleResponse<T>(res: Response): Promise<T> {
 }
 
 export const api = {
-  async getWorklogContext(employeeId: string, localWorkDate: string): Promise<any> {
+  async getWorklogContext(employeeId: string, localWorkDate: string, signal?: AbortSignal): Promise<any> {
     const params = new URLSearchParams({ employee_id: employeeId, local_work_date: localWorkDate });
-    const res = await fetch(`/api/v3/worklogs/context?${params}`, { headers: getWriteHeaders() });
+    const res = await fetch(`/api/v3/worklogs/context?${params}`, { headers: getWriteHeaders(), signal });
     return handleResponse<any>(res);
   },
 
@@ -136,8 +136,8 @@ export const api = {
     return handleResponse<any>(res);
   },
 
-  async getWorklog(worklogId: string): Promise<any> {
-    const res = await fetch(`/api/v3/worklogs/${encodeURIComponent(worklogId)}`, { headers: getWriteHeaders() });
+  async getWorklog(worklogId: string, signal?: AbortSignal): Promise<any> {
+    const res = await fetch(`/api/v3/worklogs/${encodeURIComponent(worklogId)}`, { headers: getWriteHeaders(), signal });
     return handleResponse<any>(res);
   },
 
@@ -169,9 +169,24 @@ export const api = {
     return handleResponse<any>(res);
   },
 
-  async getTaskActual(taskId: string): Promise<any> {
-    const res = await fetch(`/api/v3/tasks/${encodeURIComponent(taskId)}/actual`, { headers: getWriteHeaders() });
+  async getTaskActual(taskId: string, signal?: AbortSignal): Promise<any> {
+    const res = await fetch(`/api/v3/tasks/${encodeURIComponent(taskId)}/actual`, { headers: getWriteHeaders(), signal });
     return handleResponse<any>(res);
+  },
+
+  async verifyExecutiveWorklogGuard(employeeId: string, localWorkDate: string): Promise<{ status: number; code: string }> {
+    const res = await fetch('/api/v3/worklogs/morning', {
+      method: 'POST',
+      headers: withIdempotencyKey(),
+      body: JSON.stringify({
+        employee_id: employeeId,
+        local_work_date: localWorkDate,
+        entries: [{ work_category: 'COMPANY_DUTY', planned_minutes: 60, memo: 'QA read-only guard verification' }],
+      }),
+    });
+    let body: any = null;
+    try { body = await res.json(); } catch { body = null; }
+    return { status: res.status, code: body?.error?.code || `HTTP_${res.status}` };
   },
 
   // 0. Workers

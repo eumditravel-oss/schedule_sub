@@ -16,6 +16,11 @@ const GAP_CODES = new Set([
 const OTHER_PROJECT = new Set(['OTHER_PROJECT_TASK', 'OUTSIDE_WORK_OTHER_PROJECT']);
 const MEETING_CATEGORIES = new Set(['MEETING', 'OUTSIDE_WORK_SAME_PROJECT', 'OUTSIDE_WORK_OTHER_PROJECT']);
 const LEAVE_CATEGORIES = new Set(['APPROVED_LEAVE', 'EMERGENCY_LEAVE']);
+const TASK_SCOPED_CATEGORIES = new Set([
+  'NORMAL_ASSIGNED_TASK', 'UNPLANNED_SAME_PROJECT_TASK', 'OTHER_PROJECT_TASK',
+  'OUTSIDE_WORK_SAME_PROJECT', 'OUTSIDE_WORK_OTHER_PROJECT',
+]);
+const PROGRESS_FIELDS = ['progress_after', 'remaining_estimated_minutes', 'completion_reported'] as const;
 
 export class WorklogError extends Error {
   constructor(public code: string, public status = 400, public details?: unknown, message?: string) {
@@ -274,14 +279,84 @@ async function assignmentForEntry(db: any, employeeId: string, localDate: string
 
 async function currentTaskActual(db: any, taskId: string) {
   const aggregate = await db.prepare(`SELECT * FROM task_actual_aggregates WHERE task_id = ?`).bind(taskId).first();
-  if (aggregate) return aggregate;
+  if (aggregate) return {
+    ...aggregate,
+    raw_actual_minutes: Number(aggregate.raw_actual_minutes || 0),
+    approved_actual_minutes: Number(aggregate.approved_actual_minutes || 0),
+    current_progress: Number(aggregate.current_progress || 0),
+    remaining_estimated_minutes: Number(aggregate.remaining_estimated_minutes || 0),
+    completion_reported: Number(aggregate.completion_reported || 0),
+  };
   const legacy = await db.prepare(
     `SELECT actual_progress AS current_progress, remaining_effort_minutes AS remaining_estimated_minutes,
             actual_minutes AS raw_actual_minutes, CASE WHEN actual_progress >= 100 THEN 1 ELSE 0 END AS completion_reported,
             'LEGACY_BOOTSTRAP' AS progress_source
      FROM task_actuals WHERE task_id = ? ORDER BY created_at DESC LIMIT 1`
   ).bind(taskId).first();
-  return legacy || { current_progress: 0, raw_actual_minutes: 0, completion_reported: 0, progress_source: 'TASK_FALLBACK' };
+  return {
+    raw_actual_minutes: Number(legacy?.raw_actual_minutes || 0),
+    approved_actual_minutes: Number(legacy?.raw_actual_minutes || 0),
+    current_progress: Number(legacy?.current_progress || 0),
+    remaining_estimated_minutes: Number(legacy?.remaining_estimated_minutes || 0),
+    completion_reported: Number(legacy?.completion_reported || 0),
+    actual_status: Number(legacy?.completion_reported || 0) === 1 ? 'COMPLETION_REPORTED' : 'IN_PROGRESS',
+    last_actual_work_date: null,
+    last_effective_worklog_id: null,
+    progress_source: legacy?.progress_source || 'TASK_FALLBACK',
+    updated_at: null,
+  };
+}
+
+export function validateEntryAssignmentShape(entry: any) {
+  const hasProgress = PROGRESS_FIELDS.some((field) => entry[field] !== undefined && entry[field] !== null);
+  if (!entry.task_id && (TASK_SCOPED_CATEGORIES.has(entry.work_category) || hasProgress)) {
+    throw new WorklogError('ASSIGNMENT_REQUIRED', 403, { work_category: entry.work_category });
+  }
+}
+
+export function resolveEffectiveRevision(worklog: any, revisions: any[]) {
+  const effectiveRows = revisions.filter((row) => Number(row.is_effective) === 1);
+  const effectiveRevision = effectiveRows[0] || null;
+  return {
+    effectiveRevision,
+    effectiveRevisionCount: effectiveRows.length,
+    integrity: effectiveRows.length === 1 && Number(worklog.current_revision_number) === Number(effectiveRevision?.revision_number)
+      ? 'PASS' : worklog.status === 'NOT_CREATED' || worklog.status === 'VOIDED' ? 'NOT_APPLICABLE' : 'FAIL',
+  };
+}
+
+export function buildTaskActualView(taskId: string, projectId: string, aggregate: any, contributionRows: any[]) {
+  const lastEffective = [...contributionRows].reverse().find((row: any) => Number(row.is_effective) === 1) || null;
+  const normalized = {
+    task_id: taskId,
+    project_id: aggregate.project_id || projectId,
+    raw_actual_minutes: Number(aggregate.raw_actual_minutes || 0),
+    approved_actual_minutes: Number(aggregate.approved_actual_minutes || 0),
+    current_progress: Number(aggregate.current_progress || 0),
+    remaining_estimated_minutes: Number(aggregate.remaining_estimated_minutes || 0),
+    completion_reported: Number(aggregate.completion_reported || 0) === 1,
+    last_actual_work_date: aggregate.last_actual_work_date || null,
+    last_effective_worklog_id: aggregate.last_effective_worklog_id || null,
+    last_effective_revision_id: lastEffective?.revision_id || null,
+    progress_source: aggregate.progress_source || 'TASK_FALLBACK',
+    updated_at: aggregate.updated_at || null,
+  };
+  return {
+    aggregate: normalized,
+    taskActual: {
+      taskId: normalized.task_id,
+      rawActualMinutes: normalized.raw_actual_minutes,
+      approvedActualMinutes: normalized.approved_actual_minutes,
+      currentProgress: normalized.current_progress,
+      remainingEstimatedMinutes: normalized.remaining_estimated_minutes,
+      completionReported: normalized.completion_reported,
+      lastActualWorkDate: normalized.last_actual_work_date,
+      lastEffectiveWorklogId: normalized.last_effective_worklog_id,
+      lastEffectiveRevisionId: normalized.last_effective_revision_id,
+      progressSource: normalized.progress_source,
+      updatedAt: normalized.updated_at,
+    },
+  };
 }
 
 function aggregateStatement(db: any, taskId: string, projectId: string) {
@@ -319,10 +394,34 @@ async function worklogResponse(db: any, worklogId: string) {
   const [revisions, entries, audit, corrections] = await Promise.all([
     db.prepare(`SELECT * FROM daily_worklog_revisions WHERE worklog_id = ? ORDER BY revision_number`).bind(worklogId).all(),
     db.prepare(`SELECT * FROM daily_worklog_entries WHERE worklog_id = ? ORDER BY created_at, id`).bind(worklogId).all(),
-    db.prepare(`SELECT * FROM worklog_audit_events WHERE worklog_id = ? ORDER BY event_time_utc, id`).bind(worklogId).all(),
+    db.prepare(
+      `SELECT a.*, r.revision_number, r.change_type AS revision_change_type
+       FROM worklog_audit_events a
+       LEFT JOIN daily_worklog_revisions r ON r.id = a.revision_id AND r.worklog_id = a.worklog_id
+       WHERE a.worklog_id = ? ORDER BY a.event_time_utc, a.id`
+    ).bind(worklogId).all(),
     db.prepare(`SELECT * FROM worklog_correction_requests WHERE worklog_id = ? ORDER BY created_at, id`).bind(worklogId).all(),
   ]);
-  return { ...worklog, revisions: revisions.results || [], entries: entries.results || [], audit_events: audit.results || [], correction_requests: corrections.results || [] };
+  const revisionRows = revisions.results || [];
+  const { effectiveRevision, effectiveRevisionCount, integrity } = resolveEffectiveRevision(worklog, revisionRows);
+  let effectivePayload = null;
+  if (effectiveRevision?.payload_snapshot) {
+    try { effectivePayload = JSON.parse(effectiveRevision.payload_snapshot); } catch { effectivePayload = null; }
+  }
+  return {
+    ...worklog,
+    effective_revision_id: effectiveRevision?.id || null,
+    effective_revision_number: effectiveRevision?.revision_number || 0,
+    effective_revision_payload: effectivePayload,
+    effective_change_type: effectiveRevision?.change_type || null,
+    effective_status: worklog.status,
+    effective_revision_count: effectiveRevisionCount,
+    revision_integrity: integrity,
+    revisions: revisionRows,
+    entries: entries.results || [],
+    audit_events: audit.results || [],
+    correction_requests: corrections.results || [],
+  };
 }
 
 export async function getWorklog(db: any, worklogId: string) { return worklogResponse(db, worklogId); }
@@ -378,6 +477,7 @@ export async function submitMorning(db: any, actorContext: ActorContextServer, b
   rejectDuplicateTaskEntries(entries);
   for (const entry of entries) {
     if (!(WORK_CATEGORIES as readonly string[]).includes(entry.work_category)) throw new WorklogError('INVALID_LOCAL_WORK_DATE', 400, { reason: 'INVALID_WORK_CATEGORY' });
+    validateEntryAssignmentShape(entry);
     validateIncrement(entry.planned_minutes, 30);
     if (entry.task_id) {
       await assignmentForEntry(db, employeeId, body.local_work_date, entry);
@@ -387,6 +487,7 @@ export async function submitMorning(db: any, actorContext: ActorContextServer, b
   }
   const existing = await db.prepare(`SELECT * FROM daily_worklogs WHERE employee_id = ? AND local_work_date = ?`).bind(employeeId, body.local_work_date).first();
   if (existing?.current_morning_revision_id) throw new WorklogError('WORKLOG_ALREADY_EXISTS', 409);
+  if (existing?.current_eod_revision_id) throw new WorklogError('WORKLOG_ALREADY_EXISTS', 409, { reason: 'EOD_ALREADY_SUBMITTED' });
   const worklogId = existing?.id || id('wl');
   const revisionNumber = Number(existing?.current_revision_number || 0) + 1;
   const revisionId = id('wlr');
@@ -395,6 +496,7 @@ export async function submitMorning(db: any, actorContext: ActorContextServer, b
   const deadline = await getSelfEditDeadline(db, employeeId, body.local_work_date);
   const response = { worklog_id: worklogId, revision_id: revisionId, revision_number: revisionNumber, status: 'MORNING_SUBMITTED', morning_late: late, morning_missing: false };
   const statements: any[] = [];
+  if (existing) statements.push(db.prepare(`UPDATE daily_worklog_revisions SET is_effective=0 WHERE worklog_id=? AND is_effective=1`).bind(worklogId));
   if (existing) {
     statements.push(db.prepare(
       `UPDATE daily_worklogs SET status='MORNING_SUBMITTED', current_revision_number=?, current_morning_revision_id=?,
@@ -449,6 +551,7 @@ async function validateEodEntries(db: any, employeeId: string, localDate: string
   for (let index = 0; index < entries.length; index += 1) {
     const entry = entries[index];
     if (!(WORK_CATEGORIES as readonly string[]).includes(entry.work_category)) throw new WorklogError('INVALID_LOCAL_WORK_DATE', 400, { entry_index: index, reason: 'INVALID_WORK_CATEGORY' });
+    validateEntryAssignmentShape(entry);
     const minutes = validateIncrement(entry.actual_minutes, increment);
     if (OTHER_PROJECT.has(entry.work_category) && (!entry.related_project_id || !entry.reason_source)) {
       throw new WorklogError('WORKLOG_PERMISSION_DENIED', 400, { entry_index: index, reason: 'OTHER_PROJECT_REFERENCE_REQUIRED' });
@@ -461,7 +564,7 @@ async function validateEodEntries(db: any, employeeId: string, localDate: string
     let actual = null;
     if (assignment) {
       actual = await currentTaskActual(db, entry.task_id);
-      const progressFieldsSent = ['progress_after','remaining_estimated_minutes','completion_reported'].some((field) => entry[field] !== undefined && entry[field] !== null);
+      const progressFieldsSent = PROGRESS_FIELDS.some((field) => entry[field] !== undefined && entry[field] !== null);
       if (assignment.role !== 'PRIMARY' && progressFieldsSent) throw new WorklogError('SUPPORT_PROGRESS_FORBIDDEN', 403, { entry_index: index });
       if (Number(actual.current_progress || 0) >= 100 && !correction) throw new WorklogError('TASK_ALREADY_COMPLETED', 409, { task_id: entry.task_id });
       if (assignment.role === 'PRIMARY') validatePrimaryProgress(entry, Number(actual.current_progress || 0), correction);
@@ -496,20 +599,18 @@ async function submitEodRevision(db: any, actor: WorklogActor, worklog: any, bod
   const overtime = Math.max(0, variance);
   if (hasGap && (!GAP_CODES.has(body.gap_reason_code) || !String(body.gap_reason_text || '').trim())) throw new WorklogError('GAP_REASON_REQUIRED');
   if (overtime > 0 && (!String(body.overtime_reason || '').trim() || !body.overtime_evidence)) throw new WorklogError('OVERTIME_REASON_REQUIRED');
-  const revisionNumber = Number(worklog.current_revision_number || 0) + 1;
-  if (mode !== 'INITIAL_EOD' && Number(body.expected_revision) !== Number(worklog.current_revision_number)) throw new WorklogError('VERSION_CONFLICT', 409);
+  const revisionMax = await db.prepare(`SELECT id, revision_number FROM daily_worklog_revisions WHERE worklog_id=? ORDER BY revision_number DESC LIMIT 1`).bind(worklog.id).first();
+  const latestRevisionNumber = Number(revisionMax?.revision_number || 0);
+  const nextRevisionNumber = latestRevisionNumber + 1;
+  if (mode !== 'INITIAL_EOD' && Number(body.expected_revision) !== latestRevisionNumber) throw new WorklogError('VERSION_CONFLICT', 409);
   const revisionId = id('wlr');
-  const latestRevision = Number(worklog.current_revision_number || 0) > 0
-    ? await db.prepare(`SELECT id FROM daily_worklog_revisions WHERE worklog_id=? AND revision_number=?`)
-      .bind(worklog.id, Number(worklog.current_revision_number)).first()
-    : null;
-  const previousRevisionId = latestRevision?.id || worklog.current_eod_revision_id || worklog.current_morning_revision_id || null;
+  const previousRevisionId = revisionMax?.id || worklog.current_eod_revision_id || worklog.current_morning_revision_id || null;
   const deadline = worklog.self_edit_deadline_utc || await getSelfEditDeadline(db, worklog.employee_id, worklog.local_work_date);
   const retroactive = mode === 'INITIAL_EOD' && now.getTime() > new Date(deadline).getTime();
   const status = isManager ? 'MANAGER_CORRECTED' : mode === 'SELF_REVISION' ? 'SELF_REVISED' : retroactive ? 'RETROACTIVE_PENDING_REVIEW' : 'EOD_SUBMITTED';
   const selfReview = retroactive || validated.some((entry) => entry.work_category === 'EMERGENCY_LEAVE' || (OTHER_PROJECT.has(entry.work_category) && entry.reason_source === 'SELF_DECISION'));
   const response = {
-    worklog_id: worklog.id, revision_id: revisionId, revision_number: revisionNumber, status,
+    worklog_id: worklog.id, revision_id: revisionId, revision_number: nextRevisionNumber, status,
     morning_missing: !worklog.current_morning_revision_id, capacity_minutes: effectiveCapacity,
     actual_recorded_minutes: actualMinutes, capacity_variance_minutes: variance,
     has_gap: hasGap, overtime_candidate_minutes: overtime,
@@ -518,12 +619,12 @@ async function submitEodRevision(db: any, actor: WorklogActor, worklog: any, bod
     forecast_date_change_count: 0, schedule_adjustment_event_count: 0,
   };
   const statements: any[] = [];
+  statements.push(db.prepare(`UPDATE daily_worklog_revisions SET is_effective=0 WHERE worklog_id=? AND is_effective=1`).bind(worklog.id));
   if (mode !== 'INITIAL_EOD' && worklog.current_eod_revision_id) {
-    statements.push(db.prepare(`UPDATE daily_worklog_revisions SET is_effective=0 WHERE id=?`).bind(worklog.current_eod_revision_id));
     statements.push(db.prepare(`UPDATE task_actual_contributions SET is_effective=0 WHERE worklog_id=? AND is_effective=1`).bind(worklog.id));
     statements.push(db.prepare(`UPDATE employee_capacity_events SET approval_status='SUPERSEDED' WHERE worklog_id=? AND approval_status='EFFECTIVE'`).bind(worklog.id));
   }
-  const commonValues = [status, revisionNumber, revisionId, now.toISOString(), worklog.current_morning_revision_id ? 0 : 1,
+  const commonValues = [status, nextRevisionNumber, revisionId, now.toISOString(), worklog.current_morning_revision_id ? 0 : 1,
     retroactive ? 1 : 0, effectiveCapacity, actualMinutes, variance, hasGap ? body.gap_reason_code : null,
     hasGap ? body.gap_reason_text : null, overtime, overtime > 0 ? 'PENDING_REVIEW' : 'NOT_APPLICABLE', hasGap ? 1 : 0,
     overtime > 0 ? 1 : 0, response.requires_manager_review ? 1 : 0,
@@ -553,7 +654,7 @@ async function submitEodRevision(db: any, actor: WorklogActor, worklog: any, bod
     `INSERT INTO daily_worklog_revisions (id,worklog_id,revision_number,phase,previous_revision_id,created_by_employee_id,
      created_at,reason,change_type,payload_snapshot,is_effective,actor_mode,actor_user_id,subject_employee_id,test_session_id,request_fingerprint)
      VALUES (?,?,?,'EOD',?,?,?,?,?,?,1,?,?,?,?,?)`
-  ).bind(revisionId, worklog.id, revisionNumber, previousRevisionId, actor.worker.id, now.toISOString(), body.reason || null,
+  ).bind(revisionId, worklog.id, nextRevisionNumber, previousRevisionId, actor.worker.id, now.toISOString(), body.reason || null,
     mode, stableStringify(body), actor.actorMode, actor.actorUserId, worklog.employee_id, actor.testSessionId, idem.hash));
   const affectedTasks = new Map<string, string>();
   for (const entry of validated) {
@@ -665,11 +766,12 @@ export async function createCorrectionRequest(db: any, actorContext: ActorContex
   requireSubject(actor, worklog.employee_id);
   if (!String(body.reason || '').trim()) throw new WorklogError('RETROACTIVE_REVIEW_REQUIRED');
   const requestId = id('wcr');
-  const revisionNumber = Number(worklog.current_revision_number) + 1;
+  const revisionMax = await db.prepare(`SELECT COALESCE(MAX(revision_number),0) AS max_revision FROM daily_worklog_revisions WHERE worklog_id=?`).bind(worklogId).first();
+  const revisionNumber = Number(revisionMax?.max_revision || 0) + 1;
   const revisionId = id('wlr');
   const response = { correction_request_id: requestId, worklog_id: worklogId, status: 'PENDING_REVIEW', revision_number: revisionNumber };
   const statements = [
-    db.prepare(`UPDATE daily_worklogs SET status='CORRECTION_REQUESTED',current_revision_number=?,requires_manager_review=1,updated_at=CURRENT_TIMESTAMP WHERE id=?`).bind(revisionNumber, worklogId),
+    db.prepare(`UPDATE daily_worklogs SET status='CORRECTION_REQUESTED',requires_manager_review=1,updated_at=CURRENT_TIMESTAMP WHERE id=?`).bind(worklogId),
     db.prepare(
       `INSERT INTO daily_worklog_revisions (id,worklog_id,revision_number,phase,previous_revision_id,created_by_employee_id,
        created_at,reason,change_type,payload_snapshot,is_effective,actor_mode,actor_user_id,subject_employee_id,test_session_id,request_fingerprint)
@@ -718,7 +820,16 @@ export async function listWorklogs(db: any, actorContext: ActorContextServer, fi
 }
 
 export async function getTaskActual(db: any, taskId: string) {
+  const task = await db.prepare(`SELECT id, project_id FROM tasks WHERE id=?`).bind(taskId).first();
+  if (!task) throw new WorklogError('INVALID_LOCAL_WORK_DATE', 404, { task_id: taskId, reason: 'TASK_NOT_FOUND' });
   const aggregate = await currentTaskActual(db, taskId);
   const contributions = await db.prepare(`SELECT * FROM task_actual_contributions WHERE task_id=? ORDER BY local_work_date,created_at,id`).bind(taskId).all();
-  return { task_id: taskId, aggregate, contributions: contributions.results || [], effective_contribution_count: (contributions.results || []).filter((row: any) => Number(row.is_effective) === 1).length };
+  const contributionRows = contributions.results || [];
+  const view = buildTaskActualView(taskId, task.project_id, aggregate, contributionRows);
+  return {
+    task_id: taskId,
+    ...view,
+    contributions: contributionRows,
+    effective_contribution_count: contributionRows.filter((row: any) => Number(row.is_effective) === 1).length,
+  };
 }
