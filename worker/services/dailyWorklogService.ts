@@ -388,7 +388,7 @@ export async function submitMorning(db: any, actorContext: ActorContextServer, b
   statements.push(db.prepare(
     `INSERT INTO worklog_audit_events (id,worklog_id,revision_id,event_type,actor_mode,actor_user_id,actor_employee_id,
      subject_employee_id,local_work_date,event_time_utc,after_json,reason,test_session_id,request_id)
-     VALUES (?,?,?,'MORNING_SUBMITTED',?,?,?,?,?,?,?, ?,?,?,?)`
+     VALUES (?,?,?,'MORNING_SUBMITTED',?,?,?,?,?,?,?,?,?,?)`
   ).bind(auditId, worklogId, revisionId, actor.actorMode, actor.actorUserId, actor.worker.id, employeeId, body.local_work_date,
     now.toISOString(), stableStringify(response), body.reason || null, actor.testSessionId, key));
   statements.push(db.prepare(
