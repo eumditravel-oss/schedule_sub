@@ -13,7 +13,7 @@ test.describe('Checkpoint 2.1 Worklog QA consistency', () => {
   test('separates draft/stored state and keeps actor context atomic', async ({ page, request }) => {
     await page.goto('/qa/daily-worklog');
     await expect(page.getByText('QA HARNESS')).toBeVisible();
-    await expect(page.getByText(/최종 직원 업무일지 UI가 아닙니다/)).toBeVisible();
+    await expect(page.getByText(/최종 직원 업무일지 UI가 아닙니다|không phải giao diện nhật ký công việc chính thức/)).toBeVisible();
 
     await page.getByTestId('worker-select-btn').click();
     await page.getByRole('button', { name: /Thanh Phuong/ }).click();
