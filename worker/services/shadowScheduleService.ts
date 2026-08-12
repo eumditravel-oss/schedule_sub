@@ -1268,25 +1268,15 @@ export async function setTaskConstraint(db: any, actorContext: ActorContextServe
   const constraintId = uuid('con');
   const now = new Date().toISOString();
   const response = { constraintId, taskId, ...input, status: 'ACTIVE' };
-  const responseJson = canonicalJson(response);
-  const key = (commit as any)?.__key || '';
-  const guard = commit ? ` AND EXISTS (SELECT 1 FROM shadow_engine_idempotency_keys WHERE idempotency_key=?4 AND response_json=?5)` : '';
-  const statements = [
+  const results = await db.batch([
+    db.prepare(`UPDATE task_constraints SET status='SUPERSEDED',updated_by=?1,updated_at=?2 WHERE task_id=?3 AND status='ACTIVE'`).bind(actor.worker.id, now, taskId),
+    db.prepare(`INSERT INTO task_constraints (constraint_id,task_id,constraint_type,constraint_date,constraint_timestamp_utc,constraint_minutes,reason,status,created_by,created_at,updated_by,updated_at)
+      VALUES (?1,?2,?3,?4,?5,?6,?7,'ACTIVE',?8,?9,?8,?9)`).bind(constraintId, taskId, input.constraint_type,
+      input.constraint_date || null, input.constraint_timestamp_utc || null, input.constraint_minutes ?? null, input.reason || null, actor.worker.id, now),
+    await auditStatement(db, actor, { eventType: 'TASK_CONSTRAINT_SET', entityType: 'TASK_CONSTRAINT', entityId: constraintId, after: input, reason: input.reason }),
     ...(commit ? [commit(response)] : []),
-    db.prepare(`UPDATE task_constraints SET status='SUPERSEDED',updated_by=?1,updated_at=?2 WHERE task_id=?3 AND status='ACTIVE'${guard}`)
-      .bind(...(commit ? [actor.worker.id, now, taskId, key, responseJson] : [actor.worker.id, now, taskId])),
-    ...(commit
-      ? [db.prepare(`INSERT INTO task_constraints (constraint_id,task_id,constraint_type,constraint_date,constraint_timestamp_utc,constraint_minutes,reason,status,created_by,created_at,updated_by,updated_at)
-        SELECT ?1,?2,?3,?4,?5,?6,?7,'ACTIVE',?8,?9,?8,?9 WHERE EXISTS (SELECT 1 FROM shadow_engine_idempotency_keys WHERE idempotency_key=?10 AND response_json=?11)`)
-        .bind(constraintId, taskId, input.constraint_type, input.constraint_date || null, input.constraint_timestamp_utc || null, input.constraint_minutes ?? null, input.reason || null, actor.worker.id, now, key, responseJson)]
-      : [db.prepare(`INSERT INTO task_constraints (constraint_id,task_id,constraint_type,constraint_date,constraint_timestamp_utc,constraint_minutes,reason,status,created_by,created_at,updated_by,updated_at)
-        VALUES (?1,?2,?3,?4,?5,?6,?7,'ACTIVE',?8,?9,?8,?9)`).bind(constraintId, taskId, input.constraint_type, input.constraint_date || null, input.constraint_timestamp_utc || null, input.constraint_minutes ?? null, input.reason || null, actor.worker.id, now)]),
-    await auditStatement(db, actor, { eventType: 'TASK_CONSTRAINT_SET', entityType: 'TASK_CONSTRAINT', entityId: constraintId, after: input, reason: input.reason, ...(commit ? { idempotencyGuard: { key, responseJson } } : {}) }),
-  ];
-  const results = await db.batch(statements);
-  if (commit && (Number(results[0]?.meta?.changes || 0) !== 1
-    || Number(results[2]?.meta?.changes || 0) !== 1
-    || Number(results[3]?.meta?.changes || 0) !== 1)) {
+  ]);
+  if (commit && Number(results[results.length - 1]?.meta?.changes || 0) !== 1) {
     throw new ShadowScheduleError('IDEMPOTENCY_CONFLICT', 409, { reason: 'FINALIZE_FAILED' });
   }
   return response;
@@ -1314,27 +1304,16 @@ export async function setProjectPriority(db: any, actorContext: ActorContextServ
   const now = new Date().toISOString();
   const before = await db.prepare(`SELECT * FROM project_priorities WHERE project_id=?`).bind(input.project_id).first();
   const response = { projectId: input.project_id, priorityRank: rank };
-  const responseJson = canonicalJson(response);
-  const key = (commit as any)?.__key || '';
-  const priorityStatement = commit
-    ? db.prepare(`INSERT INTO project_priorities (project_id,priority_rank,priority_label,effective_from,effective_to,set_by,reason,created_at,updated_at)
-      SELECT ?1,?2,?3,?4,?5,?6,?7,?8,?8 WHERE EXISTS (SELECT 1 FROM shadow_engine_idempotency_keys WHERE idempotency_key=?9 AND response_json=?10)
-      ON CONFLICT(project_id) DO UPDATE SET priority_rank=excluded.priority_rank,priority_label=excluded.priority_label,
-      effective_from=excluded.effective_from,effective_to=excluded.effective_to,set_by=excluded.set_by,reason=excluded.reason,updated_at=excluded.updated_at`)
-      .bind(input.project_id, rank, input.priority_label || null, effectiveFrom, effectiveTo, actor.worker.id, input.reason || null, now, key, responseJson)
-    : db.prepare(`INSERT INTO project_priorities (project_id,priority_rank,priority_label,effective_from,effective_to,set_by,reason,created_at,updated_at)
+  const results = await db.batch([
+    db.prepare(`INSERT INTO project_priorities (project_id,priority_rank,priority_label,effective_from,effective_to,set_by,reason,created_at,updated_at)
       VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?8)
       ON CONFLICT(project_id) DO UPDATE SET priority_rank=excluded.priority_rank,priority_label=excluded.priority_label,
       effective_from=excluded.effective_from,effective_to=excluded.effective_to,set_by=excluded.set_by,reason=excluded.reason,updated_at=excluded.updated_at`)
-      .bind(input.project_id, rank, input.priority_label || null, effectiveFrom, effectiveTo, actor.worker.id, input.reason || null, now);
-  const results = await db.batch([
+      .bind(input.project_id, rank, input.priority_label || null, effectiveFrom, effectiveTo, actor.worker.id, input.reason || null, now),
+    await auditStatement(db, actor, { eventType: 'PROJECT_PRIORITY_SET', entityType: 'PROJECT_PRIORITY', entityId: input.project_id, before, after: input, reason: input.reason }),
     ...(commit ? [commit(response)] : []),
-    priorityStatement,
-    await auditStatement(db, actor, { eventType: 'PROJECT_PRIORITY_SET', entityType: 'PROJECT_PRIORITY', entityId: input.project_id, before, after: input, reason: input.reason, ...(commit ? { idempotencyGuard: { key, responseJson } } : {}) }),
   ]);
-  if (commit && (Number(results[0]?.meta?.changes || 0) !== 1
-    || Number(results[1]?.meta?.changes || 0) !== 1
-    || Number(results[2]?.meta?.changes || 0) !== 1)) {
+  if (commit && Number(results[results.length - 1]?.meta?.changes || 0) !== 1) {
     throw new ShadowScheduleError('IDEMPOTENCY_CONFLICT', 409, { reason: 'FINALIZE_FAILED' });
   }
   return response;
