@@ -1,4 +1,4 @@
-export const SHADOW_ENGINE_VERSION = '3A.1.6';
+export const SHADOW_ENGINE_VERSION = '3A.1.7';
 
 export type ShadowConfidence = 'HIGH' | 'PROVISIONAL' | 'LOW' | 'BLOCKED';
 export type ApprovalClassification = 'AUTO_APPLY_ELIGIBLE' | 'APPROVAL_REQUIRED' | 'BLOCKED' | 'NO_CHANGE';
@@ -425,6 +425,16 @@ export function resolveEffectivePrimary(task: ShadowTaskInput, localDate: string
   return temporary?.employeeId || task.primaryEmployeeId;
 }
 
+function resolveEffectivePrimaryAtUtc(task: ShadowTaskInput, utc: string, employees: Map<string, ShadowEmployeeInput>): string | null {
+  const temporary = task.temporaryPrimaries.find((assignment) => {
+    const employee = employees.get(assignment.employeeId);
+    if (!employee) return false;
+    const localDate = utcToLocalDate(utc, employee.timezone);
+    return assignment.effectiveStartDate <= localDate && assignment.effectiveEndDate >= localDate;
+  });
+  return temporary?.employeeId || task.primaryEmployeeId;
+}
+
 function confidenceRank(confidence: ShadowConfidence): number {
   return { HIGH: 0, PROVISIONAL: 1, LOW: 2, BLOCKED: 3 }[confidence];
 }
@@ -813,7 +823,10 @@ export function runShadowScheduleEngine(rawInput: ShadowEngineInput): ShadowEngi
       continue;
     }
 
-    const constraintEmployee = primaryAtCutoff ? employeeMap.get(primaryAtCutoff) : null;
+    const constraintEmployeeAtInstantId = constraint?.timestampUtc
+      ? resolveEffectivePrimaryAtUtc(task, constraint.timestampUtc, employeeMap)
+      : primaryAtCutoff;
+    const constraintEmployee = constraintEmployeeAtInstantId ? employeeMap.get(constraintEmployeeAtInstantId) : null;
     const constraintLocalDate = constraint?.date || (constraint?.timestampUtc && constraintEmployee
       ? utcToLocalDate(constraint.timestampUtc, constraintEmployee.timezone)
       : null);
@@ -836,7 +849,7 @@ export function runShadowScheduleEngine(rawInput: ShadowEngineInput): ShadowEngi
       earliest = constraintLocalDate;
     }
 
-    const fixedStartEmployee = primaryAtCutoff ? employeeMap.get(primaryAtCutoff) : null;
+    const fixedStartEmployee = constraintEmployee;
     const fixedStartConstraintOffset = constraint?.type === 'FIXED_START' && constraintLocalTime && fixedStartEmployee
       ? workMinuteOffset(constraintLocalTime, fixedStartEmployee)
       : 0;
@@ -922,8 +935,14 @@ export function runShadowScheduleEngine(rawInput: ShadowEngineInput): ShadowEngi
         break;
       }
       const dependencyOffset = localDate === dependencyStart.date ? dependencyStart.releaseOffsetMinutes : 0;
-      const constraintOffset = constraint?.type !== 'FIXED_END' && constraintLocalDate === localDate && constraintLocalTime
-        ? workMinuteOffset(constraintLocalTime, employee)
+      const effectiveConstraintDate = constraint?.date || (constraint?.timestampUtc
+        ? utcToLocalDate(constraint.timestampUtc, employee.timezone)
+        : null);
+      const effectiveConstraintTime = constraint?.timestampUtc
+        ? utcToLocalTime(constraint.timestampUtc, employee.timezone)
+        : null;
+      const constraintOffset = constraint?.type !== 'FIXED_END' && effectiveConstraintDate === localDate && effectiveConstraintTime
+        ? workMinuteOffset(effectiveConstraintTime, employee)
         : 0;
       const cutoffOffset = localDate === cutoffLocalDate
         ? workMinuteOffset(utcToLocalTime(input.planningCutoffUtc, employee.timezone), employee)
@@ -971,7 +990,8 @@ export function runShadowScheduleEngine(rawInput: ShadowEngineInput): ShadowEngi
     }
     const lastTaskAllocation = [...allocations].reverse().find((allocation) => allocation.taskId === task.id);
     const scheduledEmployeeId = lastTaskAllocation?.employeeId || primaryAtCutoff;
-    if (lastTaskAllocation && scheduledEmployeeId !== task.primaryEmployeeId) {
+    const taskAllocations = allocations.filter((allocation) => allocation.taskId === task.id);
+    if (taskAllocations.some((allocation) => allocation.employeeId !== task.primaryEmployeeId)) {
       approvalRequired = true;
       reasons.push('TEMPORARY_PRIMARY');
     }

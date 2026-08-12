@@ -251,7 +251,7 @@ export function ShadowSchedulePage() {
 
         <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <div><h2 className="flex items-center gap-2 text-sm font-black"><Play className="h-4 w-4 text-orange-500" />{lang === 'vi' ? 'Tính toán Shadow' : 'Shadow 재산정'}</h2><p className="mt-1 text-[10px] text-slate-500">Engine {shadow?.run?.engine_version || '3A.1.6'} · {shadow?.run?.input_fingerprint?.slice(0, 16) || 'no run'}</p></div>
+            <div><h2 className="flex items-center gap-2 text-sm font-black"><Play className="h-4 w-4 text-orange-500" />{lang === 'vi' ? 'Tính toán Shadow' : 'Shadow 재산정'}</h2><p className="mt-1 text-[10px] text-slate-500">Engine {shadow?.run?.engine_version || '3A.1.7'} · {shadow?.run?.input_fingerprint?.slice(0, 16) || 'no run'}</p></div>
             <div className="flex gap-2">
               <button onClick={() => load()} className="flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold"><RefreshCw className="h-3.5 w-3.5" />{lang === 'vi' ? 'Làm mới' : '새로고침'}</button>
               {permissions.canReview && !isExecutive && <button data-testid="run-shadow-button" disabled={busy} onClick={() => act(async () => { const result = await api.runShadowSchedule({ project_id: projectId, trigger_type: 'MANUAL' }); setShadow(result); })} className="flex items-center gap-1 rounded-lg bg-orange-500 px-4 py-2 text-xs font-black text-white hover:bg-orange-600 disabled:opacity-50"><Play className="h-3.5 w-3.5" />{lang === 'vi' ? 'Chạy lại Shadow' : 'Shadow 재산정 실행'}</button>}

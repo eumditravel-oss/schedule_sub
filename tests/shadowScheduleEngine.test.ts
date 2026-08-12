@@ -477,6 +477,38 @@ describe('Checkpoint 3A A-Z shadow engine simulations', () => {
     expect(temporary.projects[0].approvalClassification).toBe('APPROVAL_REQUIRED');
   });
 
+  it('R3d — timestamp FIXED_START preserves its UTC instant across a future KR to VN handoff', () => {
+    const vn = employee('emp-vn', 'VN');
+    const result = runShadowScheduleEngine(input({
+      planningCutoffUtc: '2026-08-12T00:00:00.000Z',
+      employees: [employee('emp-kr'), vn],
+      capacityDays: [...days('emp-kr'), ...days('emp-vn', '2026-08-12', 10, 480, 'Asia/Ho_Chi_Minh')],
+      tasks: [task('task-1', {
+        remainingEstimatedMinutes: 60,
+        temporaryPrimaries: [{ employeeId: 'emp-vn', effectiveStartDate: '2026-08-13', effectiveEndDate: '2026-08-31' }],
+      })],
+      constraints: [{ id: 'fixed-vn-instant', taskId: 'task-1', type: 'FIXED_START', date: null, timestampUtc: '2026-08-13T01:00:00.000Z', minutes: null, status: 'ACTIVE' }],
+    }));
+    expect(result.allocations[0]).toMatchObject({ employeeId: 'emp-vn', startsAtUtc: '2026-08-13T01:00:00.000Z' });
+  });
+
+  it('R3e — any temporary-primary segment remains approval-required after original Primary resumes', () => {
+    const vn = employee('emp-vn', 'VN');
+    const result = runShadowScheduleEngine(input({
+      planningCutoffUtc: '2026-08-12T00:00:00.000Z',
+      employees: [employee('emp-kr'), vn],
+      capacityDays: [...days('emp-kr'), ...days('emp-vn', '2026-08-12', 10, 480, 'Asia/Ho_Chi_Minh')],
+      tasks: [task('task-1', {
+        remainingEstimatedMinutes: 600, officialStart: '2026-08-12', officialEnd: '2026-08-13',
+        temporaryPrimaries: [{ employeeId: 'emp-vn', effectiveStartDate: '2026-08-12', effectiveEndDate: '2026-08-12' }],
+      })],
+    }));
+    expect(result.allocations.map((allocation) => allocation.employeeId)).toEqual(['emp-vn', 'emp-kr']);
+    expect(result.tasks[0].employeeId).toBe('emp-kr');
+    expect(result.tasks[0].impactReasonCodes).toContain('TEMPORARY_PRIMARY');
+    expect(result.projects[0].approvalClassification).toBe('APPROVAL_REQUIRED');
+  });
+
   it.each([
     [{ id: 'bad-ts', taskId: 'task-1', type: 'FIXED_START' as const, date: null, timestampUtc: 'not-an-iso-timestamp', minutes: null, status: 'ACTIVE' }],
     [{ id: 'bad-date', taskId: 'task-1', type: 'NOT_BEFORE' as const, date: 'not-a-date', timestampUtc: null, minutes: null, status: 'ACTIVE' }],
