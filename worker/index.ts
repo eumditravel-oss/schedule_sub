@@ -535,6 +535,9 @@ export default {
       }
 
       if (method === 'POST' && (cleanPath === '/api/admin/v3-foundation/preview' || cleanPath === '/api/admin/v3-foundation/apply')) {
+        if (cleanPath.endsWith('/apply') && String(env.DYNAMIC_SCHEDULER_OFFICIAL_APPLY_ENABLED) !== 'true') {
+          return errorResponse('Official Forecast apply is disabled.', 503, 'OFFICIAL_APPLY_DISABLED');
+        }
         const body: any = await request.json().catch(() => ({}));
         const editorName = getEditorName(body, request);
         const editCheck = await requireEditableWorker(db, editorName);

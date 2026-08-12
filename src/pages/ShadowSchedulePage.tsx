@@ -62,6 +62,17 @@ function addDays(date: string, days: number) {
   return value.toISOString().slice(0, 10);
 }
 
+export function selectProjectShadowView(shadow: ShadowRunView | null, projectId: string) {
+  const projectVersion = shadow?.versions.find((version) => String(version.project_id) === String(projectId)) || null;
+  const versionId = projectVersion?.shadow_version_id;
+  const matchesVersion = (row: any) => !versionId || String(row.shadow_version_id || '') === String(versionId);
+  const tasks = (shadow?.tasks || []).filter((task) => String(task.project_id || '') === String(projectId) && matchesVersion(task));
+  const allocations = (shadow?.allocations || []).filter((allocation: any) => String(allocation.project_id || '') === String(projectId) && matchesVersion(allocation));
+  const impacts = (shadow?.impacts || []).filter((impact: any) => String(impact.primary_project_id || '') === String(projectId));
+  const diffs = (shadow?.diffs || []).filter((diff: any) => String(diff.project_id || '') === String(projectId) && matchesVersion(diff));
+  return { projectVersion, tasks, allocations, impacts, diffs };
+}
+
 function ShadowGantt({ tasks, lang, holidays, overrides, workers, dependencies }: {
   tasks: ShadowScheduleTask[];
   lang: 'ko' | 'vi';
@@ -190,15 +201,21 @@ export function ShadowSchedulePage() {
 
   useEffect(() => { load().catch((reason) => setError(reason.message)); }, [projectId]);
   const groupById = useMemo(() => new Map(groups.map((group) => [group.id, group])), [groups]);
-  const projectVersion = shadow?.versions.find((version) => version.project_id === projectId);
-  const impactedTasks = shadow?.tasks || [];
-  const summary: any = shadow?.impacts?.find((impact: any) => String(impact.primary_project_id || '') === projectId);
-  const isStale = Boolean(shadow?.versions.some((version) => version.status === 'STALE'));
+  const projectView = useMemo(() => selectProjectShadowView(shadow, projectId), [shadow, projectId]);
+  const { projectVersion, tasks: impactedTasks, impacts: projectImpacts } = projectView;
+  const summary: any = projectImpacts[0];
+  const isStale = projectVersion?.status === 'STALE';
   const approvalRequired = Boolean(projectVersion && (projectVersion.approval_classification === 'APPROVAL_REQUIRED' || projectVersion.approval_classification === 'BLOCKED'));
   const validationIssues = useMemo(() => {
     if (!shadow?.run?.validation_summary_json) return [];
-    try { return JSON.parse(shadow.run.validation_summary_json).issues || []; } catch { return []; }
-  }, [shadow?.run?.validation_summary_json]);
+    try {
+      return (JSON.parse(shadow.run.validation_summary_json).issues || [])
+        .filter((issue: any) => {
+          const issueProjectId = issue.projectId ?? issue.project_id;
+          return !issueProjectId || String(issueProjectId) === String(projectId);
+        });
+    } catch { return []; }
+  }, [shadow?.run?.validation_summary_json, projectId]);
 
   const act = async (fn: () => Promise<unknown>) => {
     setBusy(true); setError('');
@@ -265,7 +282,9 @@ export function ShadowSchedulePage() {
 
         <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2"><h2 className="flex items-center gap-2 text-sm font-black"><CalendarClock className="h-4 w-4 text-blue-600" />Shadow Gantt Overlay</h2><div className="flex gap-3 text-[10px] font-bold text-slate-600"><span className="border-b-2 border-dashed border-slate-400">Baseline</span><span className="border-b-2 border-blue-500">Official</span><span className="border-b-2 border-dashed border-orange-500">Shadow</span></div></div>
-          <ShadowGantt tasks={impactedTasks} lang={lang} holidays={holidays} overrides={overrides} workers={workers} dependencies={dependencies} />
+          {projectVersion && impactedTasks.length > 0
+            ? <ShadowGantt tasks={impactedTasks} lang={lang} holidays={holidays} overrides={overrides} workers={workers} dependencies={dependencies} />
+            : <div data-testid="shadow-empty-state" className="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-8 text-center text-sm font-semibold text-slate-500">선택한 프로젝트의 Shadow 일정이 없습니다.</div>}
         </section>
 
         <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">

@@ -591,6 +591,7 @@ export interface ShadowScheduleVersion {
 export interface ShadowScheduleTask {
   shadow_task_id: string;
   shadow_version_id: string;
+  project_id: string;
   task_id: string;
   employee_id: string | null;
   baseline_start: string | null;
