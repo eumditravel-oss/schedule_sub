@@ -52,7 +52,7 @@ import {
   createCorrectionRequest,
   getDailyCapacity,
   getTaskActual,
-  getWorklog,
+  getWorklogForActor,
   getWorklogContext,
   listWorklogs,
   reviseWorklog,
@@ -365,7 +365,7 @@ export default {
         }
 
         if (method === 'GET' && cleanPath === '/api/v3/worklogs') {
-          return jsonResponse(await listWorklogs(db, Object.fromEntries(url.searchParams.entries())));
+          return jsonResponse(await listWorklogs(db, actor, Object.fromEntries(url.searchParams.entries())));
         }
 
         if (method === 'GET' && cleanPath === '/api/v3/capacity/day') {
@@ -399,7 +399,7 @@ export default {
 
         const getWorklogMatch = cleanPath.match(/^\/api\/v3\/worklogs\/([^/]+)$/);
         if (method === 'GET' && getWorklogMatch) {
-          return jsonResponse(await getWorklog(db, decodeURIComponent(getWorklogMatch[1])));
+          return jsonResponse(await getWorklogForActor(db, actor, decodeURIComponent(getWorklogMatch[1])));
         }
       }
 

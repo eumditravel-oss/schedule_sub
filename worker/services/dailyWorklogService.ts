@@ -28,6 +28,21 @@ export interface WorklogActor extends ActorContextServer {
   isManager: boolean;
 }
 
+async function resolveReadActor(db: any, actorContext: ActorContextServer): Promise<WorklogActor> {
+  if (!actorContext.actorEmployeeId) throw new WorklogError('WORKLOG_PERMISSION_DENIED', 403);
+  const worker = await db.prepare(`SELECT * FROM workers WHERE id = ? AND is_active = 1`).bind(actorContext.actorEmployeeId).first();
+  if (!worker) throw new WorklogError('WORKLOG_PERMISSION_DENIED', 403);
+  return {
+    ...actorContext,
+    worker,
+    isManager: Number(worker.can_manage_country_calendar) === 1 || Number(worker.can_manage_integrations) === 1,
+  };
+}
+
+function canReadSubject(actor: WorklogActor, employeeId: string): boolean {
+  return actor.worker.id === employeeId || actor.isManager || actor.worker.access_role === 'VIEWER';
+}
+
 const id = (prefix: string) => `${prefix}_${crypto.randomUUID()}`;
 const asBool = (value: unknown) => value === true || value === 1 || value === '1';
 const isoDate = /^\d{4}-\d{2}-\d{2}$/;
@@ -312,13 +327,18 @@ async function worklogResponse(db: any, worklogId: string) {
 
 export async function getWorklog(db: any, worklogId: string) { return worklogResponse(db, worklogId); }
 
+export async function getWorklogForActor(db: any, actorContext: ActorContextServer, worklogId: string) {
+  const actor = await resolveReadActor(db, actorContext);
+  const worklog = await db.prepare(`SELECT employee_id FROM daily_worklogs WHERE id=?`).bind(worklogId).first();
+  if (!worklog) throw new WorklogError('INVALID_LOCAL_WORK_DATE', 404, { worklog_id: worklogId });
+  if (!canReadSubject(actor, worklog.employee_id)) throw new WorklogError('WORKLOG_PERMISSION_DENIED', 403);
+  return worklogResponse(db, worklogId);
+}
+
 export async function getWorklogContext(db: any, actorContext: ActorContextServer, employeeId: string, localDate: string) {
-  const actor = await resolveActor(db, actorContext).catch(async (error) => {
-    if (!(error instanceof WorklogError) || error.code !== 'WORKLOG_READ_ONLY_ACTOR') throw error;
-    const worker = await db.prepare(`SELECT * FROM workers WHERE id = ?`).bind(actorContext.actorEmployeeId).first();
-    return { ...actorContext, worker, isManager: false } as WorklogActor;
-  });
+  const actor = await resolveReadActor(db, actorContext);
   if (!isValidLocalDate(localDate)) throw new WorklogError('INVALID_LOCAL_WORK_DATE');
+  if (!canReadSubject(actor, employeeId)) throw new WorklogError('WORKLOG_PERMISSION_DENIED', 403);
   const capacity = await getDailyCapacity(db, employeeId, localDate);
   const deadline = await getSelfEditDeadline(db, employeeId, localDate);
   const worklog = await db.prepare(`SELECT * FROM daily_worklogs WHERE employee_id = ? AND local_work_date = ?`).bind(employeeId, localDate).first();
@@ -624,6 +644,8 @@ export async function submitEod(db: any, actorContext: ActorContextServer, workl
 }
 
 export async function reviseWorklog(db: any, actorContext: ActorContextServer, worklogId: string, body: any, key: string, now = new Date()) {
+  const replay = await idempotentResult(db, key, 'WORKLOG_REVISION', body);
+  if (replay.response) return replay.response;
   const actor = await resolveActor(db, actorContext);
   const worklog = await db.prepare(`SELECT * FROM daily_worklogs WHERE id=?`).bind(worklogId).first();
   if (!worklog?.current_eod_revision_id) throw new WorklogError('INVALID_LOCAL_WORK_DATE', 404, { worklog_id: worklogId });
@@ -675,16 +697,22 @@ export async function createCorrectionRequest(db: any, actorContext: ActorContex
   return response;
 }
 
-export async function listWorklogs(db: any, filters: Record<string, string>) {
+export async function listWorklogs(db: any, actorContext: ActorContextServer, filters: Record<string, string>) {
+  const actor = await resolveReadActor(db, actorContext);
+  const scopedFilters = { ...filters };
+  if (!actor.isManager && actor.worker.access_role !== 'VIEWER') {
+    if (scopedFilters.employee && scopedFilters.employee !== actor.worker.id) throw new WorklogError('WORKLOG_PERMISSION_DENIED', 403);
+    scopedFilters.employee = actor.worker.id;
+  }
   const where: string[] = ['1=1'];
   const params: any[] = [];
   const add = (sql: string, value?: any) => { where.push(sql); if (value !== undefined) params.push(value); };
-  if (filters.employee) add('w.employee_id=?', filters.employee);
-  if (filters.date_from) add('w.local_work_date>=?', filters.date_from);
-  if (filters.date_to) add('w.local_work_date<=?', filters.date_to);
-  if (filters.status) add('w.status=?', filters.status);
-  if (filters.requires_review === 'true') add('w.requires_manager_review=1');
-  if (filters.project) add(`EXISTS(SELECT 1 FROM daily_worklog_entries e WHERE e.worklog_id=w.id AND e.project_id=?)`, filters.project);
+  if (scopedFilters.employee) add('w.employee_id=?', scopedFilters.employee);
+  if (scopedFilters.date_from) add('w.local_work_date>=?', scopedFilters.date_from);
+  if (scopedFilters.date_to) add('w.local_work_date<=?', scopedFilters.date_to);
+  if (scopedFilters.status) add('w.status=?', scopedFilters.status);
+  if (scopedFilters.requires_review === 'true') add('w.requires_manager_review=1');
+  if (scopedFilters.project) add(`EXISTS(SELECT 1 FROM daily_worklog_entries e WHERE e.worklog_id=w.id AND e.project_id=?)`, scopedFilters.project);
   const result = await db.prepare(`SELECT w.* FROM daily_worklogs w WHERE ${where.join(' AND ')} ORDER BY w.local_work_date DESC,w.employee_id`).bind(...params).all();
   return result.results || [];
 }
