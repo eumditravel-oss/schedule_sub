@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, CheckCircle2, Clock3, Database, ShieldAlert, TriangleAlert } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { TestActorModeBadge } from '../../components/common/TestActorModeBadge';
@@ -37,6 +37,7 @@ export function DailyWorklogQaPage() {
   const [actual, setActual] = useState<any>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ code: string; error?: boolean } | null>(null);
+  const refreshSequence = useRef(0);
   const [form, setForm] = useState({ actual: 420, progress: 10, remaining: 480, result: 'Checkpoint 2 QA actual fact', gap: 'QA recording gap', overtime: 'QA overtime verification' });
   const lang = worker?.ui_language === 'vi' ? 'vi' : 'ko';
   const t = labels[lang];
@@ -50,15 +51,19 @@ export function DailyWorklogQaPage() {
 
   const refresh = async (selected = worker, date = localDate) => {
     if (!selected) return;
+    const sequence = ++refreshSequence.current;
     setBusy(true);
     try {
       const next = await api.getWorklogContext(selected.id, date);
+      if (sequence !== refreshSequence.current) return;
       setContext(next);
       if (next.worklog?.id) {
         const full = await api.getWorklog(next.worklog.id);
+        if (sequence !== refreshSequence.current) return;
         setWorklog(full);
         const taskId = next.scheduled_tasks?.[0]?.task_id;
         const taskActual = taskId ? await api.getTaskActual(taskId) : null;
+        if (sequence !== refreshSequence.current) return;
         setActual(taskActual);
         setForm((previous) => ({
           ...previous,
@@ -71,8 +76,11 @@ export function DailyWorklogQaPage() {
       }
       setMessage(null);
     } catch (error: any) {
+      if (sequence !== refreshSequence.current) return;
       setMessage({ code: error.code || error.message, error: true });
-    } finally { setBusy(false); }
+    } finally {
+      if (sequence === refreshSequence.current) setBusy(false);
+    }
   };
 
   useEffect(() => { if (worker) refresh(worker, localDate); }, [worker, localDate]);
@@ -122,7 +130,7 @@ export function DailyWorklogQaPage() {
       <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/95 backdrop-blur">
         <div className="mx-auto flex max-w-[1500px] items-center justify-between gap-4 px-6 py-3">
           <div className="flex items-center gap-3"><Link to="/projects" className="rounded-lg border p-2"><ArrowLeft className="h-4 w-4" /></Link><div><h1 className="font-black">{t.title}</h1><p className="text-xs text-slate-500">{t.subtitle}</p></div></div>
-          <div className="flex items-center gap-2"><TestActorModeBadge /><WorkerSelector currentWorker={worker} onWorkerChange={(next) => { setWorker(next); setLocalDate(dateInZone(next.country_code === 'VN' ? 'Asia/Ho_Chi_Minh' : 'Asia/Seoul')); }} /></div>
+          <div className="flex items-center gap-2"><TestActorModeBadge /><WorkerSelector currentWorker={worker} onWorkerChange={(next) => { setMessage(null); setWorker(next); setLocalDate(dateInZone(next.country_code === 'VN' ? 'Asia/Ho_Chi_Minh' : 'Asia/Seoul')); }} /></div>
         </div>
       </header>
       <section className="mx-auto max-w-[1500px] space-y-4 p-6">

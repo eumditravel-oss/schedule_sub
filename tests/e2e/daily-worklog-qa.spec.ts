@@ -24,6 +24,7 @@ test.describe('Checkpoint 2 Daily Worklog QA Harness', () => {
 
     await page.getByTestId('worker-select-btn').click();
     await page.getByRole('button', { name: /Thanh Phuong/ }).click();
+    await expect(page.getByTestId('qa-result')).toHaveCount(0);
     await expect(page.getByTestId('qa-office')).toContainText('VN · Asia/Ho_Chi_Minh');
     await expect(page.getByTestId('qa-hours')).toContainText('08:00–17:00 · 12:00–13:00');
     await expect(page.getByTestId('qa-capacity')).toContainText('480 min');
@@ -35,17 +36,20 @@ test.describe('Checkpoint 2 Daily Worklog QA Harness', () => {
 
     await page.getByTestId('worker-select-btn').click();
     await page.getByRole('button', { name: /Manh Cuong/ }).click();
+    await expect(page.getByTestId('qa-result')).toHaveCount(0);
     await expect(page.getByTestId('qa-assignment-role')).toContainText('CO_ASSIGNEE');
     await expect(page.getByTestId('qa-role-guard')).toContainText('SUPPORT_PROGRESS_FORBIDDEN');
     await capture(page, '05-support-progress-forbidden.png');
 
     await page.getByTestId('worker-select-btn').click();
     await page.getByRole('button', { name: /Quoc Nhut/ }).click();
+    await expect(page.getByTestId('qa-result')).toHaveCount(0);
     await expect(page.getByTestId('qa-stored-fact')).toContainText('60 min · PENDING_REVIEW');
     await capture(page, '04-overtime-pending-review.png');
 
     await page.getByTestId('worker-select-btn').click();
     await page.getByRole('button', { name: /CEO 보기 전용/ }).click();
+    await expect(page.getByTestId('qa-result')).toHaveCount(0);
     await expect(page.getByTestId('qa-office')).toContainText('KR · Asia/Seoul');
     await expect(page.getByTestId('qa-hours')).toContainText('09:00–17:00 · 12:00–13:00');
     await expect(page.getByTestId('qa-capacity')).toContainText('420 min');
