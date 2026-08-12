@@ -10,6 +10,23 @@ async function capture(page: any, fileName: string) {
 }
 
 test.describe('Checkpoint 2.1 Worklog QA consistency', () => {
+  test('ignores a late Actor A response after Actor B becomes current', async ({ page }) => {
+    await page.addInitScript(() => localStorage.setItem('schedule_current_worker_id', 'wrk_03'));
+    await page.route('**/api/v3/worklogs/context?*', async (route) => {
+      const employeeId = new URL(route.request().url()).searchParams.get('employee_id');
+      if (employeeId === 'wrk_03') await new Promise((resolve) => setTimeout(resolve, 1200));
+      await route.continue();
+    });
+    await page.goto('/qa/daily-worklog');
+    await expect(page.getByTestId('worker-select-btn')).toContainText('Thanh Phuong');
+    await page.getByTestId('worker-select-btn').click();
+    await page.getByRole('button', { name: /박용진 수석/ }).click();
+    await expect(page.getByTestId('qa-office')).toContainText('KR · Asia/Seoul');
+    await page.waitForTimeout(1400);
+    await expect(page.getByTestId('qa-office')).toContainText('KR · Asia/Seoul');
+    await expect(page.getByTestId('daily-worklog-qa-page')).toHaveAttribute('data-context-key', /wrk_02::2026-08-12::NO_TASK/);
+  });
+
   test('separates draft/stored state and keeps actor context atomic', async ({ page, request }) => {
     await page.goto('/qa/daily-worklog');
     await expect(page.getByText('QA HARNESS')).toBeVisible();
