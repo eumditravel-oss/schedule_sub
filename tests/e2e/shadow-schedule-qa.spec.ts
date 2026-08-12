@@ -39,8 +39,8 @@ test.describe('Checkpoint 3A live QA Shadow schedule evidence', () => {
     await expect(dependencySection.getByText('PROPOSED').first()).toBeVisible();
     await expect(dependencySection.getByText('CONFIRMED').first()).toBeVisible();
     await expect(dependencySection.getByLabel('confirm dependency').first()).toBeVisible();
-    await capture(dependencySection, '01-dependency-proposed-list.png');
-    await capture(dependencySection, '02-dependency-confirmed-list.png');
+    await capture(dependencySection.locator('tr').filter({ hasText: 'PROPOSED' }).first(), '01-dependency-proposed-list.png');
+    await capture(dependencySection.locator('tr').filter({ hasText: 'CONFIRMED' }).first(), '02-dependency-confirmed-list.png');
 
     const diffSection = page.locator('section').filter({ has: page.getByRole('heading', { name: 'Task Before / After Diff' }) });
     const earlyRow = diffSection.locator('tr').filter({ hasText: '1. 조기 완료 선행' });
