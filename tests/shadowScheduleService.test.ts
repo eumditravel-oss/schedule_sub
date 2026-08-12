@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   expandSharedEmployeeTaskClosure,
   firstPositiveActualContribution,
+  hasShadowActualOrCapacityTrigger,
   findMissingWorklogDates,
   recordedWorkTimestampUtc,
   worklogHasShadowDataGap,
@@ -29,6 +30,28 @@ describe('Checkpoint 3A Shadow service timestamp mapping', () => {
       { local_work_date: '2026-08-10', approved_actual_minutes: 0 },
       { local_work_date: '2026-08-11', approved_actual_minutes: 120 },
     ])?.local_work_date).toBe('2026-08-11');
+  });
+
+  it('treats an effective source EOD as a Shadow trigger even without task progress', () => {
+    expect(hasShadowActualOrCapacityTrigger({
+      candidateTaskIds: new Set(['task-a']),
+      contributions: [],
+      sourceWorklog: { current_eod_revision_id: 'revision-leave', status: 'EOD_SUBMITTED' },
+      sourceRevisionId: 'revision-leave',
+      effectiveRevisionIds: new Set(['revision-leave']),
+    })).toBe(true);
+  });
+
+  it('does not treat a manual run without Actual or a non-effective EOD as a trigger', () => {
+    expect(hasShadowActualOrCapacityTrigger({
+      candidateTaskIds: new Set(['task-a']), contributions: [], sourceWorklog: null,
+      sourceRevisionId: null, effectiveRevisionIds: new Set(),
+    })).toBe(false);
+    expect(hasShadowActualOrCapacityTrigger({
+      candidateTaskIds: new Set(['task-a']), contributions: [],
+      sourceWorklog: { current_eod_revision_id: 'revision-old', status: 'EOD_SUBMITTED' },
+      sourceRevisionId: 'revision-old', effectiveRevisionIds: new Set(),
+    })).toBe(false);
   });
 
   it('returns null when the recorded work date or employee calendar is unavailable', () => {

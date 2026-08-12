@@ -216,6 +216,57 @@ describe('Checkpoint 3A A-Z shadow engine simulations', () => {
     expect(runShadowScheduleEngine(input({ projects, tasks: [...result.tasks.map((item) => task(item.taskId, { projectId: item.projectId, actualStarted: item.taskId === 'task-9' }))] })).allocations[0].taskId).toBe('task-9');
   });
 
+  it('O2 — future Temporary Primary allocations still require cross-project approval', () => {
+    const projects = [
+      input().projects[0],
+      { id: 'project-b', name: 'B', status: 'ACTIVE', baselineStart: '2026-08-14', baselineEnd: '2026-08-14', officialStart: '2026-08-14', officialEnd: '2026-08-14', officialForecastVersionId: 'fv-b', priorityRank: 2 },
+    ];
+    const result = runShadowScheduleEngine(input({
+      projects,
+      employees: [employee('emp-kr'), employee('emp-temp')],
+      capacityDays: [...days('emp-kr'), ...days('emp-temp')],
+      constraints: [{ id: 'temp-start', taskId: 'task-1', type: 'NOT_BEFORE', date: '2026-08-13', timestampUtc: null, minutes: null, status: 'ACTIVE' }],
+      tasks: [
+        task('task-1', {
+          officialStart: '2026-08-13', officialEnd: '2026-08-13', remainingEstimatedMinutes: 420,
+          temporaryPrimaries: [{ employeeId: 'emp-temp', effectiveStartDate: '2026-08-13', effectiveEndDate: '2026-08-31' }],
+        }),
+        task('task-2', { projectId: 'project-b', primaryEmployeeId: 'emp-temp', officialStart: '2026-08-14', officialEnd: '2026-08-14', remainingEstimatedMinutes: 420 }),
+      ],
+    }));
+    expect([...new Set(result.allocations.filter((allocation) => allocation.employeeId === 'emp-temp').map((allocation) => allocation.projectId))].sort())
+      .toEqual(['project-a', 'project-b']);
+    expect(result.crossProjectImpact).toBe(true);
+    expect(result.approvalRequired).toBe(true);
+    expect(result.projects.every((project) => project.approvalClassification === 'APPROVAL_REQUIRED')).toBe(true);
+    expect(result.approvalReasonCodes).toContain('CROSS_PROJECT_IMPACT');
+  });
+
+  it('O3 — same-day Shadow allocation never starts before planning cutoff UTC', () => {
+    const result = runShadowScheduleEngine(input({
+      planningCutoffUtc: '2026-08-12T08:00:00.000Z',
+      tasks: [task('task-1', { actualStarted: true, actualStartUtc: '2026-08-12T00:00:00.000Z', remainingEstimatedMinutes: 120 })],
+      capacityDays: days('emp-kr').map((day) => day.localWorkDate === '2026-08-12'
+        ? { ...day, availableCapacityMinutes: 120, capacitySource: 'WORKDAY+ACTUAL_CONSUMED' }
+        : day),
+    }));
+    expect(result.allocations[0].localWorkDate).toBe('2026-08-13');
+    expect(new Date(result.allocations[0].startsAtUtc).getTime()).toBeGreaterThanOrEqual(new Date('2026-08-12T08:00:00.000Z').getTime());
+  });
+
+  it('O4 — usable same-day capacity begins at cutoff and skips the lunch interval', () => {
+    const result = runShadowScheduleEngine(input({
+      planningCutoffUtc: '2026-08-12T04:00:00.000Z',
+      tasks: [task('task-1', { remainingEstimatedMinutes: 120 })],
+      capacityDays: days('emp-kr').map((day) => day.localWorkDate === '2026-08-12'
+        ? { ...day, availableCapacityMinutes: 120, capacitySource: 'WORKDAY+ACTUAL_CONSUMED' }
+        : day),
+    }));
+    expect(result.allocations[0]).toMatchObject({
+      localWorkDate: '2026-08-12', startsAtUtc: '2026-08-12T04:00:00.000Z', endsAtUtc: '2026-08-12T06:00:00.000Z',
+    });
+  });
+
   it('P — dependency cycle blocks instead of silently dropping an edge', () => {
     const source = input({
       tasks: [task('task-1'), task('task-2')],
@@ -256,13 +307,14 @@ describe('Checkpoint 3A A-Z shadow engine simulations', () => {
       tasks: [task('task-1', { remainingEstimatedMinutes: 840 })],
       constraints: [{ id: 'c1', taskId: 'task-1', type: 'FIXED_END', date: '2026-08-12', timestampUtc: null, minutes: null, status: 'ACTIVE' }],
     }));
-    expect(result.tasks[0].shadowEnd).toBe('2026-08-13');
+    expect(result.tasks[0].shadowEnd).toBe('2026-08-14');
     expect(result.tasks[0].impactReasonCodes).toContain('FIXED_END_VIOLATION');
     expect(result.tasks[0].approvalRequired).toBe(true);
   });
 
   it('R2 — timestamp-only FIXED_END is an end deadline, never a start offset', () => {
     const result = runShadowScheduleEngine(input({
+      planningCutoffUtc: '2026-08-12T00:00:00.000Z',
       tasks: [task('task-1', { remainingEstimatedMinutes: 120 })],
       constraints: [{ id: 'c-ts-end', taskId: 'task-1', type: 'FIXED_END', date: null, timestampUtc: '2026-08-12T05:00:00.000Z', minutes: null, status: 'ACTIVE' }],
     }));
@@ -271,11 +323,25 @@ describe('Checkpoint 3A A-Z shadow engine simulations', () => {
     expect(result.tasks[0].impactReasonCodes).not.toContain('FIXED_END_VIOLATION');
 
     const overrun = runShadowScheduleEngine(input({
+      planningCutoffUtc: '2026-08-12T00:00:00.000Z',
       tasks: [task('task-1', { remainingEstimatedMinutes: 360 })],
       constraints: [{ id: 'c-ts-end-overrun', taskId: 'task-1', type: 'FIXED_END', date: null, timestampUtc: '2026-08-12T05:00:00.000Z', minutes: null, status: 'ACTIVE' }],
     }));
     expect(overrun.tasks[0].impactReasonCodes).toContain('FIXED_END_VIOLATION');
     expect(overrun.tasks[0]).toMatchObject({ constraintResult: 'FIXED_END_VIOLATION', approvalRequired: true });
+  });
+
+  it('R3 — a timestamp FIXED_START before the planning cutoff is blocked, never shifted', () => {
+    const result = runShadowScheduleEngine(input({
+      planningCutoffUtc: '2026-08-12T04:00:00.000Z',
+      tasks: [task('task-1', { remainingEstimatedMinutes: 120 })],
+      constraints: [{ id: 'c-past-start', taskId: 'task-1', type: 'FIXED_START', date: null, timestampUtc: '2026-08-12T02:00:00.000Z', minutes: null, status: 'ACTIVE' }],
+    }));
+    expect(result.tasks[0]).toMatchObject({
+      shadowStart: null, shadowEnd: null, constraintResult: 'FIXED_START_CAPACITY_CONFLICT',
+      dataConfidence: 'BLOCKED', approvalRequired: true,
+    });
+    expect(result.allocations).toHaveLength(0);
   });
 
   it('S — pending overtime is informational and blocks auto-apply eligibility', () => {

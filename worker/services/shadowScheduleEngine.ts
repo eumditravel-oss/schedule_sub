@@ -1,4 +1,4 @@
-export const SHADOW_ENGINE_VERSION = '3A.1.2';
+export const SHADOW_ENGINE_VERSION = '3A.1.3';
 
 export type ShadowConfidence = 'HIGH' | 'PROVISIONAL' | 'LOW' | 'BLOCKED';
 export type ApprovalClassification = 'AUTO_APPLY_ELIGIBLE' | 'APPROVAL_REQUIRED' | 'BLOCKED' | 'NO_CHANGE';
@@ -451,13 +451,15 @@ function allocationTimes(employee: ShadowEmployeeInput, localDate: string, usedB
   const workStart = minuteOfDay(employee.workStartLocal);
   const lunchStart = minuteOfDay(employee.lunchStartLocal);
   const lunchEnd = minuteOfDay(employee.lunchEndLocal);
-  const toClockMinute = (workMinute: number) => {
+  const toClockMinute = (workMinute: number, boundary: 'START' | 'END') => {
     const beforeLunchCapacity = Math.max(0, lunchStart - workStart);
-    return workMinute <= beforeLunchCapacity ? workStart + workMinute : lunchEnd + (workMinute - beforeLunchCapacity);
+    return boundary === 'END' && workMinute <= beforeLunchCapacity || boundary === 'START' && workMinute < beforeLunchCapacity
+      ? workStart + workMinute
+      : lunchEnd + (workMinute - beforeLunchCapacity);
   };
   return {
-    start: localDateTimeToUtc(localDate, timeFromMinute(toClockMinute(usedBefore)), employee.timezone),
-    end: localDateTimeToUtc(localDate, timeFromMinute(toClockMinute(usedBefore + allocated)), employee.timezone),
+    start: localDateTimeToUtc(localDate, timeFromMinute(toClockMinute(usedBefore, 'START')), employee.timezone),
+    end: localDateTimeToUtc(localDate, timeFromMinute(toClockMinute(usedBefore + allocated, 'END')), employee.timezone),
   };
 }
 
@@ -746,6 +748,40 @@ export function runShadowScheduleEngine(rawInput: ShadowEngineInput): ShadowEngi
       earliest = constraintLocalDate;
     }
 
+    const fixedStartEmployee = primaryAtCutoff ? employeeMap.get(primaryAtCutoff) : null;
+    const fixedStartConstraintOffset = constraint?.type === 'FIXED_START' && constraintLocalTime && fixedStartEmployee
+      ? workMinuteOffset(constraintLocalTime, fixedStartEmployee)
+      : 0;
+    const fixedStartCutoffDate = fixedStartEmployee
+      ? utcToLocalDate(input.planningCutoffUtc, fixedStartEmployee.timezone)
+      : input.planningCutoffLocalDate;
+    const fixedStartCutoffOffset = fixedStartEmployee && constraintLocalDate === fixedStartCutoffDate
+      ? workMinuteOffset(utcToLocalTime(input.planningCutoffUtc, fixedStartEmployee.timezone), fixedStartEmployee)
+      : 0;
+    const fixedStartTimeConflict = constraint?.type === 'FIXED_START' && Boolean(constraintLocalTime) && Boolean(constraintLocalDate) && (
+      constraintLocalDate! < fixedStartCutoffDate ||
+      (constraintLocalDate === fixedStartCutoffDate && fixedStartConstraintOffset < fixedStartCutoffOffset) ||
+      (constraintLocalDate === dependencyStart.date && fixedStartConstraintOffset < dependencyStart.releaseOffsetMinutes)
+    );
+    if (fixedStartTimeConflict) {
+      if (!reasons.includes('FIXED_START_CAPACITY_CONFLICT')) reasons.push('FIXED_START_CAPACITY_CONFLICT');
+      validationIssues.push({
+        code: 'FIXED_START_CAPACITY_CONFLICT', taskId: task.id, projectId: task.projectId,
+        details: { fixedStart: constraint?.timestampUtc, planningCutoffUtc: input.planningCutoffUtc },
+      });
+      results.set(task.id, {
+        taskId: task.id, projectId: task.projectId, employeeId: primaryAtCutoff,
+        baselineStart: task.baselineStart, baselineEnd: task.baselineEnd,
+        officialStart: task.officialStart, officialEnd: task.officialEnd, shadowStart: null, shadowEnd: null,
+        deltaStartWorkdays: 0, deltaEndWorkdays: 0, remainingMinutes: effort.minutes,
+        allocationSource: effort.source, constraintResult: 'FIXED_START_CAPACITY_CONFLICT',
+        dependencyResult: dependencyStart.dependencyResult, priorityResult: `ORDER_${prioritySequence}`,
+        impactReasonCodes: [...new Set(reasons)].sort(), approvalRequired: true,
+        dataConfidence: 'BLOCKED', changeDirection: 'BLOCKED',
+      });
+      continue;
+    }
+
     if (constraint?.type === 'MILESTONE') {
       const milestoneDate = constraintLocalDate && constraintLocalDate > earliest ? constraintLocalDate : earliest;
       results.set(task.id, {
@@ -766,6 +802,7 @@ export function runShadowScheduleEngine(rawInput: ShadowEngineInput): ShadowEngi
     let shadowStart: string | null = task.actualStarted ? (task.actualStartUtc?.slice(0, 10) || task.officialStart) : null;
     let shadowEnd: string | null = null;
     let allocationSequence = 0;
+    let fixedStartCapacityConflict = false;
     for (const localDate of capacityDates) {
       if (remaining <= 0) break;
       if (localDate < earliest) continue;
@@ -775,6 +812,8 @@ export function runShadowScheduleEngine(rawInput: ShadowEngineInput): ShadowEngi
       const key = `${employeeId}|${localDate}`;
       const day = capacity.get(key);
       if (!employee || !day) continue;
+      const cutoffLocalDate = utcToLocalDate(input.planningCutoffUtc, employee.timezone);
+      if (localDate < cutoffLocalDate) continue;
       if (day.remaining <= 0) {
         if (day.source.includes('COMPANY_DUTY')) { reasons.push('COMPANY_DUTY'); approvalRequired = true; }
         if (day.source.includes('TRAINING')) { reasons.push('TRAINING'); approvalRequired = true; }
@@ -785,6 +824,7 @@ export function runShadowScheduleEngine(rawInput: ShadowEngineInput): ShadowEngi
         confidence = 'BLOCKED';
         approvalRequired = true;
         reasons.push('FIXED_START_CAPACITY_CONFLICT');
+        fixedStartCapacityConflict = true;
         break;
       }
       const usedBefore = usedMinutes.get(key) || 0;
@@ -792,9 +832,12 @@ export function runShadowScheduleEngine(rawInput: ShadowEngineInput): ShadowEngi
       const constraintOffset = constraint?.type !== 'FIXED_END' && constraintLocalDate === localDate && constraintLocalTime
         ? workMinuteOffset(constraintLocalTime, employee)
         : 0;
-      const requiredOffset = Math.max(dependencyOffset, constraintOffset);
+      const cutoffOffset = localDate === cutoffLocalDate
+        ? workMinuteOffset(utcToLocalTime(input.planningCutoffUtc, employee.timezone), employee)
+        : 0;
+      const requiredOffset = Math.max(dependencyOffset, constraintOffset, cutoffOffset);
       const startOffset = Math.max(usedBefore, requiredOffset);
-      const effectiveAvailable = Math.max(0, day.total - startOffset);
+      const effectiveAvailable = Math.max(0, employee.defaultCapacityMinutes - startOffset);
       const allocated = Math.min(day.remaining, effectiveAvailable, remaining);
       if (allocated <= 0) continue;
       const times = allocationTimes(employee, localDate, startOffset, allocated);
@@ -811,13 +854,14 @@ export function runShadowScheduleEngine(rawInput: ShadowEngineInput): ShadowEngi
       if (!shadowStart) shadowStart = localDate;
       shadowEnd = localDate;
     }
-    if (remaining > 0) {
+    if (remaining > 0 && !fixedStartCapacityConflict) {
       validationIssues.push({ code: 'CAPACITY_CALCULATION_FAILED', taskId: task.id, projectId: task.projectId, details: { unallocatedMinutes: remaining } });
       confidence = 'BLOCKED';
       approvalRequired = true;
       reasons.push('CAPACITY_CALCULATION_FAILED');
     }
     const lastTaskAllocation = [...allocations].reverse().find((allocation) => allocation.taskId === task.id);
+    const scheduledEmployeeId = lastTaskAllocation?.employeeId || primaryAtCutoff;
     const fixedEndOverrun = constraint?.type === 'FIXED_END' && constraintLocalDate && shadowEnd && (
       shadowEnd > constraintLocalDate || Boolean(constraint.timestampUtc && lastTaskAllocation?.endsAtUtc
         && new Date(lastTaskAllocation.endsAtUtc).getTime() > new Date(constraint.timestampUtc).getTime())
@@ -840,14 +884,14 @@ export function runShadowScheduleEngine(rawInput: ShadowEngineInput): ShadowEngi
       confidence = confidence === 'BLOCKED' ? 'BLOCKED' : 'PROVISIONAL';
       reasons.push('COMPLETION_REPORTED_REVIEW');
     }
-    const deltaStart = workdayDelta(task.officialStart, shadowStart, primaryAtCutoff, input.capacityDays);
-    const deltaEnd = workdayDelta(task.officialEnd, shadowEnd, primaryAtCutoff, input.capacityDays);
+    const deltaStart = workdayDelta(task.officialStart, shadowStart, scheduledEmployeeId, input.capacityDays);
+    const deltaEnd = workdayDelta(task.officialEnd, shadowEnd, scheduledEmployeeId, input.capacityDays);
     if (Math.abs(deltaStart) >= 2 || Math.abs(deltaEnd) >= 2) approvalRequired = true;
     const endComparison = compareNullable(shadowEnd, task.officialEnd);
     const startComparison = compareNullable(shadowStart, task.officialStart);
     const comparison = endComparison !== 0 ? endComparison : startComparison;
     results.set(task.id, {
-      taskId: task.id, projectId: task.projectId, employeeId: primaryAtCutoff,
+      taskId: task.id, projectId: task.projectId, employeeId: scheduledEmployeeId,
       baselineStart: task.baselineStart, baselineEnd: task.baselineEnd,
       officialStart: task.officialStart, officialEnd: task.officialEnd, shadowStart, shadowEnd,
       deltaStartWorkdays: deltaStart, deltaEndWorkdays: deltaEnd, remainingMinutes: effort.minutes,
@@ -859,6 +903,26 @@ export function runShadowScheduleEngine(rawInput: ShadowEngineInput): ShadowEngi
   }
 
   const taskResults = [...results.values()].sort((a, b) => a.projectId.localeCompare(b.projectId) || a.taskId.localeCompare(b.taskId));
+  const impactedEmployees = new Map<string, Set<string>>();
+  const addEmployeeProjectImpact = (employeeId: string | null | undefined, projectId: string | null | undefined) => {
+    if (!employeeId || !projectId) return;
+    const projectIds = impactedEmployees.get(employeeId) || new Set<string>();
+    projectIds.add(projectId);
+    impactedEmployees.set(employeeId, projectIds);
+  };
+  for (const allocation of allocations) addEmployeeProjectImpact(allocation.employeeId, allocation.projectId);
+  addEmployeeProjectImpact(input.sourceEmployeeId, input.sourceProjectId);
+  for (const task of input.tasks.filter((item) => item.actualStarted || item.completed)) {
+    const employeeTimezone = task.primaryEmployeeId ? employeeMap.get(task.primaryEmployeeId)?.timezone : null;
+    const actualDate = task.actualStartUtc && employeeTimezone
+      ? utcToLocalDate(task.actualStartUtc, employeeTimezone)
+      : input.planningCutoffLocalDate;
+    addEmployeeProjectImpact(resolveEffectivePrimary(task, actualDate), task.projectId);
+  }
+  const crossProjectIds = new Set<string>();
+  for (const projectIds of impactedEmployees.values()) {
+    if (projectIds.size > 1) for (const projectId of projectIds) crossProjectIds.add(projectId);
+  }
   const projects: ShadowProjectResult[] = input.projects.map((project) => {
     const projectTasks = taskResults.filter((task) => task.projectId === project.id);
     const endingTask = [...projectTasks].filter((task) => task.shadowEnd).sort((a, b) =>
@@ -870,7 +934,7 @@ export function runShadowScheduleEngine(rawInput: ShadowEngineInput): ShadowEngi
     const variance = workdayDelta(project.officialEnd, shadowEnd, endingTask?.employeeId || null, input.capacityDays);
     const confidence = worstConfidence(projectTasks.map((task) => task.dataConfidence));
     const reasons = [...new Set(projectTasks.flatMap((task) => task.impactReasonCodes))];
-    const crossProject = new Set(taskResults.filter((task) => task.employeeId && projectTasks.some((own) => own.employeeId === task.employeeId)).map((task) => task.projectId)).size > 1;
+    const crossProject = crossProjectIds.has(project.id);
     if (shadowEnd !== project.officialEnd) reasons.push('PROJECT_END_CHANGED');
     if (crossProject) reasons.push('CROSS_PROJECT_IMPACT');
     const approvalRequired = projectTasks.some((task) => task.approvalRequired) || shadowEnd !== project.officialEnd || crossProject;
@@ -892,13 +956,7 @@ export function runShadowScheduleEngine(rawInput: ShadowEngineInput): ShadowEngi
 
   const affectedProjects = projects.filter((project) => project.approvalClassification !== 'NO_CHANGE');
   const affectedTasks = taskResults.filter((task) => task.changeDirection !== 'UNCHANGED');
-  const impactedEmployees = new Map<string, Set<string>>();
-  for (const task of taskResults) if (task.employeeId) {
-    const projectIds = impactedEmployees.get(task.employeeId) || new Set<string>();
-    projectIds.add(task.projectId);
-    impactedEmployees.set(task.employeeId, projectIds);
-  }
-  const crossProjectImpact = [...impactedEmployees.values()].some((projectIds) => projectIds.size > 1);
+  const crossProjectImpact = crossProjectIds.size > 0;
   const allReasons = [...new Set(projects.flatMap((project) => project.approvalReasons))].sort();
   if (crossProjectImpact && !allReasons.includes('CROSS_PROJECT_IMPACT')) allReasons.push('CROSS_PROJECT_IMPACT');
   const blocked = taskResults.some((task) => task.dataConfidence === 'BLOCKED') || dependencyBlockingProjects.size > 0;

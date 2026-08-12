@@ -191,6 +191,21 @@ export function firstPositiveActualContribution<T extends { approved_actual_minu
   return contributions.find((contribution) => Number(contribution.approved_actual_minutes || 0) > 0);
 }
 
+export function hasShadowActualOrCapacityTrigger(input: {
+  candidateTaskIds: Set<string>;
+  contributions: Array<{ task_id?: unknown }>;
+  sourceWorklog: { current_eod_revision_id?: unknown; status?: unknown } | null | undefined;
+  sourceRevisionId: string | null;
+  effectiveRevisionIds: Set<string>;
+}): boolean {
+  const taskActual = input.contributions.some((contribution) =>
+    typeof contribution.task_id === 'string' && input.candidateTaskIds.has(contribution.task_id));
+  const effectiveSourceEod = Boolean(input.sourceWorklog && input.sourceRevisionId &&
+    input.effectiveRevisionIds.has(input.sourceRevisionId) &&
+    (input.sourceWorklog.current_eod_revision_id === input.sourceRevisionId || input.sourceWorklog.status === 'EOD_SUBMITTED'));
+  return taskActual || effectiveSourceEod;
+}
+
 async function resolveShadowActor(db: any, actorContext: ActorContextServer, write = false): Promise<ShadowActor> {
   const employeeId = actorContext.actorEmployeeId || actorContext.actorUserId;
   if (!employeeId) throw new ShadowScheduleError('DEPENDENCY_PERMISSION_DENIED', 403);
@@ -468,7 +483,9 @@ async function buildShadowEngineInput(db: any, options: RunOptions): Promise<Sha
     }, 0);
   }
 
-  const effectiveRevisionIds = new Set((revisionsResult.results || []).filter((revision: any) => Number(revision.is_effective) === 1).map((revision: any) => revision.id));
+  const effectiveRevisionIds = new Set<string>((revisionsResult.results || [])
+    .filter((revision: any) => Number(revision.is_effective) === 1)
+    .map((revision: any) => String(revision.id)));
   const sourceRevisionId = options.sourceRevisionId || (options.sourceWorklogId
     ? (worklogsResult.results || []).find((worklog: any) => worklog.id === options.sourceWorklogId)?.current_eod_revision_id
     : null) || null;
@@ -493,8 +510,14 @@ async function buildShadowEngineInput(db: any, options: RunOptions): Promise<Sha
 
   const uniqueBaselineVersions = [...new Set([...latestBaselineByProject.values()].map((baseline: any) => Number(baseline.version)))];
   const uniqueForecastVersions = [...new Set([...latestVersionByProject.values()].map((version: any) => Number(version.version_number)))];
-  const candidateTaskIds = new Set(tasks.map((task: any) => task.id));
-  const hasActualTrigger = (contributionsResult.results || []).some((contribution: any) => candidateTaskIds.has(contribution.task_id));
+  const candidateTaskIds = new Set<string>(tasks.map((task: any) => String(task.id)));
+  const hasActualTrigger = hasShadowActualOrCapacityTrigger({
+    candidateTaskIds,
+    contributions: contributionsResult.results || [],
+    sourceWorklog,
+    sourceRevisionId,
+    effectiveRevisionIds,
+  });
   return normalizeEngineInput({
     engineVersion: SHADOW_ENGINE_VERSION,
     planningCutoffUtc: now.toISOString(), planningCutoffLocalDate,
