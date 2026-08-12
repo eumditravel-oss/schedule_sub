@@ -452,41 +452,44 @@ export default {
         if (method === 'GET' && cleanPath === '/api/v3/dependencies') {
           return jsonResponse(await listDependencies(db, actor, Object.fromEntries(url.searchParams.entries())));
         }
+        if (method === 'POST' && cleanPath.startsWith('/api/v3/dependencies') &&
+            env.DYNAMIC_SCHEDULER_DEPENDENCY_REVIEW_ENABLED !== 'true') {
+          return errorResponse('Dependency review is disabled.', 503, 'DEPENDENCY_REVIEW_DISABLED');
+        }
         if (method === 'POST' && cleanPath === '/api/v3/dependencies/proposals/generate') {
-          if (env.DYNAMIC_SCHEDULER_DEPENDENCY_REVIEW_ENABLED !== 'true') return errorResponse('Dependency review is disabled.', 503, 'DEPENDENCY_REVIEW_DISABLED');
           const body: any = await request.json().catch(() => ({}));
-          return jsonResponse(await idempotentShadowMutation(db, idempotencyKey, 'DEPENDENCY_PROPOSAL_GENERATE', body, () => generateDependencyCandidates(db, actor, body.project_id)), 201);
+          return jsonResponse(await idempotentShadowMutation(db, idempotencyKey, 'DEPENDENCY_PROPOSAL_GENERATE', body, (commit) => generateDependencyCandidates(db, actor, body.project_id, commit)), 201);
         }
         const dependencyConfirm = cleanPath.match(/^\/api\/v3\/dependencies\/([^/]+)\/confirm$/);
         if (method === 'POST' && dependencyConfirm) {
           const body: any = await request.json().catch(() => ({}));
-          return jsonResponse(await idempotentShadowMutation(db, idempotencyKey, 'DEPENDENCY_CONFIRM', { id: dependencyConfirm[1], ...body }, () => reviewDependencies(db, actor, [decodeURIComponent(dependencyConfirm[1])], 'CONFIRM', {
+          return jsonResponse(await idempotentShadowMutation(db, idempotencyKey, 'DEPENDENCY_CONFIRM', { id: dependencyConfirm[1], ...body }, (commit) => reviewDependencies(db, actor, [decodeURIComponent(dependencyConfirm[1])], 'CONFIRM', {
             lagWorkMinutes: body.lag_work_minutes,
-          })));
+          }, commit)));
         }
         const dependencyReject = cleanPath.match(/^\/api\/v3\/dependencies\/([^/]+)\/reject$/);
         if (method === 'POST' && dependencyReject) {
           const body: any = await request.json().catch(() => ({}));
-          return jsonResponse(await idempotentShadowMutation(db, idempotencyKey, 'DEPENDENCY_REJECT', { id: dependencyReject[1], ...body }, () => reviewDependencies(db, actor, [decodeURIComponent(dependencyReject[1])], 'REJECT', { reason: body.reason })));
+          return jsonResponse(await idempotentShadowMutation(db, idempotencyKey, 'DEPENDENCY_REJECT', { id: dependencyReject[1], ...body }, (commit) => reviewDependencies(db, actor, [decodeURIComponent(dependencyReject[1])], 'REJECT', { reason: body.reason }, commit)));
         }
         if (method === 'POST' && cleanPath === '/api/v3/dependencies/batch-review') {
           const body: any = await request.json().catch(() => ({}));
-          return jsonResponse(await idempotentShadowMutation(db, idempotencyKey, 'DEPENDENCY_BATCH_REVIEW', body, () => reviewDependencies(db, actor, Array.isArray(body.dependency_ids) ? body.dependency_ids : [], body.action, {
+          return jsonResponse(await idempotentShadowMutation(db, idempotencyKey, 'DEPENDENCY_BATCH_REVIEW', body, (commit) => reviewDependencies(db, actor, Array.isArray(body.dependency_ids) ? body.dependency_ids : [], body.action, {
             lagWorkMinutes: body.lag_work_minutes, reason: body.reason,
-          })));
+          }, commit)));
         }
 
         const constraintsMatch = cleanPath.match(/^\/api\/v3\/tasks\/([^/]+)\/constraints$/);
         if (constraintsMatch && method === 'GET') return jsonResponse(await getTaskConstraints(db, actor, decodeURIComponent(constraintsMatch[1])));
         if (constraintsMatch && method === 'POST') {
           const body: any = await request.json().catch(() => ({}));
-          return jsonResponse(await idempotentShadowMutation(db, idempotencyKey, 'TASK_CONSTRAINT_SET', { taskId: constraintsMatch[1], ...body }, () => setTaskConstraint(db, actor, decodeURIComponent(constraintsMatch[1]), body)), 201);
+          return jsonResponse(await idempotentShadowMutation(db, idempotencyKey, 'TASK_CONSTRAINT_SET', { taskId: constraintsMatch[1], ...body }, (commit) => setTaskConstraint(db, actor, decodeURIComponent(constraintsMatch[1]), body, commit)), 201);
         }
 
         if (cleanPath === '/api/v3/project-priorities' && method === 'GET') return jsonResponse(await listProjectPriorities(db, actor));
         if (cleanPath === '/api/v3/project-priorities' && method === 'POST') {
           const body: any = await request.json().catch(() => ({}));
-          return jsonResponse(await idempotentShadowMutation(db, idempotencyKey, 'PROJECT_PRIORITY_SET', body, () => setProjectPriority(db, actor, body)));
+          return jsonResponse(await idempotentShadowMutation(db, idempotencyKey, 'PROJECT_PRIORITY_SET', body, (commit) => setProjectPriority(db, actor, body, commit)));
         }
 
         if (cleanPath === '/api/v3/schedule-shadow/validate' && method === 'POST') {

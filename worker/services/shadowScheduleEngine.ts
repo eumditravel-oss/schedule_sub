@@ -1,4 +1,4 @@
-export const SHADOW_ENGINE_VERSION = '3A.1.11';
+export const SHADOW_ENGINE_VERSION = '3A.1.12';
 
 export type ShadowConfidence = 'HIGH' | 'PROVISIONAL' | 'LOW' | 'BLOCKED';
 export type ApprovalClassification = 'AUTO_APPLY_ELIGIBLE' | 'APPROVAL_REQUIRED' | 'BLOCKED' | 'NO_CHANGE';
@@ -100,6 +100,7 @@ export interface ShadowEngineInput {
   sourceRevisionId: string | null;
   sourceEmployeeId: string | null;
   sourceProjectId: string | null;
+  sourceWorklogRetroactive?: boolean;
   noActualTrigger?: boolean;
   projects: ShadowProjectInput[];
   tasks: ShadowTaskInput[];
@@ -1093,7 +1094,11 @@ export function runShadowScheduleEngine(rawInput: ShadowEngineInput): ShadowEngi
     });
   }
 
-  const taskResults = [...results.values()].sort((a, b) => a.projectId.localeCompare(b.projectId) || a.taskId.localeCompare(b.taskId));
+  const taskResults = [...results.values()].map((task) => input.sourceWorklogRetroactive ? {
+    ...task,
+    impactReasonCodes: [...new Set([...task.impactReasonCodes, 'RETROACTIVE_WORKLOG'])].sort(),
+    approvalRequired: true,
+  } : task).sort((a, b) => a.projectId.localeCompare(b.projectId) || a.taskId.localeCompare(b.taskId));
   const impactedEmployees = new Map<string, Set<string>>();
   const addEmployeeProjectImpact = (employeeId: string | null | undefined, projectId: string | null | undefined) => {
     if (!employeeId || !projectId) return;

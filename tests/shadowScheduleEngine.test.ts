@@ -529,6 +529,17 @@ describe('Checkpoint 3A A-Z shadow engine simulations', () => {
     expect(result.projects[0].approvalClassification).toBe('APPROVAL_REQUIRED');
   });
 
+  it('R3f - retroactive effective EOD always requires approval', () => {
+    const source = input({
+      sourceWorklogRetroactive: true,
+      tasks: [task('task-1', { remainingEstimatedMinutes: 60, officialStart: '2026-08-12', officialEnd: '2026-08-12' })],
+    });
+    const result = runShadowScheduleEngine(source);
+    expect(result.tasks[0]).toMatchObject({ approvalRequired: true });
+    expect(result.tasks[0].impactReasonCodes).toContain('RETROACTIVE_WORKLOG');
+    expect(result.projects[0].approvalClassification).toBe('APPROVAL_REQUIRED');
+  });
+
   it.each([
     [{ id: 'bad-ts', taskId: 'task-1', type: 'FIXED_START' as const, date: null, timestampUtc: 'not-an-iso-timestamp', minutes: null, status: 'ACTIVE' }],
     [{ id: 'bad-date', taskId: 'task-1', type: 'NOT_BEFORE' as const, date: 'not-a-date', timestampUtc: null, minutes: null, status: 'ACTIVE' }],

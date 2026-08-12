@@ -3,6 +3,7 @@ import {
   expandSharedEmployeeTaskClosure,
   filterEmployeeShadowView,
   filterEffectiveOvertimeCandidates,
+  dependencyGraphGuardAcquired,
   firstPositiveActualContribution,
   hasShadowActualOrCapacityTrigger,
   findMissingWorklogDates,
@@ -172,6 +173,19 @@ describe('Checkpoint 3A Shadow service timestamp mapping', () => {
     expect(validateDependencyReviewAction('REJECT')).toBe('REJECT');
     expect(() => validateDependencyReviewAction('CONFIRMED')).toThrowError('DEPENDENCY_REVIEW_ACTION_INVALID');
     expect(() => validateDependencyReviewAction('')).toThrowError('DEPENDENCY_REVIEW_ACTION_INVALID');
+  });
+
+  it('accepts only a complete dependency graph CAS batch', () => {
+    expect(dependencyGraphGuardAcquired([
+      { meta: { changes: 1 } }, { meta: { changes: 1 } }, { meta: { changes: 1 } },
+      { meta: { changes: 1 } }, { meta: { changes: 1 } },
+    ], 2)).toBe(true);
+    expect(dependencyGraphGuardAcquired([
+      { meta: { changes: 0 } }, { meta: { changes: 0 } },
+    ], 1)).toBe(false);
+    expect(dependencyGraphGuardAcquired([
+      { meta: { changes: 1 } }, { meta: { changes: 1 } }, { meta: { changes: 0 } },
+    ], 1)).toBe(false);
   });
 
   it('validates office calendar policy instead of using hard-coded production fallbacks', () => {

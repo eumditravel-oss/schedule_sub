@@ -46,6 +46,7 @@ interface RunOptions {
 }
 
 const uuid = (prefix: string) => `${prefix}_${crypto.randomUUID()}`;
+export type ShadowMutationCommit = <T>(response: T, guard?: { lockToken: string; revision: number }) => any;
 
 export function recordedWorkTimestampUtc(
   contribution: { local_work_date?: string | null } | null | undefined,
@@ -70,7 +71,7 @@ export async function idempotentShadowMutation<T>(
   key: string,
   operation: string,
   payload: unknown,
-  mutation: () => Promise<T>,
+  mutation: (commit: ShadowMutationCommit) => Promise<T>,
 ): Promise<T> {
   if (!key) throw new ShadowScheduleError('IDEMPOTENCY_CONFLICT', 400, { reason: 'IDEMPOTENCY_KEY_REQUIRED' });
   const payloadHash = await sha256Hex(canonicalJson(payload));
@@ -93,10 +94,21 @@ export async function idempotentShadowMutation<T>(
     }
     return parseJson<T>(raced.response_json, null as T);
   }
+  let atomicCommitUsed = false;
+  const commit: ShadowMutationCommit = (response, guard) => {
+    atomicCommitUsed = true;
+    const guardSql = guard
+      ? ` AND EXISTS (SELECT 1 FROM dependency_graph_guard WHERE guard_id='GLOBAL' AND lock_token=?5 AND revision=?6)`
+      : '';
+    const statement = db.prepare(`UPDATE shadow_engine_idempotency_keys SET response_json=?1
+      WHERE idempotency_key=?2 AND operation=?3 AND payload_hash=?4 AND response_json='{"status":"IN_PROGRESS"}'${guardSql}`);
+    return guard
+      ? statement.bind(canonicalJson(response), key, operation, payloadHash, guard.lockToken, guard.revision)
+      : statement.bind(canonicalJson(response), key, operation, payloadHash);
+  };
   try {
-    const response = await mutation();
-    await db.prepare(`UPDATE shadow_engine_idempotency_keys SET response_json=?1 WHERE idempotency_key=?2 AND operation=?3 AND payload_hash=?4`)
-      .bind(canonicalJson(response), key, operation, payloadHash).run();
+    const response = await mutation(commit);
+    if (!atomicCommitUsed) await commit(response).run();
     return response;
   } catch (error) {
     await db.prepare(`DELETE FROM shadow_engine_idempotency_keys WHERE idempotency_key=?1 AND operation=?2 AND payload_hash=?3 AND response_json='{"status":"IN_PROGRESS"}'`)
@@ -268,6 +280,12 @@ export function validateDependencyReviewAction(action: unknown): 'CONFIRM' | 'RE
   return action;
 }
 
+export function dependencyGraphGuardAcquired(batchResults: any[], dependencyCount: number, trailingStatementCount = 0): boolean {
+  const expectedCount = 1 + (dependencyCount * 2) + trailingStatementCount;
+  return batchResults.length === expectedCount &&
+    batchResults.every((result) => Number(result?.meta?.changes || 0) === 1);
+}
+
 export function isValidShadowWorkPolicy(policy: any): boolean {
   if (!policy || typeof policy.timezone !== 'string') return false;
   try { new Intl.DateTimeFormat('en-US', { timeZone: policy.timezone }).format(new Date(0)); } catch { return false; }
@@ -350,35 +368,51 @@ async function auditStatement(db: any, actor: ShadowActor | null, input: {
   after?: unknown;
   reason?: string | null;
   requestId?: string | null;
+  dependencyGraphGuard?: { lockToken: string; revision: number };
 }) {
-  return db.prepare(
-    `INSERT INTO shadow_engine_audit_events
+  const insert = input.dependencyGraphGuard
+    ? `INSERT INTO shadow_engine_audit_events
       (audit_id,event_type,entity_type,entity_id,actor_employee_id,actor_mode,event_time_utc,before_json,after_json,reason,test_session_id,request_id)
-     VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12)`
-  ).bind(
+     SELECT ?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12
+     WHERE EXISTS (SELECT 1 FROM dependency_graph_guard WHERE guard_id='GLOBAL' AND lock_token=?13 AND revision=?14)`
+    : `INSERT INTO shadow_engine_audit_events
+      (audit_id,event_type,entity_type,entity_id,actor_employee_id,actor_mode,event_time_utc,before_json,after_json,reason,test_session_id,request_id)
+     VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12)`;
+  const values = [
     uuid('sea'), input.eventType, input.entityType, input.entityId,
     actor?.worker?.id || null, actor?.actorMode || 'SYSTEM', new Date().toISOString(),
     input.before === undefined ? null : canonicalJson(input.before),
     input.after === undefined ? null : canonicalJson(input.after),
     input.reason || null, actor?.testSessionId || null, input.requestId || null,
-  );
+  ];
+  if (input.dependencyGraphGuard) values.push(input.dependencyGraphGuard.lockToken, input.dependencyGraphGuard.revision);
+  return db.prepare(insert).bind(...values);
 }
 
 async function loadOfficialDataSnapshot(db: any) {
-  const [projects, tasks, projectBaselines, taskBaselines, versions, versionTasks, aggregates] = await db.batch([
+  const [projects, tasks, projectBaselines, taskBaselines, versions, versionTasks, aggregates,
+    worklogs, worklogRevisions, taskActuals, legacyBootstrap, completionEvents] = await db.batch([
     db.prepare(`SELECT * FROM projects ORDER BY id`),
     db.prepare(`SELECT * FROM tasks ORDER BY id`),
     db.prepare(`SELECT id,project_id,version,baseline_start_date,baseline_end_date,created_at FROM project_baselines ORDER BY project_id,version`),
     db.prepare(`SELECT id,baseline_id,task_id,baseline_start_date,baseline_end_date,baseline_progress,effort_status,proposed_effort_minutes FROM task_baselines ORDER BY baseline_id,task_id`),
     db.prepare(`SELECT id,project_id,version_number,status,project_forecast_start,project_forecast_end,source_type,created_at FROM schedule_versions ORDER BY project_id,version_number`),
     db.prepare(`SELECT id,version_id,project_id,task_id,forecast_start,forecast_end,planned_effort_minutes,effort_status FROM schedule_version_tasks ORDER BY version_id,task_id`),
-    db.prepare(`SELECT task_id,project_id,current_progress,remaining_estimated_minutes,completion_reported,actual_status,last_actual_work_date,updated_at FROM task_actual_aggregates ORDER BY task_id`),
+    db.prepare(`SELECT task_id,project_id,raw_actual_minutes,approved_actual_minutes,current_progress,remaining_estimated_minutes,completion_reported,actual_status,last_actual_work_date,updated_at FROM task_actual_aggregates ORDER BY task_id`),
+    db.prepare(`SELECT * FROM daily_worklogs ORDER BY id`),
+    db.prepare(`SELECT * FROM daily_worklog_revisions ORDER BY id`),
+    db.prepare(`SELECT * FROM task_actuals ORDER BY id`),
+    db.prepare(`SELECT * FROM task_actuals WHERE source_type='LEGACY_BOOTSTRAP' ORDER BY id`),
+    db.prepare(`SELECT * FROM task_completion_events ORDER BY id`),
   ]);
   return {
     projects: projects.results || [], tasks: tasks.results || [],
     projectBaselines: projectBaselines.results || [], taskBaselines: taskBaselines.results || [],
     scheduleVersions: versions.results || [], scheduleVersionTasks: versionTasks.results || [],
     taskActualAggregates: aggregates.results || [],
+    worklogs: worklogs.results || [], worklogRevisions: worklogRevisions.results || [],
+    taskActuals: taskActuals.results || [], legacyBootstrap: legacyBootstrap.results || [],
+    completionEvents: completionEvents.results || [],
   };
 }
 
@@ -403,7 +437,10 @@ async function buildShadowEngineInput(db: any, options: RunOptions): Promise<Sha
     db.prepare(`SELECT c.*,r.created_at AS revision_created_at FROM task_actual_contributions c JOIN daily_worklog_revisions r ON r.id=c.revision_id WHERE c.is_effective=1 ORDER BY c.task_id,c.local_work_date,r.created_at`),
     db.prepare(`SELECT * FROM task_completion_events ORDER BY task_id,actual_end_date`),
     db.prepare(`SELECT * FROM daily_worklogs ORDER BY employee_id,local_work_date`),
-    db.prepare(`SELECT * FROM employee_capacity_events WHERE approval_status IN ('EFFECTIVE','APPROVED') ORDER BY employee_id,local_work_date,id`),
+    db.prepare(`SELECT e.* FROM employee_capacity_events e
+      LEFT JOIN daily_worklog_revisions r ON r.id=e.revision_id
+      WHERE e.approval_status IN ('EFFECTIVE','APPROVED') AND (e.revision_id IS NULL OR r.is_effective=1)
+      ORDER BY e.employee_id,e.local_work_date,e.id`),
     db.prepare(`SELECT o.* FROM overtime_candidates o
       JOIN daily_worklog_revisions r ON r.id=o.revision_id AND r.is_effective=1
       WHERE o.approval_status IN ('PENDING_REVIEW','APPROVED') ORDER BY o.employee_id,o.local_work_date`),
@@ -656,6 +693,7 @@ async function buildShadowEngineInput(db: any, options: RunOptions): Promise<Sha
     sourceWorklogId: options.sourceWorklogId || null, sourceRevisionId,
     sourceEmployeeId: sourceWorklog?.employee_id || sourceEmployee || null,
     sourceProjectId: options.projectId || null,
+    sourceWorklogRetroactive: Number(sourceWorklog?.retroactive_submission || 0) === 1,
     noActualTrigger: !hasActualTrigger,
     projects, tasks,
     dependencies: (dependenciesResult.results || []).filter((dependency: any) => projectIds.has(dependency.project_id)).map((dependency: any): DependencyInput => ({
@@ -761,23 +799,37 @@ export async function executeShadowRun(db: any, options: RunOptions) {
   }
 
   try {
+  const authorityGuard = await db.prepare(`SELECT revision FROM shadow_schedule_authority_guard WHERE guard_id='GLOBAL'`).first();
+  if (!authorityGuard) throw new ShadowScheduleError('SHADOW_RUN_INPUT_CHANGED', 409, { reason: 'SHADOW_AUTHORITY_GUARD_MISSING' });
+  const authorityRevision = Number(authorityGuard.revision);
   const input = await buildShadowEngineInput(db, options);
   const inputFingerprint = await fingerprintEngineInput(input);
   const existingRun = await db.prepare(`SELECT run_id FROM schedule_recalculation_runs WHERE engine_version=? AND input_fingerprint=?`).bind(SHADOW_ENGINE_VERSION, inputFingerprint).first();
   if (existingRun) {
     const reusedRun = await readRun(db, existingRun.run_id);
     const reusedVersions = reusedRun.versions || [];
+    const activationToken = uuid('sag');
     const activationStatements = reusedVersions.flatMap((version: any) => [
-      db.prepare(`UPDATE shadow_schedule_versions SET status='STALE' WHERE project_id=?1 AND status='CURRENT' AND run_id<>?2`)
-        .bind(version.project_id, existingRun.run_id),
-      db.prepare(`UPDATE shadow_schedule_versions SET status=?1 WHERE shadow_version_id=?2`)
-        .bind(reusedRun.run.status === 'BLOCKED' ? 'BLOCKED' : 'CURRENT', version.shadow_version_id),
+      db.prepare(`UPDATE shadow_schedule_versions SET status='STALE'
+        WHERE project_id=?1 AND status IN ('CURRENT','BLOCKED') AND run_id<>?2
+          AND EXISTS (SELECT 1 FROM shadow_schedule_authority_guard WHERE guard_id='GLOBAL' AND revision=?3 AND lock_token=?4)`)
+        .bind(version.project_id, existingRun.run_id, authorityRevision, activationToken),
+      db.prepare(`UPDATE shadow_schedule_versions SET status=?1 WHERE shadow_version_id=?2
+          AND EXISTS (SELECT 1 FROM shadow_schedule_authority_guard WHERE guard_id='GLOBAL' AND revision=?3 AND lock_token=?4)`)
+        .bind(reusedRun.run.status === 'BLOCKED' ? 'BLOCKED' : 'CURRENT', version.shadow_version_id, authorityRevision, activationToken),
     ]);
-    await db.batch([
+    const activationResults = await db.batch([
+      db.prepare(`UPDATE shadow_schedule_authority_guard SET lock_token=?1,updated_at=CURRENT_TIMESTAMP
+        WHERE guard_id='GLOBAL' AND revision=?2`).bind(activationToken, authorityRevision),
       ...activationStatements,
-      db.prepare(`UPDATE schedule_recalculation_requests SET status=?1,updated_at=CURRENT_TIMESTAMP WHERE request_id=?2`)
-        .bind(reusedRun.run.status === 'BLOCKED' ? 'FAILED_BLOCKED' : 'COMPLETED', requestId),
+      db.prepare(`UPDATE schedule_recalculation_requests SET status=?1,updated_at=CURRENT_TIMESTAMP WHERE request_id=?2
+          AND EXISTS (SELECT 1 FROM shadow_schedule_authority_guard WHERE guard_id='GLOBAL' AND revision=?3 AND lock_token=?4)`)
+        .bind(reusedRun.run.status === 'BLOCKED' ? 'FAILED_BLOCKED' : 'COMPLETED', requestId, authorityRevision, activationToken),
     ]);
+    if (Number(activationResults[0]?.meta?.changes || 0) !== 1 ||
+        Number(activationResults.at(-1)?.meta?.changes || 0) !== 1) {
+      throw new ShadowScheduleError('SHADOW_RUN_INPUT_CHANGED', 409, { reason: 'SHADOW_AUTHORITY_CHANGED' });
+    }
     const reactivatedRun = await readRun(db, existingRun.run_id);
     return { ...reactivatedRun, reused: true, officialForecastChanged: false };
   }
@@ -797,12 +849,12 @@ export async function executeShadowRun(db: any, options: RunOptions) {
     `INSERT INTO schedule_recalculation_runs
      (run_id,request_id,engine_version,mode,input_fingerprint,result_fingerprint,based_on_baseline_version,based_on_forecast_version,
       planning_cutoff_utc,planning_cutoff_local_date,status,data_confidence,affected_project_count,affected_task_count,
-      started_at,completed_at,created_by,validation_summary_json,official_data_before_hash,official_data_after_hash)
-     VALUES (?1,?2,?3,'SHADOW',?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18,?19)`
+      started_at,completed_at,created_by,validation_summary_json,official_data_before_hash,official_data_after_hash,authority_revision)
+     VALUES (?1,?2,?3,'SHADOW',?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18,?19,?20)`
   ).bind(runId, requestId, SHADOW_ENGINE_VERSION, inputFingerprint, resultFingerprint,
     input.basedOnBaselineVersion, input.basedOnForecastVersion, input.planningCutoffUtc, input.planningCutoffLocalDate,
     result.status, result.dataConfidence, result.affectedProjectCount, result.affectedTaskCount, now, now,
-    options.requestedBy, canonicalJson({ issues: result.validationIssues }), officialBefore, officialAfterCalculation));
+    options.requestedBy, canonicalJson({ issues: result.validationIssues }), officialBefore, officialAfterCalculation, authorityRevision));
   statements.push(db.prepare(`INSERT INTO schedule_engine_input_snapshots (snapshot_id,run_id,input_fingerprint,canonical_input_json,created_at) VALUES (?1,?2,?3,?4,?5)`)
     .bind(uuid('ssis'), runId, inputFingerprint, canonicalJson(input), now));
 
@@ -811,7 +863,7 @@ export async function executeShadowRun(db: any, options: RunOptions) {
     const currentNumberRow = await db.prepare(`SELECT COALESCE(MAX(shadow_version_number),0) AS n FROM shadow_schedule_versions WHERE project_id=?`).bind(project.projectId).first();
     const versionId = uuid('ssv');
     versionIdByProject.set(project.projectId, versionId);
-    statements.push(db.prepare(`UPDATE shadow_schedule_versions SET status='STALE' WHERE project_id=? AND status='CURRENT'`).bind(project.projectId));
+    statements.push(db.prepare(`UPDATE shadow_schedule_versions SET status='STALE' WHERE project_id=? AND status IN ('CURRENT','BLOCKED')`).bind(project.projectId));
     const sourceProject = input.projects.find((item) => item.id === project.projectId);
     statements.push(db.prepare(
       `INSERT INTO shadow_schedule_versions
@@ -903,11 +955,15 @@ export async function executeShadowRun(db: any, options: RunOptions) {
   }
   return { ...(await readRun(db, runId)), reused: false, officialForecastChanged: false };
   } catch (error) {
+    const normalizedError = !(error instanceof ShadowScheduleError) &&
+      String(error instanceof Error ? error.message : error).includes('SHADOW_RUN_INPUT_CHANGED')
+      ? new ShadowScheduleError('SHADOW_RUN_INPUT_CHANGED', 409, { reason: 'SHADOW_AUTHORITY_CHANGED' })
+      : error;
     await db.prepare(`UPDATE schedule_recalculation_requests
       SET status='FAILED_RETRYABLE',last_error_code=?1,last_error_message=?2,updated_at=CURRENT_TIMESTAMP
       WHERE request_id=?3 AND status='RUNNING'`)
-      .bind(error instanceof ShadowScheduleError ? error.code : 'SHADOW_ENGINE_FAILED', error instanceof Error ? error.message : String(error), requestId).run();
-    throw error;
+      .bind(normalizedError instanceof ShadowScheduleError ? normalizedError.code : 'SHADOW_ENGINE_FAILED', normalizedError instanceof Error ? normalizedError.message : String(normalizedError), requestId).run();
+    throw normalizedError;
   }
 }
 
@@ -928,7 +984,7 @@ export async function enqueueShadowRecalculation(db: any, input: {
   const requestId = uuid('srr');
   await db.batch([
     db.prepare(`UPDATE shadow_schedule_versions AS sv SET status='STALE'
-      WHERE sv.status='CURRENT' AND (
+      WHERE sv.status IN ('CURRENT','BLOCKED') AND (
         (?1 IS NOT NULL AND sv.project_id=?1)
         OR EXISTS (
           SELECT 1 FROM shadow_schedule_tasks st
@@ -956,9 +1012,12 @@ export async function enqueueShadowRecalculation(db: any, input: {
   return { requestId, status: 'PENDING' };
 }
 
-export async function generateDependencyCandidates(db: any, actorContext: ActorContextServer, projectId: string) {
+export async function generateDependencyCandidates(db: any, actorContext: ActorContextServer, projectId: string, commit?: ShadowMutationCommit) {
   const actor = await resolveShadowActor(db, actorContext, true);
   requireManager(actor);
+  const graphGuard = await db.prepare(`SELECT revision FROM dependency_graph_guard WHERE guard_id='GLOBAL'`).first();
+  if (!graphGuard) throw new ShadowScheduleError('SHADOW_RUN_INPUT_CHANGED', 409, { reason: 'DEPENDENCY_GRAPH_GUARD_MISSING' });
+  const expectedRevision = Number(graphGuard.revision);
   const project = projectId ? await db.prepare(`SELECT id FROM projects WHERE id=?`).bind(projectId).first() : null;
   if (!project) throw new ShadowScheduleError('DEPENDENCY_TASK_NOT_FOUND', 404, { projectId });
   const [tasksResult, groupsResult, assigneesResult] = await Promise.all([
@@ -981,24 +1040,45 @@ export async function generateDependencyCandidates(db: any, actorContext: ActorC
     primaryEmployeeId: primaryMap.get(task.id) || task.primary_worker_id || null,
   }));
   const generated = generateDependencyProposals(tasks);
+  const existingResult = generated.proposals.length ? await db.prepare(`SELECT predecessor_task_id,successor_task_id,dependency_type
+    FROM task_dependencies WHERE project_id=?`).bind(projectId).all() : { results: [] };
+  const existingKeys = new Set((existingResult.results || []).map((row: any) =>
+    `${row.predecessor_task_id}|${row.successor_task_id}|${row.dependency_type}`));
+  const expectedSavedCount = generated.proposals.filter((proposal) =>
+    !existingKeys.has(`${proposal.predecessorTaskId}|${proposal.successorTaskId}|FINISH_TO_START`)).length;
+  const response = { ...generated, savedCount: expectedSavedCount, existingCount: generated.proposals.length - expectedSavedCount, projectId };
   const statements: any[] = [];
   const now = new Date().toISOString();
+  const lockToken = uuid('dgl');
+  const guardRevision = expectedRevision + 1;
+  statements.push(db.prepare(`UPDATE dependency_graph_guard SET revision=revision+1,lock_token=?1,updated_at=?2
+    WHERE guard_id='GLOBAL' AND revision=?3`).bind(lockToken, now, expectedRevision));
   for (const proposal of generated.proposals) {
     statements.push(db.prepare(
       `INSERT OR IGNORE INTO task_dependencies
        (dependency_id,project_id,predecessor_task_id,successor_task_id,dependency_type,lag_work_minutes,status,
         confidence_score,confidence_level,proposal_source,proposal_evidence_json,proposed_at,proposed_by,created_at,updated_at)
-       VALUES (?1,?2,?3,?4,'FINISH_TO_START',0,'PROPOSED',?5,?6,'AUTOMATIC_WBS',?7,?8,?9,?8,?8)`
+       SELECT ?1,?2,?3,?4,'FINISH_TO_START',0,'PROPOSED',?5,?6,'AUTOMATIC_WBS',?7,?8,?9,?8,?8
+       WHERE EXISTS (SELECT 1 FROM dependency_graph_guard WHERE guard_id='GLOBAL' AND lock_token=?10 AND revision=?11)`
     ).bind(uuid('dep'), proposal.projectId, proposal.predecessorTaskId, proposal.successorTaskId,
-      proposal.confidenceScore, proposal.confidenceLevel, canonicalJson(proposal.evidence), now, actor.worker.id));
+      proposal.confidenceScore, proposal.confidenceLevel, canonicalJson(proposal.evidence), now, actor.worker.id,
+      lockToken, guardRevision));
   }
   statements.push(await auditStatement(db, actor, {
     eventType: 'DEPENDENCY_PROPOSALS_GENERATED', entityType: 'PROJECT', entityId: projectId,
     after: { proposed: generated.proposals.length, parallelTaskIds: generated.parallelTaskIds },
+    dependencyGraphGuard: { lockToken, revision: guardRevision },
   }));
+  if (commit) statements.push(commit(response, { lockToken, revision: guardRevision }));
   const results = statements.length ? await db.batch(statements) : [];
-  const savedCount = results.slice(0, generated.proposals.length).reduce((sum: number, result: any) => sum + Number(result.meta?.changes || 0), 0);
-  return { ...generated, savedCount, existingCount: generated.proposals.length - savedCount, projectId };
+  const savedCount = results.slice(1, generated.proposals.length + 1).reduce((sum: number, result: any) => sum + Number(result.meta?.changes || 0), 0);
+  const auditResult = results[generated.proposals.length + 1];
+  const commitResult = commit ? results.at(-1) : null;
+  if (Number(results[0]?.meta?.changes || 0) !== 1 || savedCount !== expectedSavedCount ||
+      Number(auditResult?.meta?.changes || 0) !== 1 || (commit && Number(commitResult?.meta?.changes || 0) !== 1)) {
+    throw new ShadowScheduleError('SHADOW_RUN_INPUT_CHANGED', 409, { reason: 'DEPENDENCY_PROPOSALS_CHANGED' });
+  }
+  return commit ? response : { ...generated, savedCount, existingCount: generated.proposals.length - savedCount, projectId };
 }
 
 export async function listDependencies(db: any, actorContext: ActorContextServer, filters: Record<string, string>) {
@@ -1009,8 +1089,12 @@ export async function listDependencies(db: any, actorContext: ActorContextServer
   if (filters.status) { conditions.push(`d.status=?`); values.push(filters.status); }
   if (!actor.isManager && actor.worker.access_role !== 'VIEWER') {
     conditions.push(`(EXISTS (SELECT 1 FROM task_assignees ta WHERE ta.task_id=d.predecessor_task_id AND ta.worker_id=? AND ta.deleted_at IS NULL)
-      OR EXISTS (SELECT 1 FROM task_assignees ta WHERE ta.task_id=d.successor_task_id AND ta.worker_id=? AND ta.deleted_at IS NULL))`);
-    values.push(actor.worker.id, actor.worker.id);
+      OR EXISTS (SELECT 1 FROM task_assignees ta WHERE ta.task_id=d.successor_task_id AND ta.worker_id=? AND ta.deleted_at IS NULL)
+      OR pre.primary_worker_id=? OR succ.primary_worker_id=?
+      OR EXISTS (SELECT 1 FROM temporary_primary_assignments tpa
+        WHERE tpa.task_id IN (d.predecessor_task_id,d.successor_task_id)
+          AND tpa.temporary_primary_employee_id=? AND tpa.status='ACTIVE'))`);
+    values.push(actor.worker.id, actor.worker.id, actor.worker.id, actor.worker.id, actor.worker.id);
   }
   let statement = db.prepare(`SELECT d.*,p.name AS project_name,pre.task_name AS predecessor_name,pre.task_sort_order AS predecessor_wbs,
     succ.task_name AS successor_name,succ.task_sort_order AS successor_wbs,c.name AS confirmed_by_name,r.name AS rejected_by_name
@@ -1022,7 +1106,7 @@ export async function listDependencies(db: any, actorContext: ActorContextServer
   return { dependencies: result.results || [], permissions: { canReview: actor.isManager, readOnly: !actor.isManager } };
 }
 
-export async function reviewDependencies(db: any, actorContext: ActorContextServer, ids: string[], action: 'CONFIRM' | 'REJECT', input: { lagWorkMinutes?: number; reason?: string }) {
+export async function reviewDependencies(db: any, actorContext: ActorContextServer, ids: string[], action: 'CONFIRM' | 'REJECT', input: { lagWorkMinutes?: number; reason?: string }, commit?: ShadowMutationCommit) {
   action = validateDependencyReviewAction(action);
   const actor = await resolveShadowActor(db, actorContext, true);
   requireManager(actor);
@@ -1034,6 +1118,9 @@ export async function reviewDependencies(db: any, actorContext: ActorContextServ
   if (dependencies.length !== uniqueIds.length) throw new ShadowScheduleError('DEPENDENCY_TASK_NOT_FOUND', 404);
   const now = new Date().toISOString();
   if (action === 'CONFIRM') {
+    const guard = await db.prepare(`SELECT revision FROM dependency_graph_guard WHERE guard_id='GLOBAL'`).first();
+    if (!guard) throw new ShadowScheduleError('SHADOW_RUN_INPUT_CHANGED', 409, { reason: 'DEPENDENCY_GRAPH_GUARD_MISSING' });
+    const expectedRevision = Number(guard.revision);
     const affectedProjectIds = [...new Set(dependencies.map((dependency: any) => String(dependency.project_id)))].sort();
     const projectPlaceholders = affectedProjectIds.map(() => '?').join(',');
     const allResult = await db.prepare(`SELECT * FROM task_dependencies
@@ -1063,21 +1150,61 @@ export async function reviewDependencies(db: any, actorContext: ActorContextServ
     const validation = validateDependencyGraph(inputForValidation);
     const graphError = validation.find((issue) => issue.code.startsWith('DEPENDENCY_') || issue.code === 'INVALID_DEPENDENCY_LAG');
     if (graphError) throw new ShadowScheduleError(graphError.code, 409, graphError.details);
+    const lockToken = uuid('dgl');
+    const guardRevision = expectedRevision + 1;
+    const guardedAudits = await Promise.all(dependencies.map((dependency: any) => auditStatement(db, actor, {
+      eventType: 'DEPENDENCY_CONFIRMED', entityType: 'TASK_DEPENDENCY', entityId: dependency.dependency_id,
+      before: dependency, after: { status: 'CONFIRMED', lagWorkMinutes: input.lagWorkMinutes }, reason: input.reason,
+      dependencyGraphGuard: { lockToken, revision: guardRevision },
+    })));
+    const response = { action, dependencyIds: uniqueIds, count: uniqueIds.length };
+    const guardedConfirmResults = await db.batch([
+      db.prepare(`UPDATE dependency_graph_guard SET revision=revision+1,lock_token=?1,updated_at=?2
+        WHERE guard_id='GLOBAL' AND revision=?3`).bind(lockToken, now, expectedRevision),
+      ...dependencies.map((dependency: any) => db.prepare(`UPDATE task_dependencies
+        SET status='CONFIRMED',lag_work_minutes=?1,confirmed_at=?2,confirmed_by=?3,
+            rejected_at=NULL,rejected_by=NULL,rejection_reason=NULL,updated_at=?2
+        WHERE dependency_id=?4 AND EXISTS (
+          SELECT 1 FROM dependency_graph_guard WHERE guard_id='GLOBAL' AND lock_token=?5 AND revision=?6
+        ) AND status=?7 AND updated_at=?8`).bind(Number(input.lagWorkMinutes ?? dependency.lag_work_minutes ?? 0), now, actor.worker.id,
+          dependency.dependency_id, lockToken, guardRevision, dependency.status, dependency.updated_at)),
+      ...guardedAudits,
+      ...(commit ? [commit(response, { lockToken, revision: guardRevision })] : []),
+    ]);
+    if (!dependencyGraphGuardAcquired(guardedConfirmResults, dependencies.length, commit ? 1 : 0)) {
+      throw new ShadowScheduleError('SHADOW_RUN_INPUT_CHANGED', 409, { reason: 'DEPENDENCY_GRAPH_CHANGED' });
+    }
   }
-  const statements: any[] = [];
-  for (const dependency of dependencies) {
-    statements.push(action === 'CONFIRM'
-      ? db.prepare(`UPDATE task_dependencies SET status='CONFIRMED',lag_work_minutes=?1,confirmed_at=?2,confirmed_by=?3,rejected_at=NULL,rejected_by=NULL,rejection_reason=NULL,updated_at=?2 WHERE dependency_id=?4`)
-        .bind(Number(input.lagWorkMinutes ?? dependency.lag_work_minutes ?? 0), now, actor.worker.id, dependency.dependency_id)
-      : db.prepare(`UPDATE task_dependencies SET status='REJECTED',rejected_at=?1,rejected_by=?2,rejection_reason=?3,confirmed_at=NULL,confirmed_by=NULL,updated_at=?1 WHERE dependency_id=?4`)
-        .bind(now, actor.worker.id, input.reason || null, dependency.dependency_id));
-    statements.push(await auditStatement(db, actor, {
-      eventType: action === 'CONFIRM' ? 'DEPENDENCY_CONFIRMED' : 'DEPENDENCY_REJECTED', entityType: 'TASK_DEPENDENCY',
-      entityId: dependency.dependency_id, before: dependency, after: { status: action === 'CONFIRM' ? 'CONFIRMED' : 'REJECTED', lagWorkMinutes: input.lagWorkMinutes }, reason: input.reason,
-    }));
+  const response = { action, dependencyIds: uniqueIds, count: uniqueIds.length };
+  if (action === 'REJECT') {
+    const guard = await db.prepare(`SELECT revision FROM dependency_graph_guard WHERE guard_id='GLOBAL'`).first();
+    if (!guard) throw new ShadowScheduleError('SHADOW_RUN_INPUT_CHANGED', 409, { reason: 'DEPENDENCY_GRAPH_GUARD_MISSING' });
+    const expectedRevision = Number(guard.revision);
+    const guardRevision = expectedRevision + 1;
+    const lockToken = uuid('dgl');
+    const guardedAudits = await Promise.all(dependencies.map((dependency: any) => auditStatement(db, actor, {
+      eventType: 'DEPENDENCY_REJECTED', entityType: 'TASK_DEPENDENCY', entityId: dependency.dependency_id,
+      before: dependency, after: { status: 'REJECTED', lagWorkMinutes: input.lagWorkMinutes }, reason: input.reason,
+      dependencyGraphGuard: { lockToken, revision: guardRevision },
+    })));
+    const results = await db.batch([
+      db.prepare(`UPDATE dependency_graph_guard SET revision=revision+1,lock_token=?1,updated_at=?2
+        WHERE guard_id='GLOBAL' AND revision=?3`).bind(lockToken, now, expectedRevision),
+      ...dependencies.map((dependency: any) => db.prepare(`UPDATE task_dependencies
+        SET status='REJECTED',rejected_at=?1,rejected_by=?2,rejection_reason=?3,
+            confirmed_at=NULL,confirmed_by=NULL,updated_at=?1
+        WHERE dependency_id=?4 AND status=?5 AND updated_at=?6 AND EXISTS (
+          SELECT 1 FROM dependency_graph_guard WHERE guard_id='GLOBAL' AND lock_token=?7 AND revision=?8
+        )`).bind(now, actor.worker.id, input.reason || null, dependency.dependency_id,
+          dependency.status, dependency.updated_at, lockToken, guardRevision)),
+      ...guardedAudits,
+      ...(commit ? [commit(response, { lockToken, revision: guardRevision })] : []),
+    ]);
+    if (!dependencyGraphGuardAcquired(results, dependencies.length, commit ? 1 : 0)) {
+      throw new ShadowScheduleError('SHADOW_RUN_INPUT_CHANGED', 409, { reason: 'DEPENDENCY_GRAPH_CHANGED' });
+    }
   }
-  await db.batch(statements);
-  return { action, dependencyIds: uniqueIds, count: uniqueIds.length };
+  return response;
 }
 
 export async function getTaskConstraints(db: any, actorContext: ActorContextServer, taskId: string) {
@@ -1086,7 +1213,7 @@ export async function getTaskConstraints(db: any, actorContext: ActorContextServ
   return result.results || [];
 }
 
-export async function setTaskConstraint(db: any, actorContext: ActorContextServer, taskId: string, input: any) {
+export async function setTaskConstraint(db: any, actorContext: ActorContextServer, taskId: string, input: any, commit?: ShadowMutationCommit) {
   const actor = await resolveShadowActor(db, actorContext, true);
   requireManager(actor);
   const validTypes = ['AS_SOON_AS_POSSIBLE','NOT_BEFORE','FIXED_START','FIXED_END','MILESTONE'];
@@ -1107,14 +1234,16 @@ export async function setTaskConstraint(db: any, actorContext: ActorContextServe
   if (!task) throw new ShadowScheduleError('DEPENDENCY_TASK_NOT_FOUND', 404);
   const constraintId = uuid('con');
   const now = new Date().toISOString();
+  const response = { constraintId, taskId, ...input, status: 'ACTIVE' };
   await db.batch([
     db.prepare(`UPDATE task_constraints SET status='SUPERSEDED',updated_by=?1,updated_at=?2 WHERE task_id=?3 AND status='ACTIVE'`).bind(actor.worker.id, now, taskId),
     db.prepare(`INSERT INTO task_constraints (constraint_id,task_id,constraint_type,constraint_date,constraint_timestamp_utc,constraint_minutes,reason,status,created_by,created_at,updated_by,updated_at)
       VALUES (?1,?2,?3,?4,?5,?6,?7,'ACTIVE',?8,?9,?8,?9)`).bind(constraintId, taskId, input.constraint_type,
       input.constraint_date || null, input.constraint_timestamp_utc || null, input.constraint_minutes ?? null, input.reason || null, actor.worker.id, now),
     await auditStatement(db, actor, { eventType: 'TASK_CONSTRAINT_SET', entityType: 'TASK_CONSTRAINT', entityId: constraintId, after: input, reason: input.reason }),
+    ...(commit ? [commit(response)] : []),
   ]);
-  return { constraintId, taskId, ...input, status: 'ACTIVE' };
+  return response;
 }
 
 export async function listProjectPriorities(db: any, actorContext: ActorContextServer) {
@@ -1123,7 +1252,7 @@ export async function listProjectPriorities(db: any, actorContext: ActorContextS
   return { priorities: result.results || [], permissions: { canEdit: actor.isManager, readOnly: !actor.isManager } };
 }
 
-export async function setProjectPriority(db: any, actorContext: ActorContextServer, input: any) {
+export async function setProjectPriority(db: any, actorContext: ActorContextServer, input: any, commit?: ShadowMutationCommit) {
   const actor = await resolveShadowActor(db, actorContext, true);
   requireManager(actor);
   const rank = Number(input.priority_rank);
@@ -1138,6 +1267,7 @@ export async function setProjectPriority(db: any, actorContext: ActorContextServ
   if (!project) throw new ShadowScheduleError('PROJECT_PRIORITY_REQUIRED', 404);
   const now = new Date().toISOString();
   const before = await db.prepare(`SELECT * FROM project_priorities WHERE project_id=?`).bind(input.project_id).first();
+  const response = { projectId: input.project_id, priorityRank: rank };
   await db.batch([
     db.prepare(`INSERT INTO project_priorities (project_id,priority_rank,priority_label,effective_from,effective_to,set_by,reason,created_at,updated_at)
       VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?8)
@@ -1145,8 +1275,9 @@ export async function setProjectPriority(db: any, actorContext: ActorContextServ
       effective_from=excluded.effective_from,effective_to=excluded.effective_to,set_by=excluded.set_by,reason=excluded.reason,updated_at=excluded.updated_at`)
       .bind(input.project_id, rank, input.priority_label || null, effectiveFrom, effectiveTo, actor.worker.id, input.reason || null, now),
     await auditStatement(db, actor, { eventType: 'PROJECT_PRIORITY_SET', entityType: 'PROJECT_PRIORITY', entityId: input.project_id, before, after: input, reason: input.reason }),
+    ...(commit ? [commit(response)] : []),
   ]);
-  return { projectId: input.project_id, priorityRank: rank };
+  return response;
 }
 
 export async function validateShadowRun(db: any, actorContext: ActorContextServer, input: any) {

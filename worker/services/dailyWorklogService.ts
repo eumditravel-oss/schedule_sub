@@ -220,10 +220,12 @@ export async function getDailyCapacity(db: any, employeeId: string, localWorkDat
   const day = resolveWorkDayStatusServer(localWorkDate, worker, holidays, overrides);
   const base = day.is_working_day ? Number(policy.schedulable_minutes) : 0;
   const events = await db.prepare(
-    `SELECT * FROM employee_capacity_events
-     WHERE employee_id = ? AND local_work_date = ? AND approval_status IN ('EFFECTIVE','APPROVED')
-       AND (? IS NULL OR worklog_id IS NULL OR worklog_id <> ?)
-     ORDER BY created_at, id`
+    `SELECT e.* FROM employee_capacity_events e
+     LEFT JOIN daily_worklog_revisions r ON r.id=e.revision_id
+     WHERE e.employee_id = ? AND e.local_work_date = ? AND e.approval_status IN ('EFFECTIVE','APPROVED')
+       AND (e.revision_id IS NULL OR r.is_effective=1)
+       AND (? IS NULL OR e.worklog_id IS NULL OR e.worklog_id <> ?)
+     ORDER BY e.created_at, e.id`
   ).bind(employeeId, localWorkDate, excludeWorklogId || null, excludeWorklogId || null).all();
   const uniqueEvents = new Map<string, any>();
   for (const event of events.results || []) uniqueEvents.set(`${event.source_type}:${event.source_reference_id}`, event);
@@ -657,7 +659,7 @@ async function submitEodRevision(
     : { results: [] };
   if (mode !== 'INITIAL_EOD' && worklog.current_eod_revision_id) {
     statements.push(db.prepare(`UPDATE task_actual_contributions SET is_effective=0 WHERE worklog_id=? AND is_effective=1`).bind(worklog.id));
-    statements.push(db.prepare(`UPDATE employee_capacity_events SET approval_status='SUPERSEDED' WHERE worklog_id=? AND approval_status='EFFECTIVE'`).bind(worklog.id));
+    statements.push(db.prepare(`UPDATE employee_capacity_events SET approval_status='SUPERSEDED' WHERE worklog_id=? AND approval_status IN ('EFFECTIVE','APPROVED')`).bind(worklog.id));
   }
   const commonValues = [status, nextRevisionNumber, revisionId, now.toISOString(), worklog.current_morning_revision_id ? 0 : 1,
     retroactive ? 1 : 0, effectiveCapacity, actualMinutes, variance, hasGap ? body.gap_reason_code : null,
