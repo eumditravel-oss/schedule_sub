@@ -1,5 +1,6 @@
 import { resolveWorkDayStatusServer } from './workCalendar';
 import type { ActorContextServer } from './v3FoundationService';
+import { enqueueShadowRecalculation } from './shadowScheduleService';
 
 export const WORK_CATEGORIES = [
   'NORMAL_ASSIGNED_TASK', 'UNPLANNED_SAME_PROJECT_TASK', 'OTHER_PROJECT_TASK',
@@ -219,10 +220,12 @@ export async function getDailyCapacity(db: any, employeeId: string, localWorkDat
   const day = resolveWorkDayStatusServer(localWorkDate, worker, holidays, overrides);
   const base = day.is_working_day ? Number(policy.schedulable_minutes) : 0;
   const events = await db.prepare(
-    `SELECT * FROM employee_capacity_events
-     WHERE employee_id = ? AND local_work_date = ? AND approval_status IN ('EFFECTIVE','APPROVED')
-       AND (? IS NULL OR worklog_id IS NULL OR worklog_id <> ?)
-     ORDER BY created_at, id`
+    `SELECT e.* FROM employee_capacity_events e
+     LEFT JOIN daily_worklog_revisions r ON r.id=e.revision_id
+     WHERE e.employee_id = ? AND e.local_work_date = ? AND e.approval_status IN ('EFFECTIVE','APPROVED')
+       AND (e.revision_id IS NULL OR r.is_effective=1)
+       AND (? IS NULL OR e.worklog_id IS NULL OR e.worklog_id <> ?)
+     ORDER BY e.created_at, e.id`
   ).bind(employeeId, localWorkDate, excludeWorklogId || null, excludeWorklogId || null).all();
   const uniqueEvents = new Map<string, any>();
   for (const event of events.results || []) uniqueEvents.set(`${event.source_type}:${event.source_reference_id}`, event);
@@ -591,7 +594,16 @@ async function validateEodEntries(db: any, employeeId: string, localDate: string
   return { validated, policy };
 }
 
-async function submitEodRevision(db: any, actor: WorklogActor, worklog: any, body: any, key: string, now: Date, mode: 'INITIAL_EOD'|'SELF_REVISION'|'MANAGER_CORRECTION') {
+async function submitEodRevision(
+  db: any,
+  actor: WorklogActor,
+  worklog: any,
+  body: any,
+  key: string,
+  now: Date,
+  mode: 'INITIAL_EOD'|'SELF_REVISION'|'MANAGER_CORRECTION',
+  shadowEnabled = false,
+) {
   const operation = mode === 'INITIAL_EOD' ? 'WORKLOG_EOD' : 'WORKLOG_REVISION';
   const idem = await idempotentResult(db, key, operation, body);
   if (idem.response) return idem.response;
@@ -633,7 +645,12 @@ async function submitEodRevision(db: any, actor: WorklogActor, worklog: any, bod
     has_gap: hasGap, overtime_candidate_minutes: overtime,
     overtime_approval_status: overtime > 0 ? 'PENDING_REVIEW' : 'NOT_APPLICABLE',
     requires_manager_review: selfReview || hasGap || overtime > 0,
+    actualUpdated: true,
+    officialForecastChanged: false,
     forecast_date_change_count: 0, schedule_adjustment_event_count: 0,
+    shadowRecalculation: shadowEnabled
+      ? { requestId: null as string | null, status: 'PENDING', errorCode: null as string | null }
+      : { requestId: null as string | null, status: 'DISABLED', errorCode: null as string | null },
   };
   const statements: any[] = [];
   statements.push(db.prepare(`UPDATE daily_worklog_revisions SET is_effective=0 WHERE worklog_id=? AND is_effective=1`).bind(worklog.id));
@@ -642,7 +659,7 @@ async function submitEodRevision(db: any, actor: WorklogActor, worklog: any, bod
     : { results: [] };
   if (mode !== 'INITIAL_EOD' && worklog.current_eod_revision_id) {
     statements.push(db.prepare(`UPDATE task_actual_contributions SET is_effective=0 WHERE worklog_id=? AND is_effective=1`).bind(worklog.id));
-    statements.push(db.prepare(`UPDATE employee_capacity_events SET approval_status='SUPERSEDED' WHERE worklog_id=? AND approval_status='EFFECTIVE'`).bind(worklog.id));
+    statements.push(db.prepare(`UPDATE employee_capacity_events SET approval_status='SUPERSEDED' WHERE worklog_id=? AND approval_status IN ('EFFECTIVE','APPROVED')`).bind(worklog.id));
   }
   const commonValues = [status, nextRevisionNumber, revisionId, now.toISOString(), worklog.current_morning_revision_id ? 0 : 1,
     retroactive ? 1 : 0, effectiveCapacity, actualMinutes, variance, hasGap ? body.gap_reason_code : null,
@@ -742,10 +759,33 @@ async function submitEodRevision(db: any, actor: WorklogActor, worklog: any, bod
     if (String(error?.message || error).includes('UNIQUE')) throw new WorklogError('VERSION_CONFLICT', 409);
     throw error;
   }
+  if (shadowEnabled) {
+    try {
+      const projectIds = [...new Set(validated.map((entry) => entry.project_id || entry.assignment?.task?.project_id).filter(Boolean))];
+      const queued = await enqueueShadowRecalculation(db, {
+        worklogId: worklog.id,
+        revisionId,
+        projectId: projectIds.length === 1 ? String(projectIds[0]) : null,
+        employeeId: worklog.employee_id,
+        requestedBy: actor.worker.id,
+        idempotencyKey: `shadow:${worklog.id}:${revisionId}`,
+      });
+      response.shadowRecalculation = { requestId: queued.requestId, status: queued.status, errorCode: null };
+    } catch (error: any) {
+      response.shadowRecalculation = {
+        requestId: null,
+        status: 'FAILED_RETRYABLE',
+        errorCode: error?.code || 'SHADOW_REQUEST_CREATE_FAILED',
+      };
+    }
+    await db.prepare(`UPDATE worklog_idempotency_keys SET response_json=? WHERE idempotency_key=? AND operation=?`)
+      .bind(stableStringify(response), key, operation)
+      .run();
+  }
   return response;
 }
 
-export async function submitEod(db: any, actorContext: ActorContextServer, worklogId: string, body: any, key: string, now = new Date()) {
+export async function submitEod(db: any, actorContext: ActorContextServer, worklogId: string, body: any, key: string, now = new Date(), shadowEnabled = false) {
   const actor = await resolveActor(db, actorContext);
   const employeeId = body.employee_id || actor.worker.id;
   requireSubject(actor, employeeId);
@@ -763,10 +803,10 @@ export async function submitEod(db: any, actorContext: ActorContextServer, workl
       self_edit_deadline_utc: deadline, _isNew: true,
     };
   }
-  return submitEodRevision(db, actor, worklog, body, key, now, 'INITIAL_EOD');
+  return submitEodRevision(db, actor, worklog, body, key, now, 'INITIAL_EOD', shadowEnabled);
 }
 
-export async function reviseWorklog(db: any, actorContext: ActorContextServer, worklogId: string, body: any, key: string, now = new Date()) {
+export async function reviseWorklog(db: any, actorContext: ActorContextServer, worklogId: string, body: any, key: string, now = new Date(), shadowEnabled = false) {
   const replay = await idempotentResult(db, key, 'WORKLOG_REVISION', body);
   if (replay.response) return replay.response;
   const actor = await resolveActor(db, actorContext);
@@ -775,7 +815,7 @@ export async function reviseWorklog(db: any, actorContext: ActorContextServer, w
   const manager = actor.isManager && actor.worker.id !== worklog.employee_id;
   requireSubject(actor, worklog.employee_id, true);
   if (!manager && now.getTime() > new Date(worklog.self_edit_deadline_utc).getTime()) throw new WorklogError('RETROACTIVE_REVIEW_REQUIRED', 409);
-  return submitEodRevision(db, actor, worklog, body, key, now, manager ? 'MANAGER_CORRECTION' : 'SELF_REVISION');
+  return submitEodRevision(db, actor, worklog, body, key, now, manager ? 'MANAGER_CORRECTION' : 'SELF_REVISION', shadowEnabled);
 }
 
 export async function createCorrectionRequest(db: any, actorContext: ActorContextServer, worklogId: string, body: any, key: string, now = new Date()) {

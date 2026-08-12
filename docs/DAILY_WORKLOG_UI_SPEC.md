@@ -8,6 +8,8 @@
 - Separate authenticated actor from selected employee view context in every write surface.
 - Show schedule impact before submission when enough data exists; never imply that missing data has already changed the schedule.
 
+Checkpoint 3A integration returns a separate `shadowRecalculation` request status after effective EOD/revision persistence. The Worklog remains saved if Shadow request creation or execution fails. Schedule impact is viewed at `/projects/:projectId/shadow-schedule`; the official Forecast unchanged notice is mandatory and no apply control exists.
+
 ## 2. Entry points and role visibility
 
 | UI action | Worker | Team Manager | Executive | System Admin |

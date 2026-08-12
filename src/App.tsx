@@ -17,6 +17,9 @@ const PrintViewPage = lazy(() =>
 const DailyWorklogQaPage = lazy(() =>
   import('./pages/qa/DailyWorklogQaPage').then((module) => ({ default: module.DailyWorklogQaPage }))
 );
+const ShadowSchedulePage = lazy(() =>
+  import('./pages/ShadowSchedulePage').then((module) => ({ default: module.ShadowSchedulePage }))
+);
 
 function RouteLoadingFallback() {
   return (
@@ -71,6 +74,14 @@ export function App() {
             element={
               <ErrorBoundary fallbackViewName="Daily Worklog QA Harness">
                 <DailyWorklogQaPage />
+              </ErrorBoundary>
+            }
+          />
+          <Route
+            path="/projects/:projectId/shadow-schedule"
+            element={
+              <ErrorBoundary fallbackViewName="Shadow Schedule Preview">
+                <ShadowSchedulePage />
               </ErrorBoundary>
             }
           />

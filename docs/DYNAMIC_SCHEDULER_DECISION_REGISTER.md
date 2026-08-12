@@ -16,7 +16,7 @@ This register records both resolved policy and intentionally deferred future dec
 | D-08 | Retroactive worklogs | Self-edit until next working day 09:00 employee local | RESOLVED |
 | D-09 | Missing worklog | No inference; status and manager notification only | RESOLVED |
 | D-10 | Meetings/outside/company duty | Minute Actual plus category-specific evidence; no schedule extension in Checkpoint 2 | RESOLVED |
-| D-11 | Dependency migration | Candidate-only, manager-reviewed | Recommended |
+| D-11 | Dependency migration | Candidate-only, manager-reviewed; only CONFIRMED enters Shadow engine | RESOLVED |
 | D-12 | Cross-project priority | Manager-defined project priority with stable tie-breakers | RESOLVED |
 | D-13 | Primary absence | Manager assigns effective-dated temporary Primary | RESOLVED |
 | D-14 | Notification recipients/channels | In-app immediate + daily manager digest; messenger later | RESOLVED |
@@ -29,6 +29,7 @@ This register records both resolved policy and intentionally deferred future dec
 | D-21 | Date-based auto completion | Abolished; overdue preserves stored actual and no completion time | RESOLVED |
 | D-22 | Corrections | Append Correction Event; never overwrite accepted actual facts | RESOLVED |
 | D-23 | Test actor and executives | `TEST_SELECTOR`; CEO/COO view and print only | RESOLVED |
+| D-24 | Checkpoint 3A schedule effect | Shadow compute/preview only; official Forecast/Baseline immutable | RESOLVED |
 
 ## D-01 — Authenticated actor
 

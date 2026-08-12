@@ -149,4 +149,21 @@ describe('Scheduler Integrity Health Error Injection Unit Suite', () => {
     expect(versionWithMetadata.data.deployed_at).toBe(metadata.DEPLOYED_AT);
     expect(buildWithMetadata.data.builtAt).toBe(metadata.BUILD_TIMESTAMP);
   });
+
+  it('7. Dependency review feature flag disables every dependency mutation route', async () => {
+    const env = { DB: {}, DYNAMIC_SCHEDULER_DEPENDENCY_REVIEW_ENABLED: 'false' } as any;
+    for (const path of [
+      '/api/v3/dependencies/proposals/generate',
+      '/api/v3/dependencies/dep-1/confirm',
+      '/api/v3/dependencies/dep-1/reject',
+      '/api/v3/dependencies/batch-review',
+    ]) {
+      const response = await worker.fetch(new Request(`https://scheduler.test${path}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'Idempotency-Key': `disabled-${path}` }, body: '{}',
+      }), env);
+      const body: any = await response.json();
+      expect(response.status).toBe(503);
+      expect(body.error.code).toBe('DEPENDENCY_REVIEW_DISABLED');
+    }
+  });
 });

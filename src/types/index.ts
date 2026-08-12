@@ -85,6 +85,7 @@ export interface Worker {
   ui_language?: UiLanguage;
   can_manage_country_calendar?: number;
   can_manage_integrations?: number;
+  can_manage_schedule_engine?: number;
   created_at?: string;
   updated_at?: string;
 }
@@ -544,6 +545,104 @@ export interface ApiResponse<T> {
     code?: string;
     details?: any;
   };
+}
+
+export type ShadowDataConfidence = 'HIGH' | 'PROVISIONAL' | 'LOW' | 'BLOCKED';
+export type ShadowApprovalClassification = 'AUTO_APPLY_ELIGIBLE' | 'APPROVAL_REQUIRED' | 'BLOCKED' | 'NO_CHANGE';
+
+export interface TaskDependency {
+  dependency_id: string;
+  project_id: string;
+  predecessor_task_id: string;
+  successor_task_id: string;
+  dependency_type: 'FINISH_TO_START';
+  lag_work_minutes: number;
+  status: 'PROPOSED' | 'CONFIRMED' | 'REJECTED' | 'DISABLED';
+  confidence_score: number;
+  confidence_level: 'HIGH' | 'MEDIUM' | 'LOW';
+  proposal_evidence_json: string;
+  predecessor_name?: string;
+  predecessor_wbs?: number;
+  successor_name?: string;
+  successor_wbs?: number;
+  confirmed_by_name?: string | null;
+  confirmed_at?: string | null;
+  rejection_reason?: string | null;
+}
+
+export interface ShadowScheduleVersion {
+  shadow_version_id: string;
+  run_id: string;
+  project_id: string;
+  shadow_version_number: number;
+  baseline_start_date: string | null;
+  baseline_end_date: string | null;
+  official_forecast_start_date: string | null;
+  official_forecast_end_date: string | null;
+  shadow_forecast_start_date: string | null;
+  shadow_forecast_end_date: string | null;
+  schedule_variance_workdays: number;
+  approval_classification: ShadowApprovalClassification;
+  approval_reasons_json: string;
+  data_confidence: ShadowDataConfidence;
+  status: 'CURRENT' | 'STALE' | 'INVALIDATED' | 'BLOCKED' | 'EXPIRED';
+}
+
+export interface ShadowScheduleTask {
+  shadow_task_id: string;
+  shadow_version_id: string;
+  project_id: string;
+  task_id: string;
+  employee_id: string | null;
+  baseline_start: string | null;
+  baseline_end: string | null;
+  official_forecast_start: string | null;
+  official_forecast_end: string | null;
+  shadow_start: string | null;
+  shadow_end: string | null;
+  delta_start_workdays: number;
+  delta_end_workdays: number;
+  remaining_minutes: number;
+  constraint_result: string;
+  impact_reason_codes_json: string;
+  approval_required: number;
+  data_confidence: ShadowDataConfidence;
+  task_name: string;
+  task_name_ko?: string | null;
+  task_name_vi?: string | null;
+  task_sort_order: number;
+  project_name: string;
+  project_name_ko?: string | null;
+  project_name_vi?: string | null;
+  employee_name?: string | null;
+  current_progress?: number;
+}
+
+export interface ShadowRunView {
+  run: null | {
+    run_id: string;
+    engine_version: string;
+    input_fingerprint: string;
+    result_fingerprint: string;
+    based_on_forecast_version: number | null;
+    source_worklog_id: string | null;
+    source_revision_id: string | null;
+    planning_cutoff_utc: string;
+    status: 'COMPLETED' | 'BLOCKED' | 'FAILED';
+    data_confidence: ShadowDataConfidence;
+    affected_project_count: number;
+    affected_task_count: number;
+    completed_at: string | null;
+    validation_summary_json?: string;
+  };
+  versions: ShadowScheduleVersion[];
+  tasks: ShadowScheduleTask[];
+  allocations: Array<Record<string, unknown>>;
+  impacts: Array<Record<string, any>>;
+  diffs: Array<Record<string, any>>;
+  reused?: boolean;
+  authorityStale?: boolean;
+  officialForecastChanged: false;
 }
 
 export interface IntegrationApiKey {

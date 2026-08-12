@@ -25,47 +25,34 @@ test.describe('Holiday Exclusion & Date Info Panel E2E Visual Verification', () 
   });
 
   test('Capture Task Workday Summary & Warning Removed', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/projects/v3qa_project_main');
     await page.waitForLoadState('networkidle');
 
-    // Handle initial worker prompt modal if open
-    const workerOption = page.locator('[data-testid="worker-option-wrk_01"]').or(page.locator('[data-testid^="worker-option-"]')).first();
-    if (await workerOption.isVisible()) {
-      await workerOption.click();
-    }
-
-    // Navigate to first active project or test project
-    const projectCard = page.locator('[data-testid^="project-card-"]').first();
-    if (await projectCard.isVisible()) {
-      await projectCard.click();
-    }
-    await page.waitForLoadState('networkidle');
-
-    // Handle worker prompt if it appears in detail page
-    if (await workerOption.isVisible()) {
-      await workerOption.click();
+    // Fixture assignees are intentionally not normal production workers, so
+    // Project Detail may ask for the test actor again. Keep the actor exact.
+    const managerOption = page.locator('[data-testid="worker-option-wrk_02"]');
+    if (await managerOption.isVisible()) {
+      await managerOption.click();
     }
 
     // Open Add Task Modal
     const addTaskBtn = page.locator('[data-testid="add-task-btn"]');
-    if (await addTaskBtn.isVisible()) {
-      await addTaskBtn.click();
-    }
+    await expect(addTaskBtn).toBeVisible();
+    await addTaskBtn.click();
 
     // Fill dates to compute workday breakdown
-    const startDateInput = page.locator('[data-testid="task-start-date"]');
-    if (await startDateInput.isVisible()) {
-      await startDateInput.fill('2026-08-03');
-      await page.locator('[data-testid="task-end-date"]').fill('2026-08-07');
+    const startDateInput = page.locator('[data-testid="task-start-date-input"]');
+    await expect(startDateInput).toBeVisible();
+    await startDateInput.fill('2026-08-03');
+    await page.locator('[data-testid="task-end-date-input"]').fill('2026-08-07');
 
-      // Verify task-workday-summary is visible
-      const summary = page.locator('[data-testid="task-workday-summary"]');
-      await expect(summary).toBeVisible();
+    // Verify task-workday-summary is visible
+    const summary = page.getByText('주 담당자(PIC) 기준 근무일수:');
+    await expect(summary).toBeVisible();
 
-      // Verify old yellow warning notice is NOT present
-      const oldNotice = page.locator('[data-testid="task-non-working-days-notice"]');
-      await expect(oldNotice).toHaveCount(0);
-    }
+    // Verify old yellow warning notice is NOT present
+    const oldNotice = page.locator('[data-testid="task-non-working-days-notice"]');
+    await expect(oldNotice).toHaveCount(0);
 
     // Capture Screenshot 1: task-workday-summary.png
     await page.screenshot({
@@ -84,14 +71,11 @@ test.describe('Holiday Exclusion & Date Info Panel E2E Visual Verification', () 
   });
 
   test('Capture DateHeaderInfoPanel Saturday KR/VN cards & Lock badge', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/projects/v3qa_project_main');
     await page.waitForLoadState('networkidle');
 
-    const projectCard = page.locator('[data-testid^="project-card-"]').first();
-    if (await projectCard.isVisible()) {
-      await projectCard.click();
-    }
-    await page.waitForLoadState('networkidle');
+    const managerOption = page.locator('[data-testid="worker-option-wrk_02"]');
+    if (await managerOption.isVisible()) await managerOption.click();
 
     // Click on date header (e.g., Saturday date header or trigger panel)
     const dateHeader = page.locator('[data-testid^="date-header-"]').first();
@@ -127,14 +111,11 @@ test.describe('Holiday Exclusion & Date Info Panel E2E Visual Verification', () 
 
   test('Capture Mobile Date Info Sheet & Worker Utilization Badge', async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 812 });
-    await page.goto('/');
+    await page.goto('/projects/v3qa_project_main');
     await page.waitForLoadState('networkidle');
 
-    const projectCard = page.locator('[data-testid^="project-card-"]').first();
-    if (await projectCard.isVisible()) {
-      await projectCard.click();
-    }
-    await page.waitForLoadState('networkidle');
+    const managerOption = page.locator('[data-testid="worker-option-wrk_02"]');
+    if (await managerOption.isVisible()) await managerOption.click();
 
     // Capture Screenshot 7: worker-utilization-badge.png
     const badge = page.locator('[data-testid="worker-utilization-badge"]').first();

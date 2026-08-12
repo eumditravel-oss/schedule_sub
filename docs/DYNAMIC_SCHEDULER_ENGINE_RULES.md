@@ -18,6 +18,8 @@
 14. Employee input increments are 30 minutes; audited manager corrections are 15 minutes. Interval input rejects overlap, lunch intersection, invalid order, and duration mismatch.
 15. Effective capacity is centralized office capacity (VN 480/KR 420) after work-calendar and deduplicated capacity events. `abs(actual-capacity) <= 30` is normal; shortage beyond 30 requires a gap reason; excess creates a pending overtime candidate.
 16. Self edit closes at 09:00 on the next valid employee workday. Initial retroactive EOD is retained as `RETROACTIVE_PENDING_REVIEW`; later self revisions create a correction request rather than overwriting facts.
+17. Checkpoint 3A consumes only confirmed dependencies and produces Shadow-only dates. It hashes official source rows before and after persistence; it cannot write official Forecast/Baseline/date/progress tables.
+18. Primary remaining is authoritative and Support Actual is never deducted again. Collision order is started → Fixed/Milestone → manager priority → official start → due → WBS → Task ID.
 
 ## 1. Engine contract
 

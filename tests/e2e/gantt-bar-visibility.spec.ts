@@ -92,13 +92,16 @@ test.describe('P0 Gantt Bar Visibility & Alignment E2E Tests', () => {
       return {
         backgroundColor: style.backgroundColor,
         borderTopWidth: style.borderTopWidth,
+        boxShadow: style.boxShadow,
         display: style.display,
       };
     });
 
     expect(trackStyles.backgroundColor).not.toBe('rgba(0, 0, 0, 0)');
     expect(trackStyles.backgroundColor).not.toBe('transparent');
-    expect(trackStyles.borderTopWidth).not.toBe('0px');
+    // The production track intentionally uses an inset box-shadow instead of a
+    // border so percentage geometry stays aligned with day-grid boundaries.
+    expect(trackStyles.borderTopWidth !== '0px' || trackStyles.boxShadow !== 'none').toBe(true);
 
     await page.screenshot({ path: path.join(SCREENSHOT_DIR, 'gantt-zero-progress-visible.png') });
     expect(pageErrors.length).toBe(0);
