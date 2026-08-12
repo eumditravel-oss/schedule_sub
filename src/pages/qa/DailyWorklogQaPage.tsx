@@ -58,7 +58,14 @@ export function DailyWorklogQaPage() {
         const full = await api.getWorklog(next.worklog.id);
         setWorklog(full);
         const taskId = next.scheduled_tasks?.[0]?.task_id;
-        if (taskId) setActual(await api.getTaskActual(taskId));
+        const taskActual = taskId ? await api.getTaskActual(taskId) : null;
+        setActual(taskActual);
+        setForm((previous) => ({
+          ...previous,
+          actual: Number(next.worklog.actual_recorded_minutes ?? previous.actual),
+          progress: Number(taskActual?.aggregate?.current_progress ?? previous.progress),
+          remaining: Number(taskActual?.aggregate?.remaining_estimated_minutes ?? previous.remaining),
+        }));
       } else {
         setWorklog(null); setActual(null);
       }
@@ -141,6 +148,13 @@ export function DailyWorklogQaPage() {
             </div>
             <div className="mt-4 grid gap-3 md:grid-cols-2"><label className="text-xs font-bold text-slate-500">{t.gap}<input value={form.gap} onChange={(event) => setForm({ ...form, gap: event.target.value })} className="mt-1 w-full rounded-lg border px-3 py-2 text-sm text-slate-900" /></label><label className="text-xs font-bold text-slate-500">{t.overtime}<input value={form.overtime} onChange={(event) => setForm({ ...form, overtime: event.target.value })} className="mt-1 w-full rounded-lg border px-3 py-2 text-sm text-slate-900" /></label></div>
             <div className="mt-4 flex flex-wrap items-center gap-2"><button data-testid="qa-submit-morning" disabled={busy || isReadOnly || !task} onClick={submitMorning} className="rounded-lg bg-sky-600 px-4 py-2 text-sm font-black text-white disabled:opacity-40">{t.morning}</button><button data-testid="qa-submit-eod" disabled={busy || isReadOnly || !task} onClick={submitEod} className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-black text-white disabled:opacity-40">{t.eod}</button><span data-testid="qa-variance" className={`rounded-lg px-3 py-2 text-xs font-bold ${gap ? 'bg-amber-100 text-amber-800' : overtime ? 'bg-rose-100 text-rose-800' : 'bg-emerald-100 text-emerald-800'}`}>Variance {variance > 0 ? '+' : ''}{variance} · {gap ? 'GAP_REASON_REQUIRED' : overtime ? 'PENDING_REVIEW' : 'NORMAL_RANGE'}</span></div>
+            <div data-testid="qa-stored-fact" className="mt-4 grid gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs sm:grid-cols-2 lg:grid-cols-5">
+              <StoredMetric label="Stored status" value={context?.worklog?.status || 'NOT_CREATED'} />
+              <StoredMetric label="Stored Actual" value={`${Number(context?.worklog?.actual_recorded_minutes || 0)} min`} />
+              <StoredMetric label="Stored Capacity" value={`${Number(context?.worklog?.capacity_minutes ?? capacity)} min`} />
+              <StoredMetric label="Gap" value={Number(context?.worklog?.has_gap) === 1 ? `${context?.worklog?.gap_reason_code || 'REASON_RECORDED'}` : 'NONE'} />
+              <StoredMetric label="Overtime" value={Number(context?.worklog?.overtime_candidate_minutes || 0) > 0 ? `${context.worklog.overtime_candidate_minutes} min · ${context.worklog.overtime_approval_status}` : 'NONE'} />
+            </div>
           </div>
           <div className="space-y-4">
             <Panel icon={<Database className="h-4 w-4" />} title={t.aggregate} testId="qa-aggregate"><pre>{JSON.stringify(actual?.aggregate || {}, null, 2)}</pre></Panel>
@@ -156,3 +170,4 @@ export function DailyWorklogQaPage() {
 function Card({ label, value, testId }: { label: string; value: string; testId: string }) { return <div data-testid={testId} className="rounded-xl border bg-white p-4"><p className="text-xs font-bold text-slate-500">{label}</p><p className="mt-2 break-words text-sm font-black">{value}</p></div>; }
 function Field({ label, value, onChange, disabled, testId }: { label: string; value: number; onChange: (value: string) => void; disabled?: boolean; testId: string }) { return <label className="text-xs font-bold text-slate-500">{label}<input data-testid={testId} type="number" value={value} disabled={disabled} onChange={(event) => onChange(event.target.value)} className="mt-1 w-full rounded-lg border px-3 py-2 text-sm text-slate-900 disabled:bg-slate-100" /></label>; }
 function Panel({ icon, title, children, testId }: React.PropsWithChildren<{ icon: React.ReactNode; title: string; testId: string }>) { return <div data-testid={testId} className="rounded-xl border bg-white p-4 shadow-sm"><h3 className="mb-3 flex items-center gap-2 text-sm font-black">{icon}{title}</h3><div className="max-h-48 overflow-auto text-[10px]">{children}</div></div>; }
+function StoredMetric({ label, value }: { label: string; value: string }) { return <div><p className="font-bold text-slate-500">{label}</p><p className="mt-1 break-words font-black text-slate-900">{value}</p></div>; }
