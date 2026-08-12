@@ -3681,11 +3681,68 @@ function addPureCalendarDays(dateStr: string, deltaDays: number): string {
         const { results } = await stmt.all();
         const rawTasks = results || [];
         const taskIds = rawTasks.map((t: any) => t.id);
-        const assigneesMap = await fetchTaskAssigneesMapServer(db, taskIds);
-        const tasks = rawTasks.map((t: any) => ({
-          ...t,
-          assignees: assigneesMap[t.id] || [],
-        }));
+        const [assigneesMap, projectsRes, dailyStatusesRes, legacyActualsRes, calendarBatch] = await Promise.all([
+          fetchTaskAssigneesMapServer(db, taskIds),
+          db.prepare(`SELECT id, status FROM projects`).all(),
+          db.prepare(`SELECT task_id, work_date, status FROM daily_status`).all(),
+          db.prepare(
+            `SELECT task_id, cutover_date, source_type, source_detail, legacy_progress_source,
+                    existing_progress, actual_progress, remaining_effort_minutes, bootstrap_rule,
+                    exception_code, generated_by, display_label_ko, display_label_vi, created_at
+             FROM task_actuals
+             WHERE source_type = 'LEGACY_BOOTSTRAP'
+             ORDER BY task_id, created_at`
+          ).all().catch(() => ({ results: [] })),
+          fetchCalendarBatchData(db),
+        ]);
+
+        const projectStatusMap = new Map<string, 'ACTIVE' | 'COMPLETED'>(
+          (projectsRes.results || []).map((project: any) => [
+            String(project.id),
+            project.status === 'COMPLETED' ? 'COMPLETED' : 'ACTIVE',
+          ]),
+        );
+        const dailyStatusMap: Record<string, Record<string, string>> = {};
+        for (const row of dailyStatusesRes.results || []) {
+          if (!dailyStatusMap[row.task_id]) dailyStatusMap[row.task_id] = {};
+          dailyStatusMap[row.task_id][row.work_date] = row.status;
+        }
+        const legacyBootstrapMap = new Map<string, any>();
+        for (const row of legacyActualsRes.results || []) {
+          legacyBootstrapMap.set(row.task_id, row);
+        }
+
+        // The overview print reports consume this collection endpoint. Return
+        // the same Actual/Status projection as project detail so a completed
+        // Legacy Bootstrap task cannot become "not started / 0%" in print.
+        const tasks = rawTasks.map((t: any) => {
+          const legacyBootstrap = legacyBootstrapMap.get(t.id) || null;
+          const assignees = assigneesMap[t.id] || [];
+          const taskWithActual = {
+            ...t,
+            actual_progress: legacyBootstrap?.actual_progress ?? t.actual_progress ?? t.progress ?? 0,
+            assignees,
+            assignee_ids: assignees.map((assignee: any) => assignee.worker_id),
+            primary_worker_id: t.primary_worker_id || (assignees.find((assignee: any) => assignee.assignment_role === 'PRIMARY')?.worker_id || assignees[0]?.worker_id),
+            progress_mode: t.progress_mode || 'AUTO_TIME',
+            availability_policy: t.availability_policy || 'ANY_AVAILABLE',
+          };
+          const progressMetrics = calculateTaskProgressServer(
+            taskWithActual,
+            calendarBatch.workers,
+            calendarBatch.holidays,
+            calendarBatch.overrides,
+            projectStatusMap.get(t.project_id) || 'ACTIVE',
+            dailyStatusMap[t.id] || {},
+          );
+          return {
+            ...taskWithActual,
+            ...progressMetrics,
+            legacy_bootstrap_info: legacyBootstrap,
+            is_legacy_bootstrap: Boolean(legacyBootstrap),
+            daily_statuses: dailyStatusMap[t.id] || {},
+          };
+        });
         return jsonResponse(tasks);
       }
 

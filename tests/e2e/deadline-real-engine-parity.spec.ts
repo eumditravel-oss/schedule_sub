@@ -152,5 +152,19 @@ test.describe('Deadline Real Engine Parity Suite (Single Source Integrity)', () 
     const statusProgress = Number(statusTask.actual_progress ?? statusTask.progress ?? 0);
     expect(statusProgress).toBeLessThan(100);
     expect(statusTask.schedule_state).toBe('DELAYED');
+
+    // Portfolio print reports load the collection endpoint. It must expose the
+    // same Actual/Status projection as project detail rather than raw DB fields.
+    const collectionRes = await fetch(`${QA_BASE_URL}/api/tasks?project_id=${activeProjectId}`);
+    expect(collectionRes.status).toBe(200);
+    const collectionJson: any = await collectionRes.json();
+    const collectionTasks: any[] = collectionJson.data || collectionJson || [];
+    const collectionAutoTask = collectionTasks.find((t: any) => t.id === autoTaskId);
+    const collectionStatusTask = collectionTasks.find((t: any) => t.id === statusTaskId);
+
+    expect(collectionAutoTask?.actual_progress).toBe(autoProgress);
+    expect(collectionAutoTask?.schedule_state).toBe(autoTask.schedule_state);
+    expect(collectionStatusTask?.actual_progress).toBe(statusProgress);
+    expect(collectionStatusTask?.schedule_state).toBe(statusTask.schedule_state);
   });
 });
