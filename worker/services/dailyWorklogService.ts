@@ -179,7 +179,7 @@ async function calendarData(db: any) {
   return { holidays: holidays.results || [], overrides: overrides.results || [] };
 }
 
-export async function getDailyCapacity(db: any, employeeId: string, localWorkDate: string) {
+export async function getDailyCapacity(db: any, employeeId: string, localWorkDate: string, excludeWorklogId?: string) {
   if (!isoDate.test(localWorkDate)) throw new WorklogError('INVALID_LOCAL_WORK_DATE');
   const { worker, policy } = await getPolicyAndWorker(db, employeeId);
   const { holidays, overrides } = await calendarData(db);
@@ -188,8 +188,9 @@ export async function getDailyCapacity(db: any, employeeId: string, localWorkDat
   const events = await db.prepare(
     `SELECT * FROM employee_capacity_events
      WHERE employee_id = ? AND local_work_date = ? AND approval_status IN ('EFFECTIVE','APPROVED')
+       AND (? IS NULL OR worklog_id IS NULL OR worklog_id <> ?)
      ORDER BY created_at, id`
-  ).bind(employeeId, localWorkDate).all();
+  ).bind(employeeId, localWorkDate, excludeWorklogId || null, excludeWorklogId || null).all();
   const uniqueEvents = new Map<string, any>();
   for (const event of events.results || []) uniqueEvents.set(`${event.source_type}:${event.source_reference_id}`, event);
   const adjustment = base === 0 ? 0 : Array.from(uniqueEvents.values()).reduce((sum, event) => sum + Number(event.adjustment_minutes || 0), 0);
@@ -443,7 +444,12 @@ async function submitEodRevision(db: any, actor: WorklogActor, worklog: any, bod
   const { validated, policy } = await validateEodEntries(db, worklog.employee_id, worklog.local_work_date, entries, isManager, increment);
   const leaveMinutes = validated.filter((entry) => LEAVE_CATEGORIES.has(entry.work_category)).reduce((sum, entry) => sum + entry.actual_minutes, 0);
   const actualMinutes = validated.filter((entry) => !LEAVE_CATEGORIES.has(entry.work_category)).reduce((sum, entry) => sum + entry.actual_minutes, 0);
-  const capacityBeforeLeave = await getDailyCapacity(db, worklog.employee_id, worklog.local_work_date);
+  const capacityBeforeLeave = await getDailyCapacity(
+    db,
+    worklog.employee_id,
+    worklog.local_work_date,
+    mode === 'INITIAL_EOD' ? undefined : worklog.id,
+  );
   const effectiveCapacity = capacityBeforeLeave.base_capacity_minutes === 0
     ? 0 : Math.max(0, capacityBeforeLeave.effective_capacity_minutes - leaveMinutes);
   const variance = actualMinutes - effectiveCapacity;
