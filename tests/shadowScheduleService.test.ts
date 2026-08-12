@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   expandSharedEmployeeTaskClosure,
+  firstPositiveActualContribution,
   findMissingWorklogDates,
   recordedWorkTimestampUtc,
   worklogHasShadowDataGap,
@@ -21,6 +22,13 @@ describe('Checkpoint 3A Shadow service timestamp mapping', () => {
 
     expect(recordedWorkTimestampUtc(lateRevision, employee, 'START')).toBe('2026-08-10T00:00:00.000Z');
     expect(recordedWorkTimestampUtc(lateRevision, employee, 'END')).toBe('2026-08-10T08:00:00.000Z');
+  });
+
+  it('uses the first positive Actual contribution, not an earlier zero-minute EOD row', () => {
+    expect(firstPositiveActualContribution([
+      { local_work_date: '2026-08-10', approved_actual_minutes: 0 },
+      { local_work_date: '2026-08-11', approved_actual_minutes: 120 },
+    ])?.local_work_date).toBe('2026-08-11');
   });
 
   it('returns null when the recorded work date or employee calendar is unavailable', () => {

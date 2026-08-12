@@ -187,6 +187,10 @@ export function worklogHasShadowDataGap(worklog: { has_gap?: unknown }): boolean
   return Number(worklog.has_gap || 0) === 1;
 }
 
+export function firstPositiveActualContribution<T extends { approved_actual_minutes?: unknown }>(contributions: T[]): T | undefined {
+  return contributions.find((contribution) => Number(contribution.approved_actual_minutes || 0) > 0);
+}
+
 async function resolveShadowActor(db: any, actorContext: ActorContextServer, write = false): Promise<ShadowActor> {
   const employeeId = actorContext.actorEmployeeId || actorContext.actorUserId;
   if (!employeeId) throw new ShadowScheduleError('DEPENDENCY_PERMISSION_DENIED', 403);
@@ -357,7 +361,7 @@ async function buildShadowEngineInput(db: any, options: RunOptions): Promise<Sha
     const primary = assignments.find((assignment: any) => assignment.assignment_role === 'PRIMARY');
     const contributions = contributionsMap.get(task.id) || [];
     const completion = completionMap.get(task.id);
-    const firstContribution = contributions[0];
+    const firstContribution = firstPositiveActualContribution(contributions);
     const completionContribution = [...contributions].reverse().find((contribution: any) => Number(contribution.completion_reported) === 1);
     const startEmployee = firstContribution ? employeeMap.get(firstContribution.employee_id) : null;
     const completionEmployee = completionContribution ? employeeMap.get(completionContribution.employee_id) : null;
