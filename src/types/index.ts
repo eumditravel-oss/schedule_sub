@@ -602,6 +602,7 @@ export interface ShadowScheduleTask {
   delta_start_workdays: number;
   delta_end_workdays: number;
   remaining_minutes: number;
+  constraint_result: string;
   impact_reason_codes_json: string;
   approval_required: number;
   data_confidence: ShadowDataConfidence;
@@ -623,6 +624,8 @@ export interface ShadowRunView {
     input_fingerprint: string;
     result_fingerprint: string;
     based_on_forecast_version: number | null;
+    source_worklog_id: string | null;
+    source_revision_id: string | null;
     planning_cutoff_utc: string;
     status: 'COMPLETED' | 'BLOCKED' | 'FAILED';
     data_confidence: ShadowDataConfidence;
@@ -637,6 +640,7 @@ export interface ShadowRunView {
   impacts: Array<Record<string, any>>;
   diffs: Array<Record<string, any>>;
   reused?: boolean;
+  authorityStale?: boolean;
   officialForecastChanged: false;
 }
 
