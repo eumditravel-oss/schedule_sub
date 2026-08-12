@@ -19,6 +19,8 @@ This overlay is authoritative where older proposal language differs.
 
 Checkpoint 1 created `schedule_versions`, `schedule_version_tasks`, Legacy Bootstrap `task_actuals`, `task_completion_events`, and `progress_snapshots`. Checkpoint 2 adds the Daily Worklog/Capacity/Actual contribution foundation described below; dependency movement, forecast recalculation, approval UI, notification UI, and the final employee drawer remain deferred.
 
+Checkpoint 3A adds reviewed dependency/constraint/priority inputs and a separate Shadow schedule model. `shadow_schedule_versions`, `shadow_schedule_tasks`, capacity allocations, diffs, and impact summaries are tentative computation records only. Official `schedule_versions`, official Task dates, Baseline, and Actual progress remain immutable. Apply/final approval/rejection/restore are deferred to Checkpoint 3B.
+
 ## Checkpoint 2 authoritative overlay
 
 - `daily_worklogs` is unique by `(employee_id, local_work_date)` and stores UTC submission timestamps separately from the employee-local work date.

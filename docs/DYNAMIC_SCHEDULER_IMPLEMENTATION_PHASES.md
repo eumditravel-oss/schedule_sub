@@ -12,9 +12,11 @@ Checkpoint 0.5 and Checkpoint 1 Foundation are authorized now, in strict order:
 6. verify QA;
 7. backup, apply, deploy, and verify the current test-LIVE environment.
 
-Any unexplained ledger/schema difference, `UNKNOWN`, or unsafe `PARTIALLY_APPLIED` stops the sequence. Checkpoint 2 implements Daily Worklog APIs and the minimal QA Harness only. The final Daily Worklog drawer, schedule recalculation engine, approval UI, notifications, dependency automation, messenger integration, and real authentication remain explicitly excluded.
+Any unexplained ledger/schema difference, `UNKNOWN`, or unsafe `PARTIALLY_APPLIED` stops the sequence. Checkpoint 2 implements Daily Worklog APIs and the minimal QA Harness. Checkpoint 3A implements dependency proposal/review inputs, deterministic Shadow recalculation, Before/After preview, and official-data invariance. Official apply, approval/rejection finalization, restore, schedule-adjustment application, notifications, messenger integration, and real authentication remain excluded.
 
 Checkpoint 2 deliverables: 0027 additive schema, centralized office capacity, Morning/EOD/revision/correction APIs, Primary/Support/Executive guards, effective Actual contribution aggregation, idempotency, and `/qa/daily-worklog`. No scheduling date mutation is authorized.
+
+Checkpoint 3A deliverables: 0028 additive schema, pure integer-minute engine, candidate-only dependencies with manager review, Task constraints/project priority, employee calendar capacity, Shadow versions/diffs/allocations/impact summaries, `/projects/:projectId/shadow-schedule`, and A–Z tests. Official apply flag is false and no apply endpoint exists.
 
 Resolved implementation policy for this checkpoint:
 

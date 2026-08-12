@@ -23,6 +23,10 @@
 - Keep the current UI/API operational during a staged dual-read/dual-write transition.
 - Permit rollback before and after feature activation.
 
+### Checkpoint 3A executable migration
+
+`0028_shadow_schedule_recalculation.sql` is the additive Shadow domain/result migration. `0029_shadow_engine_idempotency.sql` adds the manager-write replay ledger after QA-side API boundary review. They contain no `DROP`, Baseline/Forecast/date/progress update, Actual deletion, Worklog revision deletion, official apply pointer, or schedule-adjustment application.
+
 Execution status is recorded per environment in the release evidence. The design text below does not itself authorize replay of any SQL; only the guarded QA → Production procedure in this checkpoint does.
 
 ## 2. Current schema constraints

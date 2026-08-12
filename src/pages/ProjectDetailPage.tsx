@@ -1887,6 +1887,16 @@ export const ProjectDetailPage: React.FC = () => {
               lang={lang}
             />
 
+            <button
+              type="button"
+              data-testid="shadow-schedule-preview-btn"
+              onClick={() => navigate(`/projects/${projectId}/shadow-schedule`)}
+              className="h-9 px-3 rounded-lg border border-orange-200 bg-orange-50 hover:bg-orange-100 text-orange-700 font-bold text-xs flex items-center gap-1.5 transition shadow-xs"
+            >
+              <Calendar className="w-4 h-4" />
+              <span>{lang === 'vi' ? 'Xem ảnh hưởng lịch' : '일정 영향 미리보기'}</span>
+            </button>
+
             <WorkerUtilizationBadge
               worker={currentWorker}
               tasks={tasks}

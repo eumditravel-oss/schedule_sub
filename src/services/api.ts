@@ -1,5 +1,5 @@
 // src/services/api.ts
-import { ActorContext, ApiResponse, Project, ProjectProgressFoundation, Task, TaskGroup, Worker, DailyStatusType, CountryHoliday, CalendarOverride, ProjectWorkerAllocation } from '../types';
+import { ActorContext, ApiResponse, Project, ProjectProgressFoundation, Task, TaskGroup, Worker, DailyStatusType, CountryHoliday, CalendarOverride, ProjectWorkerAllocation, ShadowRunView, TaskDependency } from '../types';
 
 const WORKER_ID_KEY = 'schedule_current_worker_id';
 const WORKER_NAME_KEY = 'schedule_current_worker_name';
@@ -124,6 +124,93 @@ async function handleResponse<T>(res: Response): Promise<T> {
 }
 
 export const api = {
+  async getDependencies(projectId?: string, status?: string): Promise<{ dependencies: TaskDependency[]; permissions: { canReview: boolean; readOnly: boolean } }> {
+    const params = new URLSearchParams();
+    if (projectId) params.set('project_id', projectId);
+    if (status) params.set('status', status);
+    const res = await fetch(`/api/v3/dependencies?${params}`, { headers: getWriteHeaders() });
+    return handleResponse(res);
+  },
+
+  async generateDependencyProposals(projectId: string): Promise<any> {
+    const res = await fetch('/api/v3/dependencies/proposals/generate', {
+      method: 'POST', headers: withIdempotencyKey(), body: JSON.stringify({ project_id: projectId }),
+    });
+    return handleResponse(res);
+  },
+
+  async confirmDependency(dependencyId: string, lagWorkMinutes = 0): Promise<any> {
+    const res = await fetch(`/api/v3/dependencies/${encodeURIComponent(dependencyId)}/confirm`, {
+      method: 'POST', headers: withIdempotencyKey(), body: JSON.stringify({ lag_work_minutes: lagWorkMinutes }),
+    });
+    return handleResponse(res);
+  },
+
+  async rejectDependency(dependencyId: string, reason: string): Promise<any> {
+    const res = await fetch(`/api/v3/dependencies/${encodeURIComponent(dependencyId)}/reject`, {
+      method: 'POST', headers: withIdempotencyKey(), body: JSON.stringify({ reason }),
+    });
+    return handleResponse(res);
+  },
+
+  async batchReviewDependencies(dependencyIds: string[], action: 'CONFIRM' | 'REJECT', options?: { lagWorkMinutes?: number; reason?: string }): Promise<any> {
+    const res = await fetch('/api/v3/dependencies/batch-review', {
+      method: 'POST', headers: withIdempotencyKey(), body: JSON.stringify({
+        dependency_ids: dependencyIds, action,
+        lag_work_minutes: options?.lagWorkMinutes, reason: options?.reason,
+      }),
+    });
+    return handleResponse(res);
+  },
+
+  async getTaskConstraints(taskId: string): Promise<any[]> {
+    const res = await fetch(`/api/v3/tasks/${encodeURIComponent(taskId)}/constraints`, { headers: getWriteHeaders() });
+    return handleResponse(res);
+  },
+
+  async setTaskConstraint(taskId: string, payload: any): Promise<any> {
+    const res = await fetch(`/api/v3/tasks/${encodeURIComponent(taskId)}/constraints`, {
+      method: 'POST', headers: withIdempotencyKey(), body: JSON.stringify(payload),
+    });
+    return handleResponse(res);
+  },
+
+  async getProjectPriorities(): Promise<any> {
+    const res = await fetch('/api/v3/project-priorities', { headers: getWriteHeaders() });
+    return handleResponse(res);
+  },
+
+  async setProjectPriority(payload: any): Promise<any> {
+    const res = await fetch('/api/v3/project-priorities', {
+      method: 'POST', headers: withIdempotencyKey(), body: JSON.stringify(payload),
+    });
+    return handleResponse(res);
+  },
+
+  async validateShadowSchedule(payload: any): Promise<any> {
+    const res = await fetch('/api/v3/schedule-shadow/validate', {
+      method: 'POST', headers: getWriteHeaders(), body: JSON.stringify(payload),
+    });
+    return handleResponse(res);
+  },
+
+  async runShadowSchedule(payload: any, idempotencyKey?: string): Promise<ShadowRunView> {
+    const res = await fetch('/api/v3/schedule-shadow/runs', {
+      method: 'POST', headers: withIdempotencyKey(idempotencyKey), body: JSON.stringify(payload),
+    });
+    return handleResponse(res);
+  },
+
+  async getShadowRun(runId: string): Promise<ShadowRunView> {
+    const res = await fetch(`/api/v3/schedule-shadow/runs/${encodeURIComponent(runId)}`, { headers: getWriteHeaders() });
+    return handleResponse(res);
+  },
+
+  async getCurrentProjectShadow(projectId: string): Promise<ShadowRunView> {
+    const res = await fetch(`/api/v3/schedule-shadow/projects/${encodeURIComponent(projectId)}/current`, { headers: getWriteHeaders() });
+    return handleResponse(res);
+  },
+
   async getWorklogContext(employeeId: string, localWorkDate: string, signal?: AbortSignal): Promise<any> {
     const params = new URLSearchParams({ employee_id: employeeId, local_work_date: localWorkDate });
     const res = await fetch(`/api/v3/worklogs/context?${params}`, { headers: getWriteHeaders(), signal });

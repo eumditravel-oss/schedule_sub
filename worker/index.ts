@@ -59,11 +59,25 @@ import {
   submitEod,
   submitMorning,
 } from './services/dailyWorklogService';
+import {
+  ShadowScheduleError,
+  generateDependencyCandidates,
+  getCurrentProjectShadow,
+  getShadowAllocations,
+  getShadowImpacts,
+  getShadowRun,
+  getTaskConstraints,
+  idempotentShadowMutation,
+  listDependencies,
+  listProjectPriorities,
+  reviewDependencies,
+  runShadowForActor,
+  setProjectPriority,
+  setTaskConstraint,
+  validateShadowRun,
+} from './services/shadowScheduleService';
 
-export interface WorkerEnv {
-  DB: Env['DB'];
-  ASSETS?: Env['ASSETS'];
-  AI?: Env['AI'];
+export type WorkerEnv = Env & {
   KASI_HOLIDAY_API_KEY?: string;
   BUILD_SHA?: string;
   BUILD_TIMESTAMP?: string;
@@ -71,7 +85,9 @@ export interface WorkerEnv {
   DEPLOYED_AT?: string;
   V3_CUTOVER_DATE?: string;
   V3_SOURCE_SCHEMA_FINGERPRINT?: string;
-}
+  DYNAMIC_SCHEDULER_SHADOW_ENABLED?: string;
+  DYNAMIC_SCHEDULER_DEPENDENCY_REVIEW_ENABLED?: string;
+};
 
 function jsonResponse(data: any, status = 200) {
   return new Response(JSON.stringify({ success: true, data }), {
@@ -340,6 +356,11 @@ export default {
           commit: env.BUILD_SHA || 'unknown',
           builtAt: env.BUILD_TIMESTAMP || env.DEPLOYED_AT || null,
           environment: env.ENVIRONMENT_NAME || (isQa ? 'qa' : 'production'),
+          featureFlags: {
+            shadowEnabled: env.DYNAMIC_SCHEDULER_SHADOW_ENABLED === 'true',
+            dependencyReviewEnabled: env.DYNAMIC_SCHEDULER_DEPENDENCY_REVIEW_ENABLED === 'true',
+            officialApplyEnabled: String(env.DYNAMIC_SCHEDULER_OFFICIAL_APPLY_ENABLED) === 'true',
+          },
         });
       }
 
@@ -382,13 +403,29 @@ export default {
         const eodMatch = cleanPath.match(/^\/api\/v3\/worklogs\/([^/]+)\/eod$/);
         if (method === 'POST' && eodMatch) {
           const body: any = await request.json().catch(() => ({}));
-          return jsonResponse(await submitEod(db, actor, decodeURIComponent(eodMatch[1]), body, idempotencyKey, requestNow), 201);
+          return jsonResponse(await submitEod(
+            db,
+            actor,
+            decodeURIComponent(eodMatch[1]),
+            body,
+            idempotencyKey,
+            requestNow,
+            env.DYNAMIC_SCHEDULER_SHADOW_ENABLED === 'true',
+          ), 201);
         }
 
         const revisionMatch = cleanPath.match(/^\/api\/v3\/worklogs\/([^/]+)\/revisions$/);
         if (method === 'POST' && revisionMatch) {
           const body: any = await request.json().catch(() => ({}));
-          return jsonResponse(await reviseWorklog(db, actor, decodeURIComponent(revisionMatch[1]), body, idempotencyKey, requestNow), 201);
+          return jsonResponse(await reviseWorklog(
+            db,
+            actor,
+            decodeURIComponent(revisionMatch[1]),
+            body,
+            idempotencyKey,
+            requestNow,
+            env.DYNAMIC_SCHEDULER_SHADOW_ENABLED === 'true',
+          ), 201);
         }
 
         const correctionMatch = cleanPath.match(/^\/api\/v3\/worklogs\/([^/]+)\/correction-requests$/);
@@ -401,6 +438,75 @@ export default {
         if (method === 'GET' && getWorklogMatch) {
           return jsonResponse(await getWorklogForActor(db, actor, decodeURIComponent(getWorklogMatch[1])));
         }
+      }
+
+      // 0.0045 V3 Checkpoint 3A - Shadow schedule recalculation only.
+      // No official apply/approval/restore route exists in this checkpoint.
+      if (cleanPath.startsWith('/api/v3/dependencies') || cleanPath.startsWith('/api/v3/schedule-shadow') ||
+          cleanPath.startsWith('/api/v3/project-priorities') || /^\/api\/v3\/tasks\/[^/]+\/constraints$/.test(cleanPath)) {
+        const actorHeader = request.headers.get('x-actor-employee-id') || '';
+        const actorWorker = actorHeader ? await getActiveWorkerProfile(db, actorHeader) : null;
+        const actor = getActorContextServer(request, actorWorker);
+        const idempotencyKey = request.headers.get('Idempotency-Key')?.trim() || '';
+
+        if (method === 'GET' && cleanPath === '/api/v3/dependencies') {
+          return jsonResponse(await listDependencies(db, actor, Object.fromEntries(url.searchParams.entries())));
+        }
+        if (method === 'POST' && cleanPath === '/api/v3/dependencies/proposals/generate') {
+          if (env.DYNAMIC_SCHEDULER_DEPENDENCY_REVIEW_ENABLED !== 'true') return errorResponse('Dependency review is disabled.', 503, 'DEPENDENCY_REVIEW_DISABLED');
+          const body: any = await request.json().catch(() => ({}));
+          return jsonResponse(await idempotentShadowMutation(db, idempotencyKey, 'DEPENDENCY_PROPOSAL_GENERATE', body, () => generateDependencyCandidates(db, actor, body.project_id)), 201);
+        }
+        const dependencyConfirm = cleanPath.match(/^\/api\/v3\/dependencies\/([^/]+)\/confirm$/);
+        if (method === 'POST' && dependencyConfirm) {
+          const body: any = await request.json().catch(() => ({}));
+          return jsonResponse(await idempotentShadowMutation(db, idempotencyKey, 'DEPENDENCY_CONFIRM', { id: dependencyConfirm[1], ...body }, () => reviewDependencies(db, actor, [decodeURIComponent(dependencyConfirm[1])], 'CONFIRM', {
+            lagWorkMinutes: body.lag_work_minutes,
+          })));
+        }
+        const dependencyReject = cleanPath.match(/^\/api\/v3\/dependencies\/([^/]+)\/reject$/);
+        if (method === 'POST' && dependencyReject) {
+          const body: any = await request.json().catch(() => ({}));
+          return jsonResponse(await idempotentShadowMutation(db, idempotencyKey, 'DEPENDENCY_REJECT', { id: dependencyReject[1], ...body }, () => reviewDependencies(db, actor, [decodeURIComponent(dependencyReject[1])], 'REJECT', { reason: body.reason })));
+        }
+        if (method === 'POST' && cleanPath === '/api/v3/dependencies/batch-review') {
+          const body: any = await request.json().catch(() => ({}));
+          return jsonResponse(await idempotentShadowMutation(db, idempotencyKey, 'DEPENDENCY_BATCH_REVIEW', body, () => reviewDependencies(db, actor, Array.isArray(body.dependency_ids) ? body.dependency_ids : [], body.action, {
+            lagWorkMinutes: body.lag_work_minutes, reason: body.reason,
+          })));
+        }
+
+        const constraintsMatch = cleanPath.match(/^\/api\/v3\/tasks\/([^/]+)\/constraints$/);
+        if (constraintsMatch && method === 'GET') return jsonResponse(await getTaskConstraints(db, actor, decodeURIComponent(constraintsMatch[1])));
+        if (constraintsMatch && method === 'POST') {
+          const body: any = await request.json().catch(() => ({}));
+          return jsonResponse(await idempotentShadowMutation(db, idempotencyKey, 'TASK_CONSTRAINT_SET', { taskId: constraintsMatch[1], ...body }, () => setTaskConstraint(db, actor, decodeURIComponent(constraintsMatch[1]), body)), 201);
+        }
+
+        if (cleanPath === '/api/v3/project-priorities' && method === 'GET') return jsonResponse(await listProjectPriorities(db, actor));
+        if (cleanPath === '/api/v3/project-priorities' && method === 'POST') {
+          const body: any = await request.json().catch(() => ({}));
+          return jsonResponse(await idempotentShadowMutation(db, idempotencyKey, 'PROJECT_PRIORITY_SET', body, () => setProjectPriority(db, actor, body)));
+        }
+
+        if (cleanPath === '/api/v3/schedule-shadow/validate' && method === 'POST') {
+          const body: any = await request.json().catch(() => ({}));
+          return jsonResponse(await validateShadowRun(db, actor, body));
+        }
+        if (cleanPath === '/api/v3/schedule-shadow/runs' && method === 'POST') {
+          if (env.DYNAMIC_SCHEDULER_SHADOW_ENABLED !== 'true') return errorResponse('Shadow scheduling is disabled.', 503, 'SHADOW_SCHEDULER_DISABLED');
+          if (String(env.DYNAMIC_SCHEDULER_OFFICIAL_APPLY_ENABLED) !== 'false') return errorResponse('Official apply must remain disabled in Checkpoint 3A.', 503, 'OFFICIAL_APPLY_FLAG_INVALID');
+          const body: any = await request.json().catch(() => ({}));
+          return jsonResponse(await runShadowForActor(db, actor, body, idempotencyKey), 201);
+        }
+        const shadowRunMatch = cleanPath.match(/^\/api\/v3\/schedule-shadow\/runs\/([^/]+)$/);
+        if (method === 'GET' && shadowRunMatch) return jsonResponse(await getShadowRun(db, actor, decodeURIComponent(shadowRunMatch[1])));
+        const shadowImpactMatch = cleanPath.match(/^\/api\/v3\/schedule-shadow\/runs\/([^/]+)\/impacts$/);
+        if (method === 'GET' && shadowImpactMatch) return jsonResponse(await getShadowImpacts(db, actor, decodeURIComponent(shadowImpactMatch[1])));
+        const shadowAllocationMatch = cleanPath.match(/^\/api\/v3\/schedule-shadow\/runs\/([^/]+)\/allocations$/);
+        if (method === 'GET' && shadowAllocationMatch) return jsonResponse(await getShadowAllocations(db, actor, decodeURIComponent(shadowAllocationMatch[1])));
+        const projectShadowMatch = cleanPath.match(/^\/api\/v3\/schedule-shadow\/projects\/([^/]+)\/current$/);
+        if (method === 'GET' && projectShadowMatch) return jsonResponse(await getCurrentProjectShadow(db, actor, decodeURIComponent(projectShadowMatch[1])));
       }
 
       // 0.005 V3 Checkpoint 1 foundation status / guarded migration commands
@@ -846,7 +952,7 @@ export default {
       // 1. GET /api/workers
       if (method === 'GET' && path === '/api/workers') {
         const workers = await db
-          .prepare(`SELECT id, name, is_active, sort_order, country_code, workweek_profile, access_role, ui_language, can_manage_country_calendar, can_manage_integrations FROM workers WHERE is_active = 1 ORDER BY sort_order ASC`)
+          .prepare(`SELECT id, name, is_active, sort_order, country_code, workweek_profile, access_role, ui_language, can_manage_country_calendar, can_manage_integrations, can_manage_schedule_engine FROM workers WHERE is_active = 1 ORDER BY sort_order ASC`)
           .all();
         return jsonResponse(workers.results || []);
       }
@@ -4421,6 +4527,9 @@ function addPureCalendarDays(dateStr: string, deltaDays: number): string {
 
       return errorResponse('경로를 찾을 수 없습니다.', 404, 'NOT_FOUND');
     } catch (err: any) {
+      if (err instanceof ShadowScheduleError) {
+        return errorResponse(err.message, err.status, err.code, err.details);
+      }
       if (err instanceof WorklogError) {
         return errorResponse(err.message, err.status, err.code, err.details);
       }
