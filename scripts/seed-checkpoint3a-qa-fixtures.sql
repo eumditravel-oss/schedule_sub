@@ -93,12 +93,43 @@ INSERT OR IGNORE INTO daily_worklogs (
   ('v3qa_worklog_support','v3qa_worker_kr_b','2026-08-12','KR','Asia/Seoul','EOD_SUBMITTED',1,'v3qa_revision_support','2026-08-12T08:10:00.000Z',420,240,-180,'TEST_SELECTOR','wrk_02','v3qa_worker_kr_b','CHECKPOINT3A_FIXTURE'),
   ('v3qa_worklog_overtime','v3qa_worker_kr_b','2026-08-13','KR','Asia/Seoul','EOD_SUBMITTED',1,'v3qa_revision_overtime','2026-08-13T10:00:00.000Z',420,540,120,'TEST_SELECTOR','wrk_02','v3qa_worker_kr_b','CHECKPOINT3A_FIXTURE');
 
+-- Mark all other elapsed fixture workdays as explicitly submitted with zero recorded minutes.
+-- This keeps normal delay/capacity fixtures separate from the missing-Worklog DATA_GAP fixture.
+INSERT OR IGNORE INTO daily_worklogs (
+  id,employee_id,local_work_date,office_code,timezone,status,current_revision_number,current_eod_revision_id,eod_submitted_at_utc,
+  capacity_minutes,actual_recorded_minutes,capacity_variance_minutes,actor_mode,actor_user_id,subject_employee_id,test_session_id
+)
+SELECT
+  'v3qa_worklog_complete_' || w.id,
+  w.id,
+  '2026-08-11',
+  w.country_code,
+  CASE w.country_code WHEN 'VN' THEN 'Asia/Ho_Chi_Minh' ELSE 'Asia/Seoul' END,
+  'EOD_SUBMITTED',
+  1,
+  'v3qa_revision_complete_' || w.id,
+  '2026-08-11T10:00:00.000Z',
+  CASE w.country_code WHEN 'VN' THEN 480 ELSE 420 END,
+  0,
+  CASE w.country_code WHEN 'VN' THEN -480 ELSE -420 END,
+  'TEST_SELECTOR','wrk_02',w.id,'CHECKPOINT3A_FIXTURE'
+FROM workers w WHERE w.id LIKE 'v3qa_worker_%';
+
 INSERT OR IGNORE INTO daily_worklog_revisions (
   id,worklog_id,revision_number,phase,created_by_employee_id,created_at,change_type,payload_snapshot,is_effective,actor_mode,actor_user_id,subject_employee_id,test_session_id
 ) VALUES
   ('v3qa_revision_early','v3qa_worklog_early',1,'EOD','wrk_02','2026-08-12T08:00:00.000Z','MANAGER_CORRECTION','{}',1,'TEST_SELECTOR','wrk_02','v3qa_worker_kr_a','CHECKPOINT3A_FIXTURE'),
   ('v3qa_revision_support','v3qa_worklog_support',1,'EOD','wrk_02','2026-08-12T08:10:00.000Z','MANAGER_CORRECTION','{}',1,'TEST_SELECTOR','wrk_02','v3qa_worker_kr_b','CHECKPOINT3A_FIXTURE'),
   ('v3qa_revision_overtime','v3qa_worklog_overtime',1,'EOD','wrk_02','2026-08-13T10:00:00.000Z','MANAGER_CORRECTION','{}',1,'TEST_SELECTOR','wrk_02','v3qa_worker_kr_b','CHECKPOINT3A_FIXTURE');
+
+INSERT OR IGNORE INTO daily_worklog_revisions (
+  id,worklog_id,revision_number,phase,created_by_employee_id,created_at,change_type,payload_snapshot,is_effective,actor_mode,actor_user_id,subject_employee_id,test_session_id
+)
+SELECT
+  'v3qa_revision_complete_' || w.id,
+  'v3qa_worklog_complete_' || w.id,
+  1,'EOD','wrk_02','2026-08-11T10:00:00.000Z','MANAGER_CORRECTION','{}',1,'TEST_SELECTOR','wrk_02',w.id,'CHECKPOINT3A_FIXTURE'
+FROM workers w WHERE w.id LIKE 'v3qa_worker_%';
 
 INSERT OR IGNORE INTO task_actual_contributions (
   id,task_id,project_id,employee_id,worklog_id,revision_id,local_work_date,assignment_role,raw_actual_minutes,approved_actual_minutes,

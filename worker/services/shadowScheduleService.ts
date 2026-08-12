@@ -471,9 +471,12 @@ async function buildShadowEngineInput(db: any, options: RunOptions): Promise<Sha
   const configuredCutoverDate = (cutoverResult.results || [])[0]?.cutover_date;
   const firstReliableDate = configuredCutoverDate || [...(worklogsResult.results || []).map((worklog: any) => worklog.local_work_date), planningCutoffLocalDate].sort()[0];
   const gapEndDate = previousDate(planningCutoffLocalDate);
+  const submittedWorklogKeys = new Set<string>((worklogsResult.results || [])
+    .filter((worklog: any) => worklog.current_eod_revision_id || worklog.status === 'EOD_SUBMITTED')
+    .map((worklog: any) => `${worklog.employee_id}|${worklog.local_work_date}`));
   dataGapEmployeeDates.push(...findMissingWorklogDates(
     employees.map((employee) => employee.id), firstReliableDate, gapEndDate,
-    new Set(worklogByEmployeeDate.keys()),
+    submittedWorklogKeys,
     (employeeId, localWorkDate) => resolveWorkDayStatusServer(
       localWorkDate, workers.find((item: any) => item.id === employeeId), holidays, overrides,
     ).is_working_day,

@@ -629,6 +629,7 @@ export interface ShadowRunView {
     affected_project_count: number;
     affected_task_count: number;
     completed_at: string | null;
+    validation_summary_json?: string;
   };
   versions: ShadowScheduleVersion[];
   tasks: ShadowScheduleTask[];

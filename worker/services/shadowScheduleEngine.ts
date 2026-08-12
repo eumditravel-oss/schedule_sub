@@ -868,8 +868,8 @@ export function runShadowScheduleEngine(rawInput: ShadowEngineInput): ShadowEngi
     const approvalRequired = projectTasks.some((task) => task.approvalRequired) || shadowEnd !== project.officialEnd || crossProject;
     const noChange = projectTasks.every((task) => task.changeDirection === 'UNCHANGED');
     const classification: ApprovalClassification = confidence === 'BLOCKED' ? 'BLOCKED'
-      : noChange ? 'NO_CHANGE'
       : approvalRequired ? 'APPROVAL_REQUIRED'
+      : noChange ? 'NO_CHANGE'
       : 'AUTO_APPLY_ELIGIBLE';
     return {
       projectId: project.id, baselineStart: project.baselineStart, baselineEnd: project.baselineEnd,

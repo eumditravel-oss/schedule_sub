@@ -62,12 +62,13 @@ function addDays(date: string, days: number) {
   return value.toISOString().slice(0, 10);
 }
 
-function ShadowGantt({ tasks, lang, holidays, overrides, workers }: {
+function ShadowGantt({ tasks, lang, holidays, overrides, workers, dependencies }: {
   tasks: ShadowScheduleTask[];
   lang: 'ko' | 'vi';
   holidays: CountryHoliday[];
   overrides: CalendarOverride[];
   workers: Worker[];
+  dependencies: TaskDependency[];
 }) {
   const allDates = tasks.flatMap((task) => [task.baseline_start, task.baseline_end, task.official_forecast_start, task.official_forecast_end, task.shadow_start, task.shadow_end]).filter(Boolean) as string[];
   if (!allDates.length) return <div className="p-8 text-center text-sm text-slate-500">{lang === 'vi' ? 'Chưa có dữ liệu lịch Shadow.' : '표시할 Shadow 일정이 없습니다.'}</div>;
@@ -92,6 +93,8 @@ function ShadowGantt({ tasks, lang, holidays, overrides, workers }: {
       </div>
       {tasks.map((task) => {
         const delayed = (task.shadow_end || '') > (task.official_forecast_end || '');
+        const hasConfirmedDependency = dependencies.some((item) => item.status === 'CONFIRMED'
+          && (item.predecessor_task_id === task.task_id || item.successor_task_id === task.task_id));
         const worker = workers.find((item) => item.id === task.employee_id);
         const countryCode = worker?.country_code;
         const hatchDates = new Map<string, 'KR' | 'VN' | 'LEAVE'>();
@@ -110,7 +113,7 @@ function ShadowGantt({ tasks, lang, holidays, overrides, workers }: {
           else if (effectiveOverride?.override_type === 'LEAVE' || effectiveOverride?.override_type === 'OFF') hatchDates.set(date, workerOverride ? 'LEAVE' : (countryCode || 'LEAVE'));
         }
         return (
-          <div key={task.task_id} className="flex min-h-[76px] border-b border-slate-100 last:border-b-0">
+          <div key={task.task_id} data-shadow-dependency-task={hasConfirmedDependency ? 'confirmed' : undefined} className={`flex min-h-[76px] border-b border-slate-100 last:border-b-0 ${hasConfirmedDependency ? 'ring-1 ring-inset ring-violet-200' : ''}`}>
             <div className="w-64 shrink-0 border-r border-slate-200 px-3 py-2">
               <div className="truncate text-[11px] font-extrabold text-slate-800">{task.task_sort_order}. {lang === 'vi' ? task.task_name_vi || task.task_name : task.task_name_ko || task.task_name}</div>
               <div className="mt-1 text-[9px] text-slate-500">{task.employee_name || '—'} · {fmtMinutes(Number(task.remaining_minutes || 0))}</div>
@@ -191,6 +194,10 @@ export function ShadowSchedulePage() {
   const impactedTasks = shadow?.tasks || [];
   const summary: any = shadow?.impacts?.[0];
   const isStale = Boolean(shadow?.versions.some((version) => version.status === 'STALE'));
+  const validationIssues = useMemo(() => {
+    if (!shadow?.run?.validation_summary_json) return [];
+    try { return JSON.parse(shadow.run.validation_summary_json).issues || []; } catch { return []; }
+  }, [shadow?.run?.validation_summary_json]);
 
   const act = async (fn: () => Promise<unknown>) => {
     setBusy(true); setError('');
@@ -226,6 +233,7 @@ export function ShadowSchedulePage() {
           <div><p className="text-sm font-black">{lang === 'vi' ? 'Đây là kết quả tính toán Shadow.' : 'Shadow 계산 결과입니다.'}</p><p className="mt-0.5 text-xs font-semibold">{lang === 'vi' ? 'Lịch Forecast chính thức hiện chưa thay đổi.' : '현재 공식 Forecast 일정은 변경되지 않았습니다.'}</p></div>
         </section>
         {isStale && <section data-testid="shadow-stale-warning" className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm font-bold text-amber-900"><AlertTriangle className="mr-2 inline h-4 w-4" />{lang === 'vi' ? 'Kết quả này dựa trên phiên bản nhật ký công việc trước và không khớp với dữ liệu hiện tại. Đang chờ tính toán lại.' : '이 변경안은 이전 업무일지 Revision을 기준으로 계산되어 현재 데이터와 일치하지 않습니다. 재계산 대기 중입니다.'}</section>}
+        {validationIssues.length > 0 && <section data-testid="shadow-validation-errors" className="rounded-xl border border-rose-300 bg-rose-50 p-4 text-sm font-bold text-rose-900"><AlertTriangle className="mr-2 inline h-4 w-4" />{validationIssues.map((issue: any) => issue.code).join(', ')}</section>}
         {error && <section className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs font-bold text-rose-700">{error}</section>}
 
         <section className="grid gap-3 md:grid-cols-4 xl:grid-cols-8">
@@ -243,7 +251,7 @@ export function ShadowSchedulePage() {
 
         <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <div><h2 className="flex items-center gap-2 text-sm font-black"><Play className="h-4 w-4 text-orange-500" />{lang === 'vi' ? 'Tính toán Shadow' : 'Shadow 재산정'}</h2><p className="mt-1 text-[10px] text-slate-500">Engine {shadow?.run?.engine_version || '3A.1.1'} · {shadow?.run?.input_fingerprint?.slice(0, 16) || 'no run'}</p></div>
+            <div><h2 className="flex items-center gap-2 text-sm font-black"><Play className="h-4 w-4 text-orange-500" />{lang === 'vi' ? 'Tính toán Shadow' : 'Shadow 재산정'}</h2><p className="mt-1 text-[10px] text-slate-500">Engine {shadow?.run?.engine_version || '3A.1.2'} · {shadow?.run?.input_fingerprint?.slice(0, 16) || 'no run'}</p></div>
             <div className="flex gap-2">
               <button onClick={() => load()} className="flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold"><RefreshCw className="h-3.5 w-3.5" />{lang === 'vi' ? 'Làm mới' : '새로고침'}</button>
               {permissions.canReview && !isExecutive && <button data-testid="run-shadow-button" disabled={busy} onClick={() => act(async () => { const result = await api.runShadowSchedule({ project_id: projectId, trigger_type: 'MANUAL' }); setShadow(result); })} className="flex items-center gap-1 rounded-lg bg-orange-500 px-4 py-2 text-xs font-black text-white hover:bg-orange-600 disabled:opacity-50"><Play className="h-3.5 w-3.5" />{lang === 'vi' ? 'Chạy lại Shadow' : 'Shadow 재산정 실행'}</button>}
@@ -256,7 +264,7 @@ export function ShadowSchedulePage() {
 
         <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2"><h2 className="flex items-center gap-2 text-sm font-black"><CalendarClock className="h-4 w-4 text-blue-600" />Shadow Gantt Overlay</h2><div className="flex gap-3 text-[10px] font-bold text-slate-600"><span className="border-b-2 border-dashed border-slate-400">Baseline</span><span className="border-b-2 border-blue-500">Official</span><span className="border-b-2 border-dashed border-orange-500">Shadow</span></div></div>
-          <ShadowGantt tasks={impactedTasks} lang={lang} holidays={holidays} overrides={overrides} workers={workers} />
+          <ShadowGantt tasks={impactedTasks} lang={lang} holidays={holidays} overrides={overrides} workers={workers} dependencies={dependencies} />
         </section>
 
         <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
