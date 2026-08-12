@@ -602,7 +602,7 @@ async function submitEodRevision(db: any, actor: WorklogActor, worklog: any, bod
   const revisionMax = await db.prepare(`SELECT id, revision_number FROM daily_worklog_revisions WHERE worklog_id=? ORDER BY revision_number DESC LIMIT 1`).bind(worklog.id).first();
   const latestRevisionNumber = Number(revisionMax?.revision_number || 0);
   const nextRevisionNumber = latestRevisionNumber + 1;
-  if (mode !== 'INITIAL_EOD' && Number(body.expected_revision) !== latestRevisionNumber) throw new WorklogError('VERSION_CONFLICT', 409);
+  if (mode !== 'INITIAL_EOD' && Number(body.expected_revision) !== Number(worklog.current_revision_number || 0)) throw new WorklogError('VERSION_CONFLICT', 409);
   const revisionId = id('wlr');
   const previousRevisionId = revisionMax?.id || worklog.current_eod_revision_id || worklog.current_morning_revision_id || null;
   const deadline = worklog.self_edit_deadline_utc || await getSelfEditDeadline(db, worklog.employee_id, worklog.local_work_date);
