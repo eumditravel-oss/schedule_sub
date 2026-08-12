@@ -1,4 +1,4 @@
-export const SHADOW_ENGINE_VERSION = '3A.1.8';
+export const SHADOW_ENGINE_VERSION = '3A.1.9';
 
 export type ShadowConfidence = 'HIGH' | 'PROVISIONAL' | 'LOW' | 'BLOCKED';
 export type ApprovalClassification = 'AUTO_APPLY_ELIGIBLE' | 'APPROVAL_REQUIRED' | 'BLOCKED' | 'NO_CHANGE';
@@ -991,6 +991,15 @@ export function runShadowScheduleEngine(rawInput: ShadowEngineInput): ShadowEngi
         shadowEnd = localDate;
       }
       if (fixedStartCapacityConflict) break;
+    }
+    if (fixedStartCapacityConflict) {
+      constraintResult = 'FIXED_START_CAPACITY_CONFLICT';
+      if (!validationIssues.some((issue) => issue.code === 'FIXED_START_CAPACITY_CONFLICT' && issue.taskId === task.id)) {
+        validationIssues.push({
+          code: 'FIXED_START_CAPACITY_CONFLICT', taskId: task.id, projectId: task.projectId,
+          details: { fixedStart: constraint?.timestampUtc || constraint?.date, planningCutoffUtc: input.planningCutoffUtc },
+        });
+      }
     }
     if (remaining > 0 && !fixedStartCapacityConflict) {
       validationIssues.push({ code: 'CAPACITY_CALCULATION_FAILED', taskId: task.id, projectId: task.projectId, details: { unallocatedMinutes: remaining } });

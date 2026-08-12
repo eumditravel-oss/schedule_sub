@@ -455,6 +455,25 @@ describe('Checkpoint 3A A-Z shadow engine simulations', () => {
     expect(result.tasks.find((taskResult) => taskResult.taskId === 'task-asap')?.shadowEnd).toBe('2026-08-12');
   });
 
+  it('R3b2 — overlapping fixed slots persist a stable validation conflict', () => {
+    const result = runShadowScheduleEngine(input({
+      planningCutoffUtc: '2026-08-12T00:00:00.000Z',
+      tasks: [
+        task('task-fixed-a', { remainingEstimatedMinutes: 60 }),
+        task('task-fixed-b', { wbsOrder: 2, remainingEstimatedMinutes: 60 }),
+      ],
+      constraints: [
+        { id: 'fixed-a', taskId: 'task-fixed-a', type: 'FIXED_START', date: null, timestampUtc: '2026-08-12T04:00:00.000Z', minutes: null, status: 'ACTIVE' },
+        { id: 'fixed-b', taskId: 'task-fixed-b', type: 'FIXED_START', date: null, timestampUtc: '2026-08-12T04:00:00.000Z', minutes: null, status: 'ACTIVE' },
+      ],
+    }));
+    const blocked = result.tasks.find((taskResult) => taskResult.taskId === 'task-fixed-b');
+    expect(blocked).toMatchObject({ constraintResult: 'FIXED_START_CAPACITY_CONFLICT', dataConfidence: 'BLOCKED' });
+    expect(result.validationIssues).toContainEqual(expect.objectContaining({
+      code: 'FIXED_START_CAPACITY_CONFLICT', taskId: 'task-fixed-b',
+    }));
+  });
+
   it('R3c — valid fixed constraints and temporary-primary handoffs always require approval', () => {
     const fixed = runShadowScheduleEngine(input({
       planningCutoffUtc: '2026-08-12T00:00:00.000Z',
