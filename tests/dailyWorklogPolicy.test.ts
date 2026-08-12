@@ -2,12 +2,14 @@ import { describe, expect, it } from 'vitest';
 import {
   WorklogError,
   buildTaskActualView,
+  collectAggregateRefreshTargets,
   isMorningLate,
   resolveEffectiveRevision,
   stableStringify,
   utcToLocalDateTime,
   validateIncrement,
   validateEntryAssignmentShape,
+  validateMorningAssignmentRole,
   validatePrimaryProgress,
   validateTimeRanges,
   zonedLocalToUtc,
@@ -100,5 +102,18 @@ describe('Checkpoint 2 daily worklog policy', () => {
     expectCode(() => validateEntryAssignmentShape({ work_category: 'NORMAL_ASSIGNED_TASK', actual_minutes: 60 }), 'ASSIGNMENT_REQUIRED');
     expectCode(() => validateEntryAssignmentShape({ work_category: 'COMPANY_DUTY', actual_minutes: 60, progress_after: 10 }), 'ASSIGNMENT_REQUIRED');
     expect(() => validateEntryAssignmentShape({ work_category: 'COMPANY_DUTY', actual_minutes: 60 })).not.toThrow();
+  });
+
+  it('blocks Support target progress in Morning API', () => {
+    expectCode(() => validateMorningAssignmentRole({ target_progress: 10 }, { role: 'CO_ASSIGNEE' }), 'SUPPORT_PROGRESS_FORBIDDEN');
+    expect(() => validateMorningAssignmentRole({ target_progress: 10 }, { role: 'PRIMARY' })).not.toThrow();
+    expect(() => validateMorningAssignmentRole({}, { role: 'CO_ASSIGNEE' })).not.toThrow();
+  });
+
+  it('recalculates aggregates for removed, retained, and newly added revision tasks', () => {
+    expect([...collectAggregateRefreshTargets(
+      [{ task_id: 'task-a', project_id: 'project-1' }],
+      [{ task_id: 'task-b', project_id: 'project-1' }],
+    ).entries()]).toEqual([['task-a', 'project-1'], ['task-b', 'project-1']]);
   });
 });

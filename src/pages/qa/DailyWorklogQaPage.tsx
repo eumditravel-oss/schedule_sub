@@ -139,7 +139,7 @@ export function DailyWorklogQaPage() {
   const overtime = variance > 0;
   const effectiveRevision = worklog?.revisions?.find((row: any) => row.id === worklog?.effective_revision_id) || null;
   const effectiveEntries = (worklog?.entries || []).filter((row: any) => row.revision_id === worklog?.effective_revision_id);
-  const effectiveTaskEntry = effectiveEntries.find((row: any) => row.task_id === selectedTaskId) || effectiveEntries[0] || null;
+  const effectiveTaskEntry = selectedTaskId ? effectiveEntries.find((row: any) => row.task_id === selectedTaskId) || null : null;
   const contextKey = [worker?.id, localDate, selectedTaskId || 'NO_TASK', worklog?.id || 'NO_WORKLOG', worklog?.effective_revision_id || 'NO_REVISION'].join('::');
   const canSubmit = Boolean(worker && !isReadOnly && !busy);
 
