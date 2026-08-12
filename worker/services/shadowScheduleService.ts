@@ -183,6 +183,10 @@ export function findMissingWorklogDates(
     .map((localWorkDate) => ({ employeeId, localWorkDate })));
 }
 
+export function worklogHasShadowDataGap(worklog: { has_gap?: unknown }): boolean {
+  return Number(worklog.has_gap || 0) === 1;
+}
+
 async function resolveShadowActor(db: any, actorContext: ActorContextServer, write = false): Promise<ShadowActor> {
   const employeeId = actorContext.actorEmployeeId || actorContext.actorUserId;
   if (!employeeId) throw new ShadowScheduleError('DEPENDENCY_PERMISSION_DENIED', 403);
@@ -466,7 +470,7 @@ async function buildShadowEngineInput(db: any, options: RunOptions): Promise<Sha
     : null) || null;
   const sourceWorklog = options.sourceWorklogId ? (worklogsResult.results || []).find((worklog: any) => worklog.id === options.sourceWorklogId) : null;
   const dataGapEmployeeDates: Array<{ employeeId: string; localWorkDate: string }> = (worklogsResult.results || [])
-    .filter((worklog: any) => worklog.local_work_date <= planningCutoffLocalDate && (Number(worklog.morning_missing) === 1 || worklog.has_gap === 1))
+    .filter((worklog: any) => worklog.local_work_date <= planningCutoffLocalDate && worklogHasShadowDataGap(worklog))
     .map((worklog: any) => ({ employeeId: worklog.employee_id, localWorkDate: worklog.local_work_date }));
   const configuredCutoverDate = (cutoverResult.results || [])[0]?.cutover_date;
   const firstReliableDate = configuredCutoverDate || [...(worklogsResult.results || []).map((worklog: any) => worklog.local_work_date), planningCutoffLocalDate].sort()[0];

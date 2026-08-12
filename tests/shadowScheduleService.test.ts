@@ -3,6 +3,7 @@ import {
   expandSharedEmployeeTaskClosure,
   findMissingWorklogDates,
   recordedWorkTimestampUtc,
+  worklogHasShadowDataGap,
 } from '../worker/services/shadowScheduleService';
 
 describe('Checkpoint 3A Shadow service timestamp mapping', () => {
@@ -38,6 +39,11 @@ describe('Checkpoint 3A Shadow service timestamp mapping', () => {
       { employeeId: 'employee-a', localWorkDate: '2026-08-13' },
       { employeeId: 'employee-a', localWorkDate: '2026-08-14' },
     ]);
+  });
+
+  it('does not turn a valid EOD without Morning into a Shadow data gap', () => {
+    expect(worklogHasShadowDataGap({ morning_missing: 1, has_gap: 0 } as any)).toBe(false);
+    expect(worklogHasShadowDataGap({ morning_missing: 0, has_gap: 1 } as any)).toBe(true);
   });
 
   it('expands project scope transitively through primary, temporary, and fallback assignments', () => {
