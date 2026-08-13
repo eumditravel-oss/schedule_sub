@@ -43,7 +43,8 @@ CREATE TABLE daily_worklog_revisions (id TEXT PRIMARY KEY,worklog_id TEXT,is_eff
 CREATE TABLE daily_worklog_entries (id TEXT PRIMARY KEY,worklog_id TEXT,revision_id TEXT,project_id TEXT);
 CREATE TABLE task_actuals (id TEXT PRIMARY KEY,source_type TEXT);
 CREATE TABLE task_completion_events (id TEXT PRIMARY KEY);
-CREATE TABLE schedule_recalculation_runs (run_id TEXT PRIMARY KEY,input_fingerprint TEXT,official_data_before_hash TEXT,authority_revision INTEGER,status TEXT,source_worklog_id TEXT,source_revision_id TEXT,data_confidence TEXT);
+CREATE TABLE schedule_recalculation_requests (request_id TEXT PRIMARY KEY,source_worklog_id TEXT,source_revision_id TEXT);
+CREATE TABLE schedule_recalculation_runs (run_id TEXT PRIMARY KEY,request_id TEXT,input_fingerprint TEXT,official_data_before_hash TEXT,authority_revision INTEGER,status TEXT,data_confidence TEXT);
 CREATE TABLE shadow_schedule_authority_guard (guard_id TEXT PRIMARY KEY,revision INTEGER,lock_token TEXT,updated_at TEXT);
 CREATE TABLE shadow_schedule_versions (shadow_version_id TEXT PRIMARY KEY,run_id TEXT,project_id TEXT,based_on_forecast_version_id TEXT,shadow_version_number INTEGER,shadow_forecast_start_date TEXT,shadow_forecast_end_date TEXT,schedule_variance_workdays INTEGER,approval_classification TEXT,approval_reasons_json TEXT,data_confidence TEXT,status TEXT,apply_status TEXT DEFAULT 'NOT_APPLIED',applied_at TEXT,applied_forecast_version_id TEXT);
 CREATE TABLE shadow_schedule_tasks (shadow_task_id TEXT PRIMARY KEY,shadow_version_id TEXT,task_id TEXT,employee_id TEXT,official_forecast_start TEXT,official_forecast_end TEXT,shadow_start TEXT,shadow_end TEXT,delta_start_workdays INTEGER,delta_end_workdays INTEGER,impact_reason_codes_json TEXT,constraint_result TEXT,dependency_result TEXT);
@@ -68,7 +69,7 @@ END;
 const dataTables = [
   'shadow_engine_idempotency_keys', 'shadow_engine_audit_events', 'schedule_adjustment_impacts', 'schedule_adjustment_events',
   'forecast_approval_requests', 'shadow_forecast_applications', 'shadow_impact_summaries', 'shadow_impact_task_diffs', 'shadow_capacity_allocations', 'shadow_schedule_tasks',
-  'shadow_schedule_versions', 'schedule_recalculation_runs', 'task_constraints', 'task_completion_events', 'task_actuals',
+  'shadow_schedule_versions', 'schedule_recalculation_runs', 'schedule_recalculation_requests', 'task_constraints', 'task_completion_events', 'task_actuals',
   'daily_worklog_entries', 'daily_worklog_revisions', 'daily_worklogs', 'task_actual_aggregates', 'schedule_version_tasks',
   'schedule_versions', 'task_baselines', 'project_baselines', 'tasks', 'projects', 'workers',
 ];
@@ -129,7 +130,10 @@ describe.runIf(enabled)('Checkpoint 3B D1 append-only Forecast integration', { t
     const authority = Number((await db.prepare(`SELECT revision FROM shadow_schedule_authority_guard WHERE guard_id='GLOBAL'`).first<any>())?.revision || 0);
     const officialHash = await officialDataFingerprint(db);
     await db.batch([
-      db.prepare(`INSERT INTO schedule_recalculation_runs VALUES ('run-1','input-1',?1,?2,'COMPLETED',NULL,NULL,'HIGH')`).bind(officialHash, authority),
+      db.prepare(`INSERT INTO schedule_recalculation_requests VALUES ('request-1',NULL,NULL)`),
+      db.prepare(`INSERT INTO schedule_recalculation_runs
+        (run_id,request_id,input_fingerprint,official_data_before_hash,authority_revision,status,data_confidence)
+        VALUES ('run-1','request-1','input-1',?1,?2,'COMPLETED','HIGH')`).bind(officialHash, authority),
       db.prepare(`INSERT INTO shadow_schedule_versions VALUES ('shadow-a','run-1','project-a','forecast-a1',1,'2026-08-10','2026-08-20',0,?1,'["TEST"]','HIGH','CURRENT','NOT_APPLIED',NULL,NULL)`).bind(classification),
       db.prepare(`INSERT INTO shadow_schedule_tasks VALUES ('shadow-task-a1','shadow-a','task-a1','manager','2026-08-10','2026-08-12','2026-08-09','2026-08-11',-1,-1,'["EARLY"]','NONE','NONE')`),
       db.prepare(`INSERT INTO shadow_impact_summaries VALUES ('impact-1','run-1',?1)`).bind(crossProject ? 1 : 0),

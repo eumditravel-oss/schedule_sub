@@ -72,10 +72,11 @@ function normalizeForecastDbError(error: unknown): never {
 async function loadShadowBundle(db: any, shadowVersionId: string) {
   const version = await db.prepare(`
     SELECT sv.*,sr.input_fingerprint,sr.official_data_before_hash,sr.authority_revision,
-           sr.run_id,sr.status AS run_status,sr.source_worklog_id,sr.source_revision_id,
+           sr.run_id,sr.status AS run_status,req.source_worklog_id,req.source_revision_id,
            sr.data_confidence AS run_confidence
     FROM shadow_schedule_versions sv
     JOIN schedule_recalculation_runs sr ON sr.run_id=sv.run_id
+    JOIN schedule_recalculation_requests req ON req.request_id=sr.request_id
     WHERE sv.shadow_version_id=?1
   `).bind(shadowVersionId).first();
   if (!version) throw new ShadowScheduleError('SHADOW_NOT_FOUND', 404);
