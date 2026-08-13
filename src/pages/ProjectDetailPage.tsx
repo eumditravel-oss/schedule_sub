@@ -123,6 +123,7 @@ import {
   ChevronDown,
   GripVertical,
   ArrowRightLeft,
+  ClipboardCheck,
   RotateCw,
 } from 'lucide-react';
 
@@ -152,6 +153,7 @@ interface SortableTaskRowProps {
   onMoveTask: (task: Task) => void;
   onCellClick: (tItem: Task, dateStr: string, dayStatus: any, workerObj: any) => void;
   onOpenAssigneePopover?: (task: Task, rect: DOMRect) => void;
+  onOpenWorklog?: (task: Task) => void;
 }
 
 const SortableTaskRow: React.FC<SortableTaskRowProps> = ({
@@ -173,6 +175,7 @@ const SortableTaskRow: React.FC<SortableTaskRowProps> = ({
   onMoveTask,
   onCellClick,
   onOpenAssigneePopover,
+  onOpenWorklog,
 }) => {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: tItem.id,
@@ -363,6 +366,15 @@ const SortableTaskRow: React.FC<SortableTaskRowProps> = ({
         >
           {!isViewer && !isCompleted && (
             <>
+              <button
+                type="button"
+                data-testid={`task-worklog-btn-${tItem.id}`}
+                onClick={() => onOpenWorklog?.(tItem)}
+                className="w-[20px] h-[24px] flex items-center justify-center rounded text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 transition shrink-0"
+                title={lang === 'vi' ? 'Nhật ký công việc hôm nay' : '오늘 업무일지'}
+              >
+                <ClipboardCheck className="w-3 h-3" />
+              </button>
               <button
                 type="button"
                 data-testid={`task-move-menu-${tItem.id}`}
@@ -1814,6 +1826,7 @@ export const ProjectDetailPage: React.FC = () => {
         <MobileAppHeader
           currentWorker={currentWorker}
           onOpenWorkerSheet={() => setIsMobileWorkerSheetOpen(true)}
+          onOpenWorklog={() => navigate(`/worklog/today?projectId=${encodeURIComponent(projectId || '')}`)}
         />
       ) : (
         <header className="bg-white border-b border-slate-200 px-4 md:px-6 py-3 flex items-center justify-between shadow-2xs">
@@ -1920,6 +1933,16 @@ export const ProjectDetailPage: React.FC = () => {
             >
               <History className="w-4 h-4" />
               <span>{lang === 'vi' ? 'Quản lý dự báo chính thức' : '공식 예상 관리'}</span>
+            </button>
+
+            <button
+              type="button"
+              data-testid="project-worklog-nav-btn"
+              onClick={() => navigate(`/worklog/today?projectId=${encodeURIComponent(projectId || '')}`)}
+              className="h-9 px-3 rounded-lg border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold text-xs flex items-center gap-1.5 transition shadow-xs"
+            >
+              <ClipboardCheck className="w-4 h-4" />
+              <span>{lang === 'vi' ? 'Nhật ký hôm nay' : '오늘 업무일지'}</span>
             </button>
 
             <WorkerUtilizationBadge
@@ -2478,6 +2501,7 @@ export const ProjectDetailPage: React.FC = () => {
                                           onMoveTask={(tObj: Task) => setMoveModalState({ isOpen: true, task: tObj })}
                                           onCellClick={handleCellClick}
                                           onOpenAssigneePopover={handleOpenAssigneePopover}
+                                          onOpenWorklog={(task) => navigate(`/worklog/today?projectId=${encodeURIComponent(projectId || '')}&taskId=${encodeURIComponent(task.id)}`)}
                                         />
                                       ))
                                     ) : (

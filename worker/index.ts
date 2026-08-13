@@ -54,6 +54,7 @@ import {
   getTaskActual,
   getWorklogForActor,
   getWorklogContext,
+  getWorklogShadowStatus,
   listWorklogs,
   reviseWorklog,
   submitEod,
@@ -435,7 +436,7 @@ export default {
 
         const taskActualMatch = cleanPath.match(/^\/api\/v3\/tasks\/([^/]+)\/actual$/);
         if (method === 'GET' && taskActualMatch) {
-          return jsonResponse(await getTaskActual(db, decodeURIComponent(taskActualMatch[1])));
+          return jsonResponse(await getTaskActual(db, decodeURIComponent(taskActualMatch[1]), actor));
         }
 
         const eodMatch = cleanPath.match(/^\/api\/v3\/worklogs\/([^/]+)\/eod$/);
@@ -470,6 +471,11 @@ export default {
         if (method === 'POST' && correctionMatch) {
           const body: any = await request.json().catch(() => ({}));
           return jsonResponse(await createCorrectionRequest(db, actor, decodeURIComponent(correctionMatch[1]), body, idempotencyKey, requestNow), 201);
+        }
+
+        const shadowStatusMatch = cleanPath.match(/^\/api\/v3\/worklogs\/([^/]+)\/shadow-status$/);
+        if (method === 'GET' && shadowStatusMatch) {
+          return jsonResponse(await getWorklogShadowStatus(db, actor, decodeURIComponent(shadowStatusMatch[1])));
         }
 
         const getWorklogMatch = cleanPath.match(/^\/api\/v3\/worklogs\/([^/]+)$/);

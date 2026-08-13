@@ -271,6 +271,17 @@ export const api = {
     return handleResponse<any>(res);
   },
 
+  async getWorklogShadowStatus(worklogId: string, signal?: AbortSignal): Promise<any> {
+    const res = await fetch(`/api/v3/worklogs/${encodeURIComponent(worklogId)}/shadow-status`, { headers: getWriteHeaders(), signal });
+    return handleResponse<any>(res);
+  },
+
+  async getWorklogs(filters: Record<string, string> = {}, signal?: AbortSignal): Promise<any[]> {
+    const params = new URLSearchParams(filters);
+    const res = await fetch(`/api/v3/worklogs?${params}`, { headers: getWriteHeaders(), signal });
+    return handleResponse<any[]>(res);
+  },
+
   async submitMorning(payload: any, idempotencyKey?: string): Promise<any> {
     const res = await fetch('/api/v3/worklogs/morning', {
       method: 'POST', headers: withIdempotencyKey(idempotencyKey), body: JSON.stringify(payload),
