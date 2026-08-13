@@ -111,6 +111,22 @@ async function response(url, path, init = {}) {
   return { result, body };
 }
 
+async function waitForQaDeployment(url, expectedSha) {
+  const deadline = Date.now() + 60_000;
+  let lastObserved = 'unavailable';
+  while (Date.now() < deadline) {
+    try {
+      const { result, body } = await response(url, '/api/build-info');
+      lastObserved = `${result.status}:${body?.data?.commit || 'unknown'}`;
+      if (result.status === 200 && body?.success && body?.data?.commit === expectedSha) return;
+    } catch {
+      lastObserved = 'network error';
+    }
+    await new Promise((resolve) => setTimeout(resolve, 1_500));
+  }
+  throw new Error(`QA deployment did not expose expected build ${expectedSha}; last observed ${lastObserved}`);
+}
+
 function expectStatus(actual, expected, label) {
   if (actual !== expected) throw new Error(`${label}: expected HTTP ${expected}, received ${actual}`);
 }
@@ -227,6 +243,7 @@ try {
   await provision(secret, pins);
   run('npm.cmd', ['run', 'build']);
   run(wrangler, ['deploy', '--env', QA_WORKER_ENV, '--var', `BUILD_SHA:${buildSha}`, '--var', `BUILD_TIMESTAMP:${buildTimestamp}`]);
+  await waitForQaDeployment(QA_URL, buildSha);
   await verifyRemoteApi(QA_URL, secret, pins);
   await verifyBrowser(QA_URL, roleEmployees.primary, pins.primary);
   console.log(`QA pilot-auth provisioning, HTTPS security checks, and browser login passed for commit ${buildSha}.`);
