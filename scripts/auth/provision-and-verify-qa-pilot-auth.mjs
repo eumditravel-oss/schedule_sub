@@ -76,8 +76,7 @@ async function provision(secret, pins) {
       VALUES (${sqlQuote(employeeId)},${sqlQuote(material.hash)},${sqlQuote(material.salt)},'PBKDF2-HMAC-SHA-256',${PIN_ITERATIONS},1,0,NULL,${sqlQuote(timestamp)},${sqlQuote(timestamp)},'QA_PILOT_RELEASE_HELPER')
       ON CONFLICT(employee_id) DO UPDATE SET pin_hash=excluded.pin_hash,pin_salt=excluded.pin_salt,pin_algorithm=excluded.pin_algorithm,pin_iterations=excluded.pin_iterations,is_enabled=1,failed_attempt_count=0,locked_until=NULL,updated_at=excluded.updated_at,updated_by=excluded.updated_by;`;
   }).join('\n');
-  const sql = `BEGIN;
-    ${credentialSql}
+  const sql = `${credentialSql}
     UPDATE pilot_auth_sessions SET revoked_at=${sqlQuote(timestamp)}
       WHERE employee_id IN (${Object.values(roleEmployees).map(sqlQuote).join(',')}) AND revoked_at IS NULL;
     INSERT INTO pilot_employee_supervision (manager_employee_id,employee_id,is_active,created_at,updated_at,updated_by)
@@ -85,8 +84,7 @@ async function provision(secret, pins) {
              (${sqlQuote(roleEmployees.manager)},${sqlQuote(roleEmployees.support)},1,${sqlQuote(timestamp)},${sqlQuote(timestamp)},'QA_PILOT_RELEASE_HELPER')
       ON CONFLICT(manager_employee_id,employee_id) DO UPDATE SET is_active=1,updated_at=excluded.updated_at,updated_by=excluded.updated_by;
     INSERT INTO pilot_auth_audit_events (id,employee_id,session_id,event_type,event_time_utc,metadata_json)
-      VALUES ('pae_qa_fixture_' || lower(hex(randomblob(16))),NULL,NULL,'QA_CREDENTIALS_PROVISIONED',${sqlQuote(timestamp)},'{"plaintext":"never-stored"}');
-    COMMIT;`;
+      VALUES ('pae_qa_fixture_' || lower(hex(randomblob(16))),NULL,NULL,'QA_CREDENTIALS_PROVISIONED',${sqlQuote(timestamp)},'{"plaintext":"never-stored"}');`;
   run(wrangler, ['d1', 'execute', QA_DATABASE, '--remote', '--env', QA_WORKER_ENV, '--command', sql]);
 }
 
