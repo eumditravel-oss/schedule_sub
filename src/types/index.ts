@@ -266,6 +266,7 @@ export interface Project {
   baseline_end_date?: string | null;
   current_forecast_start_date?: string | null;
   current_forecast_end_date?: string | null;
+  current_forecast_version_id?: string | null;
   baseline_planned_progress_as_of_today?: number;
   current_actual_overall_progress?: number;
   progress_variance_percentage_point?: number;
@@ -350,6 +351,12 @@ export interface Task {
   // Baseline fields
   baseline_start_date?: string | null;
   baseline_end_date?: string | null;
+  // Read-only, versioned Official Forecast projection for Gantt rendering.
+  // `start_date` / `end_date` remain the original task record and must not
+  // be overwritten by Checkpoint 3B Forecast application.
+  official_forecast_start?: string | null;
+  official_forecast_end?: string | null;
+  official_forecast_version_id?: string | null;
   legacy_bootstrap_info?: LegacyBootstrapInfo | null;
   is_legacy_bootstrap?: boolean;
 

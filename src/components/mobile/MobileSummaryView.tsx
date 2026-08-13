@@ -4,6 +4,7 @@ import { Project, Task, Worker } from '../../types';
 import { MobileProjectCard } from './MobileProjectCard';
 import { useI18n } from '../../hooks/useI18n';
 import { getActualProgress } from '../../utils/progressDisplay';
+import { officialTaskEnd, officialTaskStart } from '../../utils/officialForecastDates';
 import { Users, Calendar, Folder } from 'lucide-react';
 
 interface MobileSummaryViewProps {
@@ -184,7 +185,7 @@ export const MobileSummaryView: React.FC<MobileSummaryViewProps> = ({
                       </h4>
                       <div className="text-[11px] text-slate-500 flex items-center gap-1 mt-0.5">
                         <Calendar className="w-3 h-3 text-slate-400" />
-                        <span>{tItem.start_date} ~ {tItem.end_date}</span>
+                        <span>{officialTaskStart(tItem)} ~ {officialTaskEnd(tItem)}</span>
                       </div>
                     </div>
                     <span className="text-[11px] font-extrabold px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-100 shrink-0">

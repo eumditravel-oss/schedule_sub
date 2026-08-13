@@ -48,6 +48,17 @@ function resolvePrimaryWorkerObj(taskItem: Task, workers: Worker[]): Worker | nu
   }
   return workers.find((w) => w.name === taskItem.worker_name) || null;
 }
+
+// Checkpoint 3B keeps the original task record immutable.  The Gantt uses the
+// latest append-only Official Forecast snapshot when present, while edit forms
+// continue to receive the original task fields.
+function officialTaskStart(taskItem: Task): string | null | undefined {
+  return taskItem.official_forecast_start || taskItem.start_date;
+}
+
+function officialTaskEnd(taskItem: Task): string | null | undefined {
+  return taskItem.official_forecast_end || taskItem.end_date;
+}
 import { AlertOctagon, BookmarkCheck } from 'lucide-react';
 import { WorkerPromptModal } from '../components/modals/WorkerPromptModal';
 import { WorkerDayCellBackground } from '../components/gantt/WorkerDayCellBackground';
@@ -191,7 +202,9 @@ const SortableTaskRow: React.FC<SortableTaskRowProps> = ({
     }
   }
 
-  const spanInfo = getGanttSpanColumns(tItem.start_date, tItem.end_date, dateColumns);
+  const forecastStart = officialTaskStart(tItem);
+  const forecastEnd = officialTaskEnd(tItem);
+  const spanInfo = getGanttSpanColumns(forecastStart, forecastEnd, dateColumns);
 
   const taskNameColWidth = leftPanelWidth >= 564 ? 260 : leftPanelWidth >= 504 ? 230 : 210;
   const workerColWidth = leftPanelWidth >= 564 ? 240 : leftPanelWidth >= 504 ? 210 : 170;
@@ -265,7 +278,7 @@ const SortableTaskRow: React.FC<SortableTaskRowProps> = ({
               {lang === 'vi' ? 'Chưa bắt đầu' : '시작 전'}
             </span>
           )}
-          {(tItem.schedule_status === 'UNSCHEDULED' || (!tItem.start_date && !tItem.end_date)) && (
+          {(tItem.schedule_status === 'UNSCHEDULED' || (!forecastStart && !forecastEnd)) && (
             <span
               data-testid="unscheduled-task-badge"
               className="px-1.5 py-0.5 rounded bg-amber-100 border border-amber-300 text-amber-800 font-extrabold text-[10px] shrink-0 ml-1"
@@ -292,14 +305,14 @@ const SortableTaskRow: React.FC<SortableTaskRowProps> = ({
               {lang === 'vi' ? 'Cơ sở chuyển đổi' : '전환 기준 데이터'}
             </span>
           )}
-          {tItem.baseline_end_date && tItem.end_date && tItem.baseline_end_date !== tItem.end_date && (
+          {tItem.baseline_end_date && forecastEnd && tItem.baseline_end_date !== forecastEnd && (
             <span
               data-testid={`task-baseline-badge-${tItem.id}`}
               className={`px-1.5 py-0.5 rounded text-[10px] shrink-0 ml-1 border ${
-                formatVarianceBadgeText(calculateDateVarianceDays(tItem.baseline_end_date, tItem.end_date), lang === 'vi' ? 'vi' : 'ko').colorClass
+                formatVarianceBadgeText(calculateDateVarianceDays(tItem.baseline_end_date, forecastEnd), lang === 'vi' ? 'vi' : 'ko').colorClass
               }`}
             >
-              {formatVarianceBadgeText(calculateDateVarianceDays(tItem.baseline_end_date, tItem.end_date), lang === 'vi' ? 'vi' : 'ko').text}
+              {formatVarianceBadgeText(calculateDateVarianceDays(tItem.baseline_end_date, forecastEnd), lang === 'vi' ? 'vi' : 'ko').text}
             </span>
           )}
         </div>
@@ -395,9 +408,9 @@ const SortableTaskRow: React.FC<SortableTaskRowProps> = ({
           style={{ gridTemplateColumns: dateGridTemplate }}
         >
           {(() => {
-            const isUnscheduled = tItem.schedule_status === 'UNSCHEDULED' || !tItem.start_date || !tItem.end_date;
+            const isUnscheduled = tItem.schedule_status === 'UNSCHEDULED' || !forecastStart || !forecastEnd;
             return dateColumns.map((col, cIdx) => {
-              const isInRange = !isUnscheduled && col.dateStr >= tItem.start_date! && col.dateStr <= tItem.end_date!;
+              const isInRange = !isUnscheduled && col.dateStr >= forecastStart! && col.dateStr <= forecastEnd!;
               const workerObj = resolvePrimaryWorkerObj(tItem, workers);
               const dayStatus = resolveWorkDayStatus(col.dateStr, (workerObj || { id: tItem.worker_name, name: tItem.worker_name }) as any, countryHolidays, calendarOverrides);
               const isMonthStart = isMonthStartColumn(dateColumns, cIdx);
@@ -431,8 +444,8 @@ const SortableTaskRow: React.FC<SortableTaskRowProps> = ({
             >
               <ScheduleBar
                 title={taskTitle}
-                startDate={tItem.start_date || ''}
-                endDate={tItem.end_date || ''}
+                startDate={forecastStart || ''}
+                endDate={forecastEnd || ''}
                 calendarSpanDays={spanInfo.spanCount}
                 plannedWorkingDays={tItem.planned_working_days || spanInfo.spanCount}
                 plannedProgress={tItem.planned_progress ?? tItem.progress ?? 0}
@@ -458,8 +471,8 @@ const SortableTaskRow: React.FC<SortableTaskRowProps> = ({
                 key={cIdx}
                 dateStr={col.dateStr}
                 taskId={tItem.id}
-                taskStartDate={tItem.start_date}
-                taskEndDate={tItem.end_date}
+                taskStartDate={forecastStart}
+                taskEndDate={forecastEnd}
                 worker={workerObj as any}
                 assignees={tItem.assignees}
                 availabilityPolicy={tItem.availability_policy}
@@ -1084,10 +1097,12 @@ export const ProjectDetailPage: React.FC = () => {
   };
 
   const detailDateColumns = useMemo(() => {
-    if (!project?.start_date || !project?.end_date) return [];
+    const ganttStart = project?.current_forecast_start_date || project?.start_date;
+    const ganttEnd = project?.current_forecast_end_date || project?.end_date;
+    if (!ganttStart || !ganttEnd) return [];
     const cols = [];
-    let cur = new Date(`${project.start_date}T00:00:00Z`);
-    const endObj = new Date(`${project.end_date}T00:00:00Z`);
+    let cur = new Date(`${ganttStart}T00:00:00Z`);
+    const endObj = new Date(`${ganttEnd}T00:00:00Z`);
     const todayStr = new Date().toISOString().slice(0, 10);
     const dayNamesKo = ['일', '월', '화', '수', '목', '금', '토'];
     const dayNamesVi = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
@@ -1111,7 +1126,7 @@ export const ProjectDetailPage: React.FC = () => {
       cur.setUTCDate(cur.getUTCDate() + 1);
     }
     return cols;
-  }, [project?.start_date, project?.end_date, lang]);
+  }, [project?.current_forecast_start_date, project?.current_forecast_end_date, project?.start_date, project?.end_date, lang]);
 
   const detailMonthGroups = useMemo(() => {
     if (detailDateColumns.length === 0) return [];
@@ -1897,6 +1912,16 @@ export const ProjectDetailPage: React.FC = () => {
               <span>{lang === 'vi' ? 'Xem ảnh hưởng lịch' : '일정 영향 미리보기'}</span>
             </button>
 
+            <button
+              type="button"
+              data-testid="official-forecast-control-btn"
+              onClick={() => navigate(`/projects/${projectId}/schedule-control`)}
+              className="h-9 px-3 rounded-lg border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold text-xs flex items-center gap-1.5 transition shadow-xs"
+            >
+              <History className="w-4 h-4" />
+              <span>{lang === 'vi' ? 'Quản lý dự báo chính thức' : '공식 예상 관리'}</span>
+            </button>
+
             <WorkerUtilizationBadge
               worker={currentWorker}
               tasks={tasks}
@@ -2351,7 +2376,7 @@ export const ProjectDetailPage: React.FC = () => {
               </div>
 
               {/* Global Country Background Overlay Layer (z-0) */}
-              {project && project.start_date && project.end_date && (
+              {project && (project.current_forecast_start_date || project.start_date) && (project.current_forecast_end_date || project.end_date) && (
                 <div
                   style={{
                     position: 'absolute',
@@ -2365,8 +2390,8 @@ export const ProjectDetailPage: React.FC = () => {
                 >
                   <GlobalCountryCalendarOverlay
                     projectId={project.id}
-                    startDate={project.start_date}
-                    endDate={project.end_date}
+                    startDate={project.current_forecast_start_date || project.start_date}
+                    endDate={project.current_forecast_end_date || project.end_date}
                     dateColumns={dateColumns}
                     calendarOverrides={calendarOverrides}
                     countryHolidays={countryHolidays}

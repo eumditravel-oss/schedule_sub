@@ -76,6 +76,17 @@ import {
   setTaskConstraint,
   validateShadowRun,
 } from './services/shadowScheduleService';
+import {
+  applyShadowForecast,
+  approveShadowForecast,
+  forecastFeatureFlags,
+  getCurrentForecast,
+  getForecastHistory,
+  getRestorePreview,
+  getScheduleAdjustments,
+  rejectShadowForecast,
+  restoreForecastVersion,
+} from './services/forecastApplyService';
 
 export type WorkerEnv = Env & {
   KASI_HOLIDAY_API_KEY?: string;
@@ -87,6 +98,10 @@ export type WorkerEnv = Env & {
   V3_SOURCE_SCHEMA_FINGERPRINT?: string;
   DYNAMIC_SCHEDULER_SHADOW_ENABLED?: string;
   DYNAMIC_SCHEDULER_DEPENDENCY_REVIEW_ENABLED?: string;
+  DYNAMIC_SCHEDULER_OFFICIAL_APPLY_ENABLED?: string;
+  DYNAMIC_SCHEDULER_AUTO_APPLY_ENABLED?: string;
+  DYNAMIC_SCHEDULER_APPROVAL_ENABLED?: string;
+  DYNAMIC_SCHEDULER_RESTORE_ENABLED?: string;
 };
 
 function jsonResponse(data: any, status = 200) {
@@ -213,6 +228,26 @@ async function isProjectCompleted(db: any, projectId: string): Promise<boolean> 
     .bind(projectId)
     .first();
   return prj ? prj.status === 'COMPLETED' : false;
+}
+
+// `schedule_versions` / `schedule_version_tasks` are append-only Official
+// Forecast evidence. Check before any legacy cleanup statements so a rejected
+// delete cannot remove daily-status or assignment data before the D1 guard
+// rejects the task/project cascade.
+async function assertOfficialForecastHistoryDeletionAllowed(
+  db: any,
+  input: { projectId?: string; taskId?: string; taskGroupId?: string },
+): Promise<void> {
+  let row: any = null;
+  if (input.taskId) {
+    row = await db.prepare(`SELECT 1 FROM schedule_version_tasks WHERE task_id=? LIMIT 1`).bind(input.taskId).first();
+  } else if (input.taskGroupId) {
+    row = await db.prepare(`SELECT 1 FROM schedule_version_tasks svt
+      JOIN tasks t ON t.id=svt.task_id WHERE t.task_group_id=? LIMIT 1`).bind(input.taskGroupId).first();
+  } else if (input.projectId) {
+    row = await db.prepare(`SELECT 1 FROM schedule_versions WHERE project_id=? LIMIT 1`).bind(input.projectId).first();
+  }
+  if (row) throw new ShadowScheduleError('OFFICIAL_FORECAST_HISTORY_PROTECTED', 409);
 }
 
 async function translateProjectOrTaskName(ai: any, nameText: string) {
@@ -360,6 +395,9 @@ export default {
             shadowEnabled: env.DYNAMIC_SCHEDULER_SHADOW_ENABLED === 'true',
             dependencyReviewEnabled: env.DYNAMIC_SCHEDULER_DEPENDENCY_REVIEW_ENABLED === 'true',
             officialApplyEnabled: String(env.DYNAMIC_SCHEDULER_OFFICIAL_APPLY_ENABLED) === 'true',
+            autoApplyEnabled: String(env.DYNAMIC_SCHEDULER_AUTO_APPLY_ENABLED) === 'true',
+            approvalEnabled: String(env.DYNAMIC_SCHEDULER_APPROVAL_ENABLED) === 'true',
+            restoreEnabled: String(env.DYNAMIC_SCHEDULER_RESTORE_ENABLED) === 'true',
           },
         });
       }
@@ -440,8 +478,7 @@ export default {
         }
       }
 
-      // 0.0045 V3 Checkpoint 3A - Shadow schedule recalculation only.
-      // No official apply/approval/restore route exists in this checkpoint.
+      // 0.0045 V3 Checkpoint 3A - Shadow schedule recalculation.
       if (cleanPath.startsWith('/api/v3/dependencies') || cleanPath.startsWith('/api/v3/schedule-shadow') ||
           cleanPath.startsWith('/api/v3/project-priorities') || /^\/api\/v3\/tasks\/[^/]+\/constraints$/.test(cleanPath)) {
         const actorHeader = request.headers.get('x-actor-employee-id') || '';
@@ -498,9 +535,19 @@ export default {
         }
         if (cleanPath === '/api/v3/schedule-shadow/runs' && method === 'POST') {
           if (env.DYNAMIC_SCHEDULER_SHADOW_ENABLED !== 'true') return errorResponse('Shadow scheduling is disabled.', 503, 'SHADOW_SCHEDULER_DISABLED');
-          if (String(env.DYNAMIC_SCHEDULER_OFFICIAL_APPLY_ENABLED) !== 'false') return errorResponse('Official apply must remain disabled in Checkpoint 3A.', 503, 'OFFICIAL_APPLY_FLAG_INVALID');
           const body: any = await request.json().catch(() => ({}));
-          return jsonResponse(await runShadowForActor(db, actor, body, idempotencyKey), 201);
+          const run = await runShadowForActor(db, actor, body, idempotencyKey);
+          // Automatic application is deliberately opt-in.  With the default
+          // false flag this endpoint only creates an auditable candidate; QA
+          // can turn the flag on for the eligible-fixture verification.
+          let autoApply: any = null;
+          if (forecastFeatureFlags(env).autoApplyEnabled && forecastFeatureFlags(env).officialApplyEnabled) {
+            const candidate = (run.versions || []).find((item: any) => item.approval_classification === 'AUTO_APPLY_ELIGIBLE' && item.status === 'CURRENT');
+            if (candidate) {
+              autoApply = await applyShadowForecast(db, actor, candidate.shadow_version_id, `auto:${idempotencyKey}:${candidate.shadow_version_id}`, forecastFeatureFlags(env));
+            }
+          }
+          return jsonResponse({ ...run, auto_apply: autoApply }, 201);
         }
         const shadowRunMatch = cleanPath.match(/^\/api\/v3\/schedule-shadow\/runs\/([^/]+)$/);
         if (method === 'GET' && shadowRunMatch) return jsonResponse(await getShadowRun(db, actor, decodeURIComponent(shadowRunMatch[1])));
@@ -510,6 +557,40 @@ export default {
         if (method === 'GET' && shadowAllocationMatch) return jsonResponse(await getShadowAllocations(db, actor, decodeURIComponent(shadowAllocationMatch[1])));
         const projectShadowMatch = cleanPath.match(/^\/api\/v3\/schedule-shadow\/projects\/([^/]+)\/current$/);
         if (method === 'GET' && projectShadowMatch) return jsonResponse(await getCurrentProjectShadow(db, actor, decodeURIComponent(projectShadowMatch[1])));
+      }
+
+      // 0.0046 V3 Checkpoint 3B - append-only Official Forecast versions.
+      if (cleanPath.startsWith('/api/v3/forecast') || cleanPath.startsWith('/api/v3/schedule-adjustments')) {
+        const actorHeader = request.headers.get('x-actor-employee-id') || '';
+        const actorWorker = actorHeader ? await getActiveWorkerProfile(db, actorHeader) : null;
+        const actor = getActorContextServer(request, actorWorker);
+        const idempotencyKey = request.headers.get('Idempotency-Key')?.trim() || '';
+        const flags = forecastFeatureFlags(env);
+
+        const currentMatch = cleanPath.match(/^\/api\/v3\/forecast\/projects\/([^/]+)\/current$/);
+        if (method === 'GET' && currentMatch) return jsonResponse(await getCurrentForecast(db, actor, decodeURIComponent(currentMatch[1])));
+        const historyMatch = cleanPath.match(/^\/api\/v3\/forecast\/projects\/([^/]+)\/history$/);
+        if (method === 'GET' && historyMatch) return jsonResponse(await getForecastHistory(db, actor, decodeURIComponent(historyMatch[1])));
+        const restorePreviewMatch = cleanPath.match(/^\/api\/v3\/forecast\/projects\/([^/]+)\/restore-preview\/([^/]+)$/);
+        if (method === 'GET' && restorePreviewMatch) return jsonResponse(await getRestorePreview(db, actor, decodeURIComponent(restorePreviewMatch[1]), decodeURIComponent(restorePreviewMatch[2])));
+        const adjustmentMatch = cleanPath.match(/^\/api\/v3\/schedule-adjustments\/([^/]+)$/);
+        if (method === 'GET' && adjustmentMatch) return jsonResponse(await getScheduleAdjustments(db, actor, decodeURIComponent(adjustmentMatch[1])));
+        if (method === 'GET' && cleanPath === '/api/v3/schedule-adjustments') return jsonResponse(await getScheduleAdjustments(db, actor));
+
+        const applyMatch = cleanPath.match(/^\/api\/v3\/forecast\/shadow\/([^/]+)\/apply$/);
+        if (method === 'POST' && applyMatch) return jsonResponse(await applyShadowForecast(db, actor, decodeURIComponent(applyMatch[1]), idempotencyKey, flags), 201);
+        const approveMatch = cleanPath.match(/^\/api\/v3\/forecast\/shadow\/([^/]+)\/approve$/);
+        if (method === 'POST' && approveMatch) return jsonResponse(await approveShadowForecast(db, actor, decodeURIComponent(approveMatch[1]), idempotencyKey, flags), 201);
+        const rejectMatch = cleanPath.match(/^\/api\/v3\/forecast\/shadow\/([^/]+)\/reject$/);
+        if (method === 'POST' && rejectMatch) {
+          const body: any = await request.json().catch(() => ({}));
+          return jsonResponse(await rejectShadowForecast(db, actor, decodeURIComponent(rejectMatch[1]), String(body.reason || ''), idempotencyKey, flags));
+        }
+        const restoreMatch = cleanPath.match(/^\/api\/v3\/forecast\/projects\/([^/]+)\/restore\/([^/]+)$/);
+        if (method === 'POST' && restoreMatch) {
+          const body: any = await request.json().catch(() => ({}));
+          return jsonResponse(await restoreForecastVersion(db, actor, decodeURIComponent(restoreMatch[1]), decodeURIComponent(restoreMatch[2]), body, idempotencyKey, flags), 201);
+        }
       }
 
       // 0.005 V3 Checkpoint 1 foundation status / guarded migration commands
@@ -535,8 +616,10 @@ export default {
       }
 
       if (method === 'POST' && (cleanPath === '/api/admin/v3-foundation/preview' || cleanPath === '/api/admin/v3-foundation/apply')) {
-        if (cleanPath.endsWith('/apply') && String(env.DYNAMIC_SCHEDULER_OFFICIAL_APPLY_ENABLED) !== 'true') {
-          return errorResponse('Official Forecast apply is disabled.', 503, 'OFFICIAL_APPLY_DISABLED');
+        if (cleanPath.endsWith('/apply')) {
+          // Checkpoint 3B only permits append-only Forecast Version application through /api/v3/forecast.
+          // The historical foundation route must never become writable merely because the 3B flag is enabled.
+          return errorResponse('Foundation apply is permanently disabled after V3 initialization.', 503, 'OFFICIAL_APPLY_DISABLED');
         }
         const body: any = await request.json().catch(() => ({}));
         const editorName = getEditorName(body, request);
@@ -1386,6 +1469,7 @@ async function validateAndNormalizeTaskAssigneesServer(
 
         if (method === 'DELETE' && taskMatch) {
           const tId = taskMatch[1];
+          await assertOfficialForecastHistoryDeletionAllowed(db, { taskId: tId });
           await db.prepare(`DELETE FROM tasks WHERE id = ?`).bind(tId).run();
           await db.prepare(`DELETE FROM integration_entity_links WHERE internal_id = ?`).bind(tId).run();
           await logIntegrationApiRequest(db, reqId, apiKey.id, method, path, 200, undefined, undefined, 'TASK', tId, undefined, clientIp);
@@ -1827,11 +1911,14 @@ async function validateAndNormalizeTaskAssigneesServer(
         }
 
         const calendarBatch = await fetchCalendarBatchData(db);
-        const [allActiveProjectsRes, allActiveTasksRes, tasksRes, actualAggregatesRes] = await Promise.all([
+        const [allActiveProjectsRes, allActiveTasksRes, tasksRes, actualAggregatesRes, officialForecastRes, officialTaskSnapshotRes] = await Promise.all([
           db.prepare(`SELECT * FROM projects WHERE status = 'ACTIVE'`).all(),
           db.prepare(`SELECT * FROM tasks`).all(),
           db.prepare(`SELECT * FROM tasks WHERE project_id = ? ORDER BY task_sort_order ASC, start_date ASC, created_at ASC`).bind(projectId).all(),
           db.prepare(`SELECT * FROM task_actual_aggregates WHERE project_id = ?`).bind(projectId).all().catch(() => ({ results: [] })),
+          db.prepare(`SELECT * FROM schedule_versions WHERE project_id=? ORDER BY version_number DESC LIMIT 1`).bind(projectId).first(),
+          db.prepare(`SELECT svt.* FROM schedule_version_tasks svt
+            WHERE svt.project_id=? AND svt.version_id=(SELECT id FROM schedule_versions WHERE project_id=? ORDER BY version_number DESC LIMIT 1)`).bind(projectId, projectId).all(),
         ]);
 
         const allActiveProjects = allActiveProjectsRes.results || [];
@@ -1839,6 +1926,7 @@ async function validateAndNormalizeTaskAssigneesServer(
 
         const rawTasks = tasksRes.results || [];
         const actualAggregateMap = new Map((actualAggregatesRes.results || []).map((row: any) => [row.task_id, row]));
+        const officialTaskSnapshotMap = new Map((officialTaskSnapshotRes.results || []).map((row: any) => [row.task_id, row]));
         const dailyStatusMap: Record<string, Record<string, string>> = {};
 
         await Promise.all(
@@ -1878,6 +1966,7 @@ async function validateAndNormalizeTaskAssigneesServer(
             const daily_statuses = dailyStatusMap[t.id] || {};
             const legacyBootstrap = legacyBootstrapMap.get(t.id) || null;
             const worklogActual: any = actualAggregateMap.get(t.id) || null;
+            const officialSnapshot: any = officialTaskSnapshotMap.get(t.id) || null;
             const assignees = taskAssigneesMap[t.id] || (t.worker_name ? [{ worker_id: t.worker_name, name: t.worker_name, assignment_role: 'PRIMARY', allocation_percent: 100 }] : []);
             const tWithAssignees = {
               ...t,
@@ -1888,6 +1977,12 @@ async function validateAndNormalizeTaskAssigneesServer(
               primary_worker_id: t.primary_worker_id || (assignees.find((a: any) => a.assignment_role === 'PRIMARY')?.worker_id || assignees[0]?.worker_id),
               progress_mode: t.progress_mode || 'AUTO_TIME',
               availability_policy: t.availability_policy || 'ANY_AVAILABLE',
+              // These fields are display-only.  The original task dates stay
+              // authoritative historical/operational data and are never
+              // changed by a Forecast apply.
+              official_forecast_start: officialSnapshot?.forecast_start || t.start_date || null,
+              official_forecast_end: officialSnapshot?.forecast_end || t.end_date || null,
+              official_forecast_version_id: officialForecastRes?.id || null,
             };
 
             const progressMetrics = calculateTaskProgressServer(
@@ -1942,6 +2037,9 @@ async function validateAndNormalizeTaskAssigneesServer(
         return jsonResponse({
           project: {
             ...project,
+            current_forecast_start_date: officialForecastRes?.project_forecast_start || project.start_date || null,
+            current_forecast_end_date: officialForecastRes?.project_forecast_end || project.end_date || null,
+            current_forecast_version_id: officialForecastRes?.id || null,
             ...projectMetrics,
             ...(projectFoundation ? {
               ...projectFoundation,
@@ -2132,6 +2230,7 @@ async function validateAndNormalizeTaskAssigneesServer(
               db.prepare(`UPDATE tasks SET task_group_id = ? WHERE task_group_id = ?`).bind(moveToGroupId, groupId)
             );
           } else if (deleteTasks) {
+            await assertOfficialForecastHistoryDeletionAllowed(db, { taskGroupId: groupId });
             const taskIdsRes = await db.prepare(`SELECT id FROM tasks WHERE task_group_id = ?`).bind(groupId).all();
             for (const t of taskIdsRes.results || []) {
               batch.push(db.prepare(`DELETE FROM daily_status WHERE task_id = ?`).bind(t.id));
@@ -2737,6 +2836,7 @@ function addPureCalendarDays(dateStr: string, deltaDays: number): string {
         if (!editCheck.allowed) {
           return errorResponse(editCheck.errorMsg!, 403, editCheck.errorCode!);
         }
+        await assertOfficialForecastHistoryDeletionAllowed(db, { projectId });
 
         const taskIds = await db
           .prepare(`SELECT id FROM tasks WHERE project_id = ?`)
@@ -4445,6 +4545,7 @@ function addPureCalendarDays(dateStr: string, deltaDays: number): string {
           if (!editCheck.allowed) {
             return errorResponse(editCheck.errorMsg!, 403, editCheck.errorCode!);
           }
+          await assertOfficialForecastHistoryDeletionAllowed(db, { taskId });
           await db.prepare(`DELETE FROM daily_status WHERE task_id = ?`).bind(taskId).run();
           await db.prepare(`DELETE FROM tasks WHERE id = ?`).bind(taskId).run();
           await updateProjectAverageProgress(db, existing.project_id);
@@ -4535,6 +4636,9 @@ function addPureCalendarDays(dateStr: string, deltaDays: number): string {
     } catch (err: any) {
       if (err instanceof ShadowScheduleError) {
         return errorResponse(err.message, err.status, err.code, err.details);
+      }
+      if (String(err?.message || err).includes('OFFICIAL_FORECAST_HISTORY_PROTECTED')) {
+        return errorResponse('공식 Forecast 이력이 있는 프로젝트와 작업은 삭제할 수 없습니다.', 409, 'OFFICIAL_FORECAST_HISTORY_PROTECTED');
       }
       if (err instanceof WorklogError) {
         return errorResponse(err.message, err.status, err.code, err.details);

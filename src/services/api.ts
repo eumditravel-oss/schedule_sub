@@ -211,6 +211,49 @@ export const api = {
     return handleResponse(res);
   },
 
+  async getCurrentForecast(projectId: string): Promise<any> {
+    const res = await fetch(`/api/v3/forecast/projects/${encodeURIComponent(projectId)}/current`, { headers: getWriteHeaders() });
+    return handleResponse(res);
+  },
+
+  async getForecastHistory(projectId: string): Promise<any> {
+    const res = await fetch(`/api/v3/forecast/projects/${encodeURIComponent(projectId)}/history`, { headers: getWriteHeaders() });
+    return handleResponse(res);
+  },
+
+  async applyShadowForecast(shadowVersionId: string, idempotencyKey?: string): Promise<any> {
+    const res = await fetch(`/api/v3/forecast/shadow/${encodeURIComponent(shadowVersionId)}/apply`, {
+      method: 'POST', headers: withIdempotencyKey(idempotencyKey), body: JSON.stringify({}),
+    });
+    return handleResponse(res);
+  },
+
+  async approveShadowForecast(shadowVersionId: string, idempotencyKey?: string): Promise<any> {
+    const res = await fetch(`/api/v3/forecast/shadow/${encodeURIComponent(shadowVersionId)}/approve`, {
+      method: 'POST', headers: withIdempotencyKey(idempotencyKey), body: JSON.stringify({}),
+    });
+    return handleResponse(res);
+  },
+
+  async rejectShadowForecast(shadowVersionId: string, reason: string, idempotencyKey?: string): Promise<any> {
+    const res = await fetch(`/api/v3/forecast/shadow/${encodeURIComponent(shadowVersionId)}/reject`, {
+      method: 'POST', headers: withIdempotencyKey(idempotencyKey), body: JSON.stringify({ reason }),
+    });
+    return handleResponse(res);
+  },
+
+  async getRestorePreview(projectId: string, versionId: string): Promise<any> {
+    const res = await fetch(`/api/v3/forecast/projects/${encodeURIComponent(projectId)}/restore-preview/${encodeURIComponent(versionId)}`, { headers: getWriteHeaders() });
+    return handleResponse(res);
+  },
+
+  async restoreForecastVersion(projectId: string, versionId: string, expectedVersionId: string, idempotencyKey?: string): Promise<any> {
+    const res = await fetch(`/api/v3/forecast/projects/${encodeURIComponent(projectId)}/restore/${encodeURIComponent(versionId)}`, {
+      method: 'POST', headers: withIdempotencyKey(idempotencyKey), body: JSON.stringify({ expected_version_id: expectedVersionId }),
+    });
+    return handleResponse(res);
+  },
+
   async getWorklogContext(employeeId: string, localWorkDate: string, signal?: AbortSignal): Promise<any> {
     const params = new URLSearchParams({ employee_id: employeeId, local_work_date: localWorkDate });
     const res = await fetch(`/api/v3/worklogs/context?${params}`, { headers: getWriteHeaders(), signal });
