@@ -7,7 +7,7 @@ import { usePilotAuth } from '../auth/PilotAuthContext';
 export function PilotLoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { login, session, loading } = usePilotAuth();
+  const { login, session, loading, openTestMode } = usePilotAuth();
   const [employees, setEmployees] = useState<any[]>([]);
   const [employeeId, setEmployeeId] = useState('');
   const [pin, setPin] = useState('');
@@ -18,6 +18,7 @@ export function PilotLoginPage() {
     if (!loading && session) navigate(destination, { replace: true });
   }, [destination, loading, navigate, session]);
   useEffect(() => { void api.getPilotLoginEmployees().then(setEmployees).catch(() => setEmployees([])); }, []);
+  if (!loading && openTestMode) return <main className="min-h-screen grid place-items-center bg-slate-100 text-slate-700">Open Pilot 모드에서는 로그인 없이 직원 선택으로 시작합니다.</main>;
   const submit = async (event: React.FormEvent) => {
     event.preventDefault(); setError(''); setSubmitting(true);
     try {

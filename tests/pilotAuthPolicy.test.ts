@@ -12,6 +12,7 @@ import {
   PilotAuthError,
   PILOT_PIN_ITERATIONS,
   requireCsrf,
+  resolveTestActor,
   resolveAuthenticatedActor,
   sha256Hex,
 } from '../worker/services/pilotAuthService';
@@ -337,5 +338,30 @@ describe('Checkpoint 4.1 pilot authentication primitives', () => {
     }), { ...envFor(state.db), ENVIRONMENT_NAME: 'production', TEST_ACTOR_MODE: 'false' } as any);
     expect(response.status).toBe(404);
     expect((await response.json() as any).error.code).toBe('QA_TEST_AUTH_DISABLED');
+  });
+
+  it('resolves open-pilot actors from the selected employee header and skips session/CSRF', async () => {
+    const state = authDb();
+    const openEnv = { ...envFor(state.db), SCHEDULER_ACCESS_MODE: 'open_test', PILOT_SESSION_AUTH_ENABLED: 'false' } as any;
+    const selected = new Request('https://scheduler-qa.example/api/v3/worklogs', { headers: { 'X-Test-Actor-Employee-Id': 'manager' } });
+    const actor = await resolveTestActor(selected, openEnv);
+    expect(actor.actorMode).toBe('TEST_SELECTOR');
+    expect(actor.employeeId).toBe('manager');
+    await expect(requireCsrf(selected, openEnv, actor)).resolves.toBe(actor);
+    await expect(resolveTestActor(new Request(selected.url), openEnv)).rejects.toMatchObject({ code: 'TEST_ACTOR_REQUIRED', status: 400 });
+  });
+
+  it('exposes open-test mode and disables login while business routes require a selected actor', async () => {
+    const state = authDb();
+    const openEnv = { ...envFor(state.db), SCHEDULER_ACCESS_MODE: 'open_test', PILOT_SESSION_AUTH_ENABLED: 'false' } as any;
+    const buildInfo = await worker.fetch(new Request('https://scheduler-qa.example/api/build-info'), openEnv);
+    expect(buildInfo.status).toBe(200);
+    expect((await buildInfo.json() as any).data.featureFlags.accessMode).toBe('open_test');
+    const login = await worker.fetch(new Request('https://scheduler-qa.example/api/auth/pilot/login', { method: 'POST', body: '{}' }), openEnv);
+    expect(login.status).toBe(404);
+    expect((await login.json() as any).error.code).toBe('AUTH_DISABLED_OPEN_TEST');
+    const missingActor = await worker.fetch(new Request('https://scheduler-qa.example/api/v3/capacity/day?employee_id=primary&local_work_date=2026-08-13', { method: 'GET' }), openEnv);
+    expect(missingActor.status).toBe(400);
+    expect((await missingActor.json() as any).error.code).toBe('TEST_ACTOR_REQUIRED');
   });
 });

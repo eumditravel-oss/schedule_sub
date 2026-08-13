@@ -14,6 +14,7 @@ const LOCKOUT_MINUTES = 15;
 export type PilotAuthEnv = {
   DB: D1Database;
   ENVIRONMENT_NAME?: string;
+  SCHEDULER_ACCESS_MODE?: string;
   PILOT_SESSION_AUTH_ENABLED?: string;
   TEST_ACTOR_MODE?: string;
   PILOT_SESSION_TTL_SECONDS?: string;
@@ -171,6 +172,36 @@ function actorView(worker: any, policy: any, sessionId: string, isQaTestSession:
   };
 }
 
+function testActorView(worker: any, policy: any): AuthenticatedActor {
+  return {
+    actorMode: 'TEST_SELECTOR',
+    actorUserId: worker.id,
+    actorEmployeeId: worker.id,
+    selectedViewEmployeeId: worker.id,
+    testSessionId: `test_${worker.id}`,
+    employeeId: worker.id,
+    displayName: worker.name,
+    role: worker.access_role,
+    office: policy?.office_code || worker.country_code || null,
+    timezone: policy?.timezone || null,
+    worker,
+    sessionId: `test_${worker.id}`,
+    isQaTestSession: false,
+  };
+}
+
+export async function resolveTestActor(request: Request, env: PilotAuthEnv): Promise<AuthenticatedActor> {
+  const employeeId = request.headers.get('x-test-actor-employee-id')?.trim() || '';
+  if (!employeeId) throw new PilotAuthError('TEST_ACTOR_REQUIRED', 400);
+  const record = await env.DB.prepare(
+    `SELECT w.*, p.office_code, p.timezone
+     FROM workers w LEFT JOIN office_work_policies p ON p.country_code=w.country_code
+     WHERE w.id=? AND w.is_active=1`,
+  ).bind(employeeId).first<any>();
+  if (!record) throw new PilotAuthError('TEST_ACTOR_NOT_FOUND', 404);
+  return testActorView(record, record);
+}
+
 async function loadWorkerActor(db: D1Database, employeeId: string, sessionId: string, isQaTestSession: boolean): Promise<AuthenticatedActor> {
   const record = await db.prepare(
     `SELECT w.*, p.office_code, p.timezone
@@ -221,6 +252,7 @@ function requireSameOrigin(request: Request): void {
 }
 
 export async function pilotLogin(request: Request, env: PilotAuthEnv, body: any) {
+  if (env.SCHEDULER_ACCESS_MODE === 'open_test') throw new PilotAuthError('AUTH_DISABLED_OPEN_TEST', 404);
   if (env.PILOT_SESSION_AUTH_ENABLED !== 'true') throw new PilotAuthError('AUTH_REQUIRED', 401);
   // Login creates a session cookie, so it is covered by same-origin CSRF
   // protection even though no pre-existing session token is available yet.
@@ -283,6 +315,7 @@ export async function pilotLogin(request: Request, env: PilotAuthEnv, body: any)
 }
 
 export async function resolveAuthenticatedActor(request: Request, env: PilotAuthEnv): Promise<AuthenticatedActor> {
+  if (env.SCHEDULER_ACCESS_MODE === 'open_test') return resolveTestActor(request, env);
   if (env.PILOT_SESSION_AUTH_ENABLED !== 'true') throw new PilotAuthError('AUTH_REQUIRED', 401);
   const rawToken = cookieValue(request, PILOT_SESSION_COOKIE);
   if (!rawToken) throw new PilotAuthError('AUTH_REQUIRED', 401);
@@ -307,6 +340,7 @@ export async function resolveAuthenticatedActor(request: Request, env: PilotAuth
 
 export async function requireCsrf(request: Request, env: PilotAuthEnv, actor?: AuthenticatedActor): Promise<AuthenticatedActor> {
   const resolved = actor || await resolveAuthenticatedActor(request, env);
+  if (env.SCHEDULER_ACCESS_MODE === 'open_test' && resolved.actorMode === 'TEST_SELECTOR') return resolved;
   const origin = request.headers.get('Origin');
   if (!origin) throw new PilotAuthError('CSRF_REQUIRED', 403);
   if (origin !== new URL(request.url).origin) throw new PilotAuthError('CSRF_INVALID', 403);
@@ -321,6 +355,7 @@ export async function requireCsrf(request: Request, env: PilotAuthEnv, actor?: A
 }
 
 export async function getPilotSession(request: Request, env: PilotAuthEnv) {
+  if (env.SCHEDULER_ACCESS_MODE === 'open_test') throw new PilotAuthError('AUTH_DISABLED_OPEN_TEST', 404);
   const actor = await resolveAuthenticatedActor(request, env);
   // Rotate the CSRF proof on a session read.  The database keeps only its hash
   // while a refreshed browser can resume mutations without exposing the
@@ -340,6 +375,7 @@ export async function getPilotSession(request: Request, env: PilotAuthEnv) {
 }
 
 export async function logoutPilotSession(request: Request, env: PilotAuthEnv) {
+  if (env.SCHEDULER_ACCESS_MODE === 'open_test') throw new PilotAuthError('AUTH_DISABLED_OPEN_TEST', 404);
   const actor = await requireCsrf(request, env);
   await env.DB.prepare(`UPDATE pilot_auth_sessions SET revoked_at=? WHERE session_id=? AND revoked_at IS NULL`)
     .bind(nowIso(), actor.sessionId).run();
@@ -347,6 +383,7 @@ export async function logoutPilotSession(request: Request, env: PilotAuthEnv) {
 }
 
 export async function createQaTestSession(request: Request, env: PilotAuthEnv, body: any) {
+  if (env.SCHEDULER_ACCESS_MODE === 'open_test') throw new PilotAuthError('QA_TEST_AUTH_DISABLED', 404);
   if (env.ENVIRONMENT_NAME !== 'qa' || env.TEST_ACTOR_MODE !== 'true') {
     throw new PilotAuthError('QA_TEST_AUTH_DISABLED', 404);
   }
@@ -367,6 +404,7 @@ export async function createQaTestSession(request: Request, env: PilotAuthEnv, b
 
 export async function authorizeEmployeeRead(db: D1Database, actor: AuthenticatedActor, targetEmployeeId: string): Promise<void> {
   if (actor.employeeId === targetEmployeeId || actor.worker.access_role === 'VIEWER') return;
+  if (actor.actorMode === 'TEST_SELECTOR' && Number(actor.worker.can_manage_schedule_engine) === 1) return;
   const isManager = Number(actor.worker.can_manage_country_calendar) === 1 || Number(actor.worker.can_manage_integrations) === 1 || Number(actor.worker.can_manage_schedule_engine) === 1;
   if (!isManager) throw new PilotAuthError('EMPLOYEE_READ_FORBIDDEN', 403);
   const target = await db.prepare(
