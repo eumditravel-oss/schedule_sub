@@ -15,12 +15,13 @@ import {
   resolveAuthenticatedActor,
   sha256Hex,
 } from '../worker/services/pilotAuthService';
-import worker from '../worker/index';
+import worker, { canManageOfficialSchedule } from '../worker/index';
 
 function authDb() {
   const credentials = new Map<string, any>();
   const sessions = new Map<string, any>();
   const audits: any[] = [];
+  const queries: string[] = [];
   const workers = new Map<string, any>([
     ['primary', { id: 'primary', name: 'Primary', is_active: 1, access_role: 'EDITOR', country_code: 'KR', can_manage_schedule_engine: 0, can_manage_country_calendar: 0, can_manage_integrations: 0 }],
     ['manager', { id: 'manager', name: 'Manager', is_active: 1, access_role: 'EDITOR', country_code: 'KR', can_manage_schedule_engine: 1, can_manage_country_calendar: 0, can_manage_integrations: 0 }],
@@ -30,6 +31,7 @@ function authDb() {
   const supervision = new Set(['manager:primary']);
   const db: any = {
     prepare(sql: string) {
+      queries.push(sql);
       let args: any[] = [];
       const statement: any = {
         bind(...values: any[]) { args = values; return statement; },
@@ -84,7 +86,7 @@ function authDb() {
       return statement;
     },
   };
-  return { db, credentials, sessions, audits, workers };
+  return { db, credentials, sessions, audits, workers, queries };
 }
 
 const envFor = (db: any) => ({ DB: db, ENVIRONMENT_NAME: 'qa', PILOT_SESSION_AUTH_ENABLED: 'true', TEST_ACTOR_MODE: 'true', PILOT_SESSION_TTL_SECONDS: '43200', QA_TEST_ACTOR_SECRET: 'qa-test-secret' });
@@ -242,6 +244,40 @@ describe('Checkpoint 4.1 pilot authentication primitives', () => {
     }), envFor(state.db) as any);
     expect(executiveResult.status).toBe(403);
     expect((await executiveResult.json() as any).error.code).toBe('WORKLOG_READ_ONLY_ACTOR');
+  });
+
+  it('limits official project and task schedule mutations to schedule managers', async () => {
+    const state = authDb();
+    const supportLogin = await routeLogin(state, 'other');
+    const supportCookie = supportLogin.setCookie.split(';')[0];
+    const before = state.queries.length;
+    const deniedTaskPatch = await worker.fetch(routeRequest('/api/tasks/task-a', {
+      method: 'PATCH', cookie: supportCookie, csrf: supportLogin.data.csrfToken,
+      headers: { 'x-actor-employee-id': 'manager' }, body: { progress: 100, primary_worker_id: 'primary' },
+    }), envFor(state.db) as any);
+    expect(deniedTaskPatch.status).toBe(403);
+    expect((await deniedTaskPatch.json() as any).error.code).toBe('SCHEDULE_MANAGER_REQUIRED');
+
+    const deniedProjectCreate = await worker.fetch(routeRequest('/api/projects', {
+      method: 'POST', cookie: supportCookie, csrf: supportLogin.data.csrfToken,
+      body: { name: 'spoofed official project', start_date: '2026-08-13', end_date: '2026-08-14' },
+    }), envFor(state.db) as any);
+    expect(deniedProjectCreate.status).toBe(403);
+    expect((await deniedProjectCreate.json() as any).error.code).toBe('SCHEDULE_MANAGER_REQUIRED');
+    expect(state.queries.slice(before).some((sql) => /(?:INSERT INTO projects|UPDATE tasks|DELETE FROM tasks)/i.test(sql))).toBe(false);
+
+    const managerLogin = await routeLogin(state, 'manager');
+    const managerResult = await worker.fetch(routeRequest('/api/tasks/task-a', {
+      method: 'PATCH', cookie: managerLogin.setCookie.split(';')[0], csrf: managerLogin.data.csrfToken,
+      body: { progress: 100, primary_worker_id: 'primary' },
+    }), envFor(state.db) as any);
+    // The in-memory fixture has no task-a and therefore returns 404 only
+    // after passing the manager gate.  This proves the gate is role-specific.
+    expect(managerResult.status).toBe(404);
+
+    expect(canManageOfficialSchedule(state.workers.get('other'))).toBe(false);
+    expect(canManageOfficialSchedule(state.workers.get('manager'))).toBe(true);
+    expect(canManageOfficialSchedule(state.workers.get('ceo'))).toBe(false);
   });
 
   it('enforces employee read scope and revokes disabled sessions at Worker routes', async () => {

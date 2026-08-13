@@ -205,6 +205,22 @@ async function requireEditableWorker(db: any, editorName: string): Promise<{ all
   return { allowed: true, worker };
 }
 
+export function canManageOfficialSchedule(worker: any): boolean {
+  return worker?.access_role === 'EDITOR' && Number(worker?.can_manage_schedule_engine) === 1;
+}
+
+function isOfficialScheduleMutation(method: string, cleanPath: string): boolean {
+  if (!['POST', 'PATCH', 'PUT', 'DELETE'].includes(method)) return false;
+  return cleanPath === '/api/projects'
+    || cleanPath === '/api/tasks'
+    || /^\/api\/projects\/[^/]+$/.test(cleanPath)
+    || /^\/api\/projects\/[^/]+\/(task-groups|task-structure-order|worker-allocations|complete|completion-repair|reopen|baseline)$/.test(cleanPath)
+    || /^\/api\/projects\/[^/]+\/conflicts\/[^/]+\/acknowledge$/.test(cleanPath)
+    || /^\/api\/task-groups\/[^/]+$/.test(cleanPath)
+    || /^\/api\/tasks\/[^/]+$/.test(cleanPath)
+    || /^\/api\/tasks\/[^/]+\/daily-status\/[^/]+$/.test(cleanPath);
+}
+
 
 
 function getKoreaDateString(): string {
@@ -467,6 +483,14 @@ export default {
         headers.delete('x-session-editor-name');
         headers.set('x-session-editor-id', sessionActor.employeeId);
         request = new Request(request, { headers });
+
+        // Worklog Actual is intentionally self-service, but Project/Task
+        // structure, dates, assignments, progress and baseline data are
+        // official schedule authority.  A Support editor must never be able
+        // to change them merely because they can submit their own Worklog.
+        if (isOfficialScheduleMutation(method, cleanPath) && !canManageOfficialSchedule(sessionActor.worker)) {
+          return errorResponse('Official schedule management permission is required.', 403, 'SCHEDULE_MANAGER_REQUIRED');
+        }
       }
 
       // 0.004 / 4.1 Worklog and Capacity.  No browser-supplied actor header
