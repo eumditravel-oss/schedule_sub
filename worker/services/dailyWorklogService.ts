@@ -41,7 +41,10 @@ async function resolveReadActor(db: any, actorContext: ActorContextServer): Prom
   return {
     ...actorContext,
     worker,
-    isManager: Number(worker.can_manage_country_calendar) === 1 || Number(worker.can_manage_integrations) === 1,
+    isManager:
+      Number(worker.can_manage_country_calendar) === 1 ||
+      Number(worker.can_manage_integrations) === 1 ||
+      Number(worker.can_manage_schedule_engine) === 1,
   };
 }
 
@@ -191,7 +194,10 @@ export async function resolveActor(db: any, actorContext: ActorContextServer): P
   return {
     ...actorContext,
     worker,
-    isManager: Number(worker.can_manage_country_calendar) === 1 || Number(worker.can_manage_integrations) === 1,
+    isManager:
+      Number(worker.can_manage_country_calendar) === 1 ||
+      Number(worker.can_manage_integrations) === 1 ||
+      Number(worker.can_manage_schedule_engine) === 1,
   };
 }
 
