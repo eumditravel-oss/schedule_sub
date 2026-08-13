@@ -15,7 +15,7 @@ import {
   resolveAuthenticatedActor,
   sha256Hex,
 } from '../worker/services/pilotAuthService';
-import worker, { canManageOfficialSchedule } from '../worker/index';
+import worker, { canManageCountryCalendar, canManageOfficialSchedule } from '../worker/index';
 
 function authDb() {
   const credentials = new Map<string, any>();
@@ -24,7 +24,8 @@ function authDb() {
   const queries: string[] = [];
   const workers = new Map<string, any>([
     ['primary', { id: 'primary', name: 'Primary', is_active: 1, access_role: 'EDITOR', country_code: 'KR', can_manage_schedule_engine: 0, can_manage_country_calendar: 0, can_manage_integrations: 0 }],
-    ['manager', { id: 'manager', name: 'Manager', is_active: 1, access_role: 'EDITOR', country_code: 'KR', can_manage_schedule_engine: 1, can_manage_country_calendar: 0, can_manage_integrations: 0 }],
+    ['manager', { id: 'manager', name: 'Manager', is_active: 1, access_role: 'EDITOR', country_code: 'KR', can_manage_schedule_engine: 1, can_manage_country_calendar: 1, can_manage_integrations: 0 }],
+    ['calendar', { id: 'calendar', name: 'Calendar', is_active: 1, access_role: 'EDITOR', country_code: 'KR', can_manage_schedule_engine: 0, can_manage_country_calendar: 1, can_manage_integrations: 0 }],
     ['other', { id: 'other', name: 'Other', is_active: 1, access_role: 'EDITOR', country_code: 'VN', can_manage_schedule_engine: 0, can_manage_country_calendar: 0, can_manage_integrations: 0 }],
     ['ceo', { id: 'ceo', name: 'CEO', is_active: 1, access_role: 'VIEWER', country_code: 'KR', can_manage_schedule_engine: 0, can_manage_country_calendar: 0, can_manage_integrations: 0 }],
   ]);
@@ -278,6 +279,36 @@ describe('Checkpoint 4.1 pilot authentication primitives', () => {
     expect(canManageOfficialSchedule(state.workers.get('other'))).toBe(false);
     expect(canManageOfficialSchedule(state.workers.get('manager'))).toBe(true);
     expect(canManageOfficialSchedule(state.workers.get('ceo'))).toBe(false);
+  });
+
+  it('keeps country calendar and task-shifting calendar writes behind their respective capabilities', async () => {
+    const state = authDb();
+    const supportLogin = await routeLogin(state, 'other');
+    const supportCookie = supportLogin.setCookie.split(';')[0];
+    const before = state.queries.length;
+    for (const [path, body] of [
+      ['/api/calendar/manual-holidays/month', { country_code: 'KR', year: 2026, month: 8, holidays: [] }],
+      ['/api/calendar/vietnam-saturdays', { year: 2026, month: 8, saturdays: [], shift_schedule: true }],
+    ] as const) {
+      const denied = await worker.fetch(routeRequest(path, {
+        method: 'PUT', cookie: supportCookie, csrf: supportLogin.data.csrfToken, body,
+      }), envFor(state.db) as any);
+      expect(denied.status).toBe(403);
+      expect((await denied.json() as any).error.code).toBe('CALENDAR_MANAGER_REQUIRED');
+    }
+    expect(state.queries.slice(before).some((sql) => /(?:country_holidays|calendar_overrides|UPDATE tasks)/i.test(sql))).toBe(false);
+    expect(canManageCountryCalendar(state.workers.get('other'))).toBe(false);
+    expect(canManageCountryCalendar(state.workers.get('calendar'))).toBe(true);
+    expect(canManageOfficialSchedule(state.workers.get('calendar'))).toBe(false);
+    expect(canManageOfficialSchedule(state.workers.get('manager'))).toBe(true);
+
+    const calendarLogin = await routeLogin(state, 'calendar');
+    const calendarCannotShift = await worker.fetch(routeRequest('/api/calendar/manual-holidays/month', {
+      method: 'PUT', cookie: calendarLogin.setCookie.split(';')[0], csrf: calendarLogin.data.csrfToken,
+      body: { country_code: 'KR', year: 2026, month: 8, holidays: [] },
+    }), envFor(state.db) as any);
+    expect(calendarCannotShift.status).toBe(403);
+    expect((await calendarCannotShift.json() as any).error.code).toBe('SCHEDULE_MANAGER_REQUIRED');
   });
 
   it('enforces employee read scope and revokes disabled sessions at Worker routes', async () => {

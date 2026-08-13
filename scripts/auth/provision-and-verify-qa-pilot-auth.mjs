@@ -191,6 +191,16 @@ async function verifyRemoteApi(url, secret, pins) {
   });
   expectStatus(supportOfficialWrite.result.status, 403, 'support official-schedule write');
   if (supportOfficialWrite.body?.error?.code !== 'SCHEDULE_MANAGER_REQUIRED') throw new Error('Support official-schedule write was not blocked by the manager gate');
+  for (const [path, body] of [
+    ['/api/calendar/manual-holidays/month', { country_code: 'KR', year: 2026, month: 8, holidays: [] }],
+    ['/api/calendar/vietnam-saturdays', { year: 2026, month: 8, saturdays: [], shift_schedule: true }],
+  ]) {
+    const supportCalendarWrite = await response(url, path, {
+      method: 'PUT', headers: { Cookie: support.cookie, 'X-CSRF-Token': support.csrf, 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+    });
+    expectStatus(supportCalendarWrite.result.status, 403, `support country-calendar write ${path}`);
+    if (supportCalendarWrite.body?.error?.code !== 'CALENDAR_MANAGER_REQUIRED') throw new Error(`Support calendar write was not blocked by the calendar manager gate: ${path}`);
+  }
 
   const executive = await login(url, roleEmployees.executive, pins.executive);
   const executiveWrite = await response(url, '/api/admin/backfill-assignees', {

@@ -209,6 +209,19 @@ export function canManageOfficialSchedule(worker: any): boolean {
   return worker?.access_role === 'EDITOR' && Number(worker?.can_manage_schedule_engine) === 1;
 }
 
+export function canManageCountryCalendar(worker: any): boolean {
+  return worker?.access_role === 'EDITOR' && Number(worker?.can_manage_country_calendar) === 1;
+}
+
+function isCountryCalendarMutation(method: string, cleanPath: string): boolean {
+  if (!['POST', 'PUT', 'DELETE'].includes(method)) return false;
+  return cleanPath === '/api/calendar/holidays/sync'
+    || cleanPath === '/api/calendar/manual-holidays'
+    || /^\/api\/calendar\/manual-holidays\/[^/]+$/.test(cleanPath)
+    || cleanPath === '/api/calendar/manual-holidays/month'
+    || cleanPath === '/api/calendar/vietnam-saturdays';
+}
+
 function isOfficialScheduleMutation(method: string, cleanPath: string): boolean {
   if (!['POST', 'PATCH', 'PUT', 'DELETE'].includes(method)) return false;
   return cleanPath === '/api/projects'
@@ -218,7 +231,8 @@ function isOfficialScheduleMutation(method: string, cleanPath: string): boolean 
     || /^\/api\/projects\/[^/]+\/conflicts\/[^/]+\/acknowledge$/.test(cleanPath)
     || /^\/api\/task-groups\/[^/]+$/.test(cleanPath)
     || /^\/api\/tasks\/[^/]+$/.test(cleanPath)
-    || /^\/api\/tasks\/[^/]+\/daily-status\/[^/]+$/.test(cleanPath);
+    || /^\/api\/tasks\/[^/]+\/daily-status\/[^/]+$/.test(cleanPath)
+    || /^\/api\/calendar\/override-groups\/[^/]+\/(keep-schedule|restore-schedule)$/.test(cleanPath);
 }
 
 
@@ -490,6 +504,9 @@ export default {
         // to change them merely because they can submit their own Worklog.
         if (isOfficialScheduleMutation(method, cleanPath) && !canManageOfficialSchedule(sessionActor.worker)) {
           return errorResponse('Official schedule management permission is required.', 403, 'SCHEDULE_MANAGER_REQUIRED');
+        }
+        if (isCountryCalendarMutation(method, cleanPath) && !canManageCountryCalendar(sessionActor.worker)) {
+          return errorResponse('Country calendar management permission is required.', 403, 'CALENDAR_MANAGER_REQUIRED');
         }
       }
 
@@ -1171,14 +1188,14 @@ export default {
 async function requireActiveCalendarEditor(
   db: any,
   request: Request,
-  body?: any
+  options: { requiresScheduleManager?: boolean } = {},
 ): Promise<{ allowed: boolean; editorId?: string; editorName?: string; errorMsg?: string; errorCode?: string; status?: number }> {
   // The global API middleware injects this header only after resolving the
   // HttpOnly pilot session. Client-supplied header/body identifiers are view
   // metadata only and must never determine calendar authority.
   const sessionActorId = request.headers.get('x-session-editor-id') || '';
   const worker = sessionActorId
-    ? await db.prepare(`SELECT id, name, is_active, access_role FROM workers WHERE id = ?`).bind(sessionActorId).first()
+    ? await db.prepare(`SELECT id, name, is_active, access_role, can_manage_country_calendar, can_manage_schedule_engine FROM workers WHERE id = ?`).bind(sessionActorId).first()
     : null;
 
   if (!worker) {
@@ -1205,6 +1222,24 @@ async function requireActiveCalendarEditor(
       status: 403,
       errorCode: 'EXECUTIVE_READ_ONLY',
       errorMsg: '경영진 계정은 국가 달력을 조회할 수만 있습니다.',
+    };
+  }
+
+  if (!canManageCountryCalendar(worker)) {
+    return {
+      allowed: false,
+      status: 403,
+      errorCode: 'CALENDAR_MANAGER_REQUIRED',
+      errorMsg: 'Country calendar management permission is required.',
+    };
+  }
+
+  if (options.requiresScheduleManager && !canManageOfficialSchedule(worker)) {
+    return {
+      allowed: false,
+      status: 403,
+      errorCode: 'SCHEDULE_MANAGER_REQUIRED',
+      errorMsg: 'Schedule manager permission is required when calendar changes shift tasks.',
     };
   }
 
@@ -1672,7 +1707,8 @@ async function validateAndNormalizeTaskAssigneesServer(
       // 1.03 PUT /api/calendar/manual-holidays/month
       if (method === 'PUT' && path === '/api/calendar/manual-holidays/month') {
         const body: any = await request.json();
-        const permCheck = await requireActiveCalendarEditor(db, request, body);
+        // Saving a manual holiday recalculates and shifts affected Task dates.
+        const permCheck = await requireActiveCalendarEditor(db, request, { requiresScheduleManager: true });
         if (!permCheck.allowed) {
           return errorResponse(permCheck.errorMsg!, permCheck.status || 403, permCheck.errorCode!);
         }
@@ -1725,7 +1761,8 @@ async function validateAndNormalizeTaskAssigneesServer(
       // 1.3 PUT /api/calendar/vietnam-saturdays
       if (method === 'PUT' && path === '/api/calendar/vietnam-saturdays') {
         const body: any = await request.json();
-        const permCheck = await requireActiveCalendarEditor(db, request, body);
+        const shiftSchedule = body.shift_schedule === true;
+        const permCheck = await requireActiveCalendarEditor(db, request, { requiresScheduleManager: shiftSchedule });
         if (!permCheck.allowed) {
           return errorResponse(permCheck.errorMsg!, permCheck.status || 403, permCheck.errorCode!);
         }
@@ -1735,7 +1772,6 @@ async function validateAndNormalizeTaskAssigneesServer(
         const month = Number(body.month);
         const targetScope = body.target_scope || 'ALL_VN';
         const saturdays: Array<{ date: string; status: 'WORK' | 'OFF' }> = body.saturdays || [];
-        const shiftSchedule = body.shift_schedule === true;
         const targetWorkerIds: string[] = body.target_worker_ids || [];
 
         // Save overrides atomically
@@ -3337,6 +3373,10 @@ function addPureCalendarDays(dateStr: string, deltaDays: number): string {
           return errorResponse('scope_key 및 start_date는 필수입니다.', 400);
         }
 
+        if (scope_type !== 'WORKER' && !canManageCountryCalendar(editCheck.worker)) {
+          return errorResponse('Country calendar management permission is required.', 403, 'CALENDAR_MANAGER_REQUIRED');
+        }
+
         // Restriction: EDITOR can only alter their own worker schedule!
         if (scope_type === 'WORKER') {
           const editorWorker = editCheck.worker!;
@@ -3501,6 +3541,9 @@ function addPureCalendarDays(dateStr: string, deltaDays: number): string {
           body.confirm_leave_schedule_cascade === true &&
           body.save_leave_without_schedule_shift !== true
         ) {
+          if (!canManageOfficialSchedule(editCheck.worker)) {
+            return errorResponse('Schedule manager permission is required when leave changes shift tasks.', 403, 'SCHEDULE_MANAGER_REQUIRED');
+          }
           const eventId = `lse_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
 
           // Insert Event Log with restore_token = NULL initially (Section 3 requirement)
@@ -3946,6 +3989,10 @@ function addPureCalendarDays(dateStr: string, deltaDays: number): string {
         const ovr = await db.prepare(`SELECT * FROM calendar_overrides WHERE id = ?`).bind(ovrId).first();
         if (!ovr) {
           return errorResponse('휴일·휴가 항목을 찾을 수 없습니다.', 404);
+        }
+
+        if (ovr.scope_type !== 'WORKER' && !canManageCountryCalendar(editCheck.worker)) {
+          return errorResponse('Country calendar management permission is required.', 403, 'CALENDAR_MANAGER_REQUIRED');
         }
 
         if (ovr.scope_type === 'WORKER') {
