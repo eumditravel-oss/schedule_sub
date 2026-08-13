@@ -1355,10 +1355,17 @@ export async function getShadowRun(db: any, actorContext: ActorContextServer, ru
 
 export async function getCurrentProjectShadow(db: any, actorContext: ActorContextServer, projectId: string) {
   const actor = await resolveShadowActor(db, actorContext);
-  const current = await db.prepare(`SELECT run_id FROM shadow_schedule_versions
-    WHERE project_id=? AND status IN ('CURRENT','BLOCKED')
-      AND COALESCE(apply_status,'NOT_APPLIED')='NOT_APPLIED'
-    ORDER BY CASE status WHEN 'CURRENT' THEN 0 ELSE 1 END, shadow_version_number DESC LIMIT 1`).bind(projectId).first();
+  // A persisted output is only a current preview while its exact authority
+  // revision and based-on Official Forecast are still current.  Otherwise a
+  // Project Detail page could render a stale tentative bar after 3B applied
+  // another Forecast Version.
+  const current = await db.prepare(`SELECT sv.run_id FROM shadow_schedule_versions sv
+    JOIN schedule_recalculation_runs sr ON sr.run_id=sv.run_id
+    WHERE sv.project_id=?1 AND sv.status IN ('CURRENT','BLOCKED')
+      AND COALESCE(sv.apply_status,'NOT_APPLIED')='NOT_APPLIED'
+      AND sr.authority_revision=(SELECT revision FROM shadow_schedule_authority_guard WHERE guard_id='GLOBAL')
+      AND sv.based_on_forecast_version_id=(SELECT id FROM schedule_versions WHERE project_id=sv.project_id ORDER BY version_number DESC LIMIT 1)
+    ORDER BY CASE sv.status WHEN 'CURRENT' THEN 0 ELSE 1 END, sv.shadow_version_number DESC LIMIT 1`).bind(projectId).first();
   if (!current) return { run: null, versions: [], tasks: [], allocations: [], impacts: [], diffs: [], officialForecastChanged: false };
   return { ...(await readRun(db, current.run_id, actor)), officialForecastChanged: false };
 }

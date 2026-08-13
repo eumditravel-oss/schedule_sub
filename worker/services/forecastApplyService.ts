@@ -403,24 +403,39 @@ export async function rejectShadowForecast(
   return idempotentShadowMutation(db, idempotencyKey, 'FORECAST_REJECT', { shadowVersionId, reason: reason.trim() }, async (commit) => {
     const bundle = await loadShadowBundle(db, shadowVersionId);
     await assertFreshShadow(db, bundle, true);
+    // A cross-project Shadow is one all-or-none correlation for application.
+    // Rejecting only its selected project would leave the sibling candidate
+    // visible even though it could never be approved independently. Close all
+    // affected project candidates in the same atomic decision instead.
+    const targets = await shadowVersionsForCorrelation(db, bundle);
+    for (const target of targets) await assertFreshShadow(db, target, target.version.shadow_version_id === shadowVersionId);
     const now = new Date().toISOString();
-    const response = { shadow_version_id: shadowVersionId, status: 'REJECTED', official_forecast_changed: false };
-    const results = await db.batch([
-      db.prepare(`INSERT INTO forecast_approval_requests
+    const response = {
+      shadow_version_id: shadowVersionId,
+      rejected_shadow_version_ids: targets.map((target) => target.version.shadow_version_id),
+      status: 'REJECTED', official_forecast_changed: false,
+    };
+    const statements: any[] = [];
+    for (const target of targets) {
+      const targetShadow = target.version;
+      statements.push(
+        db.prepare(`INSERT INTO forecast_approval_requests
         (approval_request_id,shadow_version_id,shadow_run_id,project_id,status,requested_by,requested_at,decided_by,decided_at,decision_reason,created_at,updated_at)
         VALUES (?1,?2,?3,?4,'REJECTED',?5,?6,?5,?6,?7,?6,?6)
         ON CONFLICT(shadow_version_id) DO UPDATE SET status='REJECTED',decided_by=excluded.decided_by,decided_at=excluded.decided_at,
           decision_reason=excluded.decision_reason,updated_at=excluded.updated_at
         WHERE forecast_approval_requests.status='PENDING'`)
-        .bind(uuid('far'), shadowVersionId, bundle.version.run_id, bundle.version.project_id, actor.worker.id, now, reason.trim()),
-      db.prepare(`UPDATE shadow_schedule_versions SET apply_status='REJECTED' WHERE shadow_version_id=?1
-        AND COALESCE(apply_status,'NOT_APPLIED')='NOT_APPLIED'`).bind(shadowVersionId),
-      db.prepare(`INSERT INTO shadow_engine_audit_events
+          .bind(uuid('far'), targetShadow.shadow_version_id, targetShadow.run_id, targetShadow.project_id, actor.worker.id, now, reason.trim()),
+        db.prepare(`UPDATE shadow_schedule_versions SET apply_status='REJECTED' WHERE shadow_version_id=?1
+          AND status='CURRENT' AND COALESCE(apply_status,'NOT_APPLIED')='NOT_APPLIED'`).bind(targetShadow.shadow_version_id),
+        db.prepare(`INSERT INTO shadow_engine_audit_events
         (audit_id,event_type,entity_type,entity_id,actor_employee_id,actor_mode,event_time_utc,before_json,after_json,reason,test_session_id,request_id)
         VALUES (?1,'FORECAST_APPROVAL_REJECTED','SHADOW_VERSION',?2,?3,?4,?5,NULL,?6,?7,?8,NULL)`)
-        .bind(uuid('sea'), shadowVersionId, actor.worker.id, actor.actorMode, now, canonicalJson(response), reason.trim(), actor.testSessionId),
-      commit(response),
-    ]);
+          .bind(uuid('sea'), targetShadow.shadow_version_id, actor.worker.id, actor.actorMode, now, canonicalJson(response), reason.trim(), actor.testSessionId),
+      );
+    }
+    statements.push(commit(response));
+    const results = await db.batch(statements);
     if (results.some((result: any) => Number(result?.meta?.changes || 0) !== 1)) throw new ShadowScheduleError('APPROVAL_ALREADY_DECIDED', 409);
     return response;
   });

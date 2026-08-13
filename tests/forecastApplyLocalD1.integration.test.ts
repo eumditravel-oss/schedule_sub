@@ -205,6 +205,19 @@ describe.runIf(enabled)('Checkpoint 3B D1 append-only Forecast integration', { t
       .toMatchObject({ status: 'REJECTED', decision_reason: 'Business decision' });
   });
 
+  it('rejects every candidate in a cross-project correlation atomically', async () => {
+    const db = await fixture({ classification: 'APPROVAL_REQUIRED', crossProject: true });
+    const result = await rejectShadowForecast(db, managerActor, 'shadow-a', 'Reject whole correlation', 'reject-cross', flags);
+    expect(result).toMatchObject({ status: 'REJECTED', rejected_shadow_version_ids: ['shadow-a', 'shadow-b'] });
+    expect(await counts(db)).toMatchObject({ appended: 0, adjustments: 0, applications: 0, audit: 2 });
+    expect(await db.prepare(`SELECT shadow_version_id,status FROM forecast_approval_requests ORDER BY shadow_version_id`).all<any>()).toMatchObject({
+      results: [{ shadow_version_id: 'shadow-a', status: 'REJECTED' }, { shadow_version_id: 'shadow-b', status: 'REJECTED' }],
+    });
+    expect(await db.prepare(`SELECT shadow_version_id,apply_status FROM shadow_schedule_versions ORDER BY shadow_version_id`).all<any>()).toMatchObject({
+      results: [{ shadow_version_id: 'shadow-a', apply_status: 'REJECTED' }, { shadow_version_id: 'shadow-b', apply_status: 'REJECTED' }],
+    });
+  });
+
   it('restores a prior snapshot by appending a new version and keeps Actual immutable', async () => {
     const db = await fixture();
     const applied = await applyShadowForecast(db, managerActor, 'shadow-a', 'apply-before-restore', flags);
@@ -257,5 +270,6 @@ describe.runIf(enabled)('Checkpoint 3B D1 append-only Forecast integration', { t
     const current = await getCurrentForecast(db, managerActor, 'project-a');
     expect(current.shadow_version).toBeNull();
     expect(current.stale_shadow_version).toMatchObject({ shadow_version_id: 'shadow-a', status: 'STALE', stale_reason: 'SHADOW_AUTHORITY_STALE' });
+    expect((await getCurrentProjectShadow(db, managerActor, 'project-a')).run).toBeNull();
   });
 });
