@@ -33,8 +33,8 @@
     "DYNAMIC_SCHEDULER_AUTO_APPLY_ENABLED": "false",
     "DYNAMIC_SCHEDULER_APPROVAL_ENABLED": "true",
     "DYNAMIC_SCHEDULER_RESTORE_ENABLED": "true",
-    "PILOT_SESSION_AUTH_ENABLED": "false",
-    "SCHEDULER_ACCESS_MODE": "open_test",
+    "PILOT_SESSION_AUTH_ENABLED": "true",
+    "SCHEDULER_ACCESS_MODE": "pilot_session",
     "TEST_ACTOR_MODE": "false",
     "PILOT_SESSION_TTL_SECONDS": "43200"
   },
@@ -92,6 +92,52 @@
           "binding": "DB",
           "database_name": "concost-db-qa",
           "database_id": "cae30591-5d3f-4441-8684-b79a9e789359",
+          "migrations_dir": "./migrations"
+        }
+      ]
+    },
+    "pilot": {
+      "name": "concost-dev-scheduler-pilot",
+      "assets": {
+        "directory": "./dist",
+        "binding": "ASSETS",
+        "not_found_handling": "single-page-application"
+      },
+      "observability": {
+        "enabled": true,
+        "logs": {
+          "enabled": true,
+          "head_sampling_rate": 1,
+          "invocation_logs": true
+        },
+        "traces": {
+          "enabled": true,
+          "head_sampling_rate": 0.05
+        }
+      },
+      "vars": {
+        "ENVIRONMENT_NAME": "pilot",
+        "V3_CUTOVER_DATE": "2026-08-11",
+        "V3_SOURCE_SCHEMA_FINGERPRINT": "e3f4e50e61a773910de265e3e2a30a97c58b9963f2da301272ccd04cb4666d17",
+        "DYNAMIC_SCHEDULER_SHADOW_ENABLED": "true",
+        "DYNAMIC_SCHEDULER_DEPENDENCY_REVIEW_ENABLED": "true",
+        "DYNAMIC_SCHEDULER_OFFICIAL_APPLY_ENABLED": "true",
+        "DYNAMIC_SCHEDULER_AUTO_APPLY_ENABLED": "false",
+        "DYNAMIC_SCHEDULER_APPROVAL_ENABLED": "true",
+        "DYNAMIC_SCHEDULER_RESTORE_ENABLED": "true",
+        "PILOT_SESSION_AUTH_ENABLED": "false",
+        "SCHEDULER_ACCESS_MODE": "open_test",
+        "TEST_ACTOR_MODE": "false",
+        "PILOT_SESSION_TTL_SECONDS": "43200"
+      },
+      "ai": {
+        "binding": "AI"
+      },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "concost-db-pilot",
+          "database_id": "67085415-318a-4a88-bb89-8aa7342ea5c1",
           "migrations_dir": "./migrations"
         }
       ]
