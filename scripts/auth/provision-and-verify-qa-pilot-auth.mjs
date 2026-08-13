@@ -30,6 +30,7 @@ const roleEmployees = {
 const root = process.cwd();
 const wrangler = process.platform === 'win32' ? '.\\node_modules\\.bin\\wrangler.cmd' : './node_modules/.bin/wrangler';
 const b64url = (bytes) => Buffer.from(bytes).toString('base64url');
+const hex = (bytes) => Buffer.from(bytes).toString('hex');
 const sqlQuote = (value) => `'${String(value).replace(/'/g, "''")}'`;
 const now = () => new Date().toISOString();
 const getRandom = (length) => {
@@ -58,12 +59,12 @@ function commandOutput(command, args) {
 }
 
 async function pinMaterial(pin) {
-  const salt = b64url(getRandom(16));
+  const salt = hex(getRandom(16));
   const material = await webcrypto.subtle.importKey('raw', new TextEncoder().encode(pin), 'PBKDF2', false, ['deriveBits']);
   const bits = await webcrypto.subtle.deriveBits({
-    name: 'PBKDF2', hash: 'SHA-256', salt: Buffer.from(salt, 'base64url'), iterations: PIN_ITERATIONS,
+    name: 'PBKDF2', hash: 'SHA-256', salt: Buffer.from(salt, 'hex'), iterations: PIN_ITERATIONS,
   }, material, 256);
-  return { salt, hash: b64url(new Uint8Array(bits)) };
+  return { salt, hash: hex(new Uint8Array(bits)) };
 }
 
 async function provision(secret, pins) {

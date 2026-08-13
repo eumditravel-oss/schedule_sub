@@ -47,6 +47,22 @@ function fromBase64(value: string): Uint8Array {
   return Uint8Array.from(decoded, (char) => char.charCodeAt(0));
 }
 
+function toHex(bytes: Uint8Array): string {
+  return Array.from(bytes).map((byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
+function fromStoredBinary(value: string): Uint8Array {
+  // New credentials use a simple hex representation.  Continue accepting the
+  // original Base64 records so PIN rotation can be rolled out without making
+  // any already-provisioned account unusable.
+  if (/^[0-9a-f]+$/i.test(value) && value.length % 2 === 0) {
+    const bytes = new Uint8Array(value.length / 2);
+    for (let index = 0; index < bytes.length; index += 1) bytes[index] = Number.parseInt(value.slice(index * 2, index * 2 + 2), 16);
+    return bytes;
+  }
+  return fromBase64(value);
+}
+
 function base64Url(bytes: Uint8Array): string {
   return toBase64(bytes).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
 }
@@ -82,16 +98,17 @@ export async function sha256Hex(value: string): Promise<string> {
 
 export async function derivePilotPinHash(pin: string, salt: string, iterations = PILOT_PIN_ITERATIONS): Promise<string> {
   const material = await crypto.subtle.importKey('raw', encoder.encode(pin), 'PBKDF2', false, ['deriveBits']);
+  const saltBytes = fromStoredBinary(salt);
   const bits = await crypto.subtle.deriveBits({
-    name: 'PBKDF2', hash: 'SHA-256', salt: fromBase64(salt).buffer as ArrayBuffer, iterations,
+    name: 'PBKDF2', hash: 'SHA-256', salt: saltBytes.buffer as ArrayBuffer, iterations,
   }, material, 256);
-  return toBase64(new Uint8Array(bits));
+  return toHex(new Uint8Array(bits));
 }
 
 export function createPilotPinSalt(): string {
   const bytes = new Uint8Array(16);
   crypto.getRandomValues(bytes);
-  return toBase64(bytes);
+  return toHex(bytes);
 }
 
 function cookieValue(request: Request, name: string): string | null {
@@ -221,7 +238,7 @@ export async function pilotLogin(request: Request, env: PilotAuthEnv, body: any)
     throw new PilotAuthError('LOGIN_TEMPORARILY_LOCKED', 429);
   }
   const derived = await derivePilotPinHash(pin, credential.pin_salt, Number(credential.pin_iterations));
-  const valid = equalBytes(fromBase64(derived), fromBase64(credential.pin_hash));
+  const valid = equalBytes(fromStoredBinary(derived), fromStoredBinary(credential.pin_hash));
   if (!valid) {
     const lockAt = new Date(now.getTime() + LOCKOUT_MINUTES * 60_000).toISOString();
     await env.DB.prepare(
