@@ -185,6 +185,12 @@ async function verifyRemoteApi(url, secret, pins) {
     headers: { Cookie: support.cookie, 'x-actor-employee-id': roleEmployees.primary },
   });
   expectStatus(supportSpoof.result.status, 403, 'support-to-primary spoof');
+  const supportOfficialWrite = await response(url, '/api/tasks/nonexistent-support-write-probe', {
+    method: 'PATCH', headers: { Cookie: support.cookie, 'X-CSRF-Token': support.csrf, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ progress: 100, primary_worker_id: roleEmployees.primary }),
+  });
+  expectStatus(supportOfficialWrite.result.status, 403, 'support official-schedule write');
+  if (supportOfficialWrite.body?.error?.code !== 'SCHEDULE_MANAGER_REQUIRED') throw new Error('Support official-schedule write was not blocked by the manager gate');
 
   const executive = await login(url, roleEmployees.executive, pins.executive);
   const executiveWrite = await response(url, '/api/admin/backfill-assignees', {
@@ -198,6 +204,11 @@ async function verifyRemoteApi(url, secret, pins) {
   expectStatus(supervised.result.status, 200, 'manager supervised read');
   const outsideScope = await response(url, '/api/v3/capacity/day?employee_id=wrk_04&local_work_date=2026-08-13', { headers: managerHeaders });
   expectStatus(outsideScope.result.status, 403, 'manager outside supervision');
+  const managerOfficialWrite = await response(url, '/api/tasks/nonexistent-manager-write-probe', {
+    method: 'PATCH', headers: { Cookie: manager.cookie, 'X-CSRF-Token': manager.csrf, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ progress: 100 }),
+  });
+  expectStatus(managerOfficialWrite.result.status, 404, 'manager official-schedule gate pass');
 
   const logout = await response(url, '/api/auth/pilot/logout', { method: 'POST', headers: primaryHeaders });
   expectStatus(logout.result.status, 200, 'logout');
