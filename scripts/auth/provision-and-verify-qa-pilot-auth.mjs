@@ -11,6 +11,9 @@
  */
 import { spawnSync } from 'node:child_process';
 import { webcrypto } from 'node:crypto';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { chromium } from '@playwright/test';
 
 const QA_DATABASE = 'concost-db-qa';
@@ -85,7 +88,17 @@ async function provision(secret, pins) {
       ON CONFLICT(manager_employee_id,employee_id) DO UPDATE SET is_active=1,updated_at=excluded.updated_at,updated_by=excluded.updated_by;
     INSERT INTO pilot_auth_audit_events (id,employee_id,session_id,event_type,event_time_utc,metadata_json)
       VALUES ('pae_qa_fixture_' || lower(hex(randomblob(16))),NULL,NULL,'QA_CREDENTIALS_PROVISIONED',${sqlQuote(timestamp)},'{"plaintext":"never-stored"}');`;
-  run(wrangler, ['d1', 'execute', QA_DATABASE, '--remote', '--env', QA_WORKER_ENV, '--command', sql]);
+  // On Windows Wrangler is a .cmd shim. Passing SQL as an argv value through
+  // cmd.exe can split SQL tokens, so use a short-lived file instead. It has
+  // only one-way PBKDF2 material, never a plaintext PIN or QA secret.
+  const sqlDirectory = mkdtempSync(join(tmpdir(), 'concost-qa-auth-'));
+  const sqlFile = join(sqlDirectory, 'pilot-fixture.sql');
+  try {
+    writeFileSync(sqlFile, sql, { encoding: 'utf8', mode: 0o600 });
+    run(wrangler, ['d1', 'execute', QA_DATABASE, '--remote', '--env', QA_WORKER_ENV, '--file', sqlFile]);
+  } finally {
+    rmSync(sqlDirectory, { recursive: true, force: true });
+  }
 }
 
 async function response(url, path, init = {}) {
