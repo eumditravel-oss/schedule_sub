@@ -51,6 +51,7 @@ import { calculateTaskWorkdayBreakdown } from '../utils/workCalendar';
 import { ProjectDeleteConfirmModal } from '../components/modals/ProjectDeleteConfirmModal';
 import { ProjectCompleteConfirmModal } from '../components/modals/ProjectCompleteConfirmModal';
 import { PrintDropdownMenu } from '../components/print/PrintDropdownMenu';
+import { TodayWorklogNavButton } from '../components/worklog/TodayWorklogNavButton';
 
 export type MobileViewMode = 'SUMMARY' | 'WEEK' | 'GANTT';
 
@@ -453,6 +454,7 @@ export const ProjectOverviewPage: React.FC = () => {
         <MobileAppHeader
           currentWorker={currentWorker}
           onOpenWorkerSheet={() => setIsMobileWorkerSheetOpen(true)}
+          onOpenWorklog={() => navigate('/worklog/today')}
         />
       ) : (
         /* Desktop App Header — Status Tabs가 Header 우측에 통합됨 (1024px 반응형 컴팩트 가로폭) */
@@ -508,6 +510,8 @@ export const ProjectOverviewPage: React.FC = () => {
               <Users className="w-3.5 h-3.5 text-blue-600 shrink-0" />
               <span>{lang === 'vi' ? 'Công suất' : '인력 현황'}</span>
             </button>
+
+            <TodayWorklogNavButton worker={currentWorker} language={lang === 'vi' ? 'vi' : 'ko'} onOpen={() => navigate('/worklog/today')} />
 
             {/* [0.6] Print Output System Dropdown */}
             <PrintDropdownMenu

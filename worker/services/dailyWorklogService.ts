@@ -412,7 +412,11 @@ async function worklogResponse(db: any, worklogId: string) {
   if (!worklog) throw new WorklogError('INVALID_LOCAL_WORK_DATE', 404, { worklog_id: worklogId });
   const [revisions, entries, audit, corrections] = await Promise.all([
     db.prepare(`SELECT * FROM daily_worklog_revisions WHERE worklog_id = ? ORDER BY revision_number`).bind(worklogId).all(),
-    db.prepare(`SELECT * FROM daily_worklog_entries WHERE worklog_id = ? ORDER BY created_at, id`).bind(worklogId).all(),
+    db.prepare(`SELECT e.*,t.task_name,p.name AS project_name
+      FROM daily_worklog_entries e
+      LEFT JOIN tasks t ON t.id=e.task_id
+      LEFT JOIN projects p ON p.id=e.project_id
+      WHERE e.worklog_id = ? ORDER BY e.created_at, e.id`).bind(worklogId).all(),
     db.prepare(
       `SELECT a.*, r.revision_number, r.change_type AS revision_change_type
        FROM worklog_audit_events a
@@ -453,23 +457,90 @@ export async function getWorklogForActor(db: any, actorContext: ActorContextServ
   return worklogResponse(db, worklogId);
 }
 
+// The recalculation request is asynchronous.  The employee UI needs a
+// bounded, read-only status endpoint so a successful EOD never has to infer
+// schedule success from the worklog itself.  It deliberately exposes no
+// manager action and no Official Forecast mutation path.
+export async function getWorklogShadowStatus(db: any, actorContext: ActorContextServer, worklogId: string) {
+  const actor = await resolveReadActor(db, actorContext);
+  const worklog = await db.prepare(`SELECT id,employee_id FROM daily_worklogs WHERE id=?`).bind(worklogId).first();
+  if (!worklog) throw new WorklogError('INVALID_LOCAL_WORK_DATE', 404, { worklog_id: worklogId });
+  if (!canReadSubject(actor, worklog.employee_id)) throw new WorklogError('WORKLOG_PERMISSION_DENIED', 403);
+  const request = await db.prepare(`SELECT * FROM schedule_recalculation_requests WHERE source_worklog_id=? ORDER BY requested_at DESC LIMIT 1`)
+    .bind(worklogId).first();
+  if (!request) return { request: null, run: null, versions: [], impacts: [], officialForecastChanged: false };
+  const run = await db.prepare(`SELECT * FROM schedule_recalculation_runs WHERE request_id=? ORDER BY started_at DESC LIMIT 1`)
+    .bind(request.request_id).first();
+  if (!run) return { request, run: null, versions: [], impacts: [], officialForecastChanged: false };
+  const [versions, impacts] = await Promise.all([
+    db.prepare(`SELECT shadow_version_id,project_id,status,approval_classification,shadow_forecast_start_date,shadow_forecast_end_date,official_forecast_start_date,official_forecast_end_date
+      FROM shadow_schedule_versions WHERE run_id=? ORDER BY project_id`).bind(run.run_id).all(),
+    db.prepare(`SELECT primary_project_id,employee_id,affected_task_count,affected_project_count,cross_project_impact,approval_required,reason_codes_json
+      FROM shadow_impact_summaries WHERE run_id=?`).bind(run.run_id).all(),
+  ]);
+  return {
+    request: { request_id: request.request_id, status: request.status, error_code: request.last_error_code || null },
+    run: { run_id: run.run_id, status: run.status, error_code: null },
+    versions: versions.results || [], impacts: impacts.results || [], officialForecastChanged: false,
+  };
+}
+
 export async function getWorklogContext(db: any, actorContext: ActorContextServer, employeeId: string, localDate: string) {
   const actor = await resolveReadActor(db, actorContext);
   if (!isValidLocalDate(localDate)) throw new WorklogError('INVALID_LOCAL_WORK_DATE');
   if (!canReadSubject(actor, employeeId)) throw new WorklogError('WORKLOG_PERMISSION_DENIED', 403);
   const capacity = await getDailyCapacity(db, employeeId, localDate);
   const deadline = await getSelfEditDeadline(db, employeeId, localDate);
-  const worklog = await db.prepare(`SELECT * FROM daily_worklogs WHERE employee_id = ? AND local_work_date = ?`).bind(employeeId, localDate).first();
+  const worklogHeader = await db.prepare(`SELECT * FROM daily_worklogs WHERE employee_id = ? AND local_work_date = ?`).bind(employeeId, localDate).first();
+  const [subject, worklog] = await Promise.all([
+    db.prepare(`SELECT id,name,country_code,ui_language,access_role FROM workers WHERE id=?`).bind(employeeId).first(),
+    worklogHeader ? worklogResponse(db, worklogHeader.id) : Promise.resolve(null),
+  ]);
+  // The employee-facing worklog must be driven by the current Official
+  // Forecast, never the original task dates (nor a Shadow candidate).  A
+  // temporary primary is also an authorised PRIMARY for its effective dates.
   const tasks = await db.prepare(
-    `SELECT t.id AS task_id, t.project_id, t.task_name, t.start_date, t.end_date, ta.id AS assignment_id,
-            ta.assignment_role, p.name AS project_name
-     FROM task_assignees ta JOIN tasks t ON t.id = ta.task_id JOIN projects p ON p.id = t.project_id
-     WHERE ta.worker_id = ? AND ta.deleted_at IS NULL AND (t.start_date IS NULL OR t.start_date <= ?)
-       AND (t.end_date IS NULL OR t.end_date >= ?) ORDER BY p.name, t.task_sort_order, t.id`
-  ).bind(employeeId, localDate, localDate).all();
+    `SELECT DISTINCT t.id AS task_id, t.project_id, t.task_name, t.start_date, t.end_date,
+            COALESCE(svt.forecast_start, t.start_date) AS official_forecast_start,
+            COALESCE(svt.forecast_end, t.end_date) AS official_forecast_end,
+            COALESCE(tpa.id, ta.id) AS assignment_id,
+            CASE WHEN tpa.id IS NOT NULL THEN 'PRIMARY' ELSE ta.assignment_role END AS assignment_role,
+            p.name AS project_name
+     FROM tasks t
+     JOIN projects p ON p.id = t.project_id
+     LEFT JOIN task_assignees ta ON ta.task_id = t.id AND ta.worker_id = ? AND ta.deleted_at IS NULL
+     LEFT JOIN temporary_primary_assignments tpa ON tpa.task_id = t.id
+       AND tpa.temporary_primary_employee_id = ? AND tpa.status = 'ACTIVE'
+       AND tpa.effective_start_date <= ? AND tpa.effective_end_date >= ?
+     LEFT JOIN schedule_version_tasks svt ON svt.task_id = t.id
+       AND svt.version_id = (SELECT id FROM schedule_versions WHERE project_id = t.project_id ORDER BY version_number DESC LIMIT 1)
+     WHERE (ta.id IS NOT NULL OR tpa.id IS NOT NULL)
+       AND (COALESCE(svt.forecast_start, t.start_date) IS NULL OR COALESCE(svt.forecast_start, t.start_date) <= ?)
+       AND (COALESCE(svt.forecast_end, t.end_date) IS NULL OR COALESCE(svt.forecast_end, t.end_date) >= ?)
+     ORDER BY p.name, t.task_sort_order, t.id`
+  ).bind(employeeId, employeeId, localDate, localDate, localDate, localDate).all();
+  const eligibleTasks = await db.prepare(
+    `SELECT DISTINCT t.id AS task_id, t.project_id, t.task_name, t.start_date, t.end_date,
+            COALESCE(svt.forecast_start, t.start_date) AS official_forecast_start,
+            COALESCE(svt.forecast_end, t.end_date) AS official_forecast_end,
+            COALESCE(tpa.id, ta.id) AS assignment_id,
+            CASE WHEN tpa.id IS NOT NULL THEN 'PRIMARY' ELSE ta.assignment_role END AS assignment_role,
+            p.name AS project_name
+     FROM tasks t
+     JOIN projects p ON p.id = t.project_id
+     LEFT JOIN task_assignees ta ON ta.task_id = t.id AND ta.worker_id = ? AND ta.deleted_at IS NULL
+     LEFT JOIN temporary_primary_assignments tpa ON tpa.task_id = t.id
+       AND tpa.temporary_primary_employee_id = ? AND tpa.status = 'ACTIVE'
+       AND tpa.effective_start_date <= ? AND tpa.effective_end_date >= ?
+     LEFT JOIN schedule_version_tasks svt ON svt.task_id = t.id
+       AND svt.version_id = (SELECT id FROM schedule_versions WHERE project_id = t.project_id ORDER BY version_number DESC LIMIT 1)
+     WHERE (ta.id IS NOT NULL OR tpa.id IS NOT NULL)
+     ORDER BY p.name, t.task_sort_order, t.id`
+  ).bind(employeeId, employeeId, localDate, localDate).all();
   return {
     actor: { employee_id: actor.worker.id, name: actor.worker.name, access_role: actor.worker.access_role, is_manager: actor.isManager },
     selected_view_employee_id: actorContext.selectedViewEmployeeId,
+    subject: subject ? { id: subject.id, name: subject.name, country_code: subject.country_code, ui_language: subject.ui_language } : null,
     subject_employee_id: employeeId, local_work_date: localDate, capacity, self_edit_deadline_utc: deadline,
     permissions: {
       can_read: actor.worker.id === employeeId || actor.isManager || actor.worker.access_role === 'VIEWER',
@@ -477,7 +548,8 @@ export async function getWorklogContext(db: any, actorContext: ActorContextServe
       can_manager_correct: actor.isManager,
       is_read_only: actor.worker.access_role !== 'EDITOR',
     },
-    scheduled_tasks: tasks.results || [], worklog: worklog || { status: 'NOT_CREATED', current_revision_number: 0 },
+    scheduled_tasks: tasks.results || [], eligible_tasks: eligibleTasks.results || [],
+    worklog: worklog || { status: 'NOT_CREATED', current_revision_number: 0 },
     checkpoint_notice_code: 'CHECKPOINT2_ACTUAL_CAPACITY_ONLY_FORECAST_UNCHANGED',
   };
 }
@@ -881,9 +953,20 @@ export async function listWorklogs(db: any, actorContext: ActorContextServer, fi
   return result.results || [];
 }
 
-export async function getTaskActual(db: any, taskId: string) {
+export async function getTaskActual(db: any, taskId: string, actorContext?: ActorContextServer) {
   const task = await db.prepare(`SELECT id, project_id FROM tasks WHERE id=?`).bind(taskId).first();
   if (!task) throw new WorklogError('INVALID_LOCAL_WORK_DATE', 404, { task_id: taskId, reason: 'TASK_NOT_FOUND' });
+  if (actorContext) {
+    const actor = await resolveReadActor(db, actorContext);
+    if (!actor.isManager && actor.worker.access_role !== 'VIEWER') {
+      const assignment = await db.prepare(
+        `SELECT 1 AS allowed FROM task_assignees WHERE task_id=? AND worker_id=? AND deleted_at IS NULL
+         UNION SELECT 1 AS allowed FROM temporary_primary_assignments WHERE task_id=? AND temporary_primary_employee_id=?
+           AND status='ACTIVE' LIMIT 1`
+      ).bind(taskId, actor.worker.id, taskId, actor.worker.id).first();
+      if (!assignment) throw new WorklogError('WORKLOG_PERMISSION_DENIED', 403, { task_id: taskId });
+    }
+  }
   const aggregate = await currentTaskActual(db, taskId);
   const contributions = await db.prepare(`SELECT * FROM task_actual_contributions WHERE task_id=? ORDER BY local_work_date,created_at,id`).bind(taskId).all();
   const contributionRows = contributions.results || [];

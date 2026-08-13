@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { Worker, isExecutiveViewer, isEditableWorker, getWorkerColorGroup } from '../../types';
 import { useI18n } from '../../hooks/useI18n';
-import { ArrowLeft, User, Calendar, Lock } from 'lucide-react';
+import { ArrowLeft, User, Calendar, Lock, ClipboardCheck } from 'lucide-react';
 
 interface MobileAppHeaderProps {
   title?: string;
@@ -11,6 +11,7 @@ interface MobileAppHeaderProps {
   currentWorker: Worker | null;
   onOpenWorkerSheet: () => void;
   onOpenCalendarModal?: () => void;
+  onOpenWorklog?: () => void;
 }
 
 export const MobileAppHeader: React.FC<MobileAppHeaderProps> = ({
@@ -20,6 +21,7 @@ export const MobileAppHeader: React.FC<MobileAppHeaderProps> = ({
   currentWorker,
   onOpenWorkerSheet,
   onOpenCalendarModal,
+  onOpenWorklog,
 }) => {
   const { t, lang } = useI18n();
   const [logoSrc, setLogoSrc] = useState('/logo3-mobile-tight.png');
@@ -135,6 +137,18 @@ export const MobileAppHeader: React.FC<MobileAppHeaderProps> = ({
               className="w-8 h-8 flex items-center justify-center bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-lg text-slate-700 transition"
             >
               <Calendar className="w-4 h-4 text-blue-600" />
+            </button>
+          )}
+
+          {onOpenWorklog && (
+            <button
+              type="button"
+              data-testid="mobile-today-worklog-btn"
+              onClick={onOpenWorklog}
+              aria-label={lang === 'vi' ? 'Nhật ký công việc hôm nay' : '오늘 업무일지'}
+              className="w-8 h-8 flex items-center justify-center bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg text-emerald-700 transition"
+            >
+              <ClipboardCheck className="w-4 h-4" />
             </button>
           )}
 

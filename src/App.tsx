@@ -17,6 +17,9 @@ const PrintViewPage = lazy(() =>
 const DailyWorklogQaPage = lazy(() =>
   import('./pages/qa/DailyWorklogQaPage').then((module) => ({ default: module.DailyWorklogQaPage }))
 );
+const WorklogTodayPage = lazy(() =>
+  import('./pages/WorklogTodayPage').then((module) => ({ default: module.WorklogTodayPage }))
+);
 const ShadowSchedulePage = lazy(() =>
   import('./pages/ShadowSchedulePage').then((module) => ({ default: module.ShadowSchedulePage }))
 );
@@ -77,6 +80,22 @@ export function App() {
             element={
               <ErrorBoundary fallbackViewName="Daily Worklog QA Harness">
                 <DailyWorklogQaPage />
+              </ErrorBoundary>
+            }
+          />
+          <Route
+            path="/worklog/today"
+            element={
+              <ErrorBoundary fallbackViewName="Employee Daily Worklog">
+                <WorklogTodayPage />
+              </ErrorBoundary>
+            }
+          />
+          <Route
+            path="/worklog/history"
+            element={
+              <ErrorBoundary fallbackViewName="Employee Worklog History">
+                <WorklogTodayPage initialView="HISTORY" />
               </ErrorBoundary>
             }
           />
