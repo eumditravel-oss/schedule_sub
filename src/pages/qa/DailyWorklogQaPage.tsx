@@ -2,9 +2,9 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, CheckCircle2, Clock3, Database, ShieldAlert, TriangleAlert } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { TestActorModeBadge } from '../../components/common/TestActorModeBadge';
-import { WorkerSelector } from '../../components/common/WorkerSelector';
-import { api, getCurrentWorkerId } from '../../services/api';
+import { api } from '../../services/api';
 import type { Worker } from '../../types';
+import { usePilotAuth } from '../../auth/PilotAuthContext';
 
 const dateInZone = (timezone = 'Asia/Seoul') => new Intl.DateTimeFormat('en-CA', {
   timeZone: timezone, year: 'numeric', month: '2-digit', day: '2-digit',
@@ -64,6 +64,7 @@ const roleLabel = (code: string, lang: 'ko' | 'vi') => ({
 }[lang] as Record<string, string>)[code] || code;
 
 export function DailyWorklogQaPage() {
+  const { session } = usePilotAuth();
   const [worker, setWorker] = useState<Worker | null>(null);
   const [localDate, setLocalDate] = useState(dateInZone());
   const [selectedTaskId, setSelectedTaskId] = useState('');
@@ -80,11 +81,14 @@ export function DailyWorklogQaPage() {
   const t = labels[lang];
 
   useEffect(() => {
+    if (!session?.actor.employeeId) {
+      setWorker(null);
+      return;
+    }
     api.getWorkers().then((workers) => {
-      const id = getCurrentWorkerId();
-      setWorker(workers.find((item) => item.id === id || item.name === id) || workers.find((item) => item.access_role === 'EDITOR') || workers[0] || null);
+      setWorker(workers.find((item) => item.id === session.actor.employeeId) || null);
     }).catch((error) => setMessage({ code: error.code || error.message, error: true }));
-  }, []);
+  }, [session?.actor.employeeId]);
 
   const clearContext = () => {
     abortRef.current?.abort();
@@ -182,7 +186,7 @@ export function DailyWorklogQaPage() {
   return <main className="min-h-screen bg-slate-100 text-slate-900" data-testid="daily-worklog-qa-page" data-context-key={contextKey}>
     <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/95 backdrop-blur"><div className="mx-auto flex max-w-[1500px] items-center justify-between gap-4 px-6 py-3">
       <div className="flex items-center gap-3"><Link to="/projects" className="rounded-lg border p-2"><ArrowLeft className="h-4 w-4" /></Link><div><div className="mb-1 flex items-center gap-2"><span className="rounded bg-slate-900 px-2 py-0.5 text-[10px] font-black text-white">{t.qa}</span><span className="text-[10px] font-bold text-slate-500">{t.notUi}</span></div><h1 className="font-black">{t.title}</h1><p className="text-xs text-slate-500">{t.subtitle}</p></div></div>
-      <div className="flex items-center gap-2"><TestActorModeBadge /><WorkerSelector currentWorker={worker} onWorkerChange={(next) => { clearContext(); setWorker(next); setLocalDate(dateInZone(next.country_code === 'VN' ? 'Asia/Ho_Chi_Minh' : 'Asia/Seoul')); }} /></div>
+      <div className="flex items-center gap-2"><TestActorModeBadge /><span className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-700">{session?.actor.displayName || '-'}</span></div>
     </div></header>
     <section className="mx-auto max-w-[1500px] space-y-4 p-6">
       <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-900">{t.notice}</div>

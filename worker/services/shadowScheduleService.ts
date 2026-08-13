@@ -356,9 +356,9 @@ export function validateSourceWorklogRevisionPair(input: {
 }
 
 async function resolveShadowActor(db: any, actorContext: ActorContextServer, write = false): Promise<ShadowActor> {
-  const employeeId = actorContext.actorEmployeeId || actorContext.actorUserId;
+  const employeeId = actorContext.actorEmployeeId;
   if (!employeeId) throw new ShadowScheduleError('DEPENDENCY_PERMISSION_DENIED', 403);
-  const worker = await db.prepare(`SELECT * FROM workers WHERE (id=?1 OR name=?1) AND is_active=1`).bind(employeeId).first();
+  const worker = await db.prepare(`SELECT * FROM workers WHERE id=? AND is_active=1`).bind(employeeId).first();
   if (!worker) throw new ShadowScheduleError('DEPENDENCY_PERMISSION_DENIED', 403);
   if (write && worker.access_role !== 'EDITOR') throw new ShadowScheduleError('DEPENDENCY_PERMISSION_DENIED', 403);
   return {

@@ -1,9 +1,17 @@
 // src/services/api.ts
-import { ActorContext, ApiResponse, Project, ProjectProgressFoundation, Task, TaskGroup, Worker, DailyStatusType, CountryHoliday, CalendarOverride, ProjectWorkerAllocation, ShadowRunView, TaskDependency } from '../types';
+import { ApiResponse, Project, ProjectProgressFoundation, Task, TaskGroup, Worker, DailyStatusType, CountryHoliday, CalendarOverride, ProjectWorkerAllocation, ShadowRunView, TaskDependency } from '../types';
 
 const WORKER_ID_KEY = 'schedule_current_worker_id';
 const WORKER_NAME_KEY = 'schedule_current_worker_name';
-const TEST_SESSION_KEY = 'schedule_test_session_id';
+let csrfToken = '';
+
+export type PilotSession = {
+  authenticated: boolean;
+  actor: { employeeId: string; displayName: string; role: string; office: string | null; timezone: string | null };
+  csrfToken?: string;
+  expiresAt: string | null;
+  isQaTestSession?: boolean;
+};
 
 export const ACTUAL_WORKERS = [
   'CEO',
@@ -58,40 +66,10 @@ export function clearCurrentWorker(): void {
   } catch {}
 }
 
-export function getActorContext(): ActorContext {
-  let testSessionId = '';
-  try {
-    testSessionId = localStorage.getItem(TEST_SESSION_KEY) || '';
-    if (!testSessionId) {
-      testSessionId = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
-        ? crypto.randomUUID()
-        : `test-session-${Date.now()}`;
-      localStorage.setItem(TEST_SESSION_KEY, testSessionId);
-    }
-  } catch {
-    testSessionId = 'test-session-unavailable';
-  }
-  const actorUserId = getCurrentWorkerId() || null;
-  return {
-    actorMode: 'TEST_SELECTOR',
-    actorUserId,
-    actorEmployeeId: actorUserId,
-    selectedViewEmployeeId: actorUserId,
-    testSessionId,
-  };
-}
-
 function getWriteHeaders() {
-  const currentWorker = getCurrentWorkerName();
-  const actor = getActorContext();
   return {
     'Content-Type': 'application/json',
-    'x-editor-name': encodeURIComponent(currentWorker),
-    'x-actor-mode': actor.actorMode,
-    'x-actor-user-id': actor.actorUserId || '',
-    'x-actor-employee-id': actor.actorEmployeeId || '',
-    'x-selected-view-employee-id': actor.selectedViewEmployeeId || '',
-    'x-test-session-id': actor.testSessionId,
+    ...(csrfToken ? { 'X-CSRF-Token': csrfToken } : {}),
   };
 }
 
@@ -118,18 +96,82 @@ async function handleResponse<T>(res: Response): Promise<T> {
     const errorObj = new Error(errorMsg) as any;
     errorObj.code = json.error?.code || `HTTP_${res.status}`;
     errorObj.details = json.error?.details;
+    if (typeof window !== 'undefined' && ['AUTH_REQUIRED', 'SESSION_EXPIRED', 'SESSION_REVOKED'].includes(errorObj.code)) {
+      window.dispatchEvent(new CustomEvent('pilot-session-expired'));
+    }
     throw errorObj;
   }
   return json.data as T;
 }
 
+export const pilotAuth = {
+  async login(employeeId: string, pin: string): Promise<PilotSession> {
+    const res = await fetch('/api/auth/pilot/login', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin',
+      body: JSON.stringify({ employeeId, pin }),
+    });
+    const session = await handleResponse<PilotSession>(res);
+    csrfToken = session.csrfToken || '';
+    return session;
+  },
+  async session(): Promise<PilotSession> {
+    const res = await fetch('/api/auth/pilot/session', { credentials: 'same-origin', headers: { 'Content-Type': 'application/json' } });
+    const session = await handleResponse<PilotSession>(res);
+    csrfToken = session.csrfToken || '';
+    return session;
+  },
+  async logout(): Promise<void> {
+    const res = await fetch('/api/auth/pilot/logout', { method: 'POST', credentials: 'same-origin', headers: getWriteHeaders() });
+    await handleResponse(res);
+    csrfToken = '';
+  },
+  async qaBootstrap(employeeId: string, secret: string): Promise<PilotSession> {
+    const res = await fetch('/api/qa/auth/session', {
+      method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', 'X-QA-Test-Secret': secret },
+      body: JSON.stringify({ employeeId }),
+    });
+    const session = await handleResponse<PilotSession>(res);
+    csrfToken = session.csrfToken || '';
+    return session;
+  },
+  clearLocalSession() { csrfToken = ''; },
+};
+
 export const api = {
+  async getPilotLoginEmployees(): Promise<Worker[]> {
+    const res = await fetch('/api/auth/pilot/employees', { headers: { 'Content-Type': 'application/json' } });
+    return handleResponse<Worker[]>(res);
+  },
   async getDependencies(projectId?: string, status?: string): Promise<{ dependencies: TaskDependency[]; permissions: { canReview: boolean; readOnly: boolean } }> {
     const params = new URLSearchParams();
     if (projectId) params.set('project_id', projectId);
     if (status) params.set('status', status);
     const res = await fetch(`/api/v3/dependencies?${params}`, { headers: getWriteHeaders() });
     return handleResponse(res);
+  },
+
+  async getIntegrationKeys(): Promise<any[]> {
+    const res = await fetch('/api/admin/integration-keys');
+    return handleResponse<any[]>(res);
+  },
+
+  async getIntegrationLogs(): Promise<any[]> {
+    const res = await fetch('/api/admin/integration-logs');
+    return handleResponse<any[]>(res);
+  },
+
+  async createIntegrationKey(payload: { name: string; scopes: string[]; expires_in_days: number }): Promise<any> {
+    const res = await fetch('/api/admin/integration-keys', {
+      method: 'POST', headers: getWriteHeaders(), body: JSON.stringify(payload),
+    });
+    return handleResponse<any>(res);
+  },
+
+  async revokeIntegrationKey(keyId: string): Promise<any> {
+    const res = await fetch(`/api/admin/integration-keys/${encodeURIComponent(keyId)}`, {
+      method: 'DELETE', headers: getWriteHeaders(),
+    });
+    return handleResponse<any>(res);
   },
 
   async generateDependencyProposals(projectId: string): Promise<any> {
@@ -310,8 +352,9 @@ export const api = {
     return handleResponse<any>(res);
   },
 
-  async getTaskActual(taskId: string, signal?: AbortSignal): Promise<any> {
-    const res = await fetch(`/api/v3/tasks/${encodeURIComponent(taskId)}/actual`, { headers: getWriteHeaders(), signal });
+  async getTaskActual(taskId: string, signal?: AbortSignal, employeeId?: string): Promise<any> {
+    const params = employeeId ? `?${new URLSearchParams({ employee_id: employeeId })}` : '';
+    const res = await fetch(`/api/v3/tasks/${encodeURIComponent(taskId)}/actual${params}`, { headers: getWriteHeaders(), signal });
     return handleResponse<any>(res);
   },
 

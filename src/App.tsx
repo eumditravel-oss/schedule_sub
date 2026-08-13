@@ -1,6 +1,8 @@
 import React, { Suspense, lazy } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
+import { PilotAuthProvider } from './auth/PilotAuthContext';
+import { RequirePilotAuth } from './auth/RequirePilotAuth';
 
 const ProjectOverviewPage = lazy(() =>
   import('./pages/ProjectOverviewPage').then((module) => ({ default: module.ProjectOverviewPage }))
@@ -26,6 +28,9 @@ const ShadowSchedulePage = lazy(() =>
 const ScheduleControlPage = lazy(() =>
   import('./pages/ScheduleControlPage').then((module) => ({ default: module.ScheduleControlPage }))
 );
+const PilotLoginPage = lazy(() =>
+  import('./pages/PilotLoginPage').then((module) => ({ default: module.PilotLoginPage }))
+);
 
 function RouteLoadingFallback() {
   return (
@@ -47,15 +52,17 @@ export function App() {
 
   return (
     <ErrorBoundary fallbackViewName="App Main Router">
+      <PilotAuthProvider>
       <BrowserRouter>
         <Suspense fallback={<RouteLoadingFallback />}>
           <Routes>
+          <Route path="/login" element={<PilotLoginPage />} />
           <Route path="/" element={<Navigate to="/projects" replace />} />
           <Route
             path="/projects"
             element={
               <ErrorBoundary fallbackViewName="Project Overview Page">
-                <ProjectOverviewPage />
+                <RequirePilotAuth><ProjectOverviewPage /></RequirePilotAuth>
               </ErrorBoundary>
             }
           />
@@ -63,7 +70,7 @@ export function App() {
             path="/projects/:projectId"
             element={
               <ErrorBoundary fallbackViewName="Project Detail Page">
-                <ProjectDetailPage />
+                <RequirePilotAuth><ProjectDetailPage /></RequirePilotAuth>
               </ErrorBoundary>
             }
           />
@@ -71,7 +78,7 @@ export function App() {
             path="/workforce-capacity"
             element={
               <ErrorBoundary fallbackViewName="Workforce Capacity Page">
-                <WorkforceCapacityPage />
+                <RequirePilotAuth><WorkforceCapacityPage /></RequirePilotAuth>
               </ErrorBoundary>
             }
           />
@@ -79,7 +86,7 @@ export function App() {
             path="/qa/daily-worklog"
             element={
               <ErrorBoundary fallbackViewName="Daily Worklog QA Harness">
-                <DailyWorklogQaPage />
+                <RequirePilotAuth><DailyWorklogQaPage /></RequirePilotAuth>
               </ErrorBoundary>
             }
           />
@@ -87,7 +94,7 @@ export function App() {
             path="/worklog/today"
             element={
               <ErrorBoundary fallbackViewName="Employee Daily Worklog">
-                <WorklogTodayPage />
+                <RequirePilotAuth><WorklogTodayPage /></RequirePilotAuth>
               </ErrorBoundary>
             }
           />
@@ -95,7 +102,7 @@ export function App() {
             path="/worklog/history"
             element={
               <ErrorBoundary fallbackViewName="Employee Worklog History">
-                <WorklogTodayPage initialView="HISTORY" />
+                <RequirePilotAuth><WorklogTodayPage initialView="HISTORY" /></RequirePilotAuth>
               </ErrorBoundary>
             }
           />
@@ -103,7 +110,7 @@ export function App() {
             path="/projects/:projectId/shadow-schedule"
             element={
               <ErrorBoundary fallbackViewName="Shadow Schedule Preview">
-                <ShadowSchedulePage />
+                <RequirePilotAuth><ShadowSchedulePage /></RequirePilotAuth>
               </ErrorBoundary>
             }
           />
@@ -111,7 +118,7 @@ export function App() {
             path="/projects/:projectId/schedule-control"
             element={
               <ErrorBoundary fallbackViewName="Official Forecast Schedule Control">
-                <ScheduleControlPage />
+                <RequirePilotAuth><ScheduleControlPage /></RequirePilotAuth>
               </ErrorBoundary>
             }
           />
@@ -120,7 +127,7 @@ export function App() {
             path="/print/project/:projectId/summary-a4"
             element={
               <ErrorBoundary fallbackViewName="Print A4 Summary">
-                <PrintViewPage />
+                <RequirePilotAuth><PrintViewPage /></RequirePilotAuth>
               </ErrorBoundary>
             }
           />
@@ -128,7 +135,7 @@ export function App() {
             path="/print/projects/month-a4"
             element={
               <ErrorBoundary fallbackViewName="Print A4 Monthly">
-                <PrintViewPage />
+                <RequirePilotAuth><PrintViewPage /></RequirePilotAuth>
               </ErrorBoundary>
             }
           />
@@ -136,7 +143,7 @@ export function App() {
             path="/print/projects/half-year-a4"
             element={
               <ErrorBoundary fallbackViewName="Print A4 Half-Year">
-                <PrintViewPage />
+                <RequirePilotAuth><PrintViewPage /></RequirePilotAuth>
               </ErrorBoundary>
             }
           />
@@ -144,7 +151,7 @@ export function App() {
             path="/print/projects/year-a4"
             element={
               <ErrorBoundary fallbackViewName="Print A4 Annual Roadmap">
-                <PrintViewPage />
+                <RequirePilotAuth><PrintViewPage /></RequirePilotAuth>
               </ErrorBoundary>
             }
           />
@@ -152,7 +159,7 @@ export function App() {
             path="/print/project/:projectId/full-a3"
             element={
               <ErrorBoundary fallbackViewName="Print A3 Full Project Schedule">
-                <PrintViewPage />
+                <RequirePilotAuth><PrintViewPage /></RequirePilotAuth>
               </ErrorBoundary>
             }
           />
@@ -160,7 +167,7 @@ export function App() {
             path="/print/projects/rolling-30-a3"
             element={
               <ErrorBoundary fallbackViewName="Print A3 30-Day Rolling Schedule">
-                <PrintViewPage />
+                <RequirePilotAuth><PrintViewPage /></RequirePilotAuth>
               </ErrorBoundary>
             }
           />
@@ -168,7 +175,7 @@ export function App() {
             path="/print/projects/combined-a3"
             element={
               <ErrorBoundary fallbackViewName="Print A3 Combined Projects Schedule">
-                <PrintViewPage />
+                <RequirePilotAuth><PrintViewPage /></RequirePilotAuth>
               </ErrorBoundary>
             }
           />
@@ -186,6 +193,7 @@ export function App() {
           </Routes>
         </Suspense>
       </BrowserRouter>
+      </PilotAuthProvider>
     </ErrorBoundary>
   );
 }

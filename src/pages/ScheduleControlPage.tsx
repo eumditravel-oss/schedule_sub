@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { AlertTriangle, ArrowLeft, Check, History, RefreshCw, RotateCcw, ShieldCheck, X } from 'lucide-react';
-import { api, getCurrentWorkerId, setCurrentWorker } from '../services/api';
+import { api } from '../services/api';
 import { isExecutiveViewer, Project, Worker } from '../types';
-import { WorkerSelector } from '../components/common/WorkerSelector';
+import { usePilotAuth } from '../auth/PilotAuthContext';
 import { LanguageSelector } from '../components/common/LanguageSelector';
 
 const parseCodes = (value?: string | null): string[] => {
@@ -25,6 +25,7 @@ function Tone({ value }: { value?: string | null }) {
 export function ScheduleControlPage() {
   const { projectId = '' } = useParams();
   const navigate = useNavigate();
+  const { session } = usePilotAuth();
   const [project, setProject] = useState<Project | null>(null);
   const [workers, setWorkers] = useState<Worker[]>([]);
   const [currentWorker, setCurrentWorkerState] = useState<Worker | null>(null);
@@ -52,11 +53,10 @@ export function ScheduleControlPage() {
     setWorkers(workerRows);
     setForecast(current);
     setHistory(versionHistory);
-    const selected = getCurrentWorkerId();
-    setCurrentWorkerState(workerRows.find((item) => item.id === selected || item.name === selected) || workerRows[0] || null);
+    setCurrentWorkerState(workerRows.find((item) => item.id === session?.actor.employeeId) || null);
   };
 
-  useEffect(() => { load().catch((reason) => setError(reason.message || String(reason))); }, [projectId]);
+  useEffect(() => { load().catch((reason) => setError(reason.message || String(reason))); }, [projectId, session?.actor.employeeId]);
 
   const act = async (action: () => Promise<unknown>) => {
     setBusy(true); setError('');
@@ -74,7 +74,7 @@ export function ScheduleControlPage() {
           <button onClick={() => navigate(`/projects/${projectId}`)} className="rounded-lg border border-slate-200 p-2 text-slate-600 hover:bg-slate-50"><ArrowLeft className="h-4 w-4" /></button>
           <div><h1 className="text-base font-black">Official Forecast Schedule Control</h1><p className="text-[10px] text-slate-500">{project?.name || projectId} · Checkpoint 3B</p></div>
         </div>
-        <div className="flex items-center gap-2"><LanguageSelector /><WorkerSelector currentWorker={currentWorker} onWorkerChange={(worker) => { setCurrentWorker(worker); setCurrentWorkerState(worker); }} /></div>
+        <div className="flex items-center gap-2"><LanguageSelector /><span className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs font-bold text-slate-700">{session?.actor.displayName || '-'}</span></div>
       </header>
       <main className="mx-auto max-w-6xl space-y-4 p-4 md:p-6">
         {isExecutive && <section data-testid="forecast-executive-readonly" className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm font-bold text-rose-800">CEO/COO accounts can review forecast history but cannot apply, approve, reject, or restore.</section>}

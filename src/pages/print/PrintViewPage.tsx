@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useSearchParams, useNavigate, useLocation } from 'react-router-dom';
 import { Project, Task, TaskGroup, Worker, CountryHoliday, CalendarOverride, ProjectWorkerAllocation } from '../../types';
-import { api, getCurrentWorkerName } from '../../services/api';
+import { api } from '../../services/api';
 import { PrintToolbar } from '../../components/print/PrintToolbar';
 import { PrintPageShell } from '../../components/print/PrintPageShell';
 import { PrintColorMode } from '../../utils/printVisualTokens';
@@ -15,6 +15,7 @@ import { PrintRolling30A3 } from '../../components/print/PrintRolling30A3';
 import { PrintCombinedProjectsA3 } from '../../components/print/PrintCombinedProjectsA3';
 import { useI18n } from '../../hooks/useI18n';
 import { getKoreaDateString, getKoreaBusinessMonth, getKoreaBusinessYear } from '../../utils/dateUtils';
+import { usePilotAuth } from '../../auth/PilotAuthContext';
 
 export type TemplateType =
   | 'summary-a4'
@@ -31,6 +32,7 @@ export const PrintViewPage: React.FC = () => {
   const { projectId } = useParams<{ projectId?: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
   const { lang: appLang, setLanguage } = useI18n();
+  const { session } = usePilotAuth();
 
   // Determine template type from pathname
   const pathname = location.pathname;
@@ -65,7 +67,7 @@ export const PrintViewPage: React.FC = () => {
   const [vnHolidays, setVnHolidays] = useState<CountryHoliday[]>([]);
   const [calendarOverrides, setCalendarOverrides] = useState<CalendarOverride[]>([]);
 
-  const viewerName = getCurrentWorkerName() || 'CEO / COO Viewer';
+  const viewerName = session?.actor.displayName || 'Authenticated Viewer';
   const referenceDate = getKoreaDateString();
 
   // Sync state to search params

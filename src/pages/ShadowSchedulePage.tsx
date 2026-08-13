@@ -14,7 +14,7 @@ import {
   ShieldCheck,
   X,
 } from 'lucide-react';
-import { api, getCurrentWorkerId, setCurrentWorker } from '../services/api';
+import { api } from '../services/api';
 import {
   isExecutiveViewer,
   Project,
@@ -27,7 +27,7 @@ import {
   CalendarOverride,
   CountryHoliday,
 } from '../types';
-import { WorkerSelector } from '../components/common/WorkerSelector';
+import { usePilotAuth } from '../auth/PilotAuthContext';
 import { LanguageSelector } from '../components/common/LanguageSelector';
 
 const parseCodes = (value?: string | null): string[] => {
@@ -161,6 +161,7 @@ function ShadowGantt({ tasks, lang, holidays, overrides, workers, dependencies }
 export function ShadowSchedulePage() {
   const { projectId = '' } = useParams();
   const navigate = useNavigate();
+  const { session } = usePilotAuth();
   const [project, setProject] = useState<Project | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [groups, setGroups] = useState<TaskGroup[]>([]);
@@ -193,13 +194,12 @@ export function ShadowSchedulePage() {
     setWorkers(workerList); setDependencies(dependencyList.dependencies); setPermissions(dependencyList.permissions);
     setHolidays([...krHolidays, ...vnHolidays]); setOverrides(calendarOverrides);
     setShadow(currentShadow); setSelectedTaskId((value) => value || detail.tasks[0]?.id || '');
-    const currentId = getCurrentWorkerId();
-    setCurrentWorkerState(workerList.find((worker) => worker.id === currentId || worker.name === currentId) || workerList[0] || null);
+    setCurrentWorkerState(workerList.find((worker) => worker.id === session?.actor.employeeId) || null);
     const priority = priorities.priorities?.find((item: any) => item.project_id === projectId);
     if (priority) setPriorityRank(String(priority.priority_rank));
   };
 
-  useEffect(() => { load().catch((reason) => setError(reason.message)); }, [projectId]);
+  useEffect(() => { load().catch((reason) => setError(reason.message)); }, [projectId, session?.actor.employeeId]);
   const groupById = useMemo(() => new Map(groups.map((group) => [group.id, group])), [groups]);
   const projectView = useMemo(() => selectProjectShadowView(shadow, projectId), [shadow, projectId]);
   const { projectVersion, tasks: impactedTasks, impacts: projectImpacts } = projectView;
@@ -223,10 +223,6 @@ export function ShadowSchedulePage() {
     finally { setBusy(false); }
   };
 
-  const changeWorker = (worker: Worker) => {
-    setCurrentWorker(worker); setCurrentWorkerState(worker);
-    window.location.reload();
-  };
 
   return (
     <div data-testid="shadow-schedule-page" className="min-h-screen bg-slate-100 text-slate-900">
@@ -241,7 +237,7 @@ export function ShadowSchedulePage() {
         <div className="flex items-center gap-2">
           {isExecutive && <span data-testid="shadow-executive-readonly" className="flex items-center gap-1 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-extrabold text-rose-700"><Lock className="h-3.5 w-3.5" />{lang === 'vi' ? 'Chỉ xem' : '보기 전용'}</span>}
           <LanguageSelector />
-          <WorkerSelector currentWorker={currentWorker} onWorkerChange={changeWorker} />
+          <span className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs font-bold text-slate-700">{session?.actor.displayName || '-'}</span>
         </div>
       </header>
 

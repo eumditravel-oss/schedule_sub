@@ -11,7 +11,7 @@ describe('Official Forecast apply safety guard', () => {
   it.each([
     ['false', 'editor'],
     [undefined, 'admin'],
-  ])('fails closed when the apply flag is %s (%s)', async (flag, actor) => {
+  ])('requires a session before the disabled apply route can be evaluated (%s)', async (flag, actor) => {
     let prepared = false;
     const env: any = {
       DYNAMIC_SCHEDULER_OFFICIAL_APPLY_ENABLED: flag,
@@ -19,9 +19,9 @@ describe('Official Forecast apply safety guard', () => {
     };
     const response = await worker.fetch(request(actor === 'editor' ? { 'X-Editor-Name': 'editor' } : {}), env);
     const body: any = await response.json();
-    expect(response.status).toBe(503);
+    expect(response.status).toBe(401);
     expect(body.success).toBe(false);
-    expect(body.error.code).toBe('OFFICIAL_APPLY_DISABLED');
+    expect(body.error.code).toBe('AUTH_REQUIRED');
     expect(prepared).toBe(false);
   });
 });
