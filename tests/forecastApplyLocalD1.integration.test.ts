@@ -23,9 +23,11 @@ const supportActor = { ...managerActor, actorUserId: 'support', actorEmployeeId:
 const flags = { officialApplyEnabled: true, autoApplyEnabled: false, approvalEnabled: true, restoreEnabled: true };
 
 const schema = `
-CREATE TABLE workers (id TEXT PRIMARY KEY,name TEXT,is_active INTEGER,access_role TEXT,can_manage_schedule_engine INTEGER);
+CREATE TABLE workers (id TEXT PRIMARY KEY,name TEXT,is_active INTEGER,access_role TEXT,can_manage_schedule_engine INTEGER,country_code TEXT);
 CREATE TABLE projects (id TEXT PRIMARY KEY,name TEXT,start_date TEXT,end_date TEXT,progress REAL,status TEXT);
-CREATE TABLE tasks (id TEXT PRIMARY KEY,project_id TEXT,task_group_id TEXT,start_date TEXT,end_date TEXT,task_sort_order INTEGER,task_name TEXT);
+CREATE TABLE tasks (id TEXT PRIMARY KEY,project_id TEXT,task_group_id TEXT,start_date TEXT,end_date TEXT,task_sort_order INTEGER,task_name TEXT,primary_worker_id TEXT);
+CREATE TABLE task_assignees (id TEXT PRIMARY KEY,task_id TEXT,worker_id TEXT,assignment_role TEXT,sort_order INTEGER,deleted_at TEXT);
+CREATE TABLE office_work_policies (country_code TEXT PRIMARY KEY,timezone TEXT);
 CREATE TABLE project_baselines (id TEXT PRIMARY KEY,project_id TEXT,version INTEGER,baseline_start_date TEXT,baseline_end_date TEXT,created_at TEXT);
 CREATE TABLE task_baselines (id TEXT PRIMARY KEY,baseline_id TEXT,task_id TEXT,baseline_start_date TEXT,baseline_end_date TEXT,baseline_progress REAL,effort_status TEXT,proposed_effort_minutes INTEGER);
 CREATE TABLE schedule_versions (
@@ -43,7 +45,7 @@ CREATE TABLE daily_worklog_revisions (id TEXT PRIMARY KEY,worklog_id TEXT,is_eff
 CREATE TABLE daily_worklog_entries (id TEXT PRIMARY KEY,worklog_id TEXT,revision_id TEXT,project_id TEXT);
 CREATE TABLE task_actuals (id TEXT PRIMARY KEY,source_type TEXT);
 CREATE TABLE task_completion_events (id TEXT PRIMARY KEY);
-CREATE TABLE schedule_recalculation_requests (request_id TEXT PRIMARY KEY,source_worklog_id TEXT,source_revision_id TEXT);
+CREATE TABLE schedule_recalculation_requests (request_id TEXT PRIMARY KEY,trigger_type TEXT,source_worklog_id TEXT,source_revision_id TEXT,project_id TEXT,employee_id TEXT,requested_by TEXT,requested_at TEXT,idempotency_key TEXT UNIQUE,request_fingerprint TEXT,status TEXT,attempt_count INTEGER);
 CREATE TABLE schedule_recalculation_runs (run_id TEXT PRIMARY KEY,request_id TEXT,engine_version TEXT,input_fingerprint TEXT,official_data_before_hash TEXT,authority_revision INTEGER,status TEXT,data_confidence TEXT);
 CREATE TABLE shadow_schedule_authority_guard (guard_id TEXT PRIMARY KEY,revision INTEGER,lock_token TEXT,updated_at TEXT);
 CREATE TABLE shadow_schedule_versions (shadow_version_id TEXT PRIMARY KEY,run_id TEXT,project_id TEXT,based_on_forecast_version_id TEXT,shadow_version_number INTEGER,shadow_forecast_start_date TEXT,shadow_forecast_end_date TEXT,schedule_variance_workdays INTEGER,approval_classification TEXT,approval_reasons_json TEXT,data_confidence TEXT,status TEXT,apply_status TEXT DEFAULT 'NOT_APPLIED',applied_at TEXT,applied_forecast_version_id TEXT);
@@ -57,13 +59,15 @@ CREATE TABLE schedule_adjustment_events (adjustment_id TEXT PRIMARY KEY,correlat
 CREATE TABLE schedule_adjustment_impacts (adjustment_impact_id TEXT PRIMARY KEY,adjustment_id TEXT,project_id TEXT,task_id TEXT,employee_id TEXT,forecast_start_before TEXT,forecast_start_after TEXT,forecast_end_before TEXT,forecast_end_after TEXT,delta_start_workdays INTEGER,delta_end_workdays INTEGER,reason_codes_json TEXT,constraint_result TEXT,dependency_result TEXT,created_at TEXT,UNIQUE(adjustment_id,task_id));
 CREATE TABLE shadow_engine_audit_events (audit_id TEXT PRIMARY KEY,event_type TEXT,entity_type TEXT,entity_id TEXT,actor_employee_id TEXT,actor_mode TEXT,event_time_utc TEXT,before_json TEXT,after_json TEXT,reason TEXT,test_session_id TEXT,request_id TEXT);
 CREATE TABLE shadow_engine_idempotency_keys (idempotency_key TEXT PRIMARY KEY,operation TEXT,payload_hash TEXT,response_json TEXT,created_at TEXT);
-CREATE TABLE task_constraints (constraint_id TEXT PRIMARY KEY,task_id TEXT,constraint_type TEXT,constraint_date TEXT,status TEXT);
+CREATE TABLE task_constraints (constraint_id TEXT PRIMARY KEY,task_id TEXT,constraint_type TEXT,constraint_date TEXT,constraint_timestamp_utc TEXT,status TEXT);
 CREATE TRIGGER trg_shadow_auth_schedule_versions_i AFTER INSERT ON schedule_versions BEGIN UPDATE shadow_schedule_authority_guard SET revision=revision+1 WHERE guard_id='GLOBAL'; END;
 CREATE TRIGGER trg_shadow_auth_schedule_version_tasks_i AFTER INSERT ON schedule_version_tasks BEGIN UPDATE shadow_schedule_authority_guard SET revision=revision+1 WHERE guard_id='GLOBAL'; END;
 CREATE TRIGGER trg_forecast_append_version_cas BEFORE INSERT ON schedule_versions BEGIN
  SELECT RAISE(ABORT,'FORECAST_VERSION_CONFLICT') WHERE NEW.source_type IN ('SHADOW_AUTO_APPLY','SHADOW_APPROVED','MANAGER_RESTORE') AND NEW.based_on_version_id IS NOT (SELECT id FROM schedule_versions WHERE project_id=NEW.project_id ORDER BY version_number DESC LIMIT 1);
  SELECT RAISE(ABORT,'SHADOW_AUTHORITY_STALE') WHERE NEW.source_type IN ('SHADOW_AUTO_APPLY','SHADOW_APPROVED','MANAGER_RESTORE') AND NOT EXISTS (SELECT 1 FROM shadow_schedule_authority_guard WHERE guard_id='GLOBAL' AND revision=NEW.authority_revision AND lock_token=NEW.apply_guard_token);
 END;
+CREATE TRIGGER trg_forecast_history_protect_task_delete BEFORE DELETE ON tasks WHEN EXISTS (SELECT 1 FROM schedule_version_tasks svt WHERE svt.project_id=OLD.project_id AND svt.task_id=OLD.id) BEGIN SELECT RAISE(ABORT,'OFFICIAL_FORECAST_HISTORY_PROTECTED'); END;
+CREATE TRIGGER trg_forecast_history_protect_project_delete BEFORE DELETE ON projects WHEN EXISTS (SELECT 1 FROM schedule_versions sv WHERE sv.project_id=OLD.id) BEGIN SELECT RAISE(ABORT,'OFFICIAL_FORECAST_HISTORY_PROTECTED'); END;
 `;
 
 const dataTables = [
@@ -71,7 +75,7 @@ const dataTables = [
   'forecast_approval_requests', 'shadow_forecast_applications', 'shadow_impact_summaries', 'shadow_impact_task_diffs', 'shadow_capacity_allocations', 'shadow_schedule_tasks',
   'shadow_schedule_versions', 'schedule_recalculation_runs', 'schedule_recalculation_requests', 'task_constraints', 'task_completion_events', 'task_actuals',
   'daily_worklog_entries', 'daily_worklog_revisions', 'daily_worklogs', 'task_actual_aggregates', 'schedule_version_tasks',
-  'schedule_versions', 'task_baselines', 'project_baselines', 'tasks', 'projects', 'workers',
+  'schedule_versions', 'task_baselines', 'project_baselines', 'task_assignees', 'tasks', 'projects', 'office_work_policies', 'workers',
 ];
 
 describe.runIf(enabled)('Checkpoint 3B D1 append-only Forecast integration', { timeout: 60_000 }, () => {
@@ -108,9 +112,11 @@ describe.runIf(enabled)('Checkpoint 3B D1 append-only Forecast integration', { t
     await db.prepare(`DELETE FROM shadow_schedule_authority_guard`).run();
     await db.prepare(`INSERT INTO shadow_schedule_authority_guard (guard_id,revision,lock_token) VALUES ('GLOBAL',0,NULL)`).run();
     await db.batch([
-      db.prepare(`INSERT INTO workers VALUES ('manager','Manager',1,'EDITOR',1),('executive','Executive',1,'VIEWER',0),('support','Support',1,'EDITOR',0)`),
+      db.prepare(`INSERT INTO workers VALUES ('manager','Manager',1,'EDITOR',1,'KR'),('executive','Executive',1,'VIEWER',0,'KR'),('support','Support',1,'EDITOR',0,'KR')`),
+      db.prepare(`INSERT INTO office_work_policies VALUES ('KR','Asia/Seoul')`),
       db.prepare(`INSERT INTO projects VALUES ('project-a','Project A','2026-08-10','2026-08-20',12,'ACTIVE')`),
-      db.prepare(`INSERT INTO tasks VALUES ('task-a1','project-a','group-a','2026-08-10','2026-08-12',1,'Task A1'),('task-a2','project-a','group-a','2026-08-13','2026-08-14',2,'Task A2')`),
+      db.prepare(`INSERT INTO tasks (id,project_id,task_group_id,start_date,end_date,task_sort_order,task_name,primary_worker_id)
+        VALUES ('task-a1','project-a','group-a','2026-08-10','2026-08-12',1,'Task A1','manager'),('task-a2','project-a','group-a','2026-08-13','2026-08-14',2,'Task A2','manager')`),
       db.prepare(`INSERT INTO project_baselines VALUES ('baseline-a','project-a',1,'2026-08-10','2026-08-20','2026-08-01')`),
       db.prepare(`INSERT INTO task_baselines VALUES ('tb-a1','baseline-a','task-a1','2026-08-10','2026-08-12',0,'CONFIRMED',240),('tb-a2','baseline-a','task-a2','2026-08-13','2026-08-14',0,'CONFIRMED',240)`),
       db.prepare(`INSERT INTO schedule_versions (id,project_id,baseline_id,version_number,source_type,status,project_forecast_start,project_forecast_end,created_at,created_by,actor_mode) VALUES ('forecast-a1','project-a','baseline-a',1,'INITIAL_BASELINE_CLONE','APPLIED','2026-08-10','2026-08-20','2026-08-01','system','SYSTEM')`),
@@ -120,7 +126,8 @@ describe.runIf(enabled)('Checkpoint 3B D1 append-only Forecast integration', { t
     if (crossProject) {
       await db.batch([
         db.prepare(`INSERT INTO projects VALUES ('project-b','Project B','2026-08-10','2026-08-20',0,'ACTIVE')`),
-        db.prepare(`INSERT INTO tasks VALUES ('task-b1','project-b','group-b','2026-08-10','2026-08-12',1,'Task B1')`),
+        db.prepare(`INSERT INTO tasks (id,project_id,task_group_id,start_date,end_date,task_sort_order,task_name,primary_worker_id)
+          VALUES ('task-b1','project-b','group-b','2026-08-10','2026-08-12',1,'Task B1','manager')`),
         db.prepare(`INSERT INTO project_baselines VALUES ('baseline-b','project-b',1,'2026-08-10','2026-08-20','2026-08-01')`),
         db.prepare(`INSERT INTO task_baselines VALUES ('tb-b1','baseline-b','task-b1','2026-08-10','2026-08-12',0,'CONFIRMED',240)`),
         db.prepare(`INSERT INTO schedule_versions (id,project_id,baseline_id,version_number,source_type,status,project_forecast_start,project_forecast_end,created_at,created_by,actor_mode) VALUES ('forecast-b1','project-b','baseline-b',1,'INITIAL_BASELINE_CLONE','APPLIED','2026-08-10','2026-08-20','2026-08-01','system','SYSTEM')`),
@@ -130,7 +137,9 @@ describe.runIf(enabled)('Checkpoint 3B D1 append-only Forecast integration', { t
     const authority = Number((await db.prepare(`SELECT revision FROM shadow_schedule_authority_guard WHERE guard_id='GLOBAL'`).first<any>())?.revision || 0);
     const officialHash = await officialDataFingerprint(db);
     await db.batch([
-      db.prepare(`INSERT INTO schedule_recalculation_requests VALUES ('request-1',NULL,NULL)`),
+      db.prepare(`INSERT INTO schedule_recalculation_requests
+        (request_id,trigger_type,source_worklog_id,source_revision_id,project_id,employee_id,requested_by,requested_at,idempotency_key,request_fingerprint,status,attempt_count)
+        VALUES ('request-1','MANUAL',NULL,NULL,'project-a',NULL,'manager','2026-08-12T00:00:00.000Z','fixture-request','fixture','COMPLETED',1)`),
       db.prepare(`INSERT INTO schedule_recalculation_runs
         (run_id,request_id,engine_version,input_fingerprint,official_data_before_hash,authority_revision,status,data_confidence)
         VALUES ('run-1','request-1','3A.1.12','input-1',?1,?2,'COMPLETED','HIGH')`).bind(officialHash, authority),
@@ -233,6 +242,31 @@ describe.runIf(enabled)('Checkpoint 3B D1 append-only Forecast integration', { t
   });
 
   it.each([
+    ['timestamp FIXED_START', 'FIXED_START', null, '2026-08-11T00:00:00.000Z'],
+    ['timestamp FIXED_END', 'FIXED_END', null, '2026-08-11T00:00:00.000Z'],
+    ['timestamp NOT_BEFORE', 'NOT_BEFORE', null, '2026-08-11T00:00:00.000Z'],
+    ['timestamp MILESTONE', 'MILESTONE', null, '2026-08-11T00:00:00.000Z'],
+    ['date MILESTONE', 'MILESTONE', '2026-08-11', null],
+  ])('rejects a restore that conflicts with active %s constraints', async (_label, constraintType, constraintDate, constraintTimestampUtc) => {
+    const db = await fixture();
+    const applied = await applyShadowForecast(db, managerActor, 'shadow-a', `apply-before-${constraintType}-${constraintTimestampUtc || 'date'}`, flags);
+    await db.prepare(`INSERT INTO task_constraints (constraint_id,task_id,constraint_type,constraint_date,constraint_timestamp_utc,status)
+      VALUES (?1,'task-a1',?2,?3,?4,'ACTIVE')`).bind(`constraint-${constraintType}`, constraintType, constraintDate, constraintTimestampUtc).run();
+    await expect(restoreForecastVersion(
+      db, managerActor, 'project-a', 'forecast-a1', { expected_version_id: applied.official_versions[0].forecast_version_id }, `restore-${constraintType}-${constraintTimestampUtc || 'date'}`, flags,
+    )).rejects.toMatchObject({ code: 'RESTORE_TARGET_INVALID', status: 409 });
+    expect(await db.prepare(`SELECT COUNT(*) AS count FROM schedule_versions WHERE source_type='MANAGER_RESTORE'`).first<any>()).toMatchObject({ count: 0 });
+  });
+
+  it('protects Official Forecast history from task or project deletion', async () => {
+    const db = await fixture();
+    await expect(db.prepare(`DELETE FROM tasks WHERE id='task-a1'`).run()).rejects.toThrow('OFFICIAL_FORECAST_HISTORY_PROTECTED');
+    await expect(db.prepare(`DELETE FROM projects WHERE id='project-a'`).run()).rejects.toThrow('OFFICIAL_FORECAST_HISTORY_PROTECTED');
+    expect(await db.prepare(`SELECT COUNT(*) AS count FROM schedule_versions WHERE project_id='project-a'`).first<any>()).toMatchObject({ count: 1 });
+    expect(await db.prepare(`SELECT COUNT(*) AS count FROM schedule_version_tasks WHERE project_id='project-a'`).first<any>()).toMatchObject({ count: 2 });
+  });
+
+  it.each([
     ['Forecast Version', `CREATE TRIGGER fail_forecast_version BEFORE INSERT ON schedule_versions WHEN NEW.source_type='SHADOW_AUTO_APPLY' BEGIN SELECT RAISE(ABORT,'FAIL_VERSION'); END`],
     ['Task Snapshot', `CREATE TRIGGER fail_task_snapshot BEFORE INSERT ON schedule_version_tasks WHEN NEW.version_id LIKE 'ofv_%' BEGIN SELECT RAISE(ABORT,'FAIL_SNAPSHOT'); END`],
     ['Adjustment', `CREATE TRIGGER fail_adjustment BEFORE INSERT ON schedule_adjustment_events BEGIN SELECT RAISE(ABORT,'FAIL_ADJUSTMENT'); END`],
@@ -262,6 +296,9 @@ describe.runIf(enabled)('Checkpoint 3B D1 append-only Forecast integration', { t
     await db.prepare(`UPDATE shadow_schedule_authority_guard SET revision=revision+1 WHERE guard_id='GLOBAL'`).run();
     await expect(applyShadowForecast(db, managerActor, 'shadow-a', 'stale-authority', flags)).rejects.toMatchObject({ code: 'SHADOW_AUTHORITY_STALE', status: 409 });
     expect(await counts(db)).toMatchObject({ appended: 0, adjustments: 0, applications: 0, audit: 0 });
+    expect(await db.prepare(`SELECT status FROM shadow_schedule_versions WHERE shadow_version_id='shadow-a'`).first<any>()).toMatchObject({ status: 'STALE' });
+    expect(await db.prepare(`SELECT trigger_type,status FROM schedule_recalculation_requests WHERE trigger_type='FORECAST_CANDIDATE_STALE'`).first<any>())
+      .toMatchObject({ trigger_type: 'FORECAST_CANDIDATE_STALE', status: 'PENDING' });
   });
 
   it('does not expose an authority-stale Shadow as a current manager candidate', async () => {

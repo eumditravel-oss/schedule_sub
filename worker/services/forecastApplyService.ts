@@ -1,6 +1,6 @@
 import { ActorContextServer } from './v3FoundationService';
 import { ShadowScheduleError, idempotentShadowMutation, officialDataFingerprint } from './shadowScheduleService';
-import { canonicalJson } from './shadowScheduleEngine';
+import { canonicalJson, isValidIsoLocalDate, isValidUtcTimestamp, sha256Hex, utcToLocalDate } from './shadowScheduleEngine';
 
 type ForecastActor = {
   worker: any;
@@ -63,7 +63,7 @@ function applicationStatus(value: any): string {
 
 function normalizeForecastDbError(error: unknown): never {
   const message = String((error as any)?.message || error);
-  for (const code of ['FORECAST_VERSION_CONFLICT', 'SHADOW_AUTHORITY_STALE', 'SHADOW_STALE']) {
+  for (const code of ['FORECAST_VERSION_CONFLICT', 'SHADOW_AUTHORITY_STALE', 'SHADOW_STALE', 'OFFICIAL_FORECAST_HISTORY_PROTECTED']) {
     if (message.includes(code)) throw new ShadowScheduleError(code, 409);
   }
   throw error;
@@ -110,6 +110,34 @@ async function currentVersions(db: any, projectIds: string[]) {
   return latestByProject(rows.results || []);
 }
 
+async function staleShadowAndEnqueue(
+  db: any,
+  bundle: Awaited<ReturnType<typeof loadShadowBundle>>,
+  reason: 'SHADOW_AUTHORITY_STALE' | 'SHADOW_INPUT_CHANGED',
+) {
+  const now = new Date().toISOString();
+  const idempotencyKey = `forecast-stale:${bundle.version.run_id}:${reason}`;
+  const requestShape = {
+    triggerType: 'FORECAST_CANDIDATE_STALE', runId: bundle.version.run_id,
+    projectId: bundle.version.project_id, sourceWorklogId: bundle.version.source_worklog_id || null,
+    sourceRevisionId: bundle.version.source_revision_id || null, reason,
+  };
+  const requestFingerprint = await sha256Hex(canonicalJson(requestShape));
+  await db.batch([
+    db.prepare(`UPDATE shadow_schedule_versions SET status='STALE'
+      WHERE run_id=?1 AND status IN ('CURRENT','BLOCKED') AND COALESCE(apply_status,'NOT_APPLIED')='NOT_APPLIED'`)
+      .bind(bundle.version.run_id),
+    db.prepare(`UPDATE forecast_approval_requests SET status='STALE',updated_at=?2
+      WHERE shadow_run_id=?1 AND status='PENDING'`).bind(bundle.version.run_id, now),
+    db.prepare(`INSERT OR IGNORE INTO schedule_recalculation_requests
+      (request_id,trigger_type,source_worklog_id,source_revision_id,project_id,employee_id,requested_by,requested_at,
+       idempotency_key,request_fingerprint,status,attempt_count)
+      VALUES (?1,'FORECAST_CANDIDATE_STALE',?2,?3,?4,NULL,'FORECAST_STALE_GUARD',?5,?6,?7,'PENDING',0)`)
+      .bind(uuid('srr'), bundle.version.source_worklog_id || null, bundle.version.source_revision_id || null,
+        bundle.version.project_id, now, idempotencyKey, requestFingerprint),
+  ]);
+}
+
 async function assertFreshShadow(db: any, bundle: Awaited<ReturnType<typeof loadShadowBundle>>, requireApproval: boolean) {
   const version = bundle.version;
   if (bundle.application || applicationStatus(version) === 'APPLIED') throw new ShadowScheduleError('SHADOW_ALREADY_APPLIED', 409);
@@ -120,9 +148,43 @@ async function assertFreshShadow(db: any, bundle: Awaited<ReturnType<typeof load
     throw new ShadowScheduleError('APPROVAL_ALREADY_DECIDED', 409, { reason: 'SHADOW_DOES_NOT_REQUIRE_APPROVAL' });
   }
   const revision = await currentAuthority(db);
-  if (revision !== Number(version.authority_revision)) throw new ShadowScheduleError('SHADOW_AUTHORITY_STALE', 409);
+  if (revision !== Number(version.authority_revision)) {
+    await staleShadowAndEnqueue(db, bundle, 'SHADOW_AUTHORITY_STALE');
+    throw new ShadowScheduleError('SHADOW_AUTHORITY_STALE', 409);
+  }
   const fingerprint = await officialDataFingerprint(db);
-  if (fingerprint !== version.official_data_before_hash) throw new ShadowScheduleError('SHADOW_INPUT_CHANGED', 409);
+  if (fingerprint !== version.official_data_before_hash) {
+    await staleShadowAndEnqueue(db, bundle, 'SHADOW_INPUT_CHANGED');
+    throw new ShadowScheduleError('SHADOW_INPUT_CHANGED', 409);
+  }
+}
+
+function restoreConstraintDate(constraint: any): string | null {
+  if (constraint.constraint_timestamp_utc) {
+    if (!isValidUtcTimestamp(String(constraint.constraint_timestamp_utc))) {
+      throw new ShadowScheduleError('RESTORE_TARGET_INVALID', 409, { taskId: constraint.task_id, constraint: constraint.constraint_type, reason: 'INVALID_CONSTRAINT_TIMESTAMP' });
+    }
+    try {
+      return utcToLocalDate(String(constraint.constraint_timestamp_utc), constraint.constraint_timezone || 'UTC');
+    } catch {
+      throw new ShadowScheduleError('RESTORE_TARGET_INVALID', 409, { taskId: constraint.task_id, constraint: constraint.constraint_type, reason: 'INVALID_CONSTRAINT_TIMEZONE' });
+    }
+  }
+  if (!constraint.constraint_date) return null;
+  if (!isValidIsoLocalDate(String(constraint.constraint_date))) {
+    throw new ShadowScheduleError('RESTORE_TARGET_INVALID', 409, { taskId: constraint.task_id, constraint: constraint.constraint_type, reason: 'INVALID_CONSTRAINT_DATE' });
+  }
+  return String(constraint.constraint_date);
+}
+
+function assertRestoreConstraint(constraint: any, targetTask: any) {
+  const constraintDate = restoreConstraintDate(constraint);
+  if (!constraintDate || constraint.constraint_type === 'AS_SOON_AS_POSSIBLE') return;
+  const fail = () => { throw new ShadowScheduleError('RESTORE_TARGET_INVALID', 409, { taskId: targetTask.task_id, constraint: constraint.constraint_type, constraintDate }); };
+  if (constraint.constraint_type === 'FIXED_START' && targetTask.forecast_start !== constraintDate) fail();
+  if (constraint.constraint_type === 'FIXED_END' && (!targetTask.forecast_end || targetTask.forecast_end > constraintDate)) fail();
+  if (constraint.constraint_type === 'NOT_BEFORE' && (!targetTask.forecast_start || targetTask.forecast_start < constraintDate)) fail();
+  if (constraint.constraint_type === 'MILESTONE' && (targetTask.forecast_start !== constraintDate || targetTask.forecast_end !== constraintDate)) fail();
 }
 
 async function targetVersionsForApply(db: any, bundle: Awaited<ReturnType<typeof loadShadowBundle>>, mode: ApplyMode) {
@@ -472,8 +534,8 @@ export async function getCurrentForecast(db: any, actorContext: ActorContextServ
       FROM shadow_schedule_versions sv
       JOIN schedule_recalculation_runs sr ON sr.run_id=sv.run_id
       JOIN schedule_recalculation_requests req ON req.request_id=sr.request_id
-      WHERE sv.project_id=?1 AND sv.status='CURRENT' AND COALESCE(sv.apply_status,'NOT_APPLIED')='NOT_APPLIED'
-        AND (sr.status<>'COMPLETED'
+      WHERE sv.project_id=?1 AND sv.status IN ('CURRENT','STALE') AND COALESCE(sv.apply_status,'NOT_APPLIED')='NOT_APPLIED'
+        AND (sv.status='STALE' OR sr.status<>'COMPLETED'
           OR sr.authority_revision<>(SELECT revision FROM shadow_schedule_authority_guard WHERE guard_id='GLOBAL')
           OR sv.based_on_forecast_version_id IS NOT (SELECT id FROM schedule_versions WHERE project_id=sv.project_id ORDER BY version_number DESC LIMIT 1))
       ORDER BY sv.shadow_version_number DESC LIMIT 1`).bind(projectId).first(),
@@ -552,7 +614,17 @@ export async function restoreForecastVersion(
     await assertNoActiveProjectWorklogConflict(db, projectId);
     const authorityRevision = await currentAuthority(db);
     const [constraints, currentFingerprint] = await Promise.all([
-      db.prepare(`SELECT c.*,t.project_id FROM task_constraints c JOIN tasks t ON t.id=c.task_id WHERE t.project_id=? AND c.status='ACTIVE'`).bind(projectId).all(),
+      db.prepare(`SELECT c.*,t.project_id,COALESCE(policy.timezone,'UTC') AS constraint_timezone
+        FROM task_constraints c
+        JOIN tasks t ON t.id=c.task_id
+        LEFT JOIN workers primary_worker ON primary_worker.id=COALESCE(
+          (SELECT ta.worker_id FROM task_assignees ta
+            WHERE ta.task_id=t.id AND ta.assignment_role='PRIMARY' AND ta.deleted_at IS NULL
+            ORDER BY ta.sort_order,ta.id LIMIT 1),
+          t.primary_worker_id
+        )
+        LEFT JOIN office_work_policies policy ON policy.country_code=primary_worker.country_code
+        WHERE t.project_id=? AND c.status='ACTIVE'`).bind(projectId).all(),
       officialDataFingerprint(db),
     ]);
     const targetTasks = await db.prepare(`SELECT * FROM schedule_version_tasks WHERE version_id=? ORDER BY task_id`).bind(targetVersionId).all();
@@ -560,12 +632,7 @@ export async function restoreForecastVersion(
     for (const constraint of constraints.results || []) {
       const task: any = targetByTask.get(constraint.task_id);
       if (!task) throw new ShadowScheduleError('RESTORE_TARGET_INVALID', 409);
-      if (constraint.constraint_type === 'FIXED_START' && constraint.constraint_date && task.forecast_start !== constraint.constraint_date) {
-        throw new ShadowScheduleError('RESTORE_TARGET_INVALID', 409, { taskId: task.task_id, constraint: 'FIXED_START' });
-      }
-      if (constraint.constraint_type === 'FIXED_END' && constraint.constraint_date && task.forecast_end > constraint.constraint_date) {
-        throw new ShadowScheduleError('RESTORE_TARGET_INVALID', 409, { taskId: task.task_id, constraint: 'FIXED_END' });
-      }
+      assertRestoreConstraint(constraint, task);
     }
     const now = new Date().toISOString();
     const guardToken = uuid('frg');

@@ -8,6 +8,7 @@ import { generateDateColumns } from '../../utils/dateUtils';
 import { getCountryOffState } from '../../utils/workCalendar';
 import { MobileAgendaCard } from './MobileAgendaCard';
 import { getActualProgress } from '../../utils/progressDisplay';
+import { officialProjectEnd, officialProjectStart, officialTaskEnd, officialTaskStart } from '../../utils/officialForecastDates';
 
 interface MobileWeekViewProps {
   mode: 'OVERVIEW' | 'DETAIL';
@@ -65,20 +66,32 @@ export const MobileWeekView: React.FC<MobileWeekViewProps> = ({
   };
 
   // Filter items active on selectedDateStr
-  const activeProjectsForDate = projects.filter(
-    (p) => p.start_date <= selectedDateStr && selectedDateStr <= p.end_date
-  );
+  const activeProjectsForDate = projects.filter((p) => {
+    const start = officialProjectStart(p);
+    const end = officialProjectEnd(p);
+    return Boolean(start && end && start <= selectedDateStr && selectedDateStr <= end);
+  });
 
-  const activeTasksForDate = tasks.filter(
-    (tItem) => tItem.start_date && tItem.end_date && tItem.start_date <= selectedDateStr && selectedDateStr <= tItem.end_date
-  );
+  const activeTasksForDate = tasks.filter((tItem) => {
+    const start = officialTaskStart(tItem);
+    const end = officialTaskEnd(tItem);
+    return Boolean(start && end && start <= selectedDateStr && selectedDateStr <= end);
+  });
 
   // Count active items for each column day
   const getItemCountForDate = (dateStr: string) => {
     if (mode === 'OVERVIEW') {
-      return projects.filter((p) => p.start_date <= dateStr && dateStr <= p.end_date).length;
+      return projects.filter((p) => {
+        const start = officialProjectStart(p);
+        const end = officialProjectEnd(p);
+        return Boolean(start && end && start <= dateStr && dateStr <= end);
+      }).length;
     }
-    return tasks.filter((tItem) => tItem.start_date && tItem.end_date && tItem.start_date <= dateStr && dateStr <= tItem.end_date).length;
+    return tasks.filter((tItem) => {
+      const start = officialTaskStart(tItem);
+      const end = officialTaskEnd(tItem);
+      return Boolean(start && end && start <= dateStr && dateStr <= end);
+    }).length;
   };
 
   return (
@@ -211,8 +224,8 @@ export const MobileWeekView: React.FC<MobileWeekViewProps> = ({
                 key={prj.id}
                 type="PROJECT"
                 title={getProjectDisplayName(prj)}
-                startDate={prj.start_date}
-                endDate={prj.end_date}
+                startDate={officialProjectStart(prj) || undefined}
+                endDate={officialProjectEnd(prj) || undefined}
                 actualProgress={getActualProgress(prj)}
                 scheduleState={prj.status}
                 completionConfirmed={prj.status === 'COMPLETED'}
@@ -233,8 +246,8 @@ export const MobileWeekView: React.FC<MobileWeekViewProps> = ({
                 type="TASK"
                 title={getTaskDisplayName(tItem)}
                 projectName={project ? getProjectDisplayName(project) : undefined}
-                startDate={tItem.start_date || undefined}
-                endDate={tItem.end_date || undefined}
+                startDate={officialTaskStart(tItem) || undefined}
+                endDate={officialTaskEnd(tItem) || undefined}
                 assignees={(tItem.assignees || []).map((a) => ({ id: a.worker_id, name: a.name || (a as any).worker_name }))}
                 actualProgress={getActualProgress(tItem)}
                 scheduleState={tItem.schedule_state}

@@ -8,6 +8,7 @@ import { generateDateColumns } from '../../utils/dateUtils';
 import { getCountryOffState } from '../../utils/workCalendar';
 import { MobileAgendaCard } from './MobileAgendaCard';
 import { getActualProgress } from '../../utils/progressDisplay';
+import { officialProjectEnd, officialProjectStart, officialTaskEnd, officialTaskStart } from '../../utils/officialForecastDates';
 
 interface MobileThirtyDayGanttViewProps {
   mode: 'OVERVIEW' | 'DETAIL';
@@ -65,19 +66,31 @@ export const MobileThirtyDayGanttView: React.FC<MobileThirtyDayGanttViewProps> =
   };
 
   // Active items for selectedDateStr
-  const activeProjectsForDate = projects.filter(
-    (p) => p.start_date <= selectedDateStr && selectedDateStr <= p.end_date
-  );
+  const activeProjectsForDate = projects.filter((p) => {
+    const start = officialProjectStart(p);
+    const end = officialProjectEnd(p);
+    return Boolean(start && end && start <= selectedDateStr && selectedDateStr <= end);
+  });
 
-  const activeTasksForDate = tasks.filter(
-    (tItem) => tItem.start_date && tItem.end_date && tItem.start_date <= selectedDateStr && selectedDateStr <= tItem.end_date
-  );
+  const activeTasksForDate = tasks.filter((tItem) => {
+    const start = officialTaskStart(tItem);
+    const end = officialTaskEnd(tItem);
+    return Boolean(start && end && start <= selectedDateStr && selectedDateStr <= end);
+  });
 
   const getItemCountForDate = (dateStr: string) => {
     if (mode === 'OVERVIEW') {
-      return projects.filter((p) => p.start_date <= dateStr && dateStr <= p.end_date).length;
+      return projects.filter((p) => {
+        const start = officialProjectStart(p);
+        const end = officialProjectEnd(p);
+        return Boolean(start && end && start <= dateStr && dateStr <= end);
+      }).length;
     }
-    return tasks.filter((tItem) => tItem.start_date && tItem.end_date && tItem.start_date <= dateStr && dateStr <= tItem.end_date).length;
+    return tasks.filter((tItem) => {
+      const start = officialTaskStart(tItem);
+      const end = officialTaskEnd(tItem);
+      return Boolean(start && end && start <= dateStr && dateStr <= end);
+    }).length;
   };
 
   // Day names for 7 columns header
@@ -86,8 +99,16 @@ export const MobileThirtyDayGanttView: React.FC<MobileThirtyDayGanttViewProps> =
     : ['월', '화', '수', '목', '금', '토', '일'];
 
   // Summary statistics for 30-day window
-  const active30DayProjects = projects.filter((p) => p.end_date >= format(startDate, 'yyyy-MM-dd') && p.start_date <= format(endDate, 'yyyy-MM-dd'));
-  const active30DayTasks = tasks.filter((t) => t.end_date && t.start_date && t.end_date >= format(startDate, 'yyyy-MM-dd') && t.start_date <= format(endDate, 'yyyy-MM-dd'));
+  const active30DayProjects = projects.filter((p) => {
+    const start = officialProjectStart(p);
+    const end = officialProjectEnd(p);
+    return Boolean(start && end && end >= format(startDate, 'yyyy-MM-dd') && start <= format(endDate, 'yyyy-MM-dd'));
+  });
+  const active30DayTasks = tasks.filter((tItem) => {
+    const start = officialTaskStart(tItem);
+    const end = officialTaskEnd(tItem);
+    return Boolean(start && end && end >= format(startDate, 'yyyy-MM-dd') && start <= format(endDate, 'yyyy-MM-dd'));
+  });
   const total30Items = mode === 'OVERVIEW' ? active30DayProjects.length : active30DayTasks.length;
 
   return (
@@ -268,8 +289,8 @@ export const MobileThirtyDayGanttView: React.FC<MobileThirtyDayGanttViewProps> =
                 key={prj.id}
                 type="PROJECT"
                 title={getProjectDisplayName(prj)}
-                startDate={prj.start_date}
-                endDate={prj.end_date}
+                startDate={officialProjectStart(prj) || undefined}
+                endDate={officialProjectEnd(prj) || undefined}
                 actualProgress={getActualProgress(prj)}
                 scheduleState={prj.status}
                 completionConfirmed={prj.status === 'COMPLETED'}
@@ -290,8 +311,8 @@ export const MobileThirtyDayGanttView: React.FC<MobileThirtyDayGanttViewProps> =
                 type="TASK"
                 title={getTaskDisplayName(tItem)}
                 projectName={project ? getProjectDisplayName(project) : undefined}
-                startDate={tItem.start_date || undefined}
-                endDate={tItem.end_date || undefined}
+                startDate={officialTaskStart(tItem) || undefined}
+                endDate={officialTaskEnd(tItem) || undefined}
                 assignees={(tItem.assignees || []).map((a) => ({ id: a.worker_id, name: a.name || (a as any).worker_name }))}
                 actualProgress={getActualProgress(tItem)}
                 scheduleState={tItem.schedule_state}

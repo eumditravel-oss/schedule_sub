@@ -230,6 +230,26 @@ async function isProjectCompleted(db: any, projectId: string): Promise<boolean> 
   return prj ? prj.status === 'COMPLETED' : false;
 }
 
+// `schedule_versions` / `schedule_version_tasks` are append-only Official
+// Forecast evidence. Check before any legacy cleanup statements so a rejected
+// delete cannot remove daily-status or assignment data before the D1 guard
+// rejects the task/project cascade.
+async function assertOfficialForecastHistoryDeletionAllowed(
+  db: any,
+  input: { projectId?: string; taskId?: string; taskGroupId?: string },
+): Promise<void> {
+  let row: any = null;
+  if (input.taskId) {
+    row = await db.prepare(`SELECT 1 FROM schedule_version_tasks WHERE task_id=? LIMIT 1`).bind(input.taskId).first();
+  } else if (input.taskGroupId) {
+    row = await db.prepare(`SELECT 1 FROM schedule_version_tasks svt
+      JOIN tasks t ON t.id=svt.task_id WHERE t.task_group_id=? LIMIT 1`).bind(input.taskGroupId).first();
+  } else if (input.projectId) {
+    row = await db.prepare(`SELECT 1 FROM schedule_versions WHERE project_id=? LIMIT 1`).bind(input.projectId).first();
+  }
+  if (row) throw new ShadowScheduleError('OFFICIAL_FORECAST_HISTORY_PROTECTED', 409);
+}
+
 async function translateProjectOrTaskName(ai: any, nameText: string) {
   const isKorean = /[\uac00-\ud7af]/.test(nameText);
   const source_language: 'ko' | 'vi' = isKorean ? 'ko' : 'vi';
@@ -1449,6 +1469,7 @@ async function validateAndNormalizeTaskAssigneesServer(
 
         if (method === 'DELETE' && taskMatch) {
           const tId = taskMatch[1];
+          await assertOfficialForecastHistoryDeletionAllowed(db, { taskId: tId });
           await db.prepare(`DELETE FROM tasks WHERE id = ?`).bind(tId).run();
           await db.prepare(`DELETE FROM integration_entity_links WHERE internal_id = ?`).bind(tId).run();
           await logIntegrationApiRequest(db, reqId, apiKey.id, method, path, 200, undefined, undefined, 'TASK', tId, undefined, clientIp);
@@ -2209,6 +2230,7 @@ async function validateAndNormalizeTaskAssigneesServer(
               db.prepare(`UPDATE tasks SET task_group_id = ? WHERE task_group_id = ?`).bind(moveToGroupId, groupId)
             );
           } else if (deleteTasks) {
+            await assertOfficialForecastHistoryDeletionAllowed(db, { taskGroupId: groupId });
             const taskIdsRes = await db.prepare(`SELECT id FROM tasks WHERE task_group_id = ?`).bind(groupId).all();
             for (const t of taskIdsRes.results || []) {
               batch.push(db.prepare(`DELETE FROM daily_status WHERE task_id = ?`).bind(t.id));
@@ -2814,6 +2836,7 @@ function addPureCalendarDays(dateStr: string, deltaDays: number): string {
         if (!editCheck.allowed) {
           return errorResponse(editCheck.errorMsg!, 403, editCheck.errorCode!);
         }
+        await assertOfficialForecastHistoryDeletionAllowed(db, { projectId });
 
         const taskIds = await db
           .prepare(`SELECT id FROM tasks WHERE project_id = ?`)
@@ -4522,6 +4545,7 @@ function addPureCalendarDays(dateStr: string, deltaDays: number): string {
           if (!editCheck.allowed) {
             return errorResponse(editCheck.errorMsg!, 403, editCheck.errorCode!);
           }
+          await assertOfficialForecastHistoryDeletionAllowed(db, { taskId });
           await db.prepare(`DELETE FROM daily_status WHERE task_id = ?`).bind(taskId).run();
           await db.prepare(`DELETE FROM tasks WHERE id = ?`).bind(taskId).run();
           await updateProjectAverageProgress(db, existing.project_id);
@@ -4612,6 +4636,9 @@ function addPureCalendarDays(dateStr: string, deltaDays: number): string {
     } catch (err: any) {
       if (err instanceof ShadowScheduleError) {
         return errorResponse(err.message, err.status, err.code, err.details);
+      }
+      if (String(err?.message || err).includes('OFFICIAL_FORECAST_HISTORY_PROTECTED')) {
+        return errorResponse('공식 Forecast 이력이 있는 프로젝트와 작업은 삭제할 수 없습니다.', 409, 'OFFICIAL_FORECAST_HISTORY_PROTECTED');
       }
       if (err instanceof WorklogError) {
         return errorResponse(err.message, err.status, err.code, err.details);
