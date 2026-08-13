@@ -133,7 +133,7 @@ export function WorklogEntryCard({
           </>
         )}
 
-        {mode === 'EOD' && !primary && entry.taskId && (
+        {!primary && entry.taskId && (
           <p className="rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs leading-5 text-blue-800 sm:col-span-2">{t('supportNoProgress')}</p>
         )}
 

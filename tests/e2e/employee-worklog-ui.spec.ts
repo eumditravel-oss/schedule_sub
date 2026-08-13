@@ -72,10 +72,9 @@ test.describe('Checkpoint 4 employee worklog UI', () => {
     await page.addInitScript(() => localStorage.setItem('schedule_current_worker_id', 'wrk_primary'));
     await page.goto('/worklog/today');
     await page.getByLabel('현재 사용자').selectOption('wrk_support');
-    await page.getByRole('button', { name: '업무 마감' }).click();
-    await expect(page.getByText('지원 담당자는 작업 전체 공정률·남은 예상시간·완료 보고를 입력하지 않습니다.')).toBeVisible();
-    await expect(page.getByLabel('현재 공정률 (%)')).toHaveCount(0);
-    await expect(page.getByLabel('남은 예상시간 (분)')).toHaveCount(0);
+    await page.getByTestId('worklog-mode-eod').click();
+    await expect(page.locator('p').filter({ hasText: /작업 전체 공정률|tiến độ tổng/ })).toBeVisible();
+    await expect(page.locator('input[type="checkbox"]')).toHaveCount(0);
     await page.waitForTimeout(350);
     await expect(page.getByText('API 지원')).toBeVisible();
     await expect(page.getByText('API 개발')).toHaveCount(0);

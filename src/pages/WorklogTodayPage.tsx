@@ -3,6 +3,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { CalendarDays, ChevronLeft, ClipboardCheck, Plus, RefreshCw, Send, ShieldAlert } from 'lucide-react';
 import { api, getCurrentWorkerId, setCurrentWorker } from '../services/api';
 import { useI18n } from '../hooks/useI18n';
+import { setStoredLanguage } from '../i18n';
 import type { Worker } from '../types';
 import { WorklogEntryCard } from '../components/worklog/WorklogEntryCard';
 import { WorklogStatusCard } from '../components/worklog/WorklogStatusCard';
@@ -65,8 +66,9 @@ function eodEntriesFromMorning(worklog: any, tasks: WorklogTask[]) {
 }
 
 export function WorklogTodayPage({ initialView = 'TODAY' }: WorklogTodayPageProps) {
-  const { lang } = useI18n();
-  const language: WorklogLanguage = lang === 'vi' ? 'vi' : 'ko';
+  const { lang, setLanguage } = useI18n();
+  const [worklogLanguage, setWorklogLanguage] = useState<WorklogLanguage>(() => lang === 'vi' ? 'vi' : 'ko');
+  const language: WorklogLanguage = worklogLanguage;
   const t = useCallback((key: string) => worklogText(language, key), [language]);
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -164,6 +166,11 @@ export function WorklogTodayPage({ initialView = 'TODAY' }: WorklogTodayPageProp
       setCurrentWorker(defaultWorker); setActorId(defaultWorker.id); setSubjectId(defaultWorker.id);
     }).catch(() => undefined);
   }, [actorId]);
+  useEffect(() => {
+    const subjectLanguage = context?.subject?.ui_language;
+    if (subjectLanguage !== 'ko' && subjectLanguage !== 'vi') return;
+    setWorklogLanguage(subjectLanguage); setStoredLanguage(subjectLanguage); setLanguage(subjectLanguage);
+  }, [context?.subject?.ui_language, setLanguage]);
   useEffect(() => { void loadContext(subjectId, localDate); return () => contextAbort.current?.abort(); }, [subjectId, localDate, loadContext]);
   useEffect(() => () => { historyAbort.current?.abort(); }, []);
 
@@ -329,7 +336,7 @@ export function WorklogTodayPage({ initialView = 'TODAY' }: WorklogTodayPageProp
         {view === 'HISTORY' ? <RecentWorklogs language={language} worklogs={history} loading={historyLoading} onOpen={openHistory} /> : <>
           <WorklogStatusCard context={context} language={language} readOnly={!canSubmit} />
           {!canSubmit && <div className="flex gap-2 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900"><ShieldAlert className="h-5 w-5 shrink-0" />{context?.permissions?.is_read_only ? t('readOnly') : t('managerReadOnly')}</div>}
-          <nav className="flex flex-wrap gap-2" aria-label={t('title')}><button type="button" onClick={() => setActiveMode('MORNING')} className={`rounded-lg px-4 py-2 text-sm font-extrabold ${activeMode === 'MORNING' ? 'bg-blue-600 text-white' : 'border border-slate-300 bg-white text-slate-700'}`}>{t('morning')}</button><button type="button" onClick={() => setActiveMode('EOD')} className={`rounded-lg px-4 py-2 text-sm font-extrabold ${activeMode === 'EOD' ? 'bg-emerald-600 text-white' : 'border border-slate-300 bg-white text-slate-700'}`}>{t('eod')}</button><button type="button" onClick={() => void loadContext(subjectId, localDate)} className="ml-auto inline-flex items-center gap-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"><RefreshCw className="h-4 w-4" />{t('retry')}</button></nav>
+          <nav className="flex flex-wrap gap-2" aria-label={t('title')}><button type="button" data-testid="worklog-mode-morning" onClick={() => setActiveMode('MORNING')} className={`rounded-lg px-4 py-2 text-sm font-extrabold ${activeMode === 'MORNING' ? 'bg-blue-600 text-white' : 'border border-slate-300 bg-white text-slate-700'}`}>{t('morning')}</button><button type="button" data-testid="worklog-mode-eod" onClick={() => setActiveMode('EOD')} className={`rounded-lg px-4 py-2 text-sm font-extrabold ${activeMode === 'EOD' ? 'bg-emerald-600 text-white' : 'border border-slate-300 bg-white text-slate-700'}`}>{t('eod')}</button><button type="button" onClick={() => void loadContext(subjectId, localDate)} className="ml-auto inline-flex items-center gap-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"><RefreshCw className="h-4 w-4" />{t('retry')}</button></nav>
           {activeMode === 'EOD' && !worklog.current_morning_revision_id && <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-800">{t('morningMissing')}</div>}
           <section className="space-y-3"><div className="flex flex-wrap items-center justify-between gap-2"><div><h2 className="text-base font-extrabold text-slate-900">{activeMode === 'MORNING' ? t('plan') : t('workResult')}</h2><p className="mt-1 text-xs text-slate-500">{t('official')}</p></div>{currentModeCanSubmit && <button type="button" onClick={addOtherWork} className="inline-flex h-9 items-center gap-1 rounded-lg border border-blue-200 bg-blue-50 px-3 text-sm font-bold text-blue-700 hover:bg-blue-100"><Plus className="h-4 w-4" />{t('addWork')}</button>}</div>{entries.length === 0 && <div className="rounded-xl border border-dashed border-slate-300 bg-white p-6 text-sm text-slate-600">{t('noTasks')}</div>}{entries.map((entry) => <WorklogEntryCard key={entry.id} entry={entry} mode={activeMode} language={language} readOnly={modeReadOnly} currentProgress={Number(taskActuals[entry.taskId || '']?.current_progress || taskActuals[entry.taskId || '']?.currentProgress || 0)} onChange={(updated) => replaceEntry(activeMode, updated)} onRemove={() => removeEntry(activeMode, entry.id)} canRemove={!entry.taskId || entries.length > 1} taskOptions={eligibleTasks} fullDayMinutes={capacity} />)}</section>
           <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs"><div className="grid gap-3 sm:grid-cols-4"><div><p className="text-xs font-bold text-slate-500">{t('capacity')}</p><p className="mt-1 text-lg font-extrabold text-slate-900">{effectiveDisplayCapacity}{t('minutes')}</p>{leaveMinutes > 0 && <p className="mt-1 text-[11px] font-semibold text-slate-500">{language === 'vi' ? `Đã trừ nghỉ phép ${leaveMinutes}${t('minutes')}` : `휴가 ${leaveMinutes}${t('minutes')} 차감`}</p>}</div><div><p className="text-xs font-bold text-slate-500">{activeMode === 'MORNING' ? t('plannedTotal') : t('actualTotal')}</p><p className="mt-1 text-lg font-extrabold text-slate-900">{recordedWorkMinutes}{t('minutes')}</p></div><div><p className="text-xs font-bold text-slate-500">{t('difference')}</p><p className="mt-1 text-lg font-extrabold text-slate-900">{recordedWorkMinutes - effectiveDisplayCapacity}{t('minutes')}</p></div>{overtimeMinutes > 0 && <div><p className="text-xs font-bold text-amber-700">{t('overtimePending')}</p><p className="mt-1 text-lg font-extrabold text-amber-800">+{overtimeMinutes}{t('minutes')}</p></div>}</div>{activeMode === 'MORNING' && totalMinutes > capacity && <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">{t('capacityExceeded')}</p>}</section>
