@@ -221,7 +221,7 @@ async function verifyBrowser(url, employeeId, pin) {
     await page.goto(`${url}/login`, { waitUntil: 'networkidle' });
     await page.locator('select').selectOption(employeeId);
     await page.locator('input[type="password"]').fill(pin);
-    await page.locator('button[type="submit"]').click();
+    await page.locator('form button').click();
     await page.waitForURL((target) => !target.pathname.endsWith('/login'));
     const cookies = await page.context().cookies(url);
     const session = cookies.find((cookie) => cookie.name === '__Host-concost-pilot-session');
