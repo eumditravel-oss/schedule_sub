@@ -25,7 +25,8 @@ export function PilotAuthProvider({ children }: { children: React.ReactNode }) {
       setOpenTestMode(isOpen);
       if (isOpen) {
         const employees = await api.getPilotLoginEmployees();
-        const selected = getOpenPilotActorId() || employees[0]?.id || '';
+        const stored = getOpenPilotActorId();
+        const selected = employees.some((employee) => employee.id === stored) ? stored : (employees[0]?.id || '');
         if (!selected) throw new Error('No active pilot employees configured');
         setOpenPilotActorId(selected);
         const actor = (employees.find((employee) => employee.id === selected) || employees[0])!;
