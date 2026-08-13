@@ -44,7 +44,7 @@ CREATE TABLE daily_worklog_entries (id TEXT PRIMARY KEY,worklog_id TEXT,revision
 CREATE TABLE task_actuals (id TEXT PRIMARY KEY,source_type TEXT);
 CREATE TABLE task_completion_events (id TEXT PRIMARY KEY);
 CREATE TABLE schedule_recalculation_requests (request_id TEXT PRIMARY KEY,source_worklog_id TEXT,source_revision_id TEXT);
-CREATE TABLE schedule_recalculation_runs (run_id TEXT PRIMARY KEY,request_id TEXT,input_fingerprint TEXT,official_data_before_hash TEXT,authority_revision INTEGER,status TEXT,data_confidence TEXT);
+CREATE TABLE schedule_recalculation_runs (run_id TEXT PRIMARY KEY,request_id TEXT,engine_version TEXT,input_fingerprint TEXT,official_data_before_hash TEXT,authority_revision INTEGER,status TEXT,data_confidence TEXT);
 CREATE TABLE shadow_schedule_authority_guard (guard_id TEXT PRIMARY KEY,revision INTEGER,lock_token TEXT,updated_at TEXT);
 CREATE TABLE shadow_schedule_versions (shadow_version_id TEXT PRIMARY KEY,run_id TEXT,project_id TEXT,based_on_forecast_version_id TEXT,shadow_version_number INTEGER,shadow_forecast_start_date TEXT,shadow_forecast_end_date TEXT,schedule_variance_workdays INTEGER,approval_classification TEXT,approval_reasons_json TEXT,data_confidence TEXT,status TEXT,apply_status TEXT DEFAULT 'NOT_APPLIED',applied_at TEXT,applied_forecast_version_id TEXT);
 CREATE TABLE shadow_schedule_tasks (shadow_task_id TEXT PRIMARY KEY,shadow_version_id TEXT,task_id TEXT,employee_id TEXT,official_forecast_start TEXT,official_forecast_end TEXT,shadow_start TEXT,shadow_end TEXT,delta_start_workdays INTEGER,delta_end_workdays INTEGER,impact_reason_codes_json TEXT,constraint_result TEXT,dependency_result TEXT);
@@ -132,8 +132,8 @@ describe.runIf(enabled)('Checkpoint 3B D1 append-only Forecast integration', { t
     await db.batch([
       db.prepare(`INSERT INTO schedule_recalculation_requests VALUES ('request-1',NULL,NULL)`),
       db.prepare(`INSERT INTO schedule_recalculation_runs
-        (run_id,request_id,input_fingerprint,official_data_before_hash,authority_revision,status,data_confidence)
-        VALUES ('run-1','request-1','input-1',?1,?2,'COMPLETED','HIGH')`).bind(officialHash, authority),
+        (run_id,request_id,engine_version,input_fingerprint,official_data_before_hash,authority_revision,status,data_confidence)
+        VALUES ('run-1','request-1','3A.1.12','input-1',?1,?2,'COMPLETED','HIGH')`).bind(officialHash, authority),
       db.prepare(`INSERT INTO shadow_schedule_versions VALUES ('shadow-a','run-1','project-a','forecast-a1',1,'2026-08-10','2026-08-20',0,?1,'["TEST"]','HIGH','CURRENT','NOT_APPLIED',NULL,NULL)`).bind(classification),
       db.prepare(`INSERT INTO shadow_schedule_tasks VALUES ('shadow-task-a1','shadow-a','task-a1','manager','2026-08-10','2026-08-12','2026-08-09','2026-08-11',-1,-1,'["EARLY"]','NONE','NONE')`),
       db.prepare(`INSERT INTO shadow_impact_summaries VALUES ('impact-1','run-1',?1)`).bind(crossProject ? 1 : 0),
@@ -249,5 +249,13 @@ describe.runIf(enabled)('Checkpoint 3B D1 append-only Forecast integration', { t
     await db.prepare(`UPDATE shadow_schedule_authority_guard SET revision=revision+1 WHERE guard_id='GLOBAL'`).run();
     await expect(applyShadowForecast(db, managerActor, 'shadow-a', 'stale-authority', flags)).rejects.toMatchObject({ code: 'SHADOW_AUTHORITY_STALE', status: 409 });
     expect(await counts(db)).toMatchObject({ appended: 0, adjustments: 0, applications: 0, audit: 0 });
+  });
+
+  it('does not expose an authority-stale Shadow as a current manager candidate', async () => {
+    const db = await fixture();
+    await db.prepare(`UPDATE shadow_schedule_authority_guard SET revision=revision+1 WHERE guard_id='GLOBAL'`).run();
+    const current = await getCurrentForecast(db, managerActor, 'project-a');
+    expect(current.shadow_version).toBeNull();
+    expect(current.stale_shadow_version).toMatchObject({ shadow_version_id: 'shadow-a', status: 'STALE', stale_reason: 'SHADOW_AUTHORITY_STALE' });
   });
 });

@@ -40,6 +40,7 @@ export function ScheduleControlPage() {
   const shadow = forecast?.shadow_version;
   const official = forecast?.official_forecast;
   const approval = forecast?.approval_request;
+  const staleShadow = forecast?.stale_shadow_version;
   const canDirectApply = isManager && shadow?.approval_classification === 'AUTO_APPLY_ELIGIBLE';
   const canApprove = isManager && shadow?.approval_classification === 'APPROVAL_REQUIRED' && approval?.status === 'PENDING';
 
@@ -79,6 +80,7 @@ export function ScheduleControlPage() {
         {isExecutive && <section data-testid="forecast-executive-readonly" className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm font-bold text-rose-800">CEO/COO accounts can review forecast history but cannot apply, approve, reject, or restore.</section>}
         {!isManager && !isExecutive && <section className="rounded-xl border border-slate-200 bg-white p-3 text-sm font-semibold text-slate-600">Select a schedule manager to execute controlled Forecast actions. Server authorization remains mandatory.</section>}
         {error && <section className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm font-bold text-rose-700">{error}</section>}
+        {staleShadow && <section data-testid="forecast-stale-shadow-warning" className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm font-bold text-amber-900">The newest Shadow candidate is stale and cannot be applied. Create a new Shadow run after the authoritative schedule change.</section>}
         <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           {[
             ['Official Forecast', official ? `V${official.version_number} · ${official.project_forecast_end || '—'}` : '—'],
@@ -90,6 +92,18 @@ export function ScheduleControlPage() {
         <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="font-black">Candidate review</h2><p className="mt-1 text-xs text-slate-500">Official Forecast writes only append a new version and a complete Task snapshot.</p></div><button disabled={busy} onClick={() => act(load)} className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold"><RefreshCw className="h-3.5 w-3.5" />Refresh</button></div>
           {shadow ? <div className="mt-4 grid gap-3 md:grid-cols-2"><div className="rounded-lg bg-slate-50 p-3 text-xs"><p>Current official end: <b>{official?.project_forecast_end || '—'}</b></p><p className="mt-1">Shadow end: <b>{shadow.shadow_forecast_end_date || '—'}</b></p><p className="mt-1">Confidence: <Tone value={shadow.data_confidence} /></p></div><div className="rounded-lg bg-slate-50 p-3 text-xs"><p className="font-bold">Reason codes</p><p className="mt-1 text-slate-600">{parseCodes(shadow.approval_reasons_json).join(', ') || '—'}</p></div></div> : <p className="mt-4 text-sm text-slate-500">No current unapplied Shadow candidate exists for this project.</p>}
+          {shadow && <div data-testid="forecast-run-provenance" className="mt-3 grid gap-2 rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs md:grid-cols-2 xl:grid-cols-4">
+            {[
+              ['Official Forecast Version', official?.id || '—'],
+              ['Shadow Version', shadow.shadow_version_id || '—'],
+              ['Shadow Run', shadow.run_id || '—'],
+              ['Engine Version', shadow.engine_version || '—'],
+              ['Source Worklog', shadow.source_worklog_id || '—'],
+              ['Source Revision', shadow.source_revision_id || '—'],
+              ['Approval Required', shadow.approval_classification === 'APPROVAL_REQUIRED' ? 'YES' : 'NO'],
+              ['Constraint Result', parseCodes(shadow.constraint_results_json).join(', ') || 'NONE'],
+            ].map(([label, value]) => <div key={label} className="min-w-0"><p className="font-bold text-slate-500">{label}</p><p className="truncate font-mono text-slate-800" title={value}>{value}</p></div>)}
+          </div>}
           {shadow?.approval_classification === 'BLOCKED' && <div className="mt-3 rounded-lg border border-rose-200 bg-rose-50 p-3 text-xs font-bold text-rose-800"><AlertTriangle className="mr-1 inline h-4 w-4" />Blocked Shadow cannot be force-applied.</div>}
           <div className="mt-4 flex flex-wrap gap-2">
             {canDirectApply && <button data-testid="forecast-apply-button" disabled={busy} onClick={() => act(() => api.applyShadowForecast(shadow.shadow_version_id))} className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-4 py-2 text-xs font-black text-white disabled:opacity-50"><ShieldCheck className="h-3.5 w-3.5" />Controlled apply</button>}

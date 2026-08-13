@@ -428,20 +428,52 @@ export async function rejectShadowForecast(
 
 export async function getCurrentForecast(db: any, actorContext: ActorContextServer, projectId: string) {
   await resolveActor(db, actorContext);
-  const [versions, shadow, adjustment] = await Promise.all([
+  const [versions, shadow, staleShadow, adjustment] = await Promise.all([
     db.prepare(`SELECT * FROM schedule_versions WHERE project_id=? ORDER BY version_number DESC LIMIT 1`).bind(projectId).first(),
-    // Applied and rejected Shadows are immutable audit records, not pending
-    // Gantt/approval candidates.  Showing either here incorrectly leaves a
-    // tentative bar after an Official Forecast has been appended.
-    db.prepare(`SELECT * FROM shadow_schedule_versions
-      WHERE project_id=? AND status='CURRENT' AND COALESCE(apply_status,'NOT_APPLIED')='NOT_APPLIED'
-      ORDER BY shadow_version_number DESC LIMIT 1`).bind(projectId).first(),
+    // A candidate is current only when its persisted run still has the
+    // current authority revision and the exact Forecast it was based on.
+    // This mirrors the write-side CAS guard so the management UI never
+    // presents a stale candidate as executable.
+    db.prepare(`SELECT sv.*,sr.engine_version,sr.authority_revision AS run_authority_revision,
+        req.source_worklog_id,req.source_revision_id,
+        (SELECT json_group_array(constraint_result) FROM (
+          SELECT DISTINCT COALESCE(st.constraint_result,'NONE') AS constraint_result
+          FROM shadow_schedule_tasks st WHERE st.shadow_version_id=sv.shadow_version_id
+          ORDER BY constraint_result
+        )) AS constraint_results_json
+      FROM shadow_schedule_versions sv
+      JOIN schedule_recalculation_runs sr ON sr.run_id=sv.run_id
+      JOIN schedule_recalculation_requests req ON req.request_id=sr.request_id
+      WHERE sv.project_id=?1 AND sv.status='CURRENT' AND COALESCE(sv.apply_status,'NOT_APPLIED')='NOT_APPLIED'
+        AND sr.status='COMPLETED'
+        AND sr.authority_revision=(SELECT revision FROM shadow_schedule_authority_guard WHERE guard_id='GLOBAL')
+        AND sv.based_on_forecast_version_id=(SELECT id FROM schedule_versions WHERE project_id=sv.project_id ORDER BY version_number DESC LIMIT 1)
+      ORDER BY sv.shadow_version_number DESC LIMIT 1`).bind(projectId).first(),
+    db.prepare(`SELECT sv.shadow_version_id,sv.run_id,sv.project_id,sv.shadow_version_number,
+        sv.approval_classification,sv.apply_status,sv.status,sr.engine_version,
+        sr.authority_revision AS run_authority_revision,
+        (SELECT revision FROM shadow_schedule_authority_guard WHERE guard_id='GLOBAL') AS current_authority_revision,
+        req.source_worklog_id,req.source_revision_id
+      FROM shadow_schedule_versions sv
+      JOIN schedule_recalculation_runs sr ON sr.run_id=sv.run_id
+      JOIN schedule_recalculation_requests req ON req.request_id=sr.request_id
+      WHERE sv.project_id=?1 AND sv.status='CURRENT' AND COALESCE(sv.apply_status,'NOT_APPLIED')='NOT_APPLIED'
+        AND (sr.status<>'COMPLETED'
+          OR sr.authority_revision<>(SELECT revision FROM shadow_schedule_authority_guard WHERE guard_id='GLOBAL')
+          OR sv.based_on_forecast_version_id IS NOT (SELECT id FROM schedule_versions WHERE project_id=sv.project_id ORDER BY version_number DESC LIMIT 1))
+      ORDER BY sv.shadow_version_number DESC LIMIT 1`).bind(projectId).first(),
     db.prepare(`SELECT * FROM schedule_adjustment_events WHERE project_id=? ORDER BY created_at DESC LIMIT 1`).bind(projectId).first(),
   ]);
   const approval = shadow
     ? await db.prepare(`SELECT * FROM forecast_approval_requests WHERE shadow_version_id=?`).bind(shadow.shadow_version_id).first()
     : null;
-  return { official_forecast: versions || null, shadow_version: shadow || null, approval_request: approval || null, latest_adjustment: adjustment || null };
+  return {
+    official_forecast: versions || null,
+    shadow_version: shadow || null,
+    stale_shadow_version: staleShadow ? { ...staleShadow, status: 'STALE', stale_reason: 'SHADOW_AUTHORITY_STALE' } : null,
+    approval_request: approval || null,
+    latest_adjustment: adjustment || null,
+  };
 }
 
 export async function getForecastHistory(db: any, actorContext: ActorContextServer, projectId: string) {
