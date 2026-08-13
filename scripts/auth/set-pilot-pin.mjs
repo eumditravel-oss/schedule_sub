@@ -5,6 +5,7 @@
  * Usage:
  *   node scripts/auth/set-pilot-pin.mjs --target qa --employee <worker-id>
  *   node scripts/auth/set-pilot-pin.mjs --target qa --employee <worker-id> --generate
+ *   node scripts/auth/set-pilot-pin.mjs --target qa --employee <worker-id> --pin-env QA_PILOT_PIN
  *
  * Production is deliberately explicit and requires the exact D1 database ID:
  *   ... --target production --employee <worker-id> --confirm-production-db-id <id>
@@ -26,6 +27,7 @@ const flag = (name) => {
 const targetName = flag('--target');
 const employeeId = flag('--employee');
 const generate = args.includes('--generate');
+const pinEnvName = flag('--pin-env');
 
 if (!targetName || !TARGETS[targetName] || !employeeId || !/^[A-Za-z0-9_-]+$/.test(employeeId)) {
   console.error('Usage: --target qa|production --employee <worker-id> [--generate]');
@@ -41,8 +43,19 @@ const b64 = (bytes) => Buffer.from(bytes).toString('base64');
 const sqlQuote = (value) => `'${String(value).replace(/'/g, "''")}'`;
 const randomPin = () => String(webcrypto.getRandomValues(new Uint32Array(1))[0] % 1_000_000).padStart(6, '0');
 
+if (generate && pinEnvName) {
+  console.error('Choose either --generate or --pin-env, not both.');
+  process.exit(2);
+}
+
 let pin = '';
-if (generate) {
+if (pinEnvName) {
+  if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(pinEnvName)) {
+    console.error('--pin-env must name a valid environment variable.');
+    process.exit(2);
+  }
+  pin = process.env[pinEnvName] || '';
+} else if (generate) {
   pin = randomPin();
   // This is the only intentional plaintext display. It is never written to a
   // file, SQL command, evidence artifact, source file, or audit event.
