@@ -99,8 +99,12 @@ export async function sha256Hex(value: string): Promise<string> {
 export async function derivePilotPinHash(pin: string, salt: string, iterations = PILOT_PIN_ITERATIONS): Promise<string> {
   const material = await crypto.subtle.importKey('raw', encoder.encode(pin), 'PBKDF2', false, ['deriveBits']);
   const saltBytes = fromStoredBinary(salt);
+  const saltForCrypto = new Uint8Array(saltBytes.length);
+  saltForCrypto.set(saltBytes);
   const bits = await crypto.subtle.deriveBits({
-    name: 'PBKDF2', hash: 'SHA-256', salt: saltBytes.buffer as ArrayBuffer, iterations,
+    // Copy to a concrete ArrayBuffer-backed view.  This works in both the
+    // TypeScript DOM definition and the Cloudflare Workers Web Crypto runtime.
+    name: 'PBKDF2', hash: 'SHA-256', salt: saltForCrypto, iterations,
   }, material, 256);
   return toHex(new Uint8Array(bits));
 }
