@@ -115,6 +115,7 @@ export type WorkerEnv = Env & {
   DYNAMIC_SCHEDULER_APPROVAL_ENABLED?: string;
   DYNAMIC_SCHEDULER_RESTORE_ENABLED?: string;
   PILOT_SESSION_AUTH_ENABLED?: string;
+  SCHEDULER_ACCESS_MODE?: string;
   TEST_ACTOR_MODE?: string;
   PILOT_SESSION_TTL_SECONDS?: string;
   QA_TEST_ACTOR_SECRET?: string;
@@ -413,7 +414,7 @@ export default {
         headers: {
           'Access-Control-Allow-Origin': '*',
           'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
-          'Access-Control-Allow-Headers': 'Content-Type, Authorization, Idempotency-Key, X-CSRF-Token, X-QA-Test-Secret, x-test-now-utc',
+          'Access-Control-Allow-Headers': 'Content-Type, Authorization, Idempotency-Key, X-CSRF-Token, X-QA-Test-Secret, x-test-now-utc, X-Test-Actor-Employee-Id',
         },
       });
     }
@@ -442,8 +443,9 @@ export default {
             autoApplyEnabled: String(env.DYNAMIC_SCHEDULER_AUTO_APPLY_ENABLED) === 'true',
             approvalEnabled: String(env.DYNAMIC_SCHEDULER_APPROVAL_ENABLED) === 'true',
             restoreEnabled: String(env.DYNAMIC_SCHEDULER_RESTORE_ENABLED) === 'true',
-            pilotSessionAuthEnabled: env.PILOT_SESSION_AUTH_ENABLED === 'true',
-            testActorMode: env.ENVIRONMENT_NAME === 'qa' && env.TEST_ACTOR_MODE === 'true',
+            pilotSessionAuthEnabled: String(env.PILOT_SESSION_AUTH_ENABLED) === 'true',
+            accessMode: env.SCHEDULER_ACCESS_MODE || 'pilot_session',
+            testActorMode: env.ENVIRONMENT_NAME === 'qa' && String(env.TEST_ACTOR_MODE) === 'true',
           },
         });
       }
@@ -456,11 +458,13 @@ export default {
         return jsonResponse(session.data, 200, { 'Set-Cookie': session.setCookie });
       }
       if (cleanPath === '/api/auth/pilot/employees' && method === 'GET') {
-        const employees = await db.prepare(
-          `SELECT w.id,w.name,w.country_code,w.access_role,w.ui_language
-           FROM workers w JOIN pilot_auth_credentials c ON c.employee_id=w.id
-           WHERE w.is_active=1 AND c.is_enabled=1 ORDER BY w.sort_order,w.name`,
-        ).all();
+        const employees = env.SCHEDULER_ACCESS_MODE === 'open_test'
+          ? await db.prepare(`SELECT w.id,w.name,w.country_code,w.access_role,w.ui_language,w.can_manage_schedule_engine,w.can_manage_country_calendar FROM workers w WHERE w.is_active=1 ORDER BY w.sort_order,w.name`).all()
+          : await db.prepare(
+            `SELECT w.id,w.name,w.country_code,w.access_role,w.ui_language
+             FROM workers w JOIN pilot_auth_credentials c ON c.employee_id=w.id
+             WHERE w.is_active=1 AND c.is_enabled=1 ORDER BY w.sort_order,w.name`,
+          ).all();
         return jsonResponse(employees.results || []);
       }
       if (cleanPath === '/api/auth/pilot/session' && method === 'GET') {

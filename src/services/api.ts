@@ -3,6 +3,7 @@ import { ApiResponse, Project, ProjectProgressFoundation, Task, TaskGroup, Worke
 
 const WORKER_ID_KEY = 'schedule_current_worker_id';
 const WORKER_NAME_KEY = 'schedule_current_worker_name';
+const OPEN_PILOT_ACTOR_KEY = 'selectedTestActorEmployeeId';
 let csrfToken = '';
 
 export type PilotSession = {
@@ -11,7 +12,34 @@ export type PilotSession = {
   csrfToken?: string;
   expiresAt: string | null;
   isQaTestSession?: boolean;
+  accessMode?: 'open_test' | 'pilot_session';
 };
+
+export function getOpenPilotActorId(): string {
+  try { return localStorage.getItem(OPEN_PILOT_ACTOR_KEY) || localStorage.getItem(WORKER_ID_KEY) || ''; } catch { return ''; }
+}
+
+export function setOpenPilotActorId(employeeId: string): void {
+  try {
+    localStorage.setItem(OPEN_PILOT_ACTOR_KEY, employeeId);
+    // Existing routed pages still consume the legacy worker selector keys.
+    // Keep both representations aligned while the open-pilot selector is
+    // gradually adopted by those pages.
+    localStorage.setItem(WORKER_ID_KEY, employeeId);
+    localStorage.removeItem(WORKER_NAME_KEY);
+  } catch {}
+}
+
+function apiFetch(input: RequestInfo | URL, init: RequestInit = {}): Promise<Response> {
+  const headers = new Headers(init.headers || {});
+  const actorId = getOpenPilotActorId();
+  if (actorId) headers.set('X-Test-Actor-Employee-Id', actorId);
+  return globalThis.fetch(input, { ...init, headers, credentials: init.credentials || 'same-origin' });
+}
+
+// All API calls in this module inherit the selected open-pilot actor context.
+// The helper uses globalThis.fetch above to avoid recursion.
+const fetch = apiFetch;
 
 export const ACTUAL_WORKERS = [
   'CEO',
@@ -106,7 +134,7 @@ async function handleResponse<T>(res: Response): Promise<T> {
 
 export const pilotAuth = {
   async login(employeeId: string, pin: string): Promise<PilotSession> {
-    const res = await fetch('/api/auth/pilot/login', {
+    const res = await apiFetch('/api/auth/pilot/login', {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin',
       body: JSON.stringify({ employeeId, pin }),
     });
@@ -115,18 +143,18 @@ export const pilotAuth = {
     return session;
   },
   async session(): Promise<PilotSession> {
-    const res = await fetch('/api/auth/pilot/session', { credentials: 'same-origin', headers: { 'Content-Type': 'application/json' } });
+    const res = await apiFetch('/api/auth/pilot/session', { headers: { 'Content-Type': 'application/json' } });
     const session = await handleResponse<PilotSession>(res);
     csrfToken = session.csrfToken || '';
     return session;
   },
   async logout(): Promise<void> {
-    const res = await fetch('/api/auth/pilot/logout', { method: 'POST', credentials: 'same-origin', headers: getWriteHeaders() });
+    const res = await apiFetch('/api/auth/pilot/logout', { method: 'POST', headers: getWriteHeaders() });
     await handleResponse(res);
     csrfToken = '';
   },
   async qaBootstrap(employeeId: string, secret: string): Promise<PilotSession> {
-    const res = await fetch('/api/qa/auth/session', {
+    const res = await apiFetch('/api/qa/auth/session', {
       method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', 'X-QA-Test-Secret': secret },
       body: JSON.stringify({ employeeId }),
     });
@@ -139,7 +167,7 @@ export const pilotAuth = {
 
 export const api = {
   async getPilotLoginEmployees(): Promise<Worker[]> {
-    const res = await fetch('/api/auth/pilot/employees', { headers: { 'Content-Type': 'application/json' } });
+    const res = await apiFetch('/api/auth/pilot/employees', { headers: { 'Content-Type': 'application/json' } });
     return handleResponse<Worker[]>(res);
   },
   async getDependencies(projectId?: string, status?: string): Promise<{ dependencies: TaskDependency[]; permissions: { canReview: boolean; readOnly: boolean } }> {
