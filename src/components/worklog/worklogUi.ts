@@ -137,6 +137,27 @@ export function worklogText(language: WorklogLanguage, key: string): string {
   return (language === 'vi' ? VI : KO)[key] || KO[key] || key;
 }
 
+export function worklogStatusLabel(language: WorklogLanguage, status: string | null | undefined): string {
+  const values: Record<string, [string, string]> = {
+    NOT_CREATED: ['미작성', 'Chưa tạo'], MORNING_SUBMITTED: ['Morning 제출', 'Đã nộp Morning'], EOD_SUBMITTED: ['EOD 제출', 'Đã nộp EOD'],
+    CORRECTION_REQUESTED: ['수정 요청 중', 'Đang yêu cầu chỉnh sửa'], PENDING: ['대기 중', 'Đang chờ'], RUNNING: ['계산 중', 'Đang tính'],
+    COMPLETED: ['계산 완료', 'Đã tính xong'], FAILED: ['계산 실패', 'Tính thất bại'], FAILED_RETRYABLE: ['재시도 필요', 'Cần thử lại'],
+    FAILED_BLOCKED: ['계산 차단', 'Tính bị chặn'], BLOCKED: ['차단됨', 'Bị chặn'], CANCELLED: ['취소됨', 'Đã hủy'], STALE: ['최신 정보 아님', 'Không còn mới nhất'],
+  };
+  const value = values[status || ''];
+  return value ? value[language === 'vi' ? 1 : 0] : (language === 'vi' ? 'Trạng thái không xác định' : '알 수 없는 상태');
+}
+
+export function worklogChangeTypeLabel(language: WorklogLanguage, type: string | null | undefined): string {
+  const values: Record<string, [string, string]> = {
+    INITIAL_SUBMISSION: ['최초 제출', 'Nộp lần đầu'], SELF_REVISION: ['본인 수정', 'Tự chỉnh sửa'],
+    MANAGER_CORRECTION: ['관리자 수정', 'Quản lý chỉnh sửa'], CORRECTION_REQUEST: ['수정 요청', 'Yêu cầu chỉnh sửa'],
+    MORNING_SUBMISSION: ['Morning 제출', 'Nộp Morning'], EOD_SUBMISSION: ['EOD 제출', 'Nộp EOD'],
+  };
+  const value = values[type || ''];
+  return value ? value[language === 'vi' ? 1 : 0] : (language === 'vi' ? 'Thay đổi nhật ký' : '업무일지 변경');
+}
+
 export function isPrimary(entry: WorklogEntryDraft): boolean {
   return entry.assignmentRole === 'PRIMARY';
 }

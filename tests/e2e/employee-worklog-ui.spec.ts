@@ -23,7 +23,7 @@ function contextFor(employeeId: string) {
   };
 }
 
-async function mockWorklogApi(page: any, onEod?: (body: any) => void) {
+async function mockWorklogApi(page: any, onEod?: (body: any) => void, options: { delayEod?: boolean; shadowStatus?: string; currentEod?: boolean } = {}) {
   await page.route('**/api/**', async (route: any) => {
     const request = route.request();
     const url = new URL(request.url());
@@ -32,7 +32,14 @@ async function mockWorklogApi(page: any, onEod?: (body: any) => void) {
     if (url.pathname === '/api/v3/worklogs/context') {
       const employeeId = url.searchParams.get('employee_id') || 'wrk_primary';
       if (employeeId === 'wrk_primary') await new Promise((resolve) => setTimeout(resolve, 250));
-      return ok(contextFor(employeeId));
+      const context = contextFor(employeeId);
+      if (options.currentEod && employeeId === 'wrk_primary') {
+        context.worklog = {
+          id: 'saved-worklog', status: 'EOD_SUBMITTED', current_revision_number: 2,
+          current_eod_revision_id: 'saved-eod', entries: [{ id: 'saved-entry', phase: 'EOD', revision_id: 'saved-eod', task_id: 'task-primary', project_id: 'project-1', assignment_id: 'assign-primary', assignment_role: 'PRIMARY', work_category: 'NORMAL_ASSIGNED_TASK', actual_minutes: 240, progress_after: 25, remaining_estimated_minutes: 300, work_result: 'authoritative server entry' }],
+        };
+      }
+      return ok(context);
     }
     if (url.pathname.startsWith('/api/v3/tasks/') && url.pathname.endsWith('/actual')) {
       return ok({ aggregate: { current_progress: 10, remaining_estimated_minutes: 480, completion_reported: false } });
@@ -40,8 +47,10 @@ async function mockWorklogApi(page: any, onEod?: (body: any) => void) {
     if (url.pathname === '/api/v3/worklogs') return ok([]);
     if (request.method() === 'POST' && url.pathname.endsWith('/eod')) {
       onEod?.(request.postDataJSON());
-      return ok({ worklog_id: 'worklog-1', revision_id: 'revision-1', revision_number: 1, status: 'EOD_SUBMITTED', shadowRecalculation: { status: 'DISABLED' } }, 201);
+      if (options.delayEod) await new Promise((resolve) => setTimeout(resolve, 350));
+      return ok({ worklog_id: 'worklog-1', revision_id: 'revision-1', revision_number: 1, status: 'EOD_SUBMITTED', shadowRecalculation: { status: options.shadowStatus || 'DISABLED', requestId: 'shadow-request-1' } }, 201);
     }
+    if (url.pathname === '/api/v3/worklogs/worklog-1/shadow-status') return ok({ request: { request_id: 'shadow-request-1', status: options.shadowStatus || 'PENDING' }, run: null, versions: [], impacts: [] });
     if (request.method() === 'POST' && url.pathname === '/api/v3/worklogs/morning') return ok({ worklog_id: 'worklog-1', revision_id: 'revision-1', revision_number: 1, status: 'MORNING_SUBMITTED' }, 201);
     return ok({});
   });
@@ -90,5 +99,60 @@ test.describe('Checkpoint 4 employee worklog UI', () => {
     await expect(page.getByRole('button', { name: '오늘 업무 마감' })).toHaveCount(0);
     const metrics = await page.locator('body').evaluate((element) => ({ scrollWidth: element.scrollWidth, clientWidth: element.clientWidth }));
     expect(metrics.scrollWidth).toBeLessThanOrEqual(metrics.clientWidth + 1);
+  });
+
+  test('does not leak a delayed Primary submission into the next actor view', async ({ page }) => {
+    await mockWorklogApi(page, undefined, { delayEod: true });
+    await page.addInitScript(() => localStorage.setItem('schedule_current_worker_id', 'wrk_primary'));
+    await page.goto('/worklog/today');
+    await page.getByTestId('worklog-mode-eod').click();
+    await page.getByTestId('worklog-eod-minutes').fill('420');
+    await page.getByTestId('worklog-progress-after').fill('20');
+    await page.getByTestId('worklog-remaining-minutes').fill('420');
+    await page.getByTestId('worklog-work-result').fill('delayed primary save');
+    await page.getByTestId('worklog-open-submit-review').click();
+    await page.locator('[role="dialog"] button').last().click();
+    await page.locator('select').first().selectOption('wrk_support');
+    await page.waitForTimeout(500);
+    await expect(page.locator('select').first()).toHaveValue('wrk_support');
+    await expect(page.locator('input[type="checkbox"]')).toHaveCount(0);
+    await expect(page.getByRole('status')).toHaveCount(0);
+    await expect(page.getByTestId('schedule-impact-result')).toHaveCount(0);
+  });
+
+  test('keeps the authoritative EOD revision ahead of an old browser draft', async ({ page }) => {
+    await mockWorklogApi(page, undefined, { currentEod: true });
+    await page.addInitScript(() => {
+      localStorage.setItem('schedule_current_worker_id', 'wrk_primary');
+      localStorage.setItem('worklog-draft:v1:wrk_primary:2026-08-13:EOD', JSON.stringify([{ id: 'stale', category: 'ADMINISTRATION', actualMinutes: 420, workResult: 'stale local draft' }]));
+    });
+    await page.goto('/worklog/today?date=2026-08-13');
+    await expect(page.getByTestId('worklog-work-result')).toHaveValue('authoritative server entry');
+    await expect(page.getByTestId('worklog-work-result')).not.toHaveValue('stale local draft');
+  });
+
+  test('shows an initial Shadow failure without polling it as pending', async ({ page }) => {
+    let statusReads = 0;
+    await mockWorklogApi(page, undefined, { shadowStatus: 'FAILED_RETRYABLE' });
+    await page.route('**/api/v3/worklogs/worklog-1/shadow-status', async (route: any) => { statusReads += 1; await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, data: {} }) }); });
+    await page.addInitScript(() => localStorage.setItem('schedule_current_worker_id', 'wrk_primary'));
+    await page.goto('/worklog/today');
+    await page.getByTestId('worklog-mode-eod').click();
+    await page.getByTestId('worklog-eod-minutes').fill('420');
+    await page.getByTestId('worklog-progress-after').fill('20');
+    await page.getByTestId('worklog-remaining-minutes').fill('420');
+    await page.getByTestId('worklog-work-result').fill('save with failed shadow');
+    await page.getByTestId('worklog-open-submit-review').click();
+    await page.locator('[role="dialog"] button').last().click();
+    await expect(page.getByTestId('schedule-impact-result')).toBeVisible();
+    await expect.poll(() => statusReads).toBe(0);
+  });
+
+  test('uses the VN employee local date when no date is supplied', async ({ page }) => {
+    await page.clock.install({ time: new Date('2026-08-13T16:30:00.000Z') });
+    await mockWorklogApi(page);
+    await page.addInitScript(() => localStorage.setItem('schedule_current_worker_id', 'wrk_support'));
+    await page.goto('/worklog/today');
+    await expect(page.locator('input[type="date"]')).toHaveValue('2026-08-13');
   });
 });

@@ -13,11 +13,11 @@ export function ScheduleImpactResult({ language, result, loading }: ScheduleImpa
   const t = (key: string) => worklogText(language, key);
   if (!result && !loading) return null;
   const status = result?.status || result?.request_status || 'PENDING';
-  const failed = ['FAILED', 'FAILED_RETRYABLE', 'BLOCKED'].includes(status);
+  const failed = ['FAILED', 'FAILED_RETRYABLE', 'FAILED_BLOCKED', 'BLOCKED', 'CANCELLED', 'STALE'].includes(status);
   const done = ['COMPLETED', 'CURRENT', 'AUTO_APPLY_ELIGIBLE', 'APPROVAL_REQUIRED'].includes(status);
   const Icon = loading || status === 'PENDING' || status === 'RUNNING' ? LoaderCircle : failed ? AlertCircle : CheckCircle2;
   const tone = failed ? 'border-rose-200 bg-rose-50 text-rose-800' : done ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-blue-200 bg-blue-50 text-blue-800';
-  const label = failed ? (status === 'BLOCKED' ? t('blocked') : t('shadowFailed')) : done ? t('shadowDone') : t('calculating');
+  const label = failed ? (['BLOCKED', 'FAILED_BLOCKED'].includes(status) ? t('blocked') : t('shadowFailed')) : done ? t('shadowDone') : t('calculating');
   const version = result?.versions?.[0];
   const impacted = result?.impacts?.[0];
 

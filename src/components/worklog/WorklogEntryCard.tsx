@@ -89,6 +89,7 @@ export function WorklogEntryCard({
           {mode === 'MORNING' ? t('plan') : t('actual')} ({t('minutes')})
           <input
             type="number" min="0" step="30" inputMode="numeric" disabled={readOnly}
+            data-testid={`worklog-${mode.toLowerCase()}-minutes`}
             value={minutes || ''}
             onChange={(event) => update({ [minutesKey]: Math.max(0, Number(event.target.value || 0)) } as Partial<WorklogEntryDraft>)}
             className={inputClass}
@@ -120,11 +121,11 @@ export function WorklogEntryCard({
           <>
             <label className="text-xs font-bold text-slate-700">
               {t('currentProgress')} (%)
-              <input type="number" min={currentProgress} max="100" step="1" disabled={readOnly} value={entry.progressAfter} onChange={(event) => update({ progressAfter: event.target.value })} className={inputClass} />
+              <input type="number" min={currentProgress} max="100" step="1" disabled={readOnly} data-testid="worklog-progress-after" value={entry.progressAfter} onChange={(event) => update({ progressAfter: event.target.value })} className={inputClass} />
             </label>
             <label className="text-xs font-bold text-slate-700">
               {t('remaining')} ({t('minutes')})
-              <input type="number" min="0" step="30" disabled={readOnly} value={entry.remainingMinutes} onChange={(event) => update({ remainingMinutes: event.target.value })} className={inputClass} />
+              <input type="number" min="0" step="30" disabled={readOnly} data-testid="worklog-remaining-minutes" value={entry.remainingMinutes} onChange={(event) => update({ remainingMinutes: event.target.value })} className={inputClass} />
             </label>
             <label className="flex items-center gap-2 text-xs font-bold text-slate-700 sm:col-span-2">
               <input type="checkbox" checked={entry.completionReported} disabled={readOnly} onChange={(event) => update({ completionReported: event.target.checked })} className="h-4 w-4 rounded border-slate-300 text-emerald-600" />
@@ -141,7 +142,7 @@ export function WorklogEntryCard({
           <>
             <label className="text-xs font-bold text-slate-700 sm:col-span-2">
               {t('workResult')}
-              <textarea rows={3} maxLength={2000} disabled={readOnly} value={entry.workResult} onChange={(event) => update({ workResult: event.target.value })} className={inputClass} />
+              <textarea rows={3} maxLength={2000} disabled={readOnly} data-testid="worklog-work-result" value={entry.workResult} onChange={(event) => update({ workResult: event.target.value })} className={inputClass} />
             </label>
             <label className="text-xs font-bold text-slate-700">
               {t('deliverable')}

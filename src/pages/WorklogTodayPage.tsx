@@ -42,21 +42,31 @@ function errorText(error: any, language: WorklogLanguage) {
     LEAVE_LINK_REQUIRED: ['승인 휴가는 연결된 휴가 기록이 필요합니다.', 'Nghỉ phép đã duyệt cần liên kết với hồ sơ nghỉ phép.'],
   };
   const item = messages[error?.code];
-  return item ? item[language === 'vi' ? 1 : 0] : error?.message || fallback;
+  // Never surface an API error message or an internal stable-code verbatim.
+  // UI copy stays localized even when a newer server error is introduced.
+  return item ? item[language === 'vi' ? 1 : 0] : fallback;
 }
 
 function phaseEntries(worklog: any, phase: 'MORNING' | 'EOD', tasks: WorklogTask[]) {
   const revisionId = phase === 'MORNING' ? worklog?.current_morning_revision_id : worklog?.current_eod_revision_id;
   const entries = (worklog?.entries || []).filter((entry: any) => entry.phase === phase && entry.revision_id === revisionId);
   if (!entries.length) return tasks.map((task) => newEntry(task));
-  return entries.map((entry: any) => ({
+  return entries.map((entry: any) => {
+    let meeting: any = {};
+    try { meeting = entry.meeting_record_json ? JSON.parse(entry.meeting_record_json) : {}; } catch { meeting = {}; }
+    return ({
     ...newEntry({ task_id: entry.task_id, project_id: entry.project_id, task_name: entry.task_name, project_name: entry.project_name, assignment_id: entry.assignment_id, assignment_role: entry.assignment_role }),
     id: entry.id, taskId: entry.task_id || undefined, projectId: entry.project_id || undefined, assignmentId: entry.assignment_id || undefined,
     assignmentRole: entry.assignment_role || undefined, category: entry.work_category, plannedMinutes: Number(entry.planned_minutes || 0),
     actualMinutes: Number(entry.actual_minutes || 0), targetProgress: entry.target_progress ?? '', progressAfter: entry.progress_after ?? '',
     remainingMinutes: entry.remaining_estimated_minutes ?? '', completionReported: Number(entry.completion_reported) === 1,
     expectedDeliverable: entry.expected_deliverable || '', workResult: entry.work_result || '', deliverable: entry.deliverable || '', knownBlocker: entry.blocker || '',
-  }));
+    relatedProjectId: entry.related_project_id || undefined, relatedTaskId: entry.related_task_id || undefined, reasonSource: entry.reason_source || '',
+    meetingPurpose: meeting.purpose || '', meetingLocation: meeting.location || '', meetingParticipants: meeting.participants || '',
+    meetingStart: entry.local_start_time || meeting.local_start_time || '', meetingEnd: entry.local_end_time || meeting.local_end_time || '',
+    meetingAgenda: meeting.agenda || '', meetingDecision: meeting.decision || '', meetingFollowUp: meeting.follow_up || '', leaveLinkId: entry.leave_link_id || '',
+    });
+  });
 }
 
 function eodEntriesFromMorning(worklog: any, tasks: WorklogTask[]) {
@@ -93,11 +103,47 @@ export function WorklogTodayPage({ initialView = 'TODAY' }: WorklogTodayPageProp
   const [correctionReason, setCorrectionReason] = useState('');
   const [impact, setImpact] = useState<any>(null);
   const [impactLoading, setImpactLoading] = useState(false);
+  const [gapReasonCode, setGapReasonCode] = useState('');
+  const [gapReasonText, setGapReasonText] = useState('');
+  const [overtimeReason, setOvertimeReason] = useState('');
+  const [overtimeEvidence, setOvertimeEvidence] = useState('');
+  const [actorsReady, setActorsReady] = useState(false);
   const requestSequence = useRef(0);
+  const viewSequence = useRef(0);
   const contextAbort = useRef<AbortController | null>(null);
   const historyAbort = useRef<AbortController | null>(null);
+  const impactAbort = useRef<AbortController | null>(null);
+  const impactTimer = useRef<number | null>(null);
+  const actorRef = useRef(actorId);
+  const subjectRef = useRef(subjectId);
+  const dateRef = useRef(localDate);
+  const explicitDate = useRef(Boolean(searchParams.get('date')));
+  const requestedSubject = useRef(searchParams.get('employeeId'));
   const submitKeys = useRef<Record<WorklogMode | 'CORRECTION', string | null>>({ MORNING: null, EOD: null, CORRECTION: null });
   const hydratedDraftKey = useRef('');
+
+  const stopShadowPolling = useCallback(() => {
+    impactAbort.current?.abort();
+    impactAbort.current = null;
+    if (impactTimer.current !== null) window.clearTimeout(impactTimer.current);
+    impactTimer.current = null;
+  }, []);
+  const invalidateView = useCallback(() => {
+    viewSequence.current += 1;
+    requestSequence.current += 1;
+    contextAbort.current?.abort();
+    historyAbort.current?.abort();
+    stopShadowPolling();
+    hydratedDraftKey.current = '';
+    setSubmitting(false); setReviewMode(null); setSelectedHistory(null);
+    setError(''); setNotice(''); setImpact(null); setImpactLoading(false);
+  }, [stopShadowPolling]);
+  const snapshot = useCallback((employeeId = subjectRef.current, date = dateRef.current) => ({
+    view: viewSequence.current, actorId: actorRef.current, employeeId, date,
+  }), []);
+  const isCurrentSnapshot = useCallback((value: { view: number; actorId: string; employeeId: string; date: string }) => (
+    value.view === viewSequence.current && value.actorId === actorRef.current && value.employeeId === subjectRef.current && value.date === dateRef.current
+  ), []);
 
   const worklog = context?.worklog || { status: 'NOT_CREATED', current_revision_number: 0 };
   const actorWorker = workers.find((worker) => worker.id === actorId) || null;
@@ -118,27 +164,34 @@ export function WorklogTodayPage({ initialView = 'TODAY' }: WorklogTodayPageProp
   const effectiveDisplayCapacity = activeMode === 'EOD' && capacity > 0 ? Math.max(0, capacity - leaveMinutes) : capacity;
   const gapMinutes = Math.max(0, effectiveDisplayCapacity - recordedWorkMinutes);
   const overtimeMinutes = Math.max(0, recordedWorkMinutes - effectiveDisplayCapacity);
-  const draftDirty = Boolean(entries.some((entry) => Number(entry.plannedMinutes || 0) || Number(entry.actualMinutes || 0) || entry.workResult || entry.expectedDeliverable || entry.targetProgress || entry.progressAfter || entry.remainingMinutes));
+  const draftDirty = Boolean(entries.some((entry) => Number(entry.plannedMinutes || 0) || Number(entry.actualMinutes || 0) || entry.workResult || entry.expectedDeliverable || entry.targetProgress || entry.progressAfter || entry.remainingMinutes) || (activeMode === 'EOD' && (gapReasonCode || gapReasonText || overtimeReason || overtimeEvidence)));
 
-  const refreshHistory = useCallback(async (employeeId: string, signal?: AbortSignal) => {
+  const refreshHistory = useCallback(async (employeeId: string, view: ReturnType<typeof snapshot>, signal?: AbortSignal) => {
     if (!employeeId) return;
     setHistoryLoading(true);
-    try { setHistory(await api.getWorklogs({ employee: employeeId }, signal)); } catch (err: any) { if (err?.name !== 'AbortError') setError(errorText(err, language)); } finally { setHistoryLoading(false); }
-  }, [language]);
+    try {
+      const rows = await api.getWorklogs({ employee: employeeId }, signal);
+      if (isCurrentSnapshot(view)) setHistory(rows);
+    } catch (err: any) {
+      if (err?.name !== 'AbortError' && isCurrentSnapshot(view)) setError(errorText(err, language));
+    } finally { if (isCurrentSnapshot(view)) setHistoryLoading(false); }
+  }, [isCurrentSnapshot, language, snapshot]);
 
-  const loadContext = useCallback(async (employeeId: string, date: string) => {
+  const loadContext = useCallback(async (employeeId: string, date: string, view = snapshot(employeeId, date)) => {
     if (!employeeId) { setLoading(false); return; }
+    stopShadowPolling();
     contextAbort.current?.abort();
     const controller = new AbortController();
     contextAbort.current = controller;
     const sequence = ++requestSequence.current;
+    if (!isCurrentSnapshot(view)) return;
     setLoading(true); setError(''); setNotice(''); setImpact(null); setTaskActuals({});
     try {
       const nextContext = await api.getWorklogContext(employeeId, date, controller.signal);
-      if (controller.signal.aborted || sequence !== requestSequence.current) return;
+      if (controller.signal.aborted || sequence !== requestSequence.current || !isCurrentSnapshot(view)) return;
       const tasks = nextContext.scheduled_tasks || [];
       const actualResults = await Promise.all(tasks.map((task: WorklogTask) => task.task_id ? api.getTaskActual(task.task_id, controller.signal).catch(() => null) : null));
-      if (controller.signal.aborted || sequence !== requestSequence.current) return;
+      if (controller.signal.aborted || sequence !== requestSequence.current || !isCurrentSnapshot(view)) return;
       const actualMap: Record<string, any> = {};
       tasks.forEach((task: WorklogTask, index: number) => { if (task.task_id && actualResults[index]) actualMap[task.task_id] = actualResults[index]?.aggregate || actualResults[index]?.taskActual || actualResults[index]; });
       setContext(nextContext); setTaskActuals(actualMap);
@@ -146,51 +199,84 @@ export function WorklogTodayPage({ initialView = 'TODAY' }: WorklogTodayPageProp
       setEodEntries(nextContext.worklog?.current_eod_revision_id
         ? phaseEntries(nextContext.worklog, 'EOD', tasks)
         : eodEntriesFromMorning(nextContext.worklog, tasks));
+      setGapReasonCode(nextContext.worklog?.gap_reason_code || '');
+      setGapReasonText(nextContext.worklog?.gap_reason_text || '');
+      setOvertimeReason(nextContext.worklog?.overtime_reason || '');
+      try {
+        const evidence = nextContext.worklog?.overtime_evidence_json ? JSON.parse(nextContext.worklog.overtime_evidence_json) : {};
+        setOvertimeEvidence(evidence?.note || '');
+      } catch { setOvertimeEvidence(''); }
       setActiveMode(nextContext.worklog?.current_eod_revision_id ? 'EOD' : 'MORNING');
       historyAbort.current?.abort(); const historyController = new AbortController(); historyAbort.current = historyController;
-      void refreshHistory(employeeId, historyController.signal);
+      void refreshHistory(employeeId, view, historyController.signal);
     } catch (err: any) {
-      if (err?.name !== 'AbortError' && sequence === requestSequence.current) setError(errorText(err, language));
-    } finally { if (sequence === requestSequence.current) setLoading(false); }
-  }, [language, refreshHistory]);
+      if (err?.name !== 'AbortError' && sequence === requestSequence.current && isCurrentSnapshot(view)) setError(errorText(err, language));
+    } finally { if (sequence === requestSequence.current && isCurrentSnapshot(view)) setLoading(false); }
+  }, [isCurrentSnapshot, language, refreshHistory, snapshot, stopShadowPolling]);
 
   useEffect(() => {
     api.getWorkers().then((items) => {
-      setWorkers(items || []);
-      const storedWorker = items.find((worker) => worker.id === actorId || worker.name === actorId);
-      if (storedWorker && storedWorker.id !== actorId) {
-        setCurrentWorker(storedWorker); setActorId(storedWorker.id); setSubjectId(storedWorker.id); return;
-      }
-      if (actorId || !items?.length) return;
-      const defaultWorker = items.find((worker) => worker.access_role === 'EDITOR') || items[0];
-      setCurrentWorker(defaultWorker); setActorId(defaultWorker.id); setSubjectId(defaultWorker.id);
-    }).catch(() => undefined);
-  }, [actorId]);
+      const available = items || [];
+      setWorkers(available);
+      const storedWorker = available.find((worker) => worker.id === actorRef.current || worker.name === actorRef.current)
+        || available.find((worker) => worker.access_role === 'EDITOR') || available[0];
+      if (!storedWorker) { setActorsReady(true); return; }
+      const nextDate = explicitDate.current ? dateRef.current : localDateFor(storedWorker.country_code === 'VN' ? 'Asia/Ho_Chi_Minh' : 'Asia/Seoul');
+      const actorCanViewOthers = storedWorker.access_role === 'VIEWER' || Number(storedWorker.can_manage_country_calendar) === 1 || Number(storedWorker.can_manage_integrations) === 1;
+      const nextSubject = actorCanViewOthers && requestedSubject.current && available.some((worker) => worker.id === requestedSubject.current) ? requestedSubject.current : storedWorker.id;
+      setCurrentWorker(storedWorker);
+      actorRef.current = storedWorker.id; subjectRef.current = nextSubject; dateRef.current = nextDate;
+      setActorId(storedWorker.id); setSubjectId(nextSubject); setLocalDate(nextDate); setActorsReady(true);
+    }).catch(() => setActorsReady(true));
+  }, []);
+  useEffect(() => { actorRef.current = actorId; }, [actorId]);
+  useEffect(() => { subjectRef.current = subjectId; }, [subjectId]);
+  useEffect(() => { dateRef.current = localDate; }, [localDate]);
   useEffect(() => {
     const subjectLanguage = context?.subject?.ui_language;
     if (subjectLanguage !== 'ko' && subjectLanguage !== 'vi') return;
     setWorklogLanguage(subjectLanguage); setStoredLanguage(subjectLanguage); setLanguage(subjectLanguage);
   }, [context?.subject?.ui_language, setLanguage]);
-  useEffect(() => { void loadContext(subjectId, localDate); return () => contextAbort.current?.abort(); }, [subjectId, localDate, loadContext]);
-  useEffect(() => () => { historyAbort.current?.abort(); }, []);
+  useEffect(() => {
+    if (!actorsReady) return;
+    void loadContext(subjectId, localDate, snapshot(subjectId, localDate));
+    return () => contextAbort.current?.abort();
+  }, [actorsReady, subjectId, localDate, loadContext, snapshot]);
+  useEffect(() => () => { historyAbort.current?.abort(); stopShadowPolling(); }, [stopShadowPolling]);
 
   useEffect(() => {
     if (!subjectId || !context || hydratedDraftKey.current === `${subjectId}:${localDate}`) return;
     hydratedDraftKey.current = `${subjectId}:${localDate}`;
     (['MORNING', 'EOD'] as WorklogMode[]).forEach((mode) => {
+      const hasAuthoritativeRevision = mode === 'MORNING'
+        ? Boolean(context.worklog?.current_morning_revision_id)
+        : Boolean(context.worklog?.current_eod_revision_id);
+      if (hasAuthoritativeRevision) {
+        try { localStorage.removeItem(draftKey(subjectId, localDate, mode)); } catch { /* optional browser storage */ }
+        return;
+      }
       try {
         const raw = localStorage.getItem(draftKey(subjectId, localDate, mode));
         if (!raw) return;
         const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed)) mode === 'MORNING' ? setMorningEntries(parsed) : setEodEntries(parsed);
+        const savedEntries = Array.isArray(parsed) ? parsed : parsed.entries;
+        if (!Array.isArray(savedEntries)) return;
+        if (mode === 'MORNING') setMorningEntries(savedEntries);
+        else {
+          setEodEntries(savedEntries); setGapReasonCode(parsed.gapReasonCode || ''); setGapReasonText(parsed.gapReasonText || '');
+          setOvertimeReason(parsed.overtimeReason || ''); setOvertimeEvidence(parsed.overtimeEvidence || '');
+        }
       } catch { /* Local drafts are optional and never block the server state. */ }
     });
   }, [subjectId, localDate, context]);
 
   useEffect(() => {
     if (!subjectId || !draftDirty || !canSubmit) return;
-    try { localStorage.setItem(draftKey(subjectId, localDate, activeMode), JSON.stringify(entries)); } catch { /* storage may be unavailable */ }
-  }, [activeMode, canSubmit, draftDirty, entries, localDate, subjectId]);
+    try {
+      const draft = activeMode === 'EOD' ? { entries, gapReasonCode, gapReasonText, overtimeReason, overtimeEvidence } : entries;
+      localStorage.setItem(draftKey(subjectId, localDate, activeMode), JSON.stringify(draft));
+    } catch { /* storage may be unavailable */ }
+  }, [activeMode, canSubmit, draftDirty, entries, gapReasonCode, gapReasonText, localDate, overtimeEvidence, overtimeReason, subjectId]);
   useEffect(() => {
     const beforeUnload = (event: BeforeUnloadEvent) => { if (draftDirty && canSubmit) { event.preventDefault(); event.returnValue = ''; } };
     window.addEventListener('beforeunload', beforeUnload); return () => window.removeEventListener('beforeunload', beforeUnload);
@@ -199,22 +285,21 @@ export function WorklogTodayPage({ initialView = 'TODAY' }: WorklogTodayPageProp
   const chooseActor = (id: string) => {
     const worker = workers.find((item) => item.id === id);
     if (!worker) return;
-    setCurrentWorker(worker); setActorId(worker.id); chooseSubject(worker.id);
+    invalidateView();
+    const nextDate = explicitDate.current ? dateRef.current : localDateFor(worker.country_code === 'VN' ? 'Asia/Ho_Chi_Minh' : 'Asia/Seoul');
+    setCurrentWorker(worker); actorRef.current = worker.id; subjectRef.current = worker.id; dateRef.current = nextDate;
+    setActorId(worker.id); setSubjectId(worker.id); setLocalDate(nextDate); setContext(null); setMorningEntries([]); setEodEntries([]); setHistory([]);
+    const next = new URLSearchParams(searchParams); next.set('employeeId', worker.id); next.set('date', nextDate); setSearchParams(next, { replace: true });
   };
   const chooseSubject = (id: string) => {
-    requestSequence.current += 1; contextAbort.current?.abort(); historyAbort.current?.abort(); hydratedDraftKey.current = '';
-    setSubjectId(id); setContext(null); setMorningEntries([]); setEodEntries([]); setSelectedHistory(null);
+    invalidateView(); subjectRef.current = id;
+    setSubjectId(id); setContext(null); setMorningEntries([]); setEodEntries([]); setHistory([]);
     const next = new URLSearchParams(searchParams); next.set('employeeId', id); next.set('date', localDate); setSearchParams(next, { replace: true });
   };
-  const chooseDate = (date: string) => { setLocalDate(date); hydratedDraftKey.current = ''; const next = new URLSearchParams(searchParams); next.set('date', date); if (subjectId) next.set('employeeId', subjectId); setSearchParams(next, { replace: true }); };
+  const chooseDate = (date: string) => { explicitDate.current = true; invalidateView(); dateRef.current = date; setLocalDate(date); const next = new URLSearchParams(searchParams); next.set('date', date); if (subjectId) next.set('employeeId', subjectId); setSearchParams(next, { replace: true }); };
   const replaceEntry = (mode: WorklogMode, updated: WorklogEntryDraft) => mode === 'MORNING' ? setMorningEntries((items) => items.map((item) => item.id === updated.id ? updated : item)) : setEodEntries((items) => items.map((item) => item.id === updated.id ? updated : item));
   const removeEntry = (mode: WorklogMode, id: string) => mode === 'MORNING' ? setMorningEntries((items) => items.filter((item) => item.id !== id)) : setEodEntries((items) => items.filter((item) => item.id !== id));
   const addOtherWork = () => activeMode === 'MORNING' ? setMorningEntries((items) => [...items, newEntry()]) : setEodEntries((items) => [...items, newEntry()]);
-
-  const [gapReasonCode, setGapReasonCode] = useState('');
-  const [gapReasonText, setGapReasonText] = useState('');
-  const [overtimeReason, setOvertimeReason] = useState('');
-  const [overtimeEvidence, setOvertimeEvidence] = useState('');
 
   const eodPayload = useMemo(() => ({
     employee_id: subjectId, local_work_date: localDate,
@@ -259,22 +344,37 @@ export function WorklogTodayPage({ initialView = 'TODAY' }: WorklogTodayPageProp
     setReviewMode(mode);
   };
 
-  const refreshAfterSave = async (saved: any) => {
-    try { localStorage.removeItem(draftKey(subjectId, localDate, reviewMode || activeMode)); } catch {}
-    submitKeys.current[reviewMode || activeMode] = null;
-    setNotice(t('saved')); setReviewMode(null); await loadContext(subjectId, localDate);
-    if (saved?.worklog_id && saved?.shadowRecalculation?.status && saved.shadowRecalculation.status !== 'DISABLED') {
-      setImpact({ status: saved.shadowRecalculation.status, request: { request_id: saved.shadowRecalculation.requestId } }); setImpactLoading(true);
+  const refreshAfterSave = async (saved: any, view: ReturnType<typeof snapshot>, mode: WorklogMode) => {
+    if (!isCurrentSnapshot(view)) return;
+    try { localStorage.removeItem(draftKey(view.employeeId, view.date, mode)); } catch {}
+    submitKeys.current[mode] = null;
+    setNotice(t('saved')); setReviewMode(null);
+    await loadContext(view.employeeId, view.date, view);
+    if (!isCurrentSnapshot(view)) return;
+    const initialStatus = saved?.shadowRecalculation?.status;
+    if (saved?.worklog_id && initialStatus && initialStatus !== 'DISABLED') {
+      setImpact({ status: initialStatus, request: { request_id: saved.shadowRecalculation.requestId } });
+      const isPending = ['PENDING', 'RUNNING'].includes(initialStatus);
+      setImpactLoading(isPending);
+      if (!isPending) return;
+      stopShadowPolling();
+      const controller = new AbortController(); impactAbort.current = controller;
       let attempts = 0;
       const poll = async () => {
+        if (controller.signal.aborted || !isCurrentSnapshot(view)) return;
         attempts += 1;
         try {
-          const status = await api.getWorklogShadowStatus(saved.worklog_id);
-          setImpact({ ...status, status: status.run?.status || status.request?.status || 'PENDING' });
-          const pending = ['PENDING', 'RUNNING'].includes(status.run?.status || status.request?.status || 'PENDING');
-          if (pending && attempts < 8) { window.setTimeout(() => { void poll(); }, 2000); return; }
-        } catch { setImpact({ status: 'FAILED_RETRYABLE' }); }
-        setImpactLoading(false);
+          const status = await api.getWorklogShadowStatus(saved.worklog_id, controller.signal);
+          if (controller.signal.aborted || !isCurrentSnapshot(view)) return;
+          const resolvedStatus = status.run?.status || status.request?.status || 'FAILED_RETRYABLE';
+          setImpact({ ...status, status: resolvedStatus });
+          if (['PENDING', 'RUNNING'].includes(resolvedStatus) && attempts < 8) {
+            impactTimer.current = window.setTimeout(() => { void poll(); }, 2000); return;
+          }
+        } catch (err: any) {
+          if (!controller.signal.aborted && isCurrentSnapshot(view)) setImpact({ status: 'FAILED_RETRYABLE' });
+        }
+        if (!controller.signal.aborted && isCurrentSnapshot(view)) setImpactLoading(false);
       };
       void poll();
     }
@@ -282,24 +382,32 @@ export function WorklogTodayPage({ initialView = 'TODAY' }: WorklogTodayPageProp
 
   const submit = async () => {
     if (!reviewMode || submitting) return;
+    const mode = reviewMode;
+    const view = snapshot();
     setSubmitting(true); setError('');
-    const key = submitKeys.current[reviewMode] || idempotencyKey(); submitKeys.current[reviewMode] = key;
+    const key = submitKeys.current[mode] || idempotencyKey(); submitKeys.current[mode] = key;
     try {
       let saved: any;
-      if (reviewMode === 'MORNING') saved = await api.submitMorning(morningPayload, key);
+      if (mode === 'MORNING') saved = await api.submitMorning(morningPayload, key);
       else if (worklog.current_eod_revision_id) saved = await api.reviseWorklog(worklog.id, { ...eodPayload, expected_revision: Number(worklog.current_revision_number) }, key);
       else saved = await api.submitEod(worklog.id || 'new', eodPayload, key);
-      await refreshAfterSave(saved);
-    } catch (err: any) { setError(errorText(err, language)); }
-    finally { setSubmitting(false); }
+      await refreshAfterSave(saved, view, mode);
+    } catch (err: any) { if (isCurrentSnapshot(view)) setError(errorText(err, language)); }
+    finally { if (isCurrentSnapshot(view)) setSubmitting(false); }
   };
 
   const requestCorrection = async () => {
     if (!worklog?.id || !correctionReason.trim() || submitting) return;
+    const view = snapshot();
     setSubmitting(true); setError('');
     const key = submitKeys.current.CORRECTION || idempotencyKey(); submitKeys.current.CORRECTION = key;
-    try { await api.requestWorklogCorrection(worklog.id, { reason: correctionReason.trim(), proposed_payload: eodPayload }, key); submitKeys.current.CORRECTION = null; setCorrectionReason(''); await loadContext(subjectId, localDate); setNotice(t('saved')); }
-    catch (err: any) { setError(errorText(err, language)); } finally { setSubmitting(false); }
+    try {
+      await api.requestWorklogCorrection(worklog.id, { reason: correctionReason.trim(), proposed_payload: eodPayload }, key);
+      if (!isCurrentSnapshot(view)) return;
+      submitKeys.current.CORRECTION = null; setCorrectionReason(''); await loadContext(view.employeeId, view.date, view);
+      if (isCurrentSnapshot(view)) setNotice(t('saved'));
+    } catch (err: any) { if (isCurrentSnapshot(view)) setError(errorText(err, language)); }
+    finally { if (isCurrentSnapshot(view)) setSubmitting(false); }
   };
 
   const openHistory = async (item: any) => { try { setSelectedHistory(await api.getWorklog(item.id)); } catch (err: any) { setError(errorText(err, language)); } };
@@ -343,7 +451,7 @@ export function WorklogTodayPage({ initialView = 'TODAY' }: WorklogTodayPageProp
           {activeMode === 'EOD' && gapMinutes > 30 && <section className="rounded-xl border border-amber-200 bg-amber-50 p-4"><h2 className="font-extrabold text-amber-900">{t('gap')} {gapMinutes}{t('minutes')}</h2><div className="mt-3 grid gap-3 sm:grid-cols-2"><label className="text-xs font-bold text-amber-900">{t('gapReason')}<select value={gapReasonCode} disabled={!currentModeCanSubmit} onChange={(event) => setGapReasonCode(event.target.value)} className="mt-1 w-full rounded-lg border border-amber-300 bg-white px-3 py-2 text-sm text-slate-800"><option value="">-</option>{GAP_CODES.map((code) => <option key={code} value={code}>{gapLabel(language, code)}</option>)}</select></label><label className="text-xs font-bold text-amber-900">{t('gapDetail')}<input type="text" disabled={!currentModeCanSubmit} value={gapReasonText} onChange={(event) => setGapReasonText(event.target.value)} className="mt-1 w-full rounded-lg border border-amber-300 bg-white px-3 py-2 text-sm text-slate-800" /></label></div></section>}
           {activeMode === 'EOD' && overtimeMinutes > 0 && <section className="rounded-xl border border-amber-200 bg-amber-50 p-4"><h2 className="font-extrabold text-amber-900">{t('overtime')} {overtimeMinutes}{t('minutes')}</h2><p className="mt-1 text-xs text-amber-800">{t('overtimePending')}</p><div className="mt-3 grid gap-3 sm:grid-cols-2"><label className="text-xs font-bold text-amber-900">{t('overtimeReason')}<input type="text" disabled={!currentModeCanSubmit} value={overtimeReason} onChange={(event) => setOvertimeReason(event.target.value)} className="mt-1 w-full rounded-lg border border-amber-300 bg-white px-3 py-2 text-sm text-slate-800" /></label><label className="text-xs font-bold text-amber-900">{t('overtimeEvidence')}<input type="text" disabled={!currentModeCanSubmit} value={overtimeEvidence} onChange={(event) => setOvertimeEvidence(event.target.value)} className="mt-1 w-full rounded-lg border border-amber-300 bg-white px-3 py-2 text-sm text-slate-800" /></label></div></section>}
           {correctionEligible && <section className="rounded-xl border border-slate-200 bg-white p-4"><h2 className="font-extrabold text-slate-900">{t('correction')}</h2><p className="mt-1 text-sm text-slate-600">{t('correctionInfo')}</p><div className="mt-3 flex flex-col gap-2 sm:flex-row"><input type="text" value={correctionReason} onChange={(event) => setCorrectionReason(event.target.value)} placeholder={t('correctionReason')} className="min-w-0 flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm" /><button type="button" disabled={!correctionReason.trim() || submitting} onClick={() => void requestCorrection()} className="rounded-lg bg-amber-600 px-4 py-2 text-sm font-extrabold text-white disabled:opacity-50">{t('sendRequest')}</button></div></section>}
-          {currentModeCanSubmit && <div className="sticky bottom-3 z-20 rounded-xl border border-slate-200 bg-white/95 p-3 shadow-lg backdrop-blur"><button type="button" disabled={submitting} onClick={() => validateForReview(activeMode)} className={`flex w-full items-center justify-center gap-2 rounded-lg px-4 py-3 text-sm font-extrabold text-white disabled:opacity-60 ${activeMode === 'MORNING' ? 'bg-blue-600 hover:bg-blue-700' : 'bg-emerald-600 hover:bg-emerald-700'}`}><Send className="h-4 w-4" />{activeMode === 'MORNING' ? t('submitMorning') : worklog.current_eod_revision_id ? t('revise') : t('submitEod')}</button></div>}
+          {currentModeCanSubmit && <div className="sticky bottom-3 z-20 rounded-xl border border-slate-200 bg-white/95 p-3 shadow-lg backdrop-blur"><button type="button" data-testid="worklog-open-submit-review" disabled={submitting} onClick={() => validateForReview(activeMode)} className={`flex w-full items-center justify-center gap-2 rounded-lg px-4 py-3 text-sm font-extrabold text-white disabled:opacity-60 ${activeMode === 'MORNING' ? 'bg-blue-600 hover:bg-blue-700' : 'bg-emerald-600 hover:bg-emerald-700'}`}><Send className="h-4 w-4" />{activeMode === 'MORNING' ? t('submitMorning') : worklog.current_eod_revision_id ? t('revise') : t('submitEod')}</button></div>}
           <ScheduleImpactResult language={language} result={impact} loading={impactLoading} />
           <RecentWorklogs language={language} worklogs={history} loading={historyLoading} onOpen={openHistory} />
         </>}

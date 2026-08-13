@@ -537,6 +537,9 @@ export async function getWorklogContext(db: any, actorContext: ActorContextServe
      WHERE (ta.id IS NOT NULL OR tpa.id IS NOT NULL)
      ORDER BY p.name, t.task_sort_order, t.id`
   ).bind(employeeId, employeeId, localDate, localDate).all();
+  const uniqueTaskRows = (rows: any[]) => Array.from(new Map(rows.map((row) => [row.task_id, row])).values());
+  const scheduledTaskRows = uniqueTaskRows(tasks.results || []);
+  const eligibleTaskRows = uniqueTaskRows(eligibleTasks.results || []);
   return {
     actor: { employee_id: actor.worker.id, name: actor.worker.name, access_role: actor.worker.access_role, is_manager: actor.isManager },
     selected_view_employee_id: actorContext.selectedViewEmployeeId,
@@ -548,7 +551,7 @@ export async function getWorklogContext(db: any, actorContext: ActorContextServe
       can_manager_correct: actor.isManager,
       is_read_only: actor.worker.access_role !== 'EDITOR',
     },
-    scheduled_tasks: tasks.results || [], eligible_tasks: eligibleTasks.results || [],
+    scheduled_tasks: scheduledTaskRows, eligible_tasks: eligibleTaskRows,
     worklog: worklog || { status: 'NOT_CREATED', current_revision_number: 0 },
     checkpoint_notice_code: 'CHECKPOINT2_ACTUAL_CAPACITY_ONLY_FORECAST_UNCHANGED',
   };
