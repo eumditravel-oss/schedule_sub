@@ -19,7 +19,7 @@ import { chromium } from '@playwright/test';
 const QA_DATABASE = 'concost-db-qa';
 const QA_URL = 'https://concost-dev-scheduler-qa.eumditravel.workers.dev';
 const QA_WORKER_ENV = 'qa';
-const PIN_ITERATIONS = 210_000;
+const PIN_ITERATIONS = 30_000;
 const roleEmployees = {
   primary: 'wrk_03',
   support: 'wrk_05',

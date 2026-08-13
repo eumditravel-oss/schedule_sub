@@ -18,7 +18,7 @@ const TARGETS = {
   qa: { database: 'concost-db-qa', id: 'cae30591-5d3f-4441-8684-b79a9e789359' },
   production: { database: 'concost-db', id: 'feb39a05-c98e-455f-a2b1-ff75e1c0b94f' },
 };
-const ITERATIONS = 210_000;
+const ITERATIONS = 30_000;
 const args = process.argv.slice(2);
 const flag = (name) => {
   const index = args.indexOf(name);

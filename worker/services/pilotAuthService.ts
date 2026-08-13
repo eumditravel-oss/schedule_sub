@@ -2,7 +2,11 @@ import type { ActorContextServer } from './v3FoundationService';
 
 export const PILOT_SESSION_COOKIE = '__Host-concost-pilot-session';
 export const PILOT_PIN_ALGORITHM = 'PBKDF2-HMAC-SHA-256';
-export const PILOT_PIN_ITERATIONS = 210_000;
+// A pilot PIN is only six digits and is protected by an account-wide five
+// failure / fifteen-minute lock.  30k PBKDF2 rounds stays below the 10ms CPU
+// ceiling of a Workers Free request (where 210k consistently terminates the
+// request) while still making offline guesses materially expensive.
+export const PILOT_PIN_ITERATIONS = 30_000;
 const SESSION_TTL_SECONDS = 12 * 60 * 60;
 const LOCKOUT_ATTEMPTS = 5;
 const LOCKOUT_MINUTES = 15;
