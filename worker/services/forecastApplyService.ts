@@ -1,6 +1,6 @@
 import { ActorContextServer } from './v3FoundationService';
 import { ShadowScheduleError, idempotentShadowMutation, officialDataFingerprint } from './shadowScheduleService';
-import { canonicalJson, isValidIsoLocalDate, isValidUtcTimestamp, sha256Hex, utcToLocalDate } from './shadowScheduleEngine';
+import { canonicalJson, isValidIsoLocalDate, isValidUtcTimestamp, sha256Hex } from './shadowScheduleEngine';
 
 type ForecastActor = {
   worker: any;
@@ -164,11 +164,15 @@ function restoreConstraintDate(constraint: any): string | null {
     if (!isValidUtcTimestamp(String(constraint.constraint_timestamp_utc))) {
       throw new ShadowScheduleError('RESTORE_TARGET_INVALID', 409, { taskId: constraint.task_id, constraint: constraint.constraint_type, reason: 'INVALID_CONSTRAINT_TIMESTAMP' });
     }
-    try {
-      return utcToLocalDate(String(constraint.constraint_timestamp_utc), constraint.constraint_timezone || 'UTC');
-    } catch {
-      throw new ShadowScheduleError('RESTORE_TARGET_INVALID', 409, { taskId: constraint.task_id, constraint: constraint.constraint_type, reason: 'INVALID_CONSTRAINT_TIMEZONE' });
-    }
+    // Forecast snapshots deliberately preserve dates rather than work-time
+    // instants.  An active UTC constraint is therefore not provable during a
+    // historical restore (especially after an effective Temporary Primary
+    // changes the calendar/timezone).  Failing closed is the only way to
+    // avoid re-applying an incompatible official schedule.
+    throw new ShadowScheduleError('RESTORE_TARGET_INVALID', 409, {
+      taskId: constraint.task_id, constraint: constraint.constraint_type,
+      reason: 'TIMESTAMP_CONSTRAINT_PRECISION_UNPROVABLE',
+    });
   }
   if (!constraint.constraint_date) return null;
   if (!isValidIsoLocalDate(String(constraint.constraint_date))) {
@@ -284,6 +288,7 @@ async function applyShadowAtomically(
   for (const item of correlationVersions) {
     const current = currentByProject.get(item.version.project_id);
     if (!current || current.id !== item.version.based_on_forecast_version_id) {
+      await staleShadowAndEnqueue(db, source, 'SHADOW_INPUT_CHANGED');
       throw new ShadowScheduleError(correlationVersions.length > 1 ? 'CROSS_PROJECT_FORECAST_CONFLICT' : 'FORECAST_VERSION_CONFLICT', 409);
     }
   }
@@ -298,6 +303,7 @@ async function applyShadowAtomically(
     const shadow = item.version;
     const current = currentByProject.get(shadow.project_id);
     if (!current || current.id !== shadow.based_on_forecast_version_id) {
+      await staleShadowAndEnqueue(db, source, 'SHADOW_INPUT_CHANGED');
       throw new ShadowScheduleError(targets.length > 1 ? 'CROSS_PROJECT_FORECAST_CONFLICT' : 'FORECAST_VERSION_CONFLICT', 409);
     }
     const forecastVersionId = uuid('ofv');
@@ -425,9 +431,16 @@ async function applyShadowAtomically(
   try {
     results = await db.batch(statements);
   } catch (error) {
+    const message = String((error as any)?.message || error);
+    if (message.includes('FORECAST_VERSION_CONFLICT') || message.includes('SHADOW_AUTHORITY_STALE')) {
+      // A check-then-append race has invalidated this calculation. The failed
+      // D1 batch is already atomic; persist the stale lifecycle separately.
+      await staleShadowAndEnqueue(db, source, 'SHADOW_INPUT_CHANGED');
+    }
     normalizeForecastDbError(error);
   }
   if (Number(results[0]?.meta?.changes || 0) !== 1 || Number(results.at(-1)?.meta?.changes || 0) !== 1) {
+    await staleShadowAndEnqueue(db, source, 'SHADOW_AUTHORITY_STALE');
     throw new ShadowScheduleError('SHADOW_AUTHORITY_STALE', 409);
   }
   return response;
@@ -614,16 +627,9 @@ export async function restoreForecastVersion(
     await assertNoActiveProjectWorklogConflict(db, projectId);
     const authorityRevision = await currentAuthority(db);
     const [constraints, currentFingerprint] = await Promise.all([
-      db.prepare(`SELECT c.*,t.project_id,COALESCE(policy.timezone,'UTC') AS constraint_timezone
+      db.prepare(`SELECT c.*,t.project_id
         FROM task_constraints c
         JOIN tasks t ON t.id=c.task_id
-        LEFT JOIN workers primary_worker ON primary_worker.id=COALESCE(
-          (SELECT ta.worker_id FROM task_assignees ta
-            WHERE ta.task_id=t.id AND ta.assignment_role='PRIMARY' AND ta.deleted_at IS NULL
-            ORDER BY ta.sort_order,ta.id LIMIT 1),
-          t.primary_worker_id
-        )
-        LEFT JOIN office_work_policies policy ON policy.country_code=primary_worker.country_code
         WHERE t.project_id=? AND c.status='ACTIVE'`).bind(projectId).all(),
       officialDataFingerprint(db),
     ]);

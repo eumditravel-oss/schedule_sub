@@ -27,6 +27,7 @@ CREATE TABLE workers (id TEXT PRIMARY KEY,name TEXT,is_active INTEGER,access_rol
 CREATE TABLE projects (id TEXT PRIMARY KEY,name TEXT,start_date TEXT,end_date TEXT,progress REAL,status TEXT);
 CREATE TABLE tasks (id TEXT PRIMARY KEY,project_id TEXT,task_group_id TEXT,start_date TEXT,end_date TEXT,task_sort_order INTEGER,task_name TEXT,primary_worker_id TEXT);
 CREATE TABLE task_assignees (id TEXT PRIMARY KEY,task_id TEXT,worker_id TEXT,assignment_role TEXT,sort_order INTEGER,deleted_at TEXT);
+CREATE TABLE temporary_primary_assignments (id TEXT PRIMARY KEY,task_id TEXT,temporary_primary_employee_id TEXT,effective_start_date TEXT,effective_end_date TEXT,status TEXT);
 CREATE TABLE office_work_policies (country_code TEXT PRIMARY KEY,timezone TEXT);
 CREATE TABLE project_baselines (id TEXT PRIMARY KEY,project_id TEXT,version INTEGER,baseline_start_date TEXT,baseline_end_date TEXT,created_at TEXT);
 CREATE TABLE task_baselines (id TEXT PRIMARY KEY,baseline_id TEXT,task_id TEXT,baseline_start_date TEXT,baseline_end_date TEXT,baseline_progress REAL,effort_status TEXT,proposed_effort_minutes INTEGER);
@@ -75,7 +76,7 @@ const dataTables = [
   'forecast_approval_requests', 'shadow_forecast_applications', 'shadow_impact_summaries', 'shadow_impact_task_diffs', 'shadow_capacity_allocations', 'shadow_schedule_tasks',
   'shadow_schedule_versions', 'schedule_recalculation_runs', 'schedule_recalculation_requests', 'task_constraints', 'task_completion_events', 'task_actuals',
   'daily_worklog_entries', 'daily_worklog_revisions', 'daily_worklogs', 'task_actual_aggregates', 'schedule_version_tasks',
-  'schedule_versions', 'task_baselines', 'project_baselines', 'task_assignees', 'tasks', 'projects', 'office_work_policies', 'workers',
+  'schedule_versions', 'task_baselines', 'project_baselines', 'temporary_primary_assignments', 'task_assignees', 'tasks', 'projects', 'office_work_policies', 'workers',
 ];
 
 describe.runIf(enabled)('Checkpoint 3B D1 append-only Forecast integration', { timeout: 60_000 }, () => {
@@ -258,6 +259,19 @@ describe.runIf(enabled)('Checkpoint 3B D1 append-only Forecast integration', { t
     expect(await db.prepare(`SELECT COUNT(*) AS count FROM schedule_versions WHERE source_type='MANAGER_RESTORE'`).first<any>()).toMatchObject({ count: 0 });
   });
 
+  it('rejects timestamp-constrained restore when an active Temporary Primary makes an exact instant unprovable', async () => {
+    const db = await fixture();
+    await db.prepare(`INSERT INTO workers VALUES ('temporary-vn','Temporary VN',1,'EDITOR',0,'VN')`).run();
+    await db.prepare(`INSERT INTO temporary_primary_assignments
+      VALUES ('temporary-primary','task-a1','temporary-vn','2026-08-10','2026-08-20','ACTIVE')`).run();
+    const applied = await applyShadowForecast(db, managerActor, 'shadow-a', 'apply-before-temporary-primary-timestamp', flags);
+    await db.prepare(`INSERT INTO task_constraints (constraint_id,task_id,constraint_type,constraint_date,constraint_timestamp_utc,status)
+      VALUES ('temporary-primary-timestamp','task-a1','FIXED_START',NULL,'2026-08-11T15:30:00.000Z','ACTIVE')`).run();
+    await expect(restoreForecastVersion(
+      db, managerActor, 'project-a', 'forecast-a1', { expected_version_id: applied.official_versions[0].forecast_version_id }, 'restore-temporary-primary-timestamp', flags,
+    )).rejects.toMatchObject({ code: 'RESTORE_TARGET_INVALID', status: 409 });
+  });
+
   it('protects Official Forecast history from task or project deletion', async () => {
     const db = await fixture();
     await expect(db.prepare(`DELETE FROM tasks WHERE id='task-a1'`).run()).rejects.toThrow('OFFICIAL_FORECAST_HISTORY_PROTECTED');
@@ -299,6 +313,26 @@ describe.runIf(enabled)('Checkpoint 3B D1 append-only Forecast integration', { t
     expect(await db.prepare(`SELECT status FROM shadow_schedule_versions WHERE shadow_version_id='shadow-a'`).first<any>()).toMatchObject({ status: 'STALE' });
     expect(await db.prepare(`SELECT trigger_type,status FROM schedule_recalculation_requests WHERE trigger_type='FORECAST_CANDIDATE_STALE'`).first<any>())
       .toMatchObject({ trigger_type: 'FORECAST_CANDIDATE_STALE', status: 'PENDING' });
+  });
+
+  it('stales the complete correlation and enqueues one recalculation when the Official Forecast changes after freshness', async () => {
+    const db = await fixture({ classification: 'APPROVAL_REQUIRED', crossProject: true });
+    await db.prepare(`INSERT INTO schedule_versions
+      (id,project_id,baseline_id,version_number,source_type,status,project_forecast_start,project_forecast_end,created_at,created_by,actor_mode)
+      VALUES ('forecast-a2-race','project-a','baseline-a',2,'EXTERNAL_RACE','APPLIED','2026-08-10','2026-08-21','2026-08-12','other-manager','TEST_SELECTOR')`).run();
+    const revision = Number((await db.prepare(`SELECT revision FROM shadow_schedule_authority_guard WHERE guard_id='GLOBAL'`).first<any>())?.revision || 0);
+    const fingerprint = await officialDataFingerprint(db);
+    await db.prepare(`UPDATE schedule_recalculation_runs SET authority_revision=?1,official_data_before_hash=?2 WHERE run_id='run-1'`).bind(revision, fingerprint).run();
+
+    await expect(approveShadowForecast(db, managerActor, 'shadow-a', 'forecast-race', flags))
+      .rejects.toMatchObject({ code: 'CROSS_PROJECT_FORECAST_CONFLICT', status: 409 });
+    expect(await counts(db)).toMatchObject({ appended: 0, adjustments: 0, applications: 0, audit: 0 });
+    expect(await db.prepare(`SELECT shadow_version_id,status FROM shadow_schedule_versions ORDER BY shadow_version_id`).all<any>()).toMatchObject({
+      results: [{ shadow_version_id: 'shadow-a', status: 'STALE' }, { shadow_version_id: 'shadow-b', status: 'STALE' }],
+    });
+    expect(await db.prepare(`SELECT status FROM forecast_approval_requests WHERE shadow_version_id='shadow-a'`).first<any>()).toMatchObject({ status: 'STALE' });
+    expect(await db.prepare(`SELECT COUNT(*) AS count FROM schedule_recalculation_requests WHERE trigger_type='FORECAST_CANDIDATE_STALE'`).first<any>())
+      .toMatchObject({ count: 1 });
   });
 
   it('does not expose an authority-stale Shadow as a current manager candidate', async () => {
