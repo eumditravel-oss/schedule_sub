@@ -2,7 +2,7 @@
 import React, { useCallback, useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Project, Task, Worker, CountryHoliday, CalendarOverride, isExecutiveViewer, isEditableWorker } from '../types';
-import { api, getCurrentWorkerId, setCurrentWorker as setCurrentWorkerApi } from '../services/api';
+import { api } from '../services/api';
 import { calculateVisibleGanttSpan } from '../utils/dateUtils';
 import { getCountryOffState } from '../utils/workCalendar';
 import { getCalendarVisualStyle, CalendarVisualState, buildCalendarHatchPattern } from '../utils/calendarVisualTokens';
@@ -27,11 +27,8 @@ import { ProjectWorkforceModal } from '../components/modals/ProjectWorkforceModa
 import { ProjectReadinessPopover } from '../components/common/ProjectReadinessPopover';
 import { calculateProjectReadiness } from '../utils/projectReadiness';
 import { compareProjectsByStartDateDesc } from '../utils/projectSorting';
-import { WorkerSelector } from '../components/common/WorkerSelector';
-import { WorkerPromptModal } from '../components/modals/WorkerPromptModal';
 import { GanttViewControls } from '../components/common/GanttViewControls';
 import { MobileAppHeader } from '../components/mobile/MobileAppHeader';
-import { MobileWorkerSheet } from '../components/mobile/MobileWorkerSheet';
 import { CalendarManagerModal } from '../components/modals/CalendarManagerModal';
 import { MobileSummaryView } from '../components/mobile/MobileSummaryView';
 import { MobileWeekView } from '../components/mobile/MobileWeekView';
@@ -52,12 +49,14 @@ import { ProjectDeleteConfirmModal } from '../components/modals/ProjectDeleteCon
 import { ProjectCompleteConfirmModal } from '../components/modals/ProjectCompleteConfirmModal';
 import { PrintDropdownMenu } from '../components/print/PrintDropdownMenu';
 import { TodayWorklogNavButton } from '../components/worklog/TodayWorklogNavButton';
+import { usePilotAuth } from '../auth/PilotAuthContext';
 
 export type MobileViewMode = 'SUMMARY' | 'WEEK' | 'GANTT';
 
 export const ProjectOverviewPage: React.FC = () => {
   const navigate = useNavigate();
   const { t, lang, setLanguage } = useI18n();
+  const { session } = usePilotAuth();
   const { isMobile, isTabletFold } = useResponsiveLayout();
   const isMobileView = isMobile || isTabletFold;
 
@@ -93,8 +92,6 @@ export const ProjectOverviewPage: React.FC = () => {
 
   // Worker & Modal States
   const [currentWorker, setCurrentWorker] = useState<Worker | null>(null);
-  const [isWorkerPromptOpen, setIsWorkerPromptOpen] = useState(false);
-  const [isMobileWorkerSheetOpen, setIsMobileWorkerSheetOpen] = useState(false);
   const [isCalendarModalOpen, setIsCalendarModalOpen] = useState(false);
   const [isIntegrationModalOpen, setIsIntegrationModalOpen] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -211,8 +208,7 @@ export const ProjectOverviewPage: React.FC = () => {
       setCalendarOverrides(ovrData || []);
 
       // Auto resolve worker language & check pending schedule decisions
-      const savedId = getCurrentWorkerId();
-      const found = workerList.find((w) => w.id === savedId || w.name === savedId);
+      const found = workerList.find((w) => w.id === session?.actor.employeeId);
       if (found) {
         setCurrentWorker(found);
         setLanguage(found.ui_language || (found.country_code === 'VN' ? 'vi' : 'ko'));
@@ -231,13 +227,11 @@ export const ProjectOverviewPage: React.FC = () => {
             }
           }).catch(() => {});
         }
-      } else {
-        setIsWorkerPromptOpen(true);
       }
     } catch (err) {
       console.error('Failed to fetch calendar data:', err);
     }
-  }, [setLanguage]);
+  }, [session?.actor.employeeId, setLanguage]);
 
   const fetchRequestIdRef = useRef(0);
 
@@ -299,33 +293,7 @@ export const ProjectOverviewPage: React.FC = () => {
     fetchProjects();
   }, [fetchProjects]);
 
-  const handleSelectWorkerProfile = (w: Worker) => {
-    const isPrevExecutive = currentWorker ? isExecutiveViewer(currentWorker) : false;
-    const isNextExecutive = isExecutiveViewer(w);
-
-    setCurrentWorker(w);
-    setCurrentWorkerApi(w);
-    const targetLang = w.ui_language || (w.country_code === 'VN' ? 'vi' : 'ko');
-    setLanguage(targetLang);
-
-    if (isNextExecutive) {
-      setActiveTab('ALL');
-    } else if (isPrevExecutive && !isNextExecutive) {
-      setActiveTab('ACTIVE');
-    }
-  };
-
-  const requireWorkerSelection = (): boolean => {
-    if (!currentWorker) {
-      if (isMobileView) {
-        setIsMobileWorkerSheetOpen(true);
-      } else {
-        setIsWorkerPromptOpen(true);
-      }
-      return false;
-    }
-    return true;
-  };
+  const requireWorkerSelection = (): boolean => Boolean(currentWorker);
 
   const handleOpenAddModal = () => {
     if (isExecutiveViewer(currentWorker)) {
@@ -453,7 +421,6 @@ export const ProjectOverviewPage: React.FC = () => {
       {isMobileView ? (
         <MobileAppHeader
           currentWorker={currentWorker}
-          onOpenWorkerSheet={() => setIsMobileWorkerSheetOpen(true)}
           onOpenWorklog={() => navigate('/worklog/today')}
         />
       ) : (
@@ -612,10 +579,7 @@ export const ProjectOverviewPage: React.FC = () => {
 
             {/* [3] Worker Selector */}
             <TestActorModeBadge />
-            <WorkerSelector
-              currentWorker={currentWorker}
-              onWorkerChange={handleSelectWorkerProfile}
-            />
+            <span className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs font-bold text-slate-700">{session?.actor.displayName || '-'}</span>
 
             {/* [4] Add Project */}
             {!isExecutiveViewer(currentWorker) && (
@@ -1382,19 +1346,6 @@ export const ProjectOverviewPage: React.FC = () => {
         onSave={handleSaveProject}
         project={selectedProject}
         currentWorker={currentWorker}
-      />
-
-      <WorkerPromptModal
-        isOpen={isWorkerPromptOpen}
-        onClose={() => setIsWorkerPromptOpen(false)}
-        onSelectWorker={handleSelectWorkerProfile}
-      />
-
-      <MobileWorkerSheet
-        isOpen={isMobileWorkerSheetOpen}
-        onClose={() => setIsMobileWorkerSheetOpen(false)}
-        currentWorker={currentWorker}
-        onSelectWorker={handleSelectWorkerProfile}
       />
 
       <CalendarManagerModal

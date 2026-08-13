@@ -22,9 +22,9 @@ type ApplyMode = 'DIRECT' | 'APPROVE';
 const uuid = (prefix: string) => `${prefix}_${crypto.randomUUID()}`;
 
 async function resolveActor(db: any, actorContext: ActorContextServer, write = false): Promise<ForecastActor> {
-  const id = actorContext.actorEmployeeId || actorContext.actorUserId;
+  const id = actorContext.actorEmployeeId;
   if (!id) throw new ShadowScheduleError('APPROVAL_PERMISSION_DENIED', 403);
-  const worker = await db.prepare(`SELECT * FROM workers WHERE (id=?1 OR name=?1) AND is_active=1`).bind(id).first();
+  const worker = await db.prepare(`SELECT * FROM workers WHERE id=? AND is_active=1`).bind(id).first();
   if (!worker || (write && worker.access_role !== 'EDITOR')) throw new ShadowScheduleError('APPROVAL_PERMISSION_DENIED', 403);
   return {
     worker,

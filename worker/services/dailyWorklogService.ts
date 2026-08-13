@@ -41,12 +41,15 @@ async function resolveReadActor(db: any, actorContext: ActorContextServer): Prom
   return {
     ...actorContext,
     worker,
-    isManager: Number(worker.can_manage_country_calendar) === 1 || Number(worker.can_manage_integrations) === 1,
+    isManager:
+      Number(worker.can_manage_country_calendar) === 1 ||
+      Number(worker.can_manage_integrations) === 1 ||
+      Number(worker.can_manage_schedule_engine) === 1,
   };
 }
 
 function canReadSubject(actor: WorklogActor, employeeId: string): boolean {
-  return actor.worker.id === employeeId || actor.isManager || actor.worker.access_role === 'VIEWER';
+  return actor.worker.id === employeeId || actor.selectedViewEmployeeId === employeeId || actor.worker.access_role === 'VIEWER';
 }
 
 const id = (prefix: string) => `${prefix}_${crypto.randomUUID()}`;
@@ -191,13 +194,16 @@ export async function resolveActor(db: any, actorContext: ActorContextServer): P
   return {
     ...actorContext,
     worker,
-    isManager: Number(worker.can_manage_country_calendar) === 1 || Number(worker.can_manage_integrations) === 1,
+    isManager:
+      Number(worker.can_manage_country_calendar) === 1 ||
+      Number(worker.can_manage_integrations) === 1 ||
+      Number(worker.can_manage_schedule_engine) === 1,
   };
 }
 
-function requireSubject(actor: WorklogActor, employeeId: string, managerAllowed = false) {
-  if (actor.worker.id !== employeeId && !(managerAllowed && actor.isManager)) {
-    throw new WorklogError('WORKLOG_PERMISSION_DENIED', 403, {
+function requireSubject(actor: WorklogActor, employeeId: string) {
+  if (actor.worker.id !== employeeId) {
+    throw new WorklogError('WORKLOG_SUBJECT_MISMATCH', 403, {
       actor_employee_id: actor.worker.id,
       selected_view_employee_id: actor.selectedViewEmployeeId,
       subject_employee_id: employeeId,
@@ -546,7 +552,7 @@ export async function getWorklogContext(db: any, actorContext: ActorContextServe
     subject: subject ? { id: subject.id, name: subject.name, country_code: subject.country_code, ui_language: subject.ui_language } : null,
     subject_employee_id: employeeId, local_work_date: localDate, capacity, self_edit_deadline_utc: deadline,
     permissions: {
-      can_read: actor.worker.id === employeeId || actor.isManager || actor.worker.access_role === 'VIEWER',
+      can_read: actor.worker.id === employeeId || actor.selectedViewEmployeeId === employeeId || actor.worker.access_role === 'VIEWER',
       can_write_self: actor.worker.id === employeeId && actor.worker.access_role === 'EDITOR',
       can_manager_correct: actor.isManager,
       is_read_only: actor.worker.access_role !== 'EDITOR',
@@ -887,10 +893,9 @@ export async function reviseWorklog(db: any, actorContext: ActorContextServer, w
   const actor = await resolveActor(db, actorContext);
   const worklog = await db.prepare(`SELECT * FROM daily_worklogs WHERE id=?`).bind(worklogId).first();
   if (!worklog?.current_eod_revision_id) throw new WorklogError('INVALID_LOCAL_WORK_DATE', 404, { worklog_id: worklogId });
-  const manager = actor.isManager && actor.worker.id !== worklog.employee_id;
-  requireSubject(actor, worklog.employee_id, true);
-  if (!manager && now.getTime() > new Date(worklog.self_edit_deadline_utc).getTime()) throw new WorklogError('RETROACTIVE_REVIEW_REQUIRED', 409);
-  return submitEodRevision(db, actor, worklog, body, key, now, manager ? 'MANAGER_CORRECTION' : 'SELF_REVISION', shadowEnabled);
+  requireSubject(actor, worklog.employee_id);
+  if (now.getTime() > new Date(worklog.self_edit_deadline_utc).getTime()) throw new WorklogError('RETROACTIVE_REVIEW_REQUIRED', 409);
+  return submitEodRevision(db, actor, worklog, body, key, now, 'SELF_REVISION', shadowEnabled);
 }
 
 export async function createCorrectionRequest(db: any, actorContext: ActorContextServer, worklogId: string, body: any, key: string, now = new Date()) {
@@ -939,9 +944,12 @@ export async function createCorrectionRequest(db: any, actorContext: ActorContex
 export async function listWorklogs(db: any, actorContext: ActorContextServer, filters: Record<string, string>) {
   const actor = await resolveReadActor(db, actorContext);
   const scopedFilters = { ...filters };
-  if (!actor.isManager && actor.worker.access_role !== 'VIEWER') {
-    if (scopedFilters.employee && scopedFilters.employee !== actor.worker.id) throw new WorklogError('WORKLOG_PERMISSION_DENIED', 403);
-    scopedFilters.employee = actor.worker.id;
+  if (actor.worker.access_role !== 'VIEWER') {
+    // The route has already authorized selectedViewEmployeeId against the session
+    // actor's supervision relation. A query parameter alone must never confer it.
+    const visibleEmployeeId = actor.selectedViewEmployeeId || actor.worker.id;
+    if (scopedFilters.employee && scopedFilters.employee !== visibleEmployeeId) throw new WorklogError('WORKLOG_PERMISSION_DENIED', 403);
+    scopedFilters.employee = visibleEmployeeId;
   }
   const where: string[] = ['1=1'];
   const params: any[] = [];
@@ -961,12 +969,13 @@ export async function getTaskActual(db: any, taskId: string, actorContext?: Acto
   if (!task) throw new WorklogError('INVALID_LOCAL_WORK_DATE', 404, { task_id: taskId, reason: 'TASK_NOT_FOUND' });
   if (actorContext) {
     const actor = await resolveReadActor(db, actorContext);
-    if (!actor.isManager && actor.worker.access_role !== 'VIEWER') {
+    if (actor.worker.access_role !== 'VIEWER') {
+      const visibleEmployeeId = actor.selectedViewEmployeeId || actor.worker.id;
       const assignment = await db.prepare(
         `SELECT 1 AS allowed FROM task_assignees WHERE task_id=? AND worker_id=? AND deleted_at IS NULL
          UNION SELECT 1 AS allowed FROM temporary_primary_assignments WHERE task_id=? AND temporary_primary_employee_id=?
            AND status='ACTIVE' LIMIT 1`
-      ).bind(taskId, actor.worker.id, taskId, actor.worker.id).first();
+      ).bind(taskId, visibleEmployeeId, taskId, visibleEmployeeId).first();
       if (!assignment) throw new WorklogError('WORKLOG_PERMISSION_DENIED', 403, { task_id: taskId });
     }
   }

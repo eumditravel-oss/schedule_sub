@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { CalendarDays, ChevronLeft, ClipboardCheck, Plus, RefreshCw, Send, ShieldAlert } from 'lucide-react';
-import { api, getCurrentWorkerId, setCurrentWorker } from '../services/api';
+import { api } from '../services/api';
+import { usePilotAuth } from '../auth/PilotAuthContext';
 import { useI18n } from '../hooks/useI18n';
 import { setStoredLanguage } from '../i18n';
 import type { Worker } from '../types';
@@ -81,10 +82,11 @@ export function WorklogTodayPage({ initialView = 'TODAY' }: WorklogTodayPageProp
   const language: WorklogLanguage = worklogLanguage;
   const t = useCallback((key: string) => worklogText(language, key), [language]);
   const navigate = useNavigate();
+  const { session, logout } = usePilotAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const [workers, setWorkers] = useState<Worker[]>([]);
-  const [actorId, setActorId] = useState(() => getCurrentWorkerId());
-  const [subjectId, setSubjectId] = useState(() => searchParams.get('employeeId') || getCurrentWorkerId());
+  const [actorId, setActorId] = useState(() => session?.actor.employeeId || '');
+  const [subjectId, setSubjectId] = useState(() => searchParams.get('employeeId') || session?.actor.employeeId || '');
   const [localDate, setLocalDate] = useState(() => searchParams.get('date') || localDateFor());
   const [context, setContext] = useState<any>(null);
   const [taskActuals, setTaskActuals] = useState<Record<string, any>>({});
@@ -150,7 +152,7 @@ export function WorklogTodayPage({ initialView = 'TODAY' }: WorklogTodayPageProp
 
   const worklog = context?.worklog || { status: 'NOT_CREATED', current_revision_number: 0 };
   const actorWorker = workers.find((worker) => worker.id === actorId) || null;
-  const actorCanReadOthers = Boolean(actorWorker && (actorWorker.access_role === 'VIEWER' || Number(actorWorker.can_manage_country_calendar) === 1 || Number(actorWorker.can_manage_integrations) === 1));
+  const actorCanReadOthers = Boolean(actorWorker && (actorWorker.access_role === 'VIEWER' || Number(actorWorker.can_manage_country_calendar) === 1 || Number(actorWorker.can_manage_integrations) === 1 || Number(actorWorker.can_manage_schedule_engine) === 1));
   const scheduledTasks = (context?.scheduled_tasks || []) as WorklogTask[];
   const eligibleTasks = (context?.eligible_tasks || scheduledTasks) as WorklogTask[];
   const actorIsSubject = Boolean(context?.actor?.employee_id && context?.actor?.employee_id === context?.subject_employee_id);
@@ -193,7 +195,7 @@ export function WorklogTodayPage({ initialView = 'TODAY' }: WorklogTodayPageProp
       const nextContext = await api.getWorklogContext(employeeId, date, controller.signal);
       if (controller.signal.aborted || sequence !== requestSequence.current || !isCurrentSnapshot(view)) return;
       const tasks = nextContext.scheduled_tasks || [];
-      const actualResults = await Promise.all(tasks.map((task: WorklogTask) => task.task_id ? api.getTaskActual(task.task_id, controller.signal).catch(() => null) : null));
+      const actualResults = await Promise.all(tasks.map((task: WorklogTask) => task.task_id ? api.getTaskActual(task.task_id, controller.signal, employeeId).catch(() => null) : null));
       if (controller.signal.aborted || sequence !== requestSequence.current || !isCurrentSnapshot(view)) return;
       const actualMap: Record<string, any> = {};
       tasks.forEach((task: WorklogTask, index: number) => { if (task.task_id && actualResults[index]) actualMap[task.task_id] = actualResults[index]?.aggregate || actualResults[index]?.taskActual || actualResults[index]; });
@@ -221,17 +223,15 @@ export function WorklogTodayPage({ initialView = 'TODAY' }: WorklogTodayPageProp
     api.getWorkers().then((items) => {
       const available = items || [];
       setWorkers(available);
-      const storedWorker = available.find((worker) => worker.id === actorRef.current || worker.name === actorRef.current)
-        || available.find((worker) => worker.access_role === 'EDITOR') || available[0];
+      const storedWorker = available.find((worker) => worker.id === session?.actor.employeeId);
       if (!storedWorker) { setActorsReady(true); return; }
       const nextDate = explicitDate.current ? dateRef.current : localDateFor(storedWorker.country_code === 'VN' ? 'Asia/Ho_Chi_Minh' : 'Asia/Seoul');
-      const actorCanViewOthers = storedWorker.access_role === 'VIEWER' || Number(storedWorker.can_manage_country_calendar) === 1 || Number(storedWorker.can_manage_integrations) === 1;
+      const actorCanViewOthers = storedWorker.access_role === 'VIEWER' || Number(storedWorker.can_manage_country_calendar) === 1 || Number(storedWorker.can_manage_integrations) === 1 || Number(storedWorker.can_manage_schedule_engine) === 1;
       const nextSubject = actorCanViewOthers && requestedSubject.current && available.some((worker) => worker.id === requestedSubject.current) ? requestedSubject.current : storedWorker.id;
-      setCurrentWorker(storedWorker);
       actorRef.current = storedWorker.id; subjectRef.current = nextSubject; dateRef.current = nextDate;
       setActorId(storedWorker.id); setSubjectId(nextSubject); setLocalDate(nextDate); setActorsReady(true);
     }).catch(() => setActorsReady(true));
-  }, []);
+  }, [session?.actor.employeeId]);
   useEffect(() => { actorRef.current = actorId; }, [actorId]);
   useEffect(() => { subjectRef.current = subjectId; }, [subjectId]);
   useEffect(() => { dateRef.current = localDate; }, [localDate]);
@@ -255,11 +255,11 @@ export function WorklogTodayPage({ initialView = 'TODAY' }: WorklogTodayPageProp
         ? Boolean(context.worklog?.current_morning_revision_id)
         : Boolean(context.worklog?.current_eod_revision_id);
       if (hasAuthoritativeRevision) {
-        try { localStorage.removeItem(draftKey(subjectId, localDate, mode)); } catch { /* optional browser storage */ }
+        try { localStorage.removeItem(draftKey(actorId, localDate, mode)); } catch { /* optional browser storage */ }
         return;
       }
       try {
-        const raw = localStorage.getItem(draftKey(subjectId, localDate, mode));
+        const raw = localStorage.getItem(draftKey(actorId, localDate, mode));
         if (!raw) return;
         const parsed = JSON.parse(raw);
         const savedEntries = Array.isArray(parsed) ? parsed : parsed.entries;
@@ -271,29 +271,20 @@ export function WorklogTodayPage({ initialView = 'TODAY' }: WorklogTodayPageProp
         }
       } catch { /* Local drafts are optional and never block the server state. */ }
     });
-  }, [subjectId, localDate, context]);
+  }, [actorId, subjectId, localDate, context]);
 
   useEffect(() => {
     if (!subjectId || !draftDirty || !canSubmit) return;
     try {
       const draft = activeMode === 'EOD' ? { entries, gapReasonCode, gapReasonText, overtimeReason, overtimeEvidence } : entries;
-      localStorage.setItem(draftKey(subjectId, localDate, activeMode), JSON.stringify(draft));
+      localStorage.setItem(draftKey(actorId, localDate, activeMode), JSON.stringify(draft));
     } catch { /* storage may be unavailable */ }
-  }, [activeMode, canSubmit, draftDirty, entries, gapReasonCode, gapReasonText, localDate, overtimeEvidence, overtimeReason, subjectId]);
+  }, [activeMode, actorId, canSubmit, draftDirty, entries, gapReasonCode, gapReasonText, localDate, overtimeEvidence, overtimeReason]);
   useEffect(() => {
     const beforeUnload = (event: BeforeUnloadEvent) => { if (draftDirty && canSubmit) { event.preventDefault(); event.returnValue = ''; } };
     window.addEventListener('beforeunload', beforeUnload); return () => window.removeEventListener('beforeunload', beforeUnload);
   }, [canSubmit, draftDirty]);
 
-  const chooseActor = (id: string) => {
-    const worker = workers.find((item) => item.id === id);
-    if (!worker) return;
-    invalidateView();
-    const nextDate = explicitDate.current ? dateRef.current : localDateFor(worker.country_code === 'VN' ? 'Asia/Ho_Chi_Minh' : 'Asia/Seoul');
-    setCurrentWorker(worker); actorRef.current = worker.id; subjectRef.current = worker.id; dateRef.current = nextDate;
-    setActorId(worker.id); setSubjectId(worker.id); setLocalDate(nextDate); setContext(null); setMorningEntries([]); setEodEntries([]); setHistory([]);
-    const next = new URLSearchParams(searchParams); next.set('employeeId', worker.id); next.set('date', nextDate); setSearchParams(next, { replace: true });
-  };
   const chooseSubject = (id: string) => {
     invalidateView(); subjectRef.current = id;
     setSubjectId(id); setContext(null); setMorningEntries([]); setEodEntries([]); setHistory([]);
@@ -445,10 +436,10 @@ export function WorklogTodayPage({ initialView = 'TODAY' }: WorklogTodayPageProp
 
   return (
     <main className="min-h-screen bg-slate-50 pb-24" data-testid="employee-worklog-page">
-      <header className="border-b border-slate-200 bg-white shadow-xs"><div className="mx-auto flex max-w-6xl flex-wrap items-center gap-3 px-4 py-3 sm:px-6"><Link to="/projects" className="inline-flex h-9 items-center gap-1 rounded-lg border border-slate-200 px-3 text-sm font-bold text-slate-700 hover:bg-slate-50"><ChevronLeft className="h-4 w-4" />{t('back')}</Link><div className="min-w-0 flex-1"><h1 className="flex items-center gap-2 text-lg font-extrabold text-slate-900"><ClipboardCheck className="h-5 w-5 text-emerald-600" />{pageTitle}</h1></div><button type="button" onClick={() => setView(view === 'TODAY' ? 'HISTORY' : 'TODAY')} className="h-9 rounded-lg border border-slate-200 px-3 text-sm font-bold text-slate-700 hover:bg-slate-50">{view === 'TODAY' ? t('history') : t('today')}</button></div></header>
+      <header className="border-b border-slate-200 bg-white shadow-xs"><div className="mx-auto flex max-w-6xl flex-wrap items-center gap-3 px-4 py-3 sm:px-6"><Link to="/projects" className="inline-flex h-9 items-center gap-1 rounded-lg border border-slate-200 px-3 text-sm font-bold text-slate-700 hover:bg-slate-50"><ChevronLeft className="h-4 w-4" />{t('back')}</Link><div className="min-w-0 flex-1"><h1 className="flex items-center gap-2 text-lg font-extrabold text-slate-900"><ClipboardCheck className="h-5 w-5 text-emerald-600" />{pageTitle}</h1><p className="mt-0.5 text-xs font-semibold text-slate-500">로그인: {session?.actor.displayName || '-'}</p></div>{session?.isQaTestSession && <span className="rounded-full border border-amber-300 bg-amber-50 px-2 py-1 text-[10px] font-extrabold text-amber-800">QA TEST SESSION</span>}<button type="button" onClick={() => setView(view === 'TODAY' ? 'HISTORY' : 'TODAY')} className="h-9 rounded-lg border border-slate-200 px-3 text-sm font-bold text-slate-700 hover:bg-slate-50">{view === 'TODAY' ? t('history') : t('today')}</button><button type="button" onClick={() => void logout().then(() => navigate('/login', { replace: true }))} className="h-9 rounded-lg border border-slate-200 px-3 text-sm font-bold text-slate-700 hover:bg-slate-50">로그아웃</button></div></header>
       <div className="mx-auto max-w-6xl space-y-4 px-4 py-5 sm:px-6">
         <section className="grid gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-xs sm:grid-cols-3">
-          <label className="text-xs font-bold text-slate-700">{language === 'vi' ? 'Người dùng hiện tại' : '현재 사용자'}<select value={actorId} onChange={(event) => chooseActor(event.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm font-bold text-slate-800"><option value="">-</option>{workers.map((worker) => <option key={worker.id} value={worker.id}>{worker.name}</option>)}</select></label>
+          <div className="text-xs font-bold text-slate-700">{language === 'vi' ? 'Người dùng đăng nhập' : '로그인 사용자'}<div className="mt-1 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-bold text-slate-800">{session?.actor.displayName || '-'}</div></div>
           <label className="text-xs font-bold text-slate-700">{t('employee')}<select value={subjectId} disabled={!actorCanReadOthers} onChange={(event) => chooseSubject(event.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm font-bold text-slate-800 disabled:cursor-not-allowed disabled:bg-slate-100"><option value="">-</option>{(actorCanReadOthers ? workers : workers.filter((worker) => worker.id === actorId)).map((worker) => <option key={worker.id} value={worker.id}>{worker.name}</option>)}</select></label>
           <label className="text-xs font-bold text-slate-700">{t('date')}<input type="date" value={localDate} onChange={(event) => chooseDate(event.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm font-bold text-slate-800" /></label>
         </section>

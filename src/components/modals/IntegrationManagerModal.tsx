@@ -44,13 +44,7 @@ export const IntegrationManagerModal: React.FC<IntegrationManagerModalProps> = (
   const fetchKeys = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await fetch('/api/admin/integration-keys', {
-        headers: { 'x-editor-name': encodeURIComponent(currentWorker?.id || currentWorker?.name || '') },
-      });
-      if (res.ok) {
-        const data: any = await res.json();
-        setKeys(Array.isArray(data) ? data : []);
-      }
+      setKeys(await api.getIntegrationKeys());
     } catch (err) {
       console.error('Failed to fetch API keys:', err);
     } finally {
@@ -60,13 +54,7 @@ export const IntegrationManagerModal: React.FC<IntegrationManagerModalProps> = (
 
   const fetchLogs = useCallback(async () => {
     try {
-      const res = await fetch('/api/admin/integration-logs', {
-        headers: { 'x-editor-name': encodeURIComponent(currentWorker?.id || currentWorker?.name || '') },
-      });
-      if (res.ok) {
-        const data: any = await res.json();
-        setLogs(Array.isArray(data) ? data : []);
-      }
+      setLogs(await api.getIntegrationLogs());
     } catch (err) {
       console.error('Failed to fetch API logs:', err);
     }
@@ -87,21 +75,13 @@ export const IntegrationManagerModal: React.FC<IntegrationManagerModalProps> = (
     setKeyError(null);
     try {
       setLoading(true);
-      const res = await fetch('/api/admin/integration-keys', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-editor-name': encodeURIComponent(currentWorker?.id || currentWorker?.name || ''),
-        },
-        body: JSON.stringify({
-          name: keyName.trim(),
-          scopes: ['projects:read', 'projects:write', 'groups:read', 'groups:write', 'tasks:read', 'tasks:write'],
-          expires_in_days: expiresInDays,
-        }),
+      const json: any = await api.createIntegrationKey({
+        name: keyName.trim(),
+        scopes: ['projects:read', 'projects:write', 'groups:read', 'groups:write', 'tasks:read', 'tasks:write'],
+        expires_in_days: expiresInDays,
       });
 
-      if (res.ok) {
-        const json: any = await res.json();
+      if (json) {
         const token = json.data?.raw_token_once || json.raw_token_once || null;
         setGeneratedToken(token);
         setIsCreating(false);
@@ -109,7 +89,7 @@ export const IntegrationManagerModal: React.FC<IntegrationManagerModalProps> = (
         setKeyError(null);
         await fetchKeys();
       } else {
-        const errData: any = await res.json();
+        const errData: any = {};
         const msg = errData.error?.message || 'API Key를 생성하지 못했습니다.';
         console.error('[IntegrationManagerModal] create key failed:', errData);
         setKeyError(msg);
@@ -126,13 +106,8 @@ export const IntegrationManagerModal: React.FC<IntegrationManagerModalProps> = (
     if (!confirm(isVi ? 'Bạn có chắc chắn muốn thu hồi khóa API này?' : '이 API Key를 정말로 수동 취소하시겠습니까?')) return;
     try {
       setLoading(true);
-      const res = await fetch(`/api/admin/integration-keys/${keyId}`, {
-        method: 'DELETE',
-        headers: { 'x-editor-name': encodeURIComponent(currentWorker?.id || currentWorker?.name || '') },
-      });
-      if (res.ok) {
-        await fetchKeys();
-      }
+      await api.revokeIntegrationKey(keyId);
+      await fetchKeys();
     } catch (err: any) {
       alert(err.message || 'Error revoking key');
     } finally {

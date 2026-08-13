@@ -5,7 +5,9 @@ export type BootstrapRule = 'RULE_A' | 'RULE_B' | 'RULE_C' | 'RULE_D' | 'UNSCHED
 export type LegacyProgressSource = 'MANUAL' | 'AUTO_TIME' | 'SYSTEM' | 'UNKNOWN';
 
 export interface ActorContextServer {
-  actorMode: 'TEST_SELECTOR' | 'SYSTEM_MIGRATION';
+  // TEST_SELECTOR remains type-only compatibility for historical pure-service
+  // fixtures; HTTP business routes never construct it.
+  actorMode: 'PILOT_SESSION' | 'QA_TEST_SESSION' | 'SYSTEM_MIGRATION' | 'TEST_SELECTOR';
   actorUserId: string | null;
   actorEmployeeId: string | null;
   selectedViewEmployeeId: string | null;

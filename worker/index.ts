@@ -88,6 +88,17 @@ import {
   rejectShadowForecast,
   restoreForecastVersion,
 } from './services/forecastApplyService';
+import {
+  authorizeEmployeeRead,
+  createQaTestSession,
+  expiredSessionCookie,
+  getPilotSession,
+  logoutPilotSession,
+  pilotLogin,
+  PilotAuthError,
+  requireCsrf,
+  resolveAuthenticatedActor,
+} from './services/pilotAuthService';
 
 export type WorkerEnv = Env & {
   KASI_HOLIDAY_API_KEY?: string;
@@ -103,20 +114,25 @@ export type WorkerEnv = Env & {
   DYNAMIC_SCHEDULER_AUTO_APPLY_ENABLED?: string;
   DYNAMIC_SCHEDULER_APPROVAL_ENABLED?: string;
   DYNAMIC_SCHEDULER_RESTORE_ENABLED?: string;
+  PILOT_SESSION_AUTH_ENABLED?: string;
+  TEST_ACTOR_MODE?: string;
+  PILOT_SESSION_TTL_SECONDS?: string;
+  QA_TEST_ACTOR_SECRET?: string;
 };
 
-function jsonResponse(data: any, status = 200) {
+function jsonResponse(data: any, status = 200, extraHeaders: HeadersInit = {}) {
   return new Response(JSON.stringify({ success: true, data }), {
     status,
     headers: {
       'Content-Type': 'application/json',
       'Access-Control-Allow-Origin': '*',
       'Cache-Control': 'no-cache, no-store, must-revalidate',
+      ...extraHeaders,
     },
   });
 }
 
-function errorResponse(message: string, status = 400, code?: string, details?: any) {
+function errorResponse(message: string, status = 400, code?: string, details?: any, extraHeaders: HeadersInit = {}) {
   return new Response(
     JSON.stringify({
       success: false,
@@ -127,28 +143,25 @@ function errorResponse(message: string, status = 400, code?: string, details?: a
       headers: {
         'Content-Type': 'application/json',
         'Access-Control-Allow-Origin': '*',
+        ...extraHeaders,
       },
     }
   );
 }
 
-function getEditorName(body: any, request: Request): string {
-  if (body && typeof body.editor_name === 'string' && body.editor_name.trim().length > 0) {
-    return body.editor_name.trim();
-  }
-  const header = request.headers.get('x-editor-name');
-  if (header) return decodeURIComponent(header).trim();
-  return '';
+function getEditorName(_body: any, request: Request): string {
+  // This server-injected immutable ID is the only legacy-route identity
+  // bridge.  Display names are mutable/non-unique and never authorize work.
+  return request.headers.get('x-session-editor-id')?.trim() || '';
 }
 
-function getActorContextServer(request: Request, worker?: any | null): ActorContextServer {
-  const header = (name: string) => request.headers.get(name)?.trim() || null;
+function getActorContextServer(actor: { actorMode: ActorContextServer['actorMode']; employeeId: string; sessionId: string; isQaTestSession: boolean }, selectedViewEmployeeId = actor.employeeId): ActorContextServer {
   return {
-    actorMode: 'TEST_SELECTOR',
-    actorUserId: header('x-actor-user-id') || worker?.id || null,
-    actorEmployeeId: worker?.id || header('x-actor-employee-id'),
-    selectedViewEmployeeId: header('x-selected-view-employee-id') || worker?.id || null,
-    testSessionId: header('x-test-session-id'),
+    actorMode: actor.actorMode,
+    actorUserId: actor.employeeId,
+    actorEmployeeId: actor.employeeId,
+    selectedViewEmployeeId,
+    testSessionId: actor.isQaTestSession ? actor.sessionId : null,
   };
 }
 
@@ -157,8 +170,8 @@ async function getActiveWorkerProfile(db: any, editorName: string): Promise<any 
   const trimmed = editorName.trim();
   try {
     const worker = await db
-      .prepare(`SELECT * FROM workers WHERE (id = ? OR name = ?) AND is_active = 1`)
-      .bind(trimmed, trimmed)
+      .prepare(`SELECT * FROM workers WHERE id = ? AND is_active = 1`)
+      .bind(trimmed)
       .first();
     if (worker) return worker;
   } catch {}
@@ -190,6 +203,36 @@ async function requireEditableWorker(db: any, editorName: string): Promise<{ all
     return { allowed: false, errorMsg: '경영진 계정은 일정을 조회할 수만 있습니다.', errorCode: 'EXECUTIVE_READ_ONLY' };
   }
   return { allowed: true, worker };
+}
+
+export function canManageOfficialSchedule(worker: any): boolean {
+  return worker?.access_role === 'EDITOR' && Number(worker?.can_manage_schedule_engine) === 1;
+}
+
+export function canManageCountryCalendar(worker: any): boolean {
+  return worker?.access_role === 'EDITOR' && Number(worker?.can_manage_country_calendar) === 1;
+}
+
+function isCountryCalendarMutation(method: string, cleanPath: string): boolean {
+  if (!['POST', 'PUT', 'DELETE'].includes(method)) return false;
+  return cleanPath === '/api/calendar/holidays/sync'
+    || cleanPath === '/api/calendar/manual-holidays'
+    || /^\/api\/calendar\/manual-holidays\/[^/]+$/.test(cleanPath)
+    || cleanPath === '/api/calendar/manual-holidays/month'
+    || cleanPath === '/api/calendar/vietnam-saturdays';
+}
+
+function isOfficialScheduleMutation(method: string, cleanPath: string): boolean {
+  if (!['POST', 'PATCH', 'PUT', 'DELETE'].includes(method)) return false;
+  return cleanPath === '/api/projects'
+    || cleanPath === '/api/tasks'
+    || /^\/api\/projects\/[^/]+$/.test(cleanPath)
+    || /^\/api\/projects\/[^/]+\/(task-groups|task-structure-order|worker-allocations|complete|completion-repair|reopen|baseline)$/.test(cleanPath)
+    || /^\/api\/projects\/[^/]+\/conflicts\/[^/]+\/acknowledge$/.test(cleanPath)
+    || /^\/api\/task-groups\/[^/]+$/.test(cleanPath)
+    || /^\/api\/tasks\/[^/]+$/.test(cleanPath)
+    || /^\/api\/tasks\/[^/]+\/daily-status\/[^/]+$/.test(cleanPath)
+    || /^\/api\/calendar\/override-groups\/[^/]+\/(keep-schedule|restore-schedule)$/.test(cleanPath);
 }
 
 
@@ -370,7 +413,7 @@ export default {
         headers: {
           'Access-Control-Allow-Origin': '*',
           'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
-          'Access-Control-Allow-Headers': 'Content-Type, Authorization, Idempotency-Key, x-editor-name, x-actor-mode, x-actor-user-id, x-actor-employee-id, x-selected-view-employee-id, x-test-session-id, x-test-now-utc',
+          'Access-Control-Allow-Headers': 'Content-Type, Authorization, Idempotency-Key, X-CSRF-Token, X-QA-Test-Secret, x-test-now-utc',
         },
       });
     }
@@ -399,23 +442,89 @@ export default {
             autoApplyEnabled: String(env.DYNAMIC_SCHEDULER_AUTO_APPLY_ENABLED) === 'true',
             approvalEnabled: String(env.DYNAMIC_SCHEDULER_APPROVAL_ENABLED) === 'true',
             restoreEnabled: String(env.DYNAMIC_SCHEDULER_RESTORE_ENABLED) === 'true',
+            pilotSessionAuthEnabled: env.PILOT_SESSION_AUTH_ENABLED === 'true',
+            testActorMode: env.ENVIRONMENT_NAME === 'qa' && env.TEST_ACTOR_MODE === 'true',
           },
         });
       }
 
-      // 0.004 V3 Checkpoint 2 - Daily Worklog / Capacity Foundation.
-      // TEST ACTOR and selected-view context stay separate: only x-actor-employee-id authorizes writes.
+      // Checkpoint 4.1 pilot authentication.  The raw session token exists
+      // only in an HttpOnly cookie; D1 stores SHA-256 hashes only.
+      if (cleanPath === '/api/auth/pilot/login' && method === 'POST') {
+        const body: any = await request.json().catch(() => ({}));
+        const session = await pilotLogin(request, env, body);
+        return jsonResponse(session.data, 200, { 'Set-Cookie': session.setCookie });
+      }
+      if (cleanPath === '/api/auth/pilot/employees' && method === 'GET') {
+        const employees = await db.prepare(
+          `SELECT w.id,w.name,w.country_code,w.access_role,w.ui_language
+           FROM workers w JOIN pilot_auth_credentials c ON c.employee_id=w.id
+           WHERE w.is_active=1 AND c.is_enabled=1 ORDER BY w.sort_order,w.name`,
+        ).all();
+        return jsonResponse(employees.results || []);
+      }
+      if (cleanPath === '/api/auth/pilot/session' && method === 'GET') {
+        return jsonResponse(await getPilotSession(request, env));
+      }
+      if (cleanPath === '/api/auth/pilot/logout' && method === 'POST') {
+        await logoutPilotSession(request, env);
+        return jsonResponse({ loggedOut: true }, 200, { 'Set-Cookie': expiredSessionCookie() });
+      }
+      if (cleanPath === '/api/qa/auth/session' && method === 'POST') {
+        const body: any = await request.json().catch(() => ({}));
+        const session = await createQaTestSession(request, env, body);
+        return jsonResponse(session.data, 200, { 'Set-Cookie': session.setCookie });
+      }
+
+      // Session-by-default for browser business APIs.  Integration keys stay
+      // server-to-server, while version/health/static metadata remains public.
+      // This also prevents employee lists, worklogs, and capacity from being
+      // accidentally exposed by a newly-added read route.
+      const isPublicSafeApi = cleanPath === '/api/version' || cleanPath === '/api/build-info'
+        || cleanPath.startsWith('/api/health/') || cleanPath.startsWith('/api/auth/') || cleanPath.startsWith('/api/qa/auth/');
+      const isIntegrationApi = cleanPath.startsWith('/api/integrations/');
+      const isBrowserBusinessApi = path.startsWith('/api/') && !isPublicSafeApi && !isIntegrationApi;
+      if (isBrowserBusinessApi) {
+        const sessionActor = await resolveAuthenticatedActor(request, env);
+        if (!['GET', 'HEAD', 'OPTIONS'].includes(method)) await requireCsrf(request, env, sessionActor);
+        const headers = new Headers(request.headers);
+        headers.delete('x-actor-employee-id');
+        headers.delete('x-actor-user-id');
+        headers.delete('x-selected-view-employee-id');
+        headers.delete('x-editor-name');
+        headers.delete('x-editor-id');
+        headers.delete('x-session-editor-id');
+        headers.delete('x-session-editor-name');
+        headers.set('x-session-editor-id', sessionActor.employeeId);
+        request = new Request(request, { headers });
+
+        // Worklog Actual is intentionally self-service, but Project/Task
+        // structure, dates, assignments, progress and baseline data are
+        // official schedule authority.  A Support editor must never be able
+        // to change them merely because they can submit their own Worklog.
+        if (isOfficialScheduleMutation(method, cleanPath) && !canManageOfficialSchedule(sessionActor.worker)) {
+          return errorResponse('Official schedule management permission is required.', 403, 'SCHEDULE_MANAGER_REQUIRED');
+        }
+        if (isCountryCalendarMutation(method, cleanPath) && !canManageCountryCalendar(sessionActor.worker)) {
+          return errorResponse('Country calendar management permission is required.', 403, 'CALENDAR_MANAGER_REQUIRED');
+        }
+      }
+
+      // 0.004 / 4.1 Worklog and Capacity.  No browser-supplied actor header
+      // participates in identity resolution; selected employee is read scope.
       if (cleanPath.startsWith('/api/v3/worklogs') || cleanPath === '/api/v3/capacity/day' || /^\/api\/v3\/tasks\/[^/]+\/actual$/.test(cleanPath)) {
-        const actorHeader = request.headers.get('x-actor-employee-id') || '';
-        const actorWorker = actorHeader ? await getActiveWorkerProfile(db, actorHeader) : null;
-        const actor = getActorContextServer(request, actorWorker);
-        const testNowHeader = env.ENVIRONMENT_NAME === 'qa' ? request.headers.get('x-test-now-utc') : null;
+        const sessionActor = await resolveAuthenticatedActor(request, env);
+        if (!['GET', 'HEAD', 'OPTIONS'].includes(method)) await requireCsrf(request, env, sessionActor);
+        let actor = getActorContextServer(sessionActor);
+        const testNowHeader = env.ENVIRONMENT_NAME === 'qa' && sessionActor.isQaTestSession ? request.headers.get('x-test-now-utc') : null;
         const requestNow = testNowHeader && !Number.isNaN(Date.parse(testNowHeader)) ? new Date(testNowHeader) : new Date();
         const idempotencyKey = request.headers.get('Idempotency-Key')?.trim() || '';
 
         if (method === 'GET' && cleanPath === '/api/v3/worklogs/context') {
           const employeeId = url.searchParams.get('employee_id') || actor.actorEmployeeId || '';
           const localDate = url.searchParams.get('local_work_date') || '';
+          await authorizeEmployeeRead(db, sessionActor, employeeId);
+          actor = getActorContextServer(sessionActor, employeeId);
           return jsonResponse(await getWorklogContext(db, actor, employeeId, localDate));
         }
 
@@ -425,17 +534,26 @@ export default {
         }
 
         if (method === 'GET' && cleanPath === '/api/v3/worklogs') {
-          return jsonResponse(await listWorklogs(db, actor, Object.fromEntries(url.searchParams.entries())));
+          const filters = Object.fromEntries(url.searchParams.entries());
+          const requestedEmployee = filters.employee || sessionActor.employeeId;
+          await authorizeEmployeeRead(db, sessionActor, requestedEmployee);
+          actor = getActorContextServer(sessionActor, requestedEmployee);
+          return jsonResponse(await listWorklogs(db, actor, { ...filters, employee: requestedEmployee }));
         }
 
         if (method === 'GET' && cleanPath === '/api/v3/capacity/day') {
           const employeeId = url.searchParams.get('employee_id') || actor.actorEmployeeId || '';
           const localDate = url.searchParams.get('local_work_date') || '';
+          await authorizeEmployeeRead(db, sessionActor, employeeId);
+          actor = getActorContextServer(sessionActor, employeeId);
           return jsonResponse(await getDailyCapacity(db, employeeId, localDate));
         }
 
         const taskActualMatch = cleanPath.match(/^\/api\/v3\/tasks\/([^/]+)\/actual$/);
         if (method === 'GET' && taskActualMatch) {
+          const employeeId = url.searchParams.get('employee_id') || sessionActor.employeeId;
+          await authorizeEmployeeRead(db, sessionActor, employeeId);
+          actor = getActorContextServer(sessionActor, employeeId);
           return jsonResponse(await getTaskActual(db, decodeURIComponent(taskActualMatch[1]), actor));
         }
 
@@ -475,11 +593,19 @@ export default {
 
         const shadowStatusMatch = cleanPath.match(/^\/api\/v3\/worklogs\/([^/]+)\/shadow-status$/);
         if (method === 'GET' && shadowStatusMatch) {
+          const worklog = await db.prepare(`SELECT employee_id FROM daily_worklogs WHERE id=?`).bind(decodeURIComponent(shadowStatusMatch[1])).first();
+          if (!worklog) return errorResponse('Worklog not found.', 404, 'INVALID_LOCAL_WORK_DATE');
+          await authorizeEmployeeRead(db, sessionActor, worklog.employee_id);
+          actor = getActorContextServer(sessionActor, worklog.employee_id);
           return jsonResponse(await getWorklogShadowStatus(db, actor, decodeURIComponent(shadowStatusMatch[1])));
         }
 
         const getWorklogMatch = cleanPath.match(/^\/api\/v3\/worklogs\/([^/]+)$/);
         if (method === 'GET' && getWorklogMatch) {
+          const worklog = await db.prepare(`SELECT employee_id FROM daily_worklogs WHERE id=?`).bind(decodeURIComponent(getWorklogMatch[1])).first();
+          if (!worklog) return errorResponse('Worklog not found.', 404, 'INVALID_LOCAL_WORK_DATE');
+          await authorizeEmployeeRead(db, sessionActor, worklog.employee_id);
+          actor = getActorContextServer(sessionActor, worklog.employee_id);
           return jsonResponse(await getWorklogForActor(db, actor, decodeURIComponent(getWorklogMatch[1])));
         }
       }
@@ -487,9 +613,9 @@ export default {
       // 0.0045 V3 Checkpoint 3A - Shadow schedule recalculation.
       if (cleanPath.startsWith('/api/v3/dependencies') || cleanPath.startsWith('/api/v3/schedule-shadow') ||
           cleanPath.startsWith('/api/v3/project-priorities') || /^\/api\/v3\/tasks\/[^/]+\/constraints$/.test(cleanPath)) {
-        const actorHeader = request.headers.get('x-actor-employee-id') || '';
-        const actorWorker = actorHeader ? await getActiveWorkerProfile(db, actorHeader) : null;
-        const actor = getActorContextServer(request, actorWorker);
+        const sessionActor = await resolveAuthenticatedActor(request, env);
+        if (!['GET', 'HEAD', 'OPTIONS'].includes(method)) await requireCsrf(request, env, sessionActor);
+        const actor = getActorContextServer(sessionActor);
         const idempotencyKey = request.headers.get('Idempotency-Key')?.trim() || '';
 
         if (method === 'GET' && cleanPath === '/api/v3/dependencies') {
@@ -567,9 +693,9 @@ export default {
 
       // 0.0046 V3 Checkpoint 3B - append-only Official Forecast versions.
       if (cleanPath.startsWith('/api/v3/forecast') || cleanPath.startsWith('/api/v3/schedule-adjustments')) {
-        const actorHeader = request.headers.get('x-actor-employee-id') || '';
-        const actorWorker = actorHeader ? await getActiveWorkerProfile(db, actorHeader) : null;
-        const actor = getActorContextServer(request, actorWorker);
+        const sessionActor = await resolveAuthenticatedActor(request, env);
+        if (!['GET', 'HEAD', 'OPTIONS'].includes(method)) await requireCsrf(request, env, sessionActor);
+        const actor = getActorContextServer(sessionActor);
         const idempotencyKey = request.headers.get('Idempotency-Key')?.trim() || '';
         const flags = forecastFeatureFlags(env);
 
@@ -659,7 +785,14 @@ export default {
           );
         }
 
-        const actor = getActorContextServer(request, editCheck.worker);
+        // This historical foundation route is permanently read-only after V3
+        // initialization.  Keep a system actor only for its unreachable apply
+        // implementation so no browser header can become an authority source.
+        const actor: ActorContextServer = {
+          actorMode: 'SYSTEM_MIGRATION', actorUserId: editCheck.worker.id,
+          actorEmployeeId: editCheck.worker.id, selectedViewEmployeeId: editCheck.worker.id,
+          testSessionId: null,
+        };
         const result = await applyV3FoundationServer(db, {
           cutoverDate: env.V3_CUTOVER_DATE,
           environmentName: env.ENVIRONMENT_NAME || 'unknown',
@@ -1055,37 +1188,15 @@ export default {
 async function requireActiveCalendarEditor(
   db: any,
   request: Request,
-  body?: any
+  options: { requiresScheduleManager?: boolean } = {},
 ): Promise<{ allowed: boolean; editorId?: string; editorName?: string; errorMsg?: string; errorCode?: string; status?: number }> {
-  const rawHeaderId = request.headers.get('x-editor-id') || request.headers.get('x-worker-id') || '';
-  const rawHeaderName = request.headers.get('x-editor-name') || request.headers.get('x-worker-name') || '';
-
-  let editorHeaderId = rawHeaderId;
-  let editorHeaderName = rawHeaderName;
-  try {
-    if (rawHeaderName) editorHeaderName = decodeURIComponent(rawHeaderName);
-  } catch (e) {}
-
-  const bodyId = body?.editor_id || body?.created_by_id || body?.updated_by_id || body?.worker_id || '';
-  let bodyName = body?.editor_name || body?.created_by_name || body?.updated_by_name || body?.worker_name || '';
-  try {
-    if (bodyName) bodyName = decodeURIComponent(bodyName);
-  } catch (e) {}
-
-  let worker = null;
-
-  if (editorHeaderId) {
-    worker = await db.prepare(`SELECT id, name, is_active, access_role FROM workers WHERE id = ?`).bind(editorHeaderId).first();
-  }
-  if (!worker && bodyId) {
-    worker = await db.prepare(`SELECT id, name, is_active, access_role FROM workers WHERE id = ?`).bind(bodyId).first();
-  }
-  if (!worker && editorHeaderName) {
-    worker = await db.prepare(`SELECT id, name, is_active, access_role FROM workers WHERE name = ?`).bind(editorHeaderName).first();
-  }
-  if (!worker && bodyName) {
-    worker = await db.prepare(`SELECT id, name, is_active, access_role FROM workers WHERE name = ?`).bind(bodyName).first();
-  }
+  // The global API middleware injects this header only after resolving the
+  // HttpOnly pilot session. Client-supplied header/body identifiers are view
+  // metadata only and must never determine calendar authority.
+  const sessionActorId = request.headers.get('x-session-editor-id') || '';
+  const worker = sessionActorId
+    ? await db.prepare(`SELECT id, name, is_active, access_role, can_manage_country_calendar, can_manage_schedule_engine FROM workers WHERE id = ?`).bind(sessionActorId).first()
+    : null;
 
   if (!worker) {
     return {
@@ -1111,6 +1222,24 @@ async function requireActiveCalendarEditor(
       status: 403,
       errorCode: 'EXECUTIVE_READ_ONLY',
       errorMsg: '경영진 계정은 국가 달력을 조회할 수만 있습니다.',
+    };
+  }
+
+  if (!canManageCountryCalendar(worker)) {
+    return {
+      allowed: false,
+      status: 403,
+      errorCode: 'CALENDAR_MANAGER_REQUIRED',
+      errorMsg: 'Country calendar management permission is required.',
+    };
+  }
+
+  if (options.requiresScheduleManager && !canManageOfficialSchedule(worker)) {
+    return {
+      allowed: false,
+      status: 403,
+      errorCode: 'SCHEDULE_MANAGER_REQUIRED',
+      errorMsg: 'Schedule manager permission is required when calendar changes shift tasks.',
     };
   }
 
@@ -1531,8 +1660,14 @@ async function validateAndNormalizeTaskAssigneesServer(
         }
       }
 
-      // 0.9 POST /api/admin/backfill-assignees
-      if ((method === 'POST' || method === 'GET') && path === '/api/admin/backfill-assignees') {
+      // 0.9 POST /api/admin/backfill-assignees. This is a mutation, so GET is
+      // intentionally not supported and cannot bypass CSRF protection.
+      if (method === 'POST' && path === '/api/admin/backfill-assignees') {
+        const sessionActor = await resolveAuthenticatedActor(request, env);
+        await requireCsrf(request, env, sessionActor);
+        if (sessionActor.worker.access_role !== 'EDITOR' || Number(sessionActor.worker.can_manage_schedule_engine) !== 1) {
+          return errorResponse('Schedule manager permission is required.', 403, 'ACTOR_PERMISSION_DENIED');
+        }
         const report = await backfillTaskAssigneesAndProgressModeServer(db);
         return jsonResponse(report);
       }
@@ -1572,7 +1707,8 @@ async function validateAndNormalizeTaskAssigneesServer(
       // 1.03 PUT /api/calendar/manual-holidays/month
       if (method === 'PUT' && path === '/api/calendar/manual-holidays/month') {
         const body: any = await request.json();
-        const permCheck = await requireActiveCalendarEditor(db, request, body);
+        // Saving a manual holiday recalculates and shifts affected Task dates.
+        const permCheck = await requireActiveCalendarEditor(db, request, { requiresScheduleManager: true });
         if (!permCheck.allowed) {
           return errorResponse(permCheck.errorMsg!, permCheck.status || 403, permCheck.errorCode!);
         }
@@ -1625,7 +1761,8 @@ async function validateAndNormalizeTaskAssigneesServer(
       // 1.3 PUT /api/calendar/vietnam-saturdays
       if (method === 'PUT' && path === '/api/calendar/vietnam-saturdays') {
         const body: any = await request.json();
-        const permCheck = await requireActiveCalendarEditor(db, request, body);
+        const shiftSchedule = body.shift_schedule === true;
+        const permCheck = await requireActiveCalendarEditor(db, request, { requiresScheduleManager: shiftSchedule });
         if (!permCheck.allowed) {
           return errorResponse(permCheck.errorMsg!, permCheck.status || 403, permCheck.errorCode!);
         }
@@ -1635,7 +1772,6 @@ async function validateAndNormalizeTaskAssigneesServer(
         const month = Number(body.month);
         const targetScope = body.target_scope || 'ALL_VN';
         const saturdays: Array<{ date: string; status: 'WORK' | 'OFF' }> = body.saturdays || [];
-        const shiftSchedule = body.shift_schedule === true;
         const targetWorkerIds: string[] = body.target_worker_ids || [];
 
         // Save overrides atomically
@@ -2200,8 +2336,7 @@ async function validateAndNormalizeTaskAssigneesServer(
           return errorResponse('완료된 프로젝트는 읽기 전용입니다.', 403, 'PROJECT_COMPLETED_READ_ONLY');
         }
 
-        const editor = request.headers.get('x-editor-name');
-        const editCheck = await requireEditableWorker(db, editor ? decodeURIComponent(editor) : '');
+        const editCheck = await requireEditableWorker(db, getEditorName(null, request));
         if (!editCheck.allowed) {
           return errorResponse(editCheck.errorMsg!, 403, editCheck.errorCode!);
         }
@@ -2837,8 +2972,7 @@ function addPureCalendarDays(dateStr: string, deltaDays: number): string {
       const delPrjMatch = path.match(/^\/api\/projects\/([^/]+)$/);
       if (method === 'DELETE' && delPrjMatch) {
         const projectId = delPrjMatch[1];
-        const editor = request.headers.get('x-editor-name');
-        const editCheck = await requireEditableWorker(db, editor ? decodeURIComponent(editor) : '');
+        const editCheck = await requireEditableWorker(db, getEditorName(null, request));
         if (!editCheck.allowed) {
           return errorResponse(editCheck.errorMsg!, 403, editCheck.errorCode!);
         }
@@ -2988,14 +3122,6 @@ function addPureCalendarDays(dateStr: string, deltaDays: number): string {
           .prepare(`SELECT * FROM country_holidays WHERE country_code = ? AND source_year = ? ORDER BY holiday_date ASC`)
           .bind(country, year)
           .all();
-
-        if (!holidays.results || holidays.results.length === 0) {
-          await syncHolidaysInternal(db, env, country, year);
-          holidays = await db
-            .prepare(`SELECT * FROM country_holidays WHERE country_code = ? AND source_year = ? ORDER BY holiday_date ASC`)
-            .bind(country, year)
-            .all();
-        }
 
         return jsonResponse(holidays.results || []);
       }
@@ -3247,6 +3373,10 @@ function addPureCalendarDays(dateStr: string, deltaDays: number): string {
           return errorResponse('scope_key 및 start_date는 필수입니다.', 400);
         }
 
+        if (scope_type !== 'WORKER' && !canManageCountryCalendar(editCheck.worker)) {
+          return errorResponse('Country calendar management permission is required.', 403, 'CALENDAR_MANAGER_REQUIRED');
+        }
+
         // Restriction: EDITOR can only alter their own worker schedule!
         if (scope_type === 'WORKER') {
           const editorWorker = editCheck.worker!;
@@ -3411,6 +3541,9 @@ function addPureCalendarDays(dateStr: string, deltaDays: number): string {
           body.confirm_leave_schedule_cascade === true &&
           body.save_leave_without_schedule_shift !== true
         ) {
+          if (!canManageOfficialSchedule(editCheck.worker)) {
+            return errorResponse('Schedule manager permission is required when leave changes shift tasks.', 403, 'SCHEDULE_MANAGER_REQUIRED');
+          }
           const eventId = `lse_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
 
           // Insert Event Log with restore_token = NULL initially (Section 3 requirement)
@@ -3848,8 +3981,7 @@ function addPureCalendarDays(dateStr: string, deltaDays: number): string {
       const delOverrideMatch = path.match(/^\/api\/calendar\/overrides\/([^/]+)$/);
       if (method === 'DELETE' && delOverrideMatch) {
         const ovrId = delOverrideMatch[1];
-        const editor = request.headers.get('x-editor-name');
-        const editCheck = await requireEditableWorker(db, editor ? decodeURIComponent(editor) : '');
+        const editCheck = await requireEditableWorker(db, getEditorName(null, request));
         if (!editCheck.allowed) {
           return errorResponse(editCheck.errorMsg!, 403, editCheck.errorCode!);
         }
@@ -3857,6 +3989,10 @@ function addPureCalendarDays(dateStr: string, deltaDays: number): string {
         const ovr = await db.prepare(`SELECT * FROM calendar_overrides WHERE id = ?`).bind(ovrId).first();
         if (!ovr) {
           return errorResponse('휴일·휴가 항목을 찾을 수 없습니다.', 404);
+        }
+
+        if (ovr.scope_type !== 'WORKER' && !canManageCountryCalendar(editCheck.worker)) {
+          return errorResponse('Country calendar management permission is required.', 403, 'CALENDAR_MANAGER_REQUIRED');
         }
 
         if (ovr.scope_type === 'WORKER') {
@@ -4546,8 +4682,7 @@ function addPureCalendarDays(dateStr: string, deltaDays: number): string {
           if (await isProjectCompleted(db, existing.project_id)) {
             return errorResponse('완료된 프로젝트는 읽기 전용입니다. 수정하려면 진행 프로젝트로 복귀해 주세요.', 403, 'PROJECT_COMPLETED_READ_ONLY');
           }
-          const editor = request.headers.get('x-editor-name');
-          const editCheck = await requireEditableWorker(db, editor ? decodeURIComponent(editor) : '');
+          const editCheck = await requireEditableWorker(db, getEditorName(null, request));
           if (!editCheck.allowed) {
             return errorResponse(editCheck.errorMsg!, 403, editCheck.errorCode!);
           }
@@ -4642,6 +4777,12 @@ function addPureCalendarDays(dateStr: string, deltaDays: number): string {
     } catch (err: any) {
       if (err instanceof ShadowScheduleError) {
         return errorResponse(err.message, err.status, err.code, err.details);
+      }
+      if (err instanceof PilotAuthError) {
+        const expired: HeadersInit = ['SESSION_EXPIRED', 'SESSION_REVOKED'].includes(err.code)
+          ? { 'Set-Cookie': expiredSessionCookie() }
+          : [];
+        return errorResponse(err.message, err.status, err.code, err.details, expired);
       }
       if (String(err?.message || err).includes('OFFICIAL_FORECAST_HISTORY_PROTECTED')) {
         return errorResponse('공식 Forecast 이력이 있는 프로젝트와 작업은 삭제할 수 없습니다.', 409, 'OFFICIAL_FORECAST_HISTORY_PROTECTED');

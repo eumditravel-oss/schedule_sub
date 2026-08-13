@@ -9,7 +9,6 @@ interface MobileAppHeaderProps {
   isDetailPage?: boolean;
   onBack?: () => void;
   currentWorker: Worker | null;
-  onOpenWorkerSheet: () => void;
   onOpenCalendarModal?: () => void;
   onOpenWorklog?: () => void;
 }
@@ -19,7 +18,6 @@ export const MobileAppHeader: React.FC<MobileAppHeaderProps> = ({
   isDetailPage = false,
   onBack,
   currentWorker,
-  onOpenWorkerSheet,
   onOpenCalendarModal,
   onOpenWorklog,
 }) => {
@@ -152,12 +150,10 @@ export const MobileAppHeader: React.FC<MobileAppHeaderProps> = ({
             </button>
           )}
 
-          {/* Compact Worker Switcher */}
-          <button
-            type="button"
-            data-testid="mobile-worker-btn"
-            onClick={onOpenWorkerSheet}
-            aria-label={t('selectWorkerTitle')}
+          {/* Session identity is display-only. Switching employees requires a
+              new authenticated session and is never a local UI action. */}
+          <span
+            data-testid="mobile-session-actor"
             className={`h-8 px-2.5 rounded-lg border text-xs font-bold transition flex items-center gap-1.5 max-w-[115px] ${getWorkerBtnStyles()}`}
           >
             <div className={`w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold shrink-0 ${
@@ -172,7 +168,7 @@ export const MobileAppHeader: React.FC<MobileAppHeaderProps> = ({
               {currentWorker ? currentWorker.name[0] : <User className="w-2.5 h-2.5" />}
             </div>
             <span className="truncate">{currentWorker ? currentWorker.name : t('selectWorker')}</span>
-          </button>
+          </span>
         </div>
       </div>
     </header>

@@ -3,7 +3,7 @@ import React, { useCallback, useState, useEffect } from 'react';
 import { useI18n } from '../../hooks/useI18n';
 import { Worker, isExecutiveViewer, LeaveDeleteResponse } from '../../types';
 import { X, Calendar, Plus, Trash2, CheckCircle, AlertCircle, Lock, AlertTriangle, ArrowRight, RotateCcw, ChevronLeft, ChevronRight, RefreshCw, Users } from 'lucide-react';
-import { api, getCurrentWorkerId, getCurrentWorkerName } from '../../services/api';
+import { api } from '../../services/api';
 import { getVietnamSaturdaysInMonth } from '../../utils/workCalendar';
 
 interface CalendarManagerModalProps {
