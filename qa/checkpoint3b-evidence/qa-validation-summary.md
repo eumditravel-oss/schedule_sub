@@ -1,8 +1,8 @@
 # Checkpoint 3B QA validation summary
 
 - Source branch: `codex/v3-checkpoint-3b-official-forecast`
-- Final QA commit: `09a5547`
-- QA Worker version: `6fc82132-07ef-4213-a716-43f9675b9d2e`
+- Final QA commit: `04cf5f9`
+- QA Worker version: `dbfd60f5-a8a6-4ac8-a789-cd1d9edcc692`
 - QA migrations: `0031`, `0032`, `0033`
 - QA backups: `concost-db-qa-before-0031-ceecf72.sql`, `concost-db-qa-before-0033-09a5547.sql`
 - Production: not accessed, migrated, deployed, or changed for Checkpoint 3B.
@@ -28,6 +28,7 @@
 - A stale apply now persists `STALE`, marks a pending approval stale, and creates a deterministic pending recalculation request without changing Official data.
 - Active date and UTC timestamp Fixed Start/End, Not Before, and Milestone constraints all block incompatible historical restores.
 - Official Forecast history is protected both by API preflight and D1 task/project delete guards; mobile detail timelines now read the same Official Forecast projection as desktop.
+- Forecast-version races (including final D1 CAS failures) now stale the full correlation and enqueue exactly one deterministic recalculation request. UTC timestamp constraints fail closed for historical date-only snapshots, so a Temporary Primary timezone change cannot bypass an exact-time constraint.
 
 ## Local validation
 
@@ -42,3 +43,12 @@
 
 - Completion integrity: 0 inconsistent projects, 0 inconsistent tasks
 - Scheduler integrity: PASS
+
+## Independent final audit
+
+- Audit target: `04cf5f9`
+- Result: `CHECKPOINT3B_INDEPENDENT_AUDIT_PASS`
+- High findings: `0`
+- Medium findings: `0`
+- Final isolated Local D1 integration: `22/22` passed
+- Official-date and apply-guard tests: `3/3` passed
