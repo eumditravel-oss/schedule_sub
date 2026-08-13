@@ -151,10 +151,14 @@ async function login(url, employeeId, pin) {
 
 async function verifyRemoteApi(url, secret, pins) {
   const primary = await login(url, roleEmployees.primary, pins.primary);
-  const primaryHeaders = { Cookie: primary.cookie, 'X-CSRF-Token': primary.csrf };
   const session = await response(url, '/api/auth/pilot/session', { headers: { Cookie: primary.cookie } });
   expectStatus(session.result.status, 200, 'session lookup');
   if (session.body.data?.actor?.employeeId !== roleEmployees.primary) throw new Error('Session actor did not remain primary');
+  // GET /session deliberately rotates the CSRF proof.  Subsequent writes must
+  // use that current proof, exactly as the browser context does.
+  primary.csrf = session.body.data?.csrfToken || '';
+  if (!primary.csrf) throw new Error('Session lookup did not rotate a CSRF token');
+  const primaryHeaders = { Cookie: primary.cookie, 'X-CSRF-Token': primary.csrf };
 
   const missingCsrf = await response(url, '/api/v3/worklogs/morning', {
     method: 'POST', headers: { Cookie: primary.cookie, 'Content-Type': 'application/json' }, body: JSON.stringify({}),
