@@ -112,6 +112,7 @@ export function WorklogTodayPage({ initialView = 'TODAY' }: WorklogTodayPageProp
   const viewSequence = useRef(0);
   const contextAbort = useRef<AbortController | null>(null);
   const historyAbort = useRef<AbortController | null>(null);
+  const historyDetailAbort = useRef<AbortController | null>(null);
   const impactAbort = useRef<AbortController | null>(null);
   const impactTimer = useRef<number | null>(null);
   const actorRef = useRef(actorId);
@@ -133,8 +134,10 @@ export function WorklogTodayPage({ initialView = 'TODAY' }: WorklogTodayPageProp
     requestSequence.current += 1;
     contextAbort.current?.abort();
     historyAbort.current?.abort();
+    historyDetailAbort.current?.abort();
     stopShadowPolling();
     hydratedDraftKey.current = '';
+    submitKeys.current = { MORNING: null, EOD: null, CORRECTION: null };
     setSubmitting(false); setReviewMode(null); setSelectedHistory(null);
     setError(''); setNotice(''); setImpact(null); setImpactLoading(false);
   }, [stopShadowPolling]);
@@ -410,7 +413,17 @@ export function WorklogTodayPage({ initialView = 'TODAY' }: WorklogTodayPageProp
     finally { if (isCurrentSnapshot(view)) setSubmitting(false); }
   };
 
-  const openHistory = async (item: any) => { try { setSelectedHistory(await api.getWorklog(item.id)); } catch (err: any) { setError(errorText(err, language)); } };
+  const openHistory = async (item: any) => {
+    const view = snapshot();
+    historyDetailAbort.current?.abort();
+    const controller = new AbortController(); historyDetailAbort.current = controller;
+    try {
+      const detail = await api.getWorklog(item.id, controller.signal);
+      if (!controller.signal.aborted && isCurrentSnapshot(view)) setSelectedHistory(detail);
+    } catch (err: any) {
+      if (err?.name !== 'AbortError' && isCurrentSnapshot(view)) setError(errorText(err, language));
+    }
+  };
   const pageTitle = view === 'HISTORY' ? t('history') : t('title');
   const correctionEligible = Boolean(actorIsSubject && canSubmit && revisionDeadlinePassed);
   const currentModeCanSubmit = Boolean(canSubmit && (activeMode === 'MORNING' ? !worklog.current_morning_revision_id && !worklog.current_eod_revision_id : !revisionDeadlinePassed));
@@ -457,7 +470,7 @@ export function WorklogTodayPage({ initialView = 'TODAY' }: WorklogTodayPageProp
         </>}
       </div>
       {reviewMode && <WorklogSubmitReview language={language} mode={reviewMode} count={(reviewMode === 'MORNING' ? morningPayload.entries : eodPayload.entries).length} minutes={reviewMode === 'MORNING' ? morningEntries.reduce((sum, entry) => sum + entry.plannedMinutes, 0) : recordedWorkMinutes} capacity={effectiveDisplayCapacity} gap={gapMinutes} overtime={overtimeMinutes} onClose={() => setReviewMode(null)} onConfirm={() => void submit()} submitting={submitting} />}
-      <WorklogRevisionHistory language={language} worklog={selectedHistory} onClose={() => setSelectedHistory(null)} />
+      <WorklogRevisionHistory language={language} worklog={selectedHistory} onClose={() => { historyDetailAbort.current?.abort(); setSelectedHistory(null); }} />
     </main>
   );
 }

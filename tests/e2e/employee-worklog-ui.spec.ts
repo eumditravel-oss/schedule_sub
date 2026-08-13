@@ -23,7 +23,7 @@ function contextFor(employeeId: string) {
   };
 }
 
-async function mockWorklogApi(page: any, onEod?: (body: any) => void, options: { delayEod?: boolean; shadowStatus?: string; currentEod?: boolean } = {}) {
+async function mockWorklogApi(page: any, onEod?: (body: any) => void, options: { delayEod?: boolean; shadowStatus?: string; currentEod?: boolean; delayHistoryDetail?: boolean; eodKeys?: string[] } = {}) {
   await page.route('**/api/**', async (route: any) => {
     const request = route.request();
     const url = new URL(request.url());
@@ -44,9 +44,14 @@ async function mockWorklogApi(page: any, onEod?: (body: any) => void, options: {
     if (url.pathname.startsWith('/api/v3/tasks/') && url.pathname.endsWith('/actual')) {
       return ok({ aggregate: { current_progress: 10, remaining_estimated_minutes: 480, completion_reported: false } });
     }
-    if (url.pathname === '/api/v3/worklogs') return ok([]);
+    if (url.pathname === '/api/v3/worklogs') return ok([{ id: 'history-primary', local_work_date: '2026-08-12', status: 'EOD_SUBMITTED', current_revision_number: 1, actual_recorded_minutes: 420 }]);
+    if (url.pathname === '/api/v3/worklogs/history-primary') {
+      if (options.delayHistoryDetail) await new Promise((resolve) => setTimeout(resolve, 350));
+      return ok({ id: 'history-primary', local_work_date: '2026-08-12', status: 'EOD_SUBMITTED', timezone: 'Asia/Seoul', revisions: [], entries: [{ id: 'history-entry', phase: 'EOD', work_category: 'NORMAL_ASSIGNED_TASK', actual_minutes: 420, work_result: 'primary confidential history' }] });
+    }
     if (request.method() === 'POST' && url.pathname.endsWith('/eod')) {
       onEod?.(request.postDataJSON());
+      options.eodKeys?.push(request.headers()['idempotency-key'] || '');
       if (options.delayEod) await new Promise((resolve) => setTimeout(resolve, 350));
       return ok({ worklog_id: 'worklog-1', revision_id: 'revision-1', revision_number: 1, status: 'EOD_SUBMITTED', shadowRecalculation: { status: options.shadowStatus || 'DISABLED', requestId: 'shadow-request-1' } }, 201);
     }
@@ -71,7 +76,7 @@ test.describe('Checkpoint 4 employee worklog UI', () => {
     await page.getByLabel('오늘 수행내용').fill('API endpoint implementation');
     await page.getByRole('button', { name: '오늘 업무 마감' }).click();
     await expect(page.getByRole('dialog', { name: '제출 전 확인' })).toBeVisible();
-    await page.getByRole('button', { name: '제출' }).click();
+    await page.getByRole('button', { name: '제출', exact: true }).click();
     await expect.poll(() => posted).not.toBeNull();
     expect(posted.entries[0]).toMatchObject({ task_id: 'task-primary', actual_minutes: 420, progress_after: 20, remaining_estimated_minutes: 420 });
   });
@@ -154,5 +159,38 @@ test.describe('Checkpoint 4 employee worklog UI', () => {
     await page.addInitScript(() => localStorage.setItem('schedule_current_worker_id', 'wrk_support'));
     await page.goto('/worklog/today');
     await expect(page.locator('input[type="date"]')).toHaveValue('2026-08-13');
+  });
+
+  test('does not display a delayed prior Actor history modal after switching Actor', async ({ page }) => {
+    await mockWorklogApi(page, undefined, { delayHistoryDetail: true });
+    await page.addInitScript(() => localStorage.setItem('schedule_current_worker_id', 'wrk_primary'));
+    await page.goto('/worklog/today');
+    await page.getByRole('button', { name: /최근|gần đây/i }).click();
+    await page.getByText('2026-08-12').click();
+    await page.locator('select').first().selectOption('wrk_support');
+    await page.waitForTimeout(500);
+    await expect(page.locator('[role="dialog"]')).toHaveCount(0);
+    await expect(page.getByText('primary confidential history')).toHaveCount(0);
+  });
+
+  test('uses a new EOD idempotency key after the Actor changes', async ({ page }) => {
+    const eodKeys: string[] = [];
+    await mockWorklogApi(page, undefined, { delayEod: true, eodKeys });
+    await page.addInitScript(() => localStorage.setItem('schedule_current_worker_id', 'wrk_primary'));
+    await page.goto('/worklog/today');
+    await page.getByTestId('worklog-mode-eod').click();
+    await page.getByTestId('worklog-eod-minutes').fill('420');
+    await page.getByTestId('worklog-progress-after').fill('20');
+    await page.getByTestId('worklog-remaining-minutes').fill('420');
+    await page.getByTestId('worklog-work-result').fill('first actor');
+    await page.getByTestId('worklog-open-submit-review').click(); await page.locator('[role="dialog"] button').last().click();
+    await page.locator('select').first().selectOption('wrk_support');
+    await page.waitForTimeout(500);
+    await page.getByTestId('worklog-mode-eod').click();
+    await page.getByTestId('worklog-eod-minutes').fill('480');
+    await page.getByTestId('worklog-work-result').fill('second actor');
+    await page.getByTestId('worklog-open-submit-review').click(); await page.locator('[role="dialog"] button').last().click();
+    await expect.poll(() => eodKeys.length).toBe(2);
+    expect(eodKeys[0]).not.toBe(eodKeys[1]);
   });
 });
