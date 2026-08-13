@@ -910,6 +910,12 @@ export async function executeShadowRun(db: any, options: RunOptions) {
       project.shadowStart, project.shadowEnd, project.scheduleVarianceWorkdays, project.varianceCalendarEmployeeId,
       project.varianceCalendarTimezone, project.varianceCalendarBasis, project.approvalClassification,
       canonicalJson(project.approvalReasons), project.dataConfidence, project.dataConfidence === 'BLOCKED' ? 'BLOCKED' : 'CURRENT', now));
+    if (project.approvalClassification === 'APPROVAL_REQUIRED') {
+      statements.push(db.prepare(`INSERT INTO forecast_approval_requests
+        (approval_request_id,shadow_version_id,shadow_run_id,project_id,status,requested_by,requested_at,created_at,updated_at)
+        VALUES (?1,?2,?3,?4,'PENDING',?5,?6,?6,?6)`)
+        .bind(uuid('far'), versionId, runId, project.projectId, options.requestedBy, now));
+    }
   }
   const taskRowsJson = canonicalJson(result.tasks.map((task) => ({
     shadow_task_id: uuid('sst'), shadow_version_id: versionIdByProject.get(task.projectId), task_id: task.taskId,
@@ -1350,8 +1356,9 @@ export async function getShadowRun(db: any, actorContext: ActorContextServer, ru
 export async function getCurrentProjectShadow(db: any, actorContext: ActorContextServer, projectId: string) {
   const actor = await resolveShadowActor(db, actorContext);
   const current = await db.prepare(`SELECT run_id FROM shadow_schedule_versions
-    WHERE project_id=? AND status IN ('CURRENT','BLOCKED','STALE')
-    ORDER BY CASE status WHEN 'CURRENT' THEN 0 WHEN 'BLOCKED' THEN 1 ELSE 2 END, shadow_version_number DESC LIMIT 1`).bind(projectId).first();
+    WHERE project_id=? AND status IN ('CURRENT','BLOCKED')
+      AND COALESCE(apply_status,'NOT_APPLIED')='NOT_APPLIED'
+    ORDER BY CASE status WHEN 'CURRENT' THEN 0 ELSE 1 END, shadow_version_number DESC LIMIT 1`).bind(projectId).first();
   if (!current) return { run: null, versions: [], tasks: [], allocations: [], impacts: [], diffs: [], officialForecastChanged: false };
   return { ...(await readRun(db, current.run_id, actor)), officialForecastChanged: false };
 }

@@ -20,6 +20,9 @@ const DailyWorklogQaPage = lazy(() =>
 const ShadowSchedulePage = lazy(() =>
   import('./pages/ShadowSchedulePage').then((module) => ({ default: module.ShadowSchedulePage }))
 );
+const ScheduleControlPage = lazy(() =>
+  import('./pages/ScheduleControlPage').then((module) => ({ default: module.ScheduleControlPage }))
+);
 
 function RouteLoadingFallback() {
   return (
@@ -82,6 +85,14 @@ export function App() {
             element={
               <ErrorBoundary fallbackViewName="Shadow Schedule Preview">
                 <ShadowSchedulePage />
+              </ErrorBoundary>
+            }
+          />
+          <Route
+            path="/projects/:projectId/schedule-control"
+            element={
+              <ErrorBoundary fallbackViewName="Official Forecast Schedule Control">
+                <ScheduleControlPage />
               </ErrorBoundary>
             }
           />
