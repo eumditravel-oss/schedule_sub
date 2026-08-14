@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { Project } from '../../types';
 import { useI18n } from '../../hooks/useI18n';
 import { ChevronRight, MoreVertical, Edit2, CheckCircle, Trash2, Calendar } from 'lucide-react';
+import { officialProjectEnd, officialProjectStart } from '../../utils/officialForecastDates';
 
 interface MobileProjectCardProps {
   project: Project;
@@ -52,7 +53,7 @@ export const MobileProjectCard: React.FC<MobileProjectCardProps> = ({
           </div>
           <div className="flex items-center gap-1 mt-1 text-[11px] text-slate-500">
             <Calendar className="w-3 h-3 text-slate-400 shrink-0" />
-            <span>{project.start_date} ~ {project.end_date}</span>
+            <span>{officialProjectStart(project)} ~ {officialProjectEnd(project)}</span>
           </div>
         </div>
 

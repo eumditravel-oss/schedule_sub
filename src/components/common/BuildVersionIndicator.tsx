@@ -33,11 +33,13 @@ export const BuildVersionIndicator: React.FC<BuildVersionIndicatorProps> = ({ in
   const buildTime = import.meta.env.VITE_BUILD_TIME || '';
   const isMismatch = frontendSha && backendSha && frontendSha !== 'unknown' && backendSha !== 'unknown' && frontendSha !== backendSha;
 
-  const envLabel = isMismatch ? 'Build mismatch' : versionInfo.environment === 'qa' ? 'QA' : 'Production';
+  const envLabel = isMismatch ? 'Build mismatch' : versionInfo.environment === 'qa' ? 'QA' : versionInfo.environment === 'pilot' ? 'Pilot' : 'Production';
   const envStyle = isMismatch
     ? 'bg-rose-100 text-rose-900 border-rose-300 font-black'
     : versionInfo.environment === 'qa'
     ? 'bg-amber-100 text-amber-900 border-amber-300'
+    : versionInfo.environment === 'pilot'
+    ? 'bg-violet-100 text-violet-900 border-violet-300'
     : 'bg-emerald-100 text-emerald-900 border-emerald-300';
 
   if (inline) {

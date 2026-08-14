@@ -13,16 +13,16 @@ export function OpenPilotActorSelector() {
   }, [openTestMode]);
   if (!openTestMode || !session) return null;
   return (
-    <div className={`sticky top-0 z-[70] flex items-center justify-between gap-3 border-b px-4 py-2 text-xs shadow-sm ${internalTrust ? 'border-slate-200 bg-white text-slate-700' : 'border-amber-300 bg-amber-50 text-amber-950'}`}>
-      <div className="flex items-center gap-2 font-semibold">
+    <div className={`sticky top-0 z-[70] flex flex-wrap items-center justify-between gap-3 overflow-x-hidden border-b px-4 py-2 text-xs shadow-sm ${internalTrust ? 'border-slate-200 bg-white text-slate-700' : 'border-amber-300 bg-amber-50 text-amber-950'}`}>
+      <div className="flex min-w-0 items-center gap-2 font-semibold">
         {!internalTrust && <span className="rounded bg-amber-500 px-2 py-1 text-white">TEST MODE</span>}
         <span>{internalTrust ? '현재 사용자' : 'Pilot 테스트 사용자 선택'}</span>
       </div>
-      <label className="flex items-center gap-2">
+      <label className="flex min-w-0 max-w-full flex-wrap items-center justify-end gap-2">
         <span className="font-medium">{internalTrust ? '사용자 선택' : 'Test Actor'}</span>
         <select
           aria-label={internalTrust ? '사용자 선택' : 'Test Actor 선택'}
-          className={`rounded border bg-white px-2 py-1 text-xs ${internalTrust ? 'border-slate-300' : 'border-amber-400'}`}
+          className={`min-w-0 max-w-full rounded border bg-white px-2 py-1 text-xs ${internalTrust ? 'border-slate-300' : 'border-amber-400'}`}
           value={session.actor.employeeId}
           onChange={(event) => {
             void selectOpenPilotActor(event.target.value).then(() => window.location.reload());

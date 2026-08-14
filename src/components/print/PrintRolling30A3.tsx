@@ -6,6 +6,7 @@ import { PrintFooter } from './PrintFooter';
 import { PrintColorMode, getPrintStatusBadgeStyle, getPrintGanttBarStyle, resolvePrintCalendarVisualState, getProjectPicSummary, PRINT_DAY_CELL_STYLE } from '../../utils/printVisualTokens';
 import { resolveReportProjectProgress } from '../../utils/reportProgress';
 import { parseISO, format, addDays } from 'date-fns';
+import { officialProjectEnd, officialProjectStart } from '../../utils/officialForecastDates';
 
 export interface PrintRolling30A3Props {
   startDateStr?: string; // YYYY-MM-DD
@@ -50,9 +51,11 @@ export const PrintRolling30A3: React.FC<PrintRolling30A3Props> = ({
 
   // Filter overlapping projects
   const active30Projects = projects.filter((p) => {
-    if (!p.start_date || !p.end_date) return false;
-    const pStart = parseISO(p.start_date);
-    const pEnd = parseISO(p.end_date);
+    const start = officialProjectStart(p);
+    const end = officialProjectEnd(p);
+    if (!start || !end) return false;
+    const pStart = parseISO(start);
+    const pEnd = parseISO(end);
     return pStart <= baseEnd && pEnd >= baseStart;
   });
 
@@ -141,15 +144,17 @@ export const PrintRolling30A3: React.FC<PrintRolling30A3Props> = ({
                 const picName = getProjectPicSummary(pTasks, workerMap, lang);
                 const pName = isKo ? (p.name_ko || p.name) : (p.name_vi || p.name);
 
-                const pStart = p.start_date ? parseISO(p.start_date) : null;
-                const pEnd = p.end_date ? parseISO(p.end_date) : null;
+                const pStartValue = officialProjectStart(p);
+                const pEndValue = officialProjectEnd(p);
+                const pStart = pStartValue ? parseISO(pStartValue) : null;
+                const pEnd = pEndValue ? parseISO(pEndValue) : null;
                 const barStyle = getPrintGanttBarStyle(p.status, colorMode);
 
                 return (
                   <tr key={p.id} className="border-b border-slate-200 hover:bg-slate-50">
                     <td className="border-r border-slate-300 px-2 py-1.5 font-bold text-slate-900">{pName}</td>
                     <td className="border-r border-slate-300 px-1 py-1 text-center font-mono text-[9.5px]">
-                      {p.start_date?.substring(5)} ~ {p.end_date?.substring(5)}
+                      {pStartValue?.substring(5)} ~ {pEndValue?.substring(5)}
                     </td>
                     <td className="border-r border-slate-300 px-1 py-1 text-center">
                       <span

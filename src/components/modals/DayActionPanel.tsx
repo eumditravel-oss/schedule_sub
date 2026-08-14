@@ -45,7 +45,7 @@ export const DayActionPanel: React.FC<DayActionPanelProps> = ({
 
   // Permission Logic
   const isViewer = isExecutiveViewer(currentWorker);
-  const isOwnTask = currentWorker && worker && (currentWorker.id === worker.id || currentWorker.name === worker.name);
+  const isOwnTask = currentWorker && worker && currentWorker.id === worker.id;
   const canEditCalendar = !!isOwnTask && !isViewer;
   const canEditStatus = !isViewer;
 

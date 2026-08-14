@@ -1,8 +1,35 @@
 import { ActorContextServer } from './v3FoundationService';
 import { ShadowScheduleError, enqueueShadowRecalculation } from './shadowScheduleService';
-import { deriveWorklogTriage } from './dailyWorklogService';
+import { deriveWorklogTriage, stableStringify } from './dailyWorklogService';
 
 type ManagerActor = { worker: any; canManage: boolean; canRead: boolean };
+
+const SHADOW_STATUS_PRIORITY: Record<string, number> = { BLOCKED: 4, STALE: 3, CURRENT: 2, NO_SHADOW: 1 };
+
+export function aggregateManagerShadowRows(rows: any[]): Map<string, any> {
+  const result = new Map<string, any>();
+  for (const row of rows || []) {
+    const employeeId = String(row.employee_id || '');
+    if (!employeeId) continue;
+    const current = result.get(employeeId);
+    const status = String(row.status || 'NO_SHADOW');
+    const currentPriority = current ? (SHADOW_STATUS_PRIORITY[current.status] || 0) : 0;
+    const statusPriority = SHADOW_STATUS_PRIORITY[status] || 0;
+    const currentVariance = Number(current?.schedule_variance_workdays || 0);
+    const rowVariance = Number(row.schedule_variance_workdays || 0);
+    const variance = currentVariance > 0 || rowVariance > 0
+      ? Math.max(currentVariance, rowVariance)
+      : Math.min(currentVariance, rowVariance);
+    result.set(employeeId, {
+      ...(current || row),
+      status: statusPriority > currentPriority ? status : (current?.status || status),
+      schedule_variance_workdays: variance,
+      approval_classification: current?.approval_classification === 'APPROVAL_REQUIRED' || row.approval_classification === 'APPROVAL_REQUIRED'
+        ? 'APPROVAL_REQUIRED' : (current?.approval_classification || row.approval_classification),
+    });
+  }
+  return result;
+}
 
 async function queryStage(stage: string, operation: () => Promise<any>): Promise<any> {
   try { return await operation(); }
@@ -12,6 +39,23 @@ async function queryStage(stage: string, operation: () => Promise<any>): Promise
 function json(value: unknown, fallback: any = {}) {
   if (typeof value !== 'string' || !value) return fallback;
   try { return JSON.parse(value); } catch { return fallback; }
+}
+
+async function managerPayloadHash(value: unknown): Promise<string> {
+  const bytes = new TextEncoder().encode(stableStringify(value));
+  const digest = await crypto.subtle.digest('SHA-256', bytes);
+  return Array.from(new Uint8Array(digest)).map((byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
+async function managerIdempotency(db: any, key: string, operation: string, payload: unknown) {
+  if (!key) throw new ShadowScheduleError('IDEMPOTENCY_CONFLICT', 409);
+  const hash = await managerPayloadHash(payload);
+  const existing = await db.prepare(`SELECT response_json,operation,payload_hash FROM worklog_idempotency_keys WHERE idempotency_key=?`).bind(key).first();
+  if (existing) {
+    if (existing.operation !== operation || existing.payload_hash !== hash) throw new ShadowScheduleError('IDEMPOTENCY_CONFLICT', 409);
+    return { hash, response: JSON.parse(existing.response_json) };
+  }
+  return { hash, response: null as any };
 }
 
 async function resolveManagerActor(db: any, actorContext: ActorContextServer, write = false): Promise<ManagerActor> {
@@ -167,7 +211,7 @@ export async function getManagerOperations(db: any, actorContext: ActorContextSe
   const unread = await queryStage('unread', () => db.prepare(`SELECT COUNT(*) AS count FROM notification_recipients WHERE recipient_employee_id=? AND read_at IS NULL`).bind(actor.worker.id).first());
   const by = (rows: any[], key: string) => new Map((rows || []).map((r: any) => [r[key], r]));
   const wl = by(worklogs.results || [], 'employee_id'); const cap = by(capacities.results || [], 'employee_id'); const actual = by(actuals.results || [], 'employee_id');
-  const shadow = by(shadows.results || [], 'employee_id');
+  const shadow = aggregateManagerShadowRows(shadows.results || []);
   const employees = (workers.results || []).filter((worker: any) => !visibleIds || visibleIds.has(String(worker.id))).map((worker: any) => {
     const w = wl.get(worker.id); const s = shadow.get(worker.id); const a = actual.get(worker.id);
     return { ...worker, capacity_adjustment_minutes: Number(cap.get(worker.id)?.adjustment_minutes || 0), morning: w?.morning_submitted_at_utc ? (Number(w.morning_late) ? 'LATE' : 'COMPLETE') : (Number(w?.morning_missing) ? 'MISSING' : 'PENDING'), eod: w?.eod_submitted_at_utc ? 'COMPLETE' : (w?.status ? 'MISSING' : 'PENDING'), actual_minutes: Number(a?.actual_minutes || 0), progress: a?.progress == null ? null : Number(a.progress), shadow_status: s?.status || 'NO_SHADOW', schedule_variance_workdays: Number(s?.schedule_variance_workdays || 0), approval_required: s?.approval_classification === 'APPROVAL_REQUIRED' || Number(w?.requires_manager_review || 0) === 1 };
@@ -198,16 +242,27 @@ export async function markManagerNotificationRead(db: any, actorContext: ActorCo
   return { marked: all ? 'all' : eventId };
 }
 
-export async function reviewOvertime(db: any, actorContext: ActorContextServer, candidateId: string, status: 'APPROVED'|'REJECTED', reason?: string) {
+export async function reviewOvertime(db: any, actorContext: ActorContextServer, candidateId: string, status: 'APPROVED'|'REJECTED', reason?: string, key = '') {
   const actor = await resolveManagerActor(db, actorContext, true);
   if (!reason?.trim() && status === 'REJECTED') throw new ShadowScheduleError('REJECT_REASON_REQUIRED', 400);
+  const operation = 'MANAGER_OVERTIME_REVIEW';
+  const idem = await managerIdempotency(db, key, operation, { candidate_id: candidateId, status, reason: String(reason || '').trim() });
+  if (idem.response) return idem.response;
   const candidate = await db.prepare(`SELECT * FROM overtime_candidates WHERE id=? AND approval_status='PENDING_REVIEW'`).bind(candidateId).first();
   if (!candidate) throw new ShadowScheduleError('OVERTIME_NOT_FOUND', 404);
-  await db.batch([
+  const response = { candidate_id: candidateId, status, official_forecast_changed: false };
+  const resolutionKey = `manager-overtime-resolution:${candidateId}`;
+  const statements = [
     db.prepare(`UPDATE overtime_candidates SET approval_status=?,reviewed_by_employee_id=?,reviewed_at=CURRENT_TIMESTAMP WHERE id=? AND approval_status='PENDING_REVIEW'`).bind(status, actor.worker.id, candidateId),
     db.prepare(`UPDATE daily_worklogs SET overtime_approval_status=?,updated_at=CURRENT_TIMESTAMP WHERE id=?`).bind(status, candidate.worklog_id),
     db.prepare(`INSERT INTO worklog_audit_events(id,worklog_id,revision_id,event_type,actor_mode,actor_user_id,actor_employee_id,subject_employee_id,local_work_date,event_time_utc,reason) SELECT ?,worklog_id,revision_id,?, 'PILOT',?,?,employee_id,local_work_date,CURRENT_TIMESTAMP,? FROM overtime_candidates WHERE id=?`).bind(`wla_${crypto.randomUUID()}`, `OVERTIME_${status}`, actor.worker.id, actor.worker.id, reason || null, candidateId),
-  ]);
+    db.prepare(`INSERT INTO worklog_idempotency_keys (idempotency_key,operation,payload_hash,worklog_id,revision_id,response_json,created_at) VALUES (?,?,?,?,?,?,CURRENT_TIMESTAMP)`).bind(resolutionKey, 'MANAGER_OVERTIME_RESOLUTION', idem.hash, candidate.worklog_id, candidate.revision_id, stableStringify(response)),
+    db.prepare(`INSERT INTO worklog_idempotency_keys (idempotency_key,operation,payload_hash,worklog_id,revision_id,response_json,created_at) VALUES (?,?,?,?,?,?,CURRENT_TIMESTAMP)`).bind(key, operation, idem.hash, candidate.worklog_id, candidate.revision_id, stableStringify(response)),
+  ];
+  try { await db.batch(statements); } catch (error: any) {
+    if (String(error?.message || error).includes('UNIQUE')) throw new ShadowScheduleError('OVERTIME_ALREADY_RESOLVED', 409);
+    throw error;
+  }
   try {
     await enqueueShadowRecalculation(db, {
       worklogId: candidate.worklog_id,
@@ -220,7 +275,7 @@ export async function reviewOvertime(db: any, actorContext: ActorContextServer, 
   } catch (error: any) {
     if (error?.code !== 'IDEMPOTENCY_CONFLICT') throw error;
   }
-  return { candidate_id: candidateId, status, official_forecast_changed: false };
+  return response;
 }
 
 export async function getManagerDigest(db: any, actorContext: ActorContextServer, date?: string) {

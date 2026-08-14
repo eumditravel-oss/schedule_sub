@@ -657,6 +657,15 @@ export const api = {
     return handleResponse<any>(res);
   },
 
+  async publishProject(id: string): Promise<any> {
+    const res = await fetch(`/api/projects/${encodeURIComponent(id)}/publish`, {
+      method: 'POST',
+      headers: getWriteHeaders(),
+      body: JSON.stringify({}),
+    });
+    return handleResponse<any>(res);
+  },
+
   async getProjectConflicts(id: string): Promise<any> {
     const res = await fetch(`/api/projects/${id}/conflicts`);
     return handleResponse<any>(res);

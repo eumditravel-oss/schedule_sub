@@ -130,7 +130,9 @@
         "SCHEDULER_ACCESS_MODE": "open_test",
         "TEST_ACTOR_MODE": "false",
         "QA_TEST_CLOCK_ENABLED": "false",
-        "PILOT_SESSION_TTL_SECONDS": "43200"
+        "PILOT_SESSION_TTL_SECONDS": "43200",
+        "BUILD_SHA": "7c96e690c834339e9dae68df1542cb10a8b24e42",
+        "BUILD_TIMESTAMP": "2026-08-14T19:31:00+09:00"
       },
       "ai": {
         "binding": "AI"

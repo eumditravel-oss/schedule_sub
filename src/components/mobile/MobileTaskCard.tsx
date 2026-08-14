@@ -4,6 +4,7 @@ import { Task, DailyStatusType, WorkDayStatus } from '../../types';
 import { useI18n } from '../../hooks/useI18n';
 import { MobileWeekStrip, MobileWeekDay } from './MobileWeekStrip';
 import { MoreVertical, Edit2, Trash2 } from 'lucide-react';
+import { officialTaskEnd, officialTaskStart } from '../../utils/officialForecastDates';
 
 interface MobileTaskCardProps {
   task: Task;
@@ -52,7 +53,7 @@ export const MobileTaskCard: React.FC<MobileTaskCardProps> = ({
           </h4>
 
           <p className="text-[10px] text-slate-400 mt-0.5">
-            {task.start_date} ~ {task.end_date}
+            {officialTaskStart(task)} ~ {officialTaskEnd(task)}
           </p>
         </div>
 

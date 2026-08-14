@@ -12,6 +12,7 @@ import {
 import { resolveReportProjectProgress } from '../../utils/reportProgress';
 import { getAdaptiveColumnPercent, getRemainingColumnPercent } from '../../utils/printLayout';
 import { parseISO, startOfMonth, endOfMonth, eachWeekOfInterval, endOfWeek, format } from 'date-fns';
+import { officialProjectEnd, officialProjectStart, officialTaskEnd, officialTaskStart } from '../../utils/officialForecastDates';
 
 export interface PrintMonthlyProjectsA4Props {
   monthStr: string;
@@ -40,21 +41,23 @@ export const PrintMonthlyProjectsA4: React.FC<PrintMonthlyProjectsA4Props> = ({
   const monthStart = startOfMonth(parseISO(`${monthStr}-01`));
   const monthEnd = endOfMonth(monthStart);
   const monthProjects = projects.filter((project) => {
-    if (!project.start_date || !project.end_date) return false;
-    return parseISO(project.start_date) <= monthEnd && parseISO(project.end_date) >= monthStart;
+    const start = officialProjectStart(project);
+    const end = officialProjectEnd(project);
+    if (!start || !end) return false;
+    return parseISO(start) <= monthEnd && parseISO(end) >= monthStart;
   });
   const monthProjectIds = new Set(monthProjects.map((project) => project.id));
   const monthTasks = tasks.filter((task) => Boolean(
     monthProjectIds.has(task.project_id) &&
-    task.start_date &&
-    task.end_date &&
-    parseISO(task.start_date) <= monthEnd &&
-    parseISO(task.end_date) >= monthStart
+    officialTaskStart(task) &&
+    officialTaskEnd(task) &&
+    parseISO(officialTaskStart(task)!) <= monthEnd &&
+    parseISO(officialTaskEnd(task)!) >= monthStart
   ));
   const activeCount = monthProjects.filter((project) => project.status !== 'COMPLETED').length;
   const completedCount = monthProjects.filter((project) => project.status === 'COMPLETED').length;
   const overdueTasksCount = monthTasks.filter(
-    (task) => task.schedule_state === 'DELAYED' || Boolean(task.end_date && task.end_date < referenceDate && task.actual_progress !== 100)
+    (task) => task.schedule_state === 'DELAYED' || Boolean(officialTaskEnd(task) && officialTaskEnd(task)! < referenceDate && task.actual_progress !== 100)
   ).length;
   const blockedTasksCount = monthTasks.filter((task) => Boolean(task.is_blocked)).length;
   const completedTasksCount = monthTasks.filter(
@@ -137,13 +140,13 @@ export const PrintMonthlyProjectsA4: React.FC<PrintMonthlyProjectsA4Props> = ({
                   const badge = getPrintStatusBadgeStyle(progress.scheduleState === 'COMPLETED' ? 'COMPLETED' : project.status, colorMode, lang);
                   const bar = getPrintGanttBarStyle(project.status, colorMode);
                   const name = isKo ? project.name_ko || project.name : project.name_vi || project.name;
-                  const start = parseISO(project.start_date || `${monthStr}-01`);
-                  const end = parseISO(project.end_date || `${monthStr}-01`);
+                  const start = parseISO(officialProjectStart(project) || `${monthStr}-01`);
+                  const end = parseISO(officialProjectEnd(project) || `${monthStr}-01`);
                   return (
                     <tr key={project.id}>
                       <td className="border border-slate-300 px-2 py-1.5 font-bold break-words">{name}</td>
                       <td className="border border-slate-300 px-1 py-1 text-center font-mono text-[9px] whitespace-nowrap">
-                        {project.start_date?.substring(2)} ~ {project.end_date?.substring(2)}
+                        {officialProjectStart(project)?.substring(2)} ~ {officialProjectEnd(project)?.substring(2)}
                       </td>
                       <td className="border border-slate-300 px-2 py-1 text-slate-700 break-words">{getProjectPicSummary(projectTasks, workerMap, lang)}</td>
                       <td className="border border-slate-300 px-1 py-1 text-center">
@@ -193,7 +196,7 @@ export const PrintMonthlyProjectsA4: React.FC<PrintMonthlyProjectsA4Props> = ({
             <div className="grid gap-2 mb-3" style={{ gridTemplateColumns: `repeat(${weeksInMonth.length}, minmax(0, 1fr))` }}>
               {weeksInMonth.map((week, index) => {
                 const weekEnd = endOfWeek(week, { weekStartsOn: 1 });
-                const weekTasks = monthTasks.filter((task) => Boolean(task.start_date && task.end_date && parseISO(task.start_date) <= weekEnd && parseISO(task.end_date) >= week));
+                const weekTasks = monthTasks.filter((task) => Boolean(officialTaskStart(task) && officialTaskEnd(task) && parseISO(officialTaskStart(task)!) <= weekEnd && parseISO(officialTaskEnd(task)!) >= week));
                 const weekDone = weekTasks.filter((task) => task.schedule_state === 'COMPLETED' || task.actual_progress === 100).length;
                 return (
                   <div key={index} className="border border-slate-200 rounded bg-slate-50 p-2">
@@ -233,7 +236,7 @@ export const PrintMonthlyProjectsA4: React.FC<PrintMonthlyProjectsA4Props> = ({
                       <td className="border border-slate-300 px-2 py-1 font-semibold break-words">{isKo ? project?.name_ko || project?.name : project?.name_vi || project?.name}</td>
                       <td className="border border-slate-300 px-2 py-1 break-words">{taskName}</td>
                       <td className="border border-slate-300 px-2 py-1 break-words">{workerName}</td>
-                      <td className="border border-slate-300 px-1 py-1 text-center font-mono text-[8.5px] whitespace-nowrap">{task.start_date?.substring(5)} ~ {task.end_date?.substring(5)}</td>
+                      <td className="border border-slate-300 px-1 py-1 text-center font-mono text-[8.5px] whitespace-nowrap">{officialTaskStart(task)?.substring(5)} ~ {officialTaskEnd(task)?.substring(5)}</td>
                       <td className="border border-slate-300 px-1 py-1 text-center"><span className="px-1 py-0.5 rounded border font-bold" style={{ backgroundColor: badge.backgroundColor, borderColor: badge.borderColor, color: badge.textColor }}>{badge.label}</span></td>
                       <td className="border border-slate-300 px-1 py-1 text-center font-mono font-bold text-emerald-700">{task.actual_progress ?? 0}%</td>
                     </tr>

@@ -245,7 +245,7 @@ function isOfficialScheduleMutation(method: string, cleanPath: string): boolean 
   return cleanPath === '/api/projects'
     || cleanPath === '/api/tasks'
     || /^\/api\/projects\/[^/]+$/.test(cleanPath)
-    || /^\/api\/projects\/[^/]+\/(task-groups|task-structure-order|worker-allocations|complete|completion-repair|reopen|baseline)$/.test(cleanPath)
+    || /^\/api\/projects\/[^/]+\/(task-groups|task-structure-order|worker-allocations|complete|completion-repair|reopen|baseline|publish)$/.test(cleanPath)
     || /^\/api\/projects\/[^/]+\/conflicts\/[^/]+\/acknowledge$/.test(cleanPath)
     || /^\/api\/task-groups\/[^/]+$/.test(cleanPath)
     || /^\/api\/tasks\/[^/]+$/.test(cleanPath)
@@ -589,7 +589,7 @@ export default {
         const overtimeMatch = cleanPath.match(/^\/api\/v3\/manager\/overtime\/([^/]+)\/(approve|reject)$/);
         if (method === 'POST' && overtimeMatch) {
           const body: any = await request.json().catch(() => ({}));
-          return jsonResponse(await reviewOvertime(db, actor, decodeURIComponent(overtimeMatch[1]), overtimeMatch[2] === 'approve' ? 'APPROVED' : 'REJECTED', body.reason), 201);
+          return jsonResponse(await reviewOvertime(db, actor, decodeURIComponent(overtimeMatch[1]), overtimeMatch[2] === 'approve' ? 'APPROVED' : 'REJECTED', body.reason, idempotencyKey), 201);
         }
         const correctionMatch = cleanPath.match(/^\/api\/v3\/manager\/corrections\/([^/]+)\/(approve|reject)$/);
         if (method === 'POST' && correctionMatch) {
@@ -4126,6 +4126,45 @@ function addPureCalendarDays(dateStr: string, deltaDays: number): string {
 
         await db.prepare(`DELETE FROM calendar_overrides WHERE id = ?`).bind(ovrId).run();
         return jsonResponse({ id: ovrId });
+      }
+
+      // 14.4 POST /api/projects/:id/publish
+      // Publish is the single bridge from editable Project/WBS data to the
+      // immutable V3 Baseline and initial Official Forecast snapshot.
+      const publishProjectMatch = path.match(/^\/api\/projects\/([^/]+)\/publish$/);
+      if (method === 'POST' && publishProjectMatch) {
+        const pId = publishProjectMatch[1];
+        const editor = getEditorName({}, request);
+        const editCheck = await requireEditableWorker(db, editor);
+        if (!editCheck.allowed) return errorResponse(editCheck.errorMsg!, 403, editCheck.errorCode!);
+        const project = await db.prepare(`SELECT * FROM projects WHERE id = ?`).bind(pId).first();
+        if (!project) return errorResponse('Project not found.', 404, 'PROJECT_NOT_FOUND');
+        if (!project.start_date || !project.end_date) return errorResponse('Project dates are required before publish.', 400, 'PROJECT_DATES_REQUIRED');
+        const existingVersion = await db.prepare(`SELECT * FROM schedule_versions WHERE project_id = ? ORDER BY version_number ASC LIMIT 1`).bind(pId).first();
+        if (existingVersion) return jsonResponse({ published: false, baseline_id: existingVersion.baseline_id || null, official_version_id: existingVersion.id, version: Number(existingVersion.version_number || 1) });
+        const existingBaseline = await db.prepare(`SELECT * FROM project_baselines WHERE project_id = ? AND version = 1 LIMIT 1`).bind(pId).first();
+        const baselineId = existingBaseline?.id || `pbl_${pId}_v1`;
+        const versionId = `sv_${pId}_v1`;
+        const tasksRes = await db.prepare(`SELECT * FROM tasks WHERE project_id = ? ORDER BY task_sort_order ASC, start_date ASC, created_at ASC`).bind(pId).all();
+        const tasks = tasksRes.results || [];
+        const statements: any[] = [
+          db.prepare(`UPDATE projects SET baseline_start_date = COALESCE(baseline_start_date, start_date), baseline_end_date = COALESCE(baseline_end_date, end_date), updated_at = CURRENT_TIMESTAMP WHERE id = ?`).bind(pId),
+          db.prepare(`INSERT INTO schedule_versions (id, project_id, baseline_id, version_number, source_type, status, project_forecast_start, project_forecast_end, change_summary, created_by, actor_mode, actor_user_id) VALUES (?, ?, ?, 1, 'PROJECT_PUBLISH', 'INITIALIZED', ?, ?, ?, ?, 'PILOT_SESSION', ?)`).bind(versionId, pId, baselineId, project.start_date, project.end_date, 'Initial Official Forecast from Project Publish', editCheck.worker?.name || editor, editCheck.worker?.id || null),
+        ];
+        if (!existingBaseline) statements.unshift(db.prepare(`INSERT INTO project_baselines (id, project_id, version, baseline_start_date, baseline_end_date, created_by, note, actor_mode, actor_user_id) VALUES (?, ?, 1, ?, ?, ?, ?, 'PILOT_SESSION', ?)`).bind(baselineId, pId, project.start_date, project.end_date, editCheck.worker?.name || editor, 'V3.1 PROJECT PUBLISH', editCheck.worker?.id || null));
+        for (const task of tasks) {
+          statements.push(db.prepare(`INSERT INTO task_baselines (id, baseline_id, task_id, baseline_start_date, baseline_end_date, task_group_id, baseline_progress, baseline_status, primary_assignment_json, original_raw_json) VALUES (?, ?, ?, ?, ?, ?, ?, 'PLANNED', ?, ?)`).bind(`tbl_${task.id}_v1`, baselineId, task.id, task.start_date || project.start_date, task.end_date || project.end_date, task.task_group_id || null, Number(task.progress || 0), JSON.stringify({ worker_id: task.primary_worker_id || task.worker_name || null }), JSON.stringify(task)));
+          statements.push(db.prepare(`UPDATE tasks SET baseline_start_date = COALESCE(baseline_start_date, start_date), baseline_end_date = COALESCE(baseline_end_date, end_date) WHERE id = ?`).bind(task.id));
+          statements.push(db.prepare(`INSERT INTO schedule_version_tasks (id, version_id, project_id, task_id, task_group_id, forecast_start, forecast_end, original_raw_json, primary_assignment_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(`svt_${task.id}_v1`, versionId, pId, task.id, task.task_group_id || null, task.start_date || project.start_date, task.end_date || project.end_date, JSON.stringify(task), JSON.stringify({ worker_id: task.primary_worker_id || task.worker_name || null })));
+        }
+        try { await db.batch(statements); } catch (error: any) {
+          if (String(error?.message || error).toLowerCase().includes('unique')) {
+            const version = await db.prepare(`SELECT * FROM schedule_versions WHERE project_id = ? ORDER BY version_number ASC LIMIT 1`).bind(pId).first();
+            if (version) return jsonResponse({ published: false, baseline_id: version.baseline_id || null, official_version_id: version.id, version: Number(version.version_number || 1) });
+          }
+          throw error;
+        }
+        return jsonResponse({ published: true, baseline_id: baselineId, official_version_id: versionId, version: 1, task_count: tasks.length }, 201);
       }
 
       // 14.5 POST /api/projects/:id/baseline

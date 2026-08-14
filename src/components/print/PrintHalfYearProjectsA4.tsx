@@ -6,6 +6,7 @@ import { PrintFooter } from './PrintFooter';
 import { PrintColorMode, getPrintStatusBadgeStyle, getPrintGanttBarStyle, getProjectPicSummary } from '../../utils/printVisualTokens';
 import { resolveReportProjectProgress } from '../../utils/reportProgress';
 import { parseISO, format, addMonths, startOfMonth, endOfMonth } from 'date-fns';
+import { officialProjectEnd, officialProjectStart } from '../../utils/officialForecastDates';
 
 export interface PrintHalfYearProjectsA4Props {
   startMonthStr: string; // YYYY-MM
@@ -42,9 +43,11 @@ export const PrintHalfYearProjectsA4: React.FC<PrintHalfYearProjectsA4Props> = (
 
   // Filter overlapping projects
   const periodProjects = projects.filter((p) => {
-    if (!p.start_date || !p.end_date) return false;
-    const pStart = parseISO(p.start_date);
-    const pEnd = parseISO(p.end_date);
+    const start = officialProjectStart(p);
+    const end = officialProjectEnd(p);
+    if (!start || !end) return false;
+    const pStart = parseISO(start);
+    const pEnd = parseISO(end);
     return pStart <= periodEndMonth && pEnd >= startMonthDate;
   });
 
@@ -117,15 +120,15 @@ export const PrintHalfYearProjectsA4: React.FC<PrintHalfYearProjectsA4Props> = (
                 // V2 Domain: PIC derived from Task PRIMARY
                 const picName = getProjectPicSummary(pTasks, workerMap, lang);
                 const pName = isKo ? (p.name_ko || p.name) : (p.name_vi || p.name);
-                const pStart = p.start_date ? parseISO(p.start_date) : startMonthDate;
-                const pEnd = p.end_date ? parseISO(p.end_date) : periodEndMonth;
+                const pStart = officialProjectStart(p) ? parseISO(officialProjectStart(p)!) : startMonthDate;
+                const pEnd = officialProjectEnd(p) ? parseISO(officialProjectEnd(p)!) : periodEndMonth;
                 const barStyle = getPrintGanttBarStyle(p.status, colorMode);
 
                 return (
                   <tr key={p.id} className="hover:bg-slate-50 border-b border-slate-200">
                     <td className="border border-slate-300 px-2 py-1 font-bold text-slate-900">{pName}</td>
                     <td className="border border-slate-300 px-1 py-1 text-center font-mono text-[9.5px]">
-                      {p.start_date?.substring(5)} ~ {p.end_date?.substring(5)}
+                      {officialProjectStart(p)?.substring(5)} ~ {officialProjectEnd(p)?.substring(5)}
                     </td>
                     <td className="border border-slate-300 px-1 py-1 text-center">
                       <span

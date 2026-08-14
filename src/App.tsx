@@ -3,6 +3,10 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { PilotAuthProvider } from './auth/PilotAuthContext';
 import { RequirePilotAuth } from './auth/RequirePilotAuth';
+import { usePilotAuth } from './auth/PilotAuthContext';
+import { api } from './services/api';
+import type { Worker } from './types';
+import { resolveLandingRoute } from './utils/roleLanding';
 
 const ProjectOverviewPage = lazy(() =>
   import('./pages/ProjectOverviewPage').then((module) => ({ default: module.ProjectOverviewPage }))
@@ -34,6 +38,9 @@ const ManagerOperationsPage = lazy(() =>
 const ManagerWorklogApprovalsPage = lazy(() =>
   import('./pages/ManagerWorklogApprovalsPage').then((module) => ({ default: module.ManagerWorklogApprovalsPage }))
 );
+const DashboardPage = lazy(() =>
+  import('./pages/DashboardPage').then((module) => ({ default: module.DashboardPage }))
+);
 const PilotLoginPage = lazy(() =>
   import('./pages/PilotLoginPage').then((module) => ({ default: module.PilotLoginPage }))
 );
@@ -50,6 +57,17 @@ function BuggyTestComponent(): JSX.Element {
   throw new Error('Intentional Error Boundary Test Trigger');
 }
 
+function RoleLandingRedirect() {
+  const { session } = usePilotAuth();
+  const [worker, setWorker] = React.useState<Worker | null>(null);
+  React.useEffect(() => {
+    if (!session?.actor.employeeId) return;
+    void api.getWorkers().then((rows) => setWorker((rows || []).find((row) => row.id === session.actor.employeeId) || null));
+  }, [session?.actor.employeeId]);
+  if (!worker) return <div className="grid min-h-screen place-items-center bg-slate-50 text-sm font-semibold text-slate-600">사용자 역할을 확인하는 중입니다…</div>;
+  return <Navigate to={resolveLandingRoute(worker)} replace />;
+}
+
 export function App() {
   const isDebugAllowed =
     import.meta.env.MODE !== 'production' ||
@@ -63,7 +81,16 @@ export function App() {
         <Suspense fallback={<RouteLoadingFallback />}>
           <Routes>
           <Route path="/login" element={<PilotLoginPage />} />
-          <Route path="/" element={<Navigate to="/projects" replace />} />
+          <Route path="/" element={<RequirePilotAuth><RoleLandingRedirect /></RequirePilotAuth>} />
+          <Route
+            path="/dashboard"
+            element={
+              <ErrorBoundary fallbackViewName="Unified Dashboard">
+                <RequirePilotAuth><DashboardPage /></RequirePilotAuth>
+              </ErrorBoundary>
+            }
+          />
+          <Route path="/worklog" element={<Navigate to="/worklog/today" replace />} />
           <Route
             path="/projects"
             element={

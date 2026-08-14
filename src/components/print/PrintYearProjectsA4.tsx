@@ -12,6 +12,7 @@ import {
 import { resolveReportProjectProgress } from '../../utils/reportProgress';
 import { getAdaptiveColumnPercent, getRemainingColumnPercent } from '../../utils/printLayout';
 import { parseISO, startOfMonth, endOfMonth } from 'date-fns';
+import { officialProjectEnd, officialProjectStart } from '../../utils/officialForecastDates';
 
 export interface PrintYearProjectsA4Props {
   yearStr?: string;
@@ -40,7 +41,7 @@ export const PrintYearProjectsA4: React.FC<PrintYearProjectsA4Props> = ({
   const yearStart = startOfMonth(months[0]);
   const yearEnd = endOfMonth(months[11]);
   const yearProjects = projects.filter((project) => Boolean(
-    project.start_date && project.end_date && parseISO(project.start_date) <= yearEnd && parseISO(project.end_date) >= yearStart
+    officialProjectStart(project) && officialProjectEnd(project) && parseISO(officialProjectStart(project)!) <= yearEnd && parseISO(officialProjectEnd(project)!) >= yearStart
   ));
   const completed = yearProjects.filter((project) => project.status === 'COMPLETED').length;
   const active = yearProjects.filter((project) => project.status !== 'COMPLETED').length;
@@ -53,8 +54,8 @@ export const PrintYearProjectsA4: React.FC<PrintYearProjectsA4Props> = ({
   const quarterSummaries = [0, 1, 2, 3].map((quarterIndex) => {
     const quarterStart = startOfMonth(months[quarterIndex * 3]);
     const quarterEnd = endOfMonth(months[quarterIndex * 3 + 2]);
-    const overlapping = yearProjects.filter((project) => parseISO(project.start_date!) <= quarterEnd && parseISO(project.end_date!) >= quarterStart);
-    const ending = yearProjects.filter((project) => parseISO(project.end_date!) >= quarterStart && parseISO(project.end_date!) <= quarterEnd);
+    const overlapping = yearProjects.filter((project) => parseISO(officialProjectStart(project)!) <= quarterEnd && parseISO(officialProjectEnd(project)!) >= quarterStart);
+    const ending = yearProjects.filter((project) => parseISO(officialProjectEnd(project)!) >= quarterStart && parseISO(officialProjectEnd(project)!) <= quarterEnd);
     return { quarter: quarterIndex + 1, overlapping: overlapping.length, ending: ending.length };
   });
 
@@ -112,12 +113,14 @@ export const PrintYearProjectsA4: React.FC<PrintYearProjectsA4Props> = ({
                   const progress = resolveReportProjectProgress(project, projectTasks);
                   const badge = getPrintStatusBadgeStyle(progress.scheduleState === 'COMPLETED' ? 'COMPLETED' : project.status, colorMode, lang);
                   const bar = getPrintGanttBarStyle(project.status, colorMode);
-                  const start = parseISO(project.start_date!);
-                  const end = parseISO(project.end_date!);
+                  const projectStart = officialProjectStart(project)!;
+                  const projectEnd = officialProjectEnd(project)!;
+                  const start = parseISO(projectStart);
+                  const end = parseISO(projectEnd);
                   return (
                     <tr key={project.id}>
                       <td className="border border-slate-300 px-2 py-1.5 font-bold break-words">{isKo ? project.name_ko || project.name : project.name_vi || project.name}</td>
-                      <td className="border border-slate-300 px-1 py-1 text-center font-mono text-[8.5px] whitespace-nowrap">{project.start_date?.substring(2)} ~ {project.end_date?.substring(2)}</td>
+                      <td className="border border-slate-300 px-1 py-1 text-center font-mono text-[8.5px] whitespace-nowrap">{projectStart.substring(2)} ~ {projectEnd.substring(2)}</td>
                       <td className="border border-slate-300 px-1 py-1 text-center"><span className="px-1 py-0.5 rounded border font-bold" style={{ backgroundColor: badge.backgroundColor, borderColor: badge.borderColor, color: badge.textColor }}>{badge.label}</span></td>
                       <td className="border border-slate-300 px-1 py-1 text-center font-mono font-bold text-emerald-700">{progress.actualProgress}%</td>
                       {months.map((month, index) => {
@@ -172,7 +175,7 @@ export const PrintYearProjectsA4: React.FC<PrintYearProjectsA4Props> = ({
                   return (
                     <tr key={project.id}>
                       <td className="border border-slate-300 px-2 py-1.5 font-bold break-words">{isKo ? project.name_ko || project.name : project.name_vi || project.name}</td>
-                      <td className="border border-slate-300 px-1 py-1 text-center font-mono text-[8.5px] whitespace-nowrap">{project.start_date?.substring(2)} ~ {project.end_date?.substring(2)}</td>
+                      <td className="border border-slate-300 px-1 py-1 text-center font-mono text-[8.5px] whitespace-nowrap">{officialProjectStart(project)?.substring(2)} ~ {officialProjectEnd(project)?.substring(2)}</td>
                       <td className="border border-slate-300 px-2 py-1 break-words">{getProjectPicSummary(projectTasks, workerMap, lang)}</td>
                       <td className="border border-slate-300 px-1 py-1 text-center"><span className="px-1 py-0.5 rounded border font-bold" style={{ backgroundColor: badge.backgroundColor, borderColor: badge.borderColor, color: badge.textColor }}>{badge.label}</span></td>
                       <td className="border border-slate-300 px-1 py-1 text-center font-mono whitespace-nowrap"><span className="text-blue-700">{progress.plannedProgress}%</span> / <span className="text-emerald-700 font-bold">{progress.actualProgress}%</span></td>

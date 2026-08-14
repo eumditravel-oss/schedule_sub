@@ -9,6 +9,7 @@ import { resolveWorkDayStatus } from '../../utils/workCalendar';
 import { resolveReportProjectProgress } from '../../utils/reportProgress';
 import { getAdaptiveColumnPercent, getRemainingColumnPercent } from '../../utils/printLayout';
 import { parseISO, format, addDays, differenceInCalendarDays, isSameDay } from 'date-fns';
+import { officialProjectEnd, officialProjectStart, officialTaskEnd, officialTaskStart } from '../../utils/officialForecastDates';
 
 export interface PrintProjectFullA3Props {
   project: Project;
@@ -42,11 +43,13 @@ export const PrintProjectFullA3: React.FC<PrintProjectFullA3Props> = ({
   const isKo = lang === 'ko';
   const workerMap = new Map(workers.map((w) => [w.id, w.name]));
   const allHolidays = [...krHolidays, ...vnHolidays];
-  const forecastStart = (task: Task) => task.official_forecast_start || task.start_date;
-  const forecastEnd = (task: Task) => task.official_forecast_end || task.end_date;
+  const forecastStart = (task: Task) => officialTaskStart(task);
+  const forecastEnd = (task: Task) => officialTaskEnd(task);
 
-  const startDate = project.start_date ? parseISO(project.start_date) : new Date();
-  const endDate = project.end_date ? parseISO(project.end_date) : addDays(startDate, 29);
+  const projectStart = officialProjectStart(project);
+  const projectEnd = officialProjectEnd(project);
+  const startDate = projectStart ? parseISO(projectStart) : new Date();
+  const endDate = projectEnd ? parseISO(projectEnd) : addDays(startDate, 29);
   const totalDays = Math.max(1, differenceInCalendarDays(endDate, startDate) + 1);
 
   // Split into 30-day bands if totalDays > 30
@@ -126,7 +129,7 @@ export const PrintProjectFullA3: React.FC<PrintProjectFullA3Props> = ({
                   <div>
                     <span className="text-slate-500 font-medium">{isKo ? '전체 기간: ' : 'Thời gian: '}</span>
                     <strong className="text-slate-900 font-mono">
-                      {project.start_date} ~ {project.end_date}
+                      {projectStart || '-'} ~ {projectEnd || '-'}
                     </strong>
                   </div>
                 </div>
