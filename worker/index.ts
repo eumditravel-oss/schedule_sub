@@ -1947,7 +1947,7 @@ async function validateAndNormalizeTaskAssigneesServer(
           db.prepare(`SELECT * FROM tasks`).all(),
           db.prepare(`SELECT task_id, work_date, status FROM daily_status`).all(),
           db.prepare(`SELECT * FROM conflict_acknowledgements`).all().catch(() => ({ results: [] })),
-          db.prepare(`SELECT project_id,shadow_version_id,status,shadow_forecast_start_date,shadow_forecast_end_date,approval_classification,data_confidence,created_at FROM shadow_schedule_versions ORDER BY created_at DESC,shadow_version_number DESC`).all().catch(() => ({ results: [] })),
+          db.prepare(`SELECT project_id,shadow_version_id,status,apply_status,based_on_forecast_version_id,shadow_forecast_start_date,shadow_forecast_end_date,approval_classification,data_confidence,created_at FROM shadow_schedule_versions ORDER BY created_at DESC,shadow_version_number DESC`).all().catch(() => ({ results: [] })),
         ]);
 
         const allActiveProjects = allActiveProjectsRes.results || [];
@@ -2010,11 +2010,11 @@ async function validateAndNormalizeTaskAssigneesServer(
             } : {}),
             conflict_count,
             shadow_status: shadow?.status || 'NONE',
-            shadow_is_fresh: shadow?.status === 'CURRENT',
-            shadow_forecast_start_date: shadow?.status === 'CURRENT' ? shadow.shadow_forecast_start_date : null,
-            shadow_forecast_end_date: shadow?.status === 'CURRENT' ? shadow.shadow_forecast_end_date : null,
-            shadow_approval_classification: shadow?.status === 'CURRENT' ? shadow.approval_classification : null,
-            shadow_data_confidence: shadow?.status === 'CURRENT' ? shadow.data_confidence : null,
+            shadow_is_fresh: shadow?.status === 'CURRENT' && (!shadow.apply_status || shadow.apply_status === 'NOT_APPLIED'),
+            shadow_forecast_start_date: shadow?.status === 'CURRENT' && (!shadow.apply_status || shadow.apply_status === 'NOT_APPLIED') ? shadow.shadow_forecast_start_date : null,
+            shadow_forecast_end_date: shadow?.status === 'CURRENT' && (!shadow.apply_status || shadow.apply_status === 'NOT_APPLIED') ? shadow.shadow_forecast_end_date : null,
+            shadow_approval_classification: shadow?.status === 'CURRENT' && (!shadow.apply_status || shadow.apply_status === 'NOT_APPLIED') ? shadow.approval_classification : null,
+            shadow_data_confidence: shadow?.status === 'CURRENT' && (!shadow.apply_status || shadow.apply_status === 'NOT_APPLIED') ? shadow.data_confidence : null,
             participating_workers: participating,
           };
         });
