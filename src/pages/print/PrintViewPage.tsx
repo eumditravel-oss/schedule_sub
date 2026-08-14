@@ -243,6 +243,7 @@ export const PrintViewPage: React.FC = () => {
             lang={lang}
             viewerName={viewerName}
             referenceDate={referenceDate}
+            comparison={comparison}
           />
         ) : (
           <div className="p-4 text-rose-600">{lang === 'ko' ? '선택된 프로젝트가 없습니다.' : 'Chưa chọn dự án.'}</div>
