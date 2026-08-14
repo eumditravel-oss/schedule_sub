@@ -170,6 +170,37 @@ export const api = {
     const res = await apiFetch('/api/auth/pilot/employees', { headers: { 'Content-Type': 'application/json' } });
     return handleResponse<Worker[]>(res);
   },
+  async getManagerOperations(localWorkDate?: string): Promise<any> {
+    const params = localWorkDate ? `?local_work_date=${encodeURIComponent(localWorkDate)}` : '';
+    const res = await fetch(`/api/v3/manager/operations/today${params}`);
+    return handleResponse<any>(res);
+  },
+  async getManagerNotifications(filters: Record<string, string> = {}): Promise<any> {
+    const params = new URLSearchParams(filters);
+    const res = await fetch(`/api/v3/manager/notifications?${params.toString()}`);
+    return handleResponse<any>(res);
+  },
+  async markManagerNotificationRead(eventId: string): Promise<any> {
+    const res = await fetch(`/api/v3/manager/notifications/${encodeURIComponent(eventId)}/read`, { method: 'POST', headers: withIdempotencyKey() });
+    return handleResponse<any>(res);
+  },
+  async markAllManagerNotificationsRead(): Promise<any> {
+    const res = await fetch('/api/v3/manager/notifications/read-all', { method: 'POST', headers: withIdempotencyKey() });
+    return handleResponse<any>(res);
+  },
+  async reviewManagerOvertime(candidateId: string, decision: 'approve'|'reject', reason?: string): Promise<any> {
+    const res = await fetch(`/api/v3/manager/overtime/${encodeURIComponent(candidateId)}/${decision}`, { method: 'POST', headers: withIdempotencyKey(), body: JSON.stringify({ reason }) });
+    return handleResponse<any>(res);
+  },
+  async reviewManagerCorrection(requestId: string, decision: 'approve'|'reject', reason?: string): Promise<any> {
+    const res = await fetch(`/api/v3/manager/corrections/${encodeURIComponent(requestId)}/${decision}`, { method: 'POST', headers: withIdempotencyKey(), body: JSON.stringify({ reason }) });
+    return handleResponse<any>(res);
+  },
+  async getManagerDigest(localWorkDate?: string): Promise<any> {
+    const params = localWorkDate ? `?local_work_date=${encodeURIComponent(localWorkDate)}` : '';
+    const res = await fetch(`/api/v3/manager/daily-digest${params}`);
+    return handleResponse<any>(res);
+  },
   async getDependencies(projectId?: string, status?: string): Promise<{ dependencies: TaskDependency[]; permissions: { canReview: boolean; readOnly: boolean } }> {
     const params = new URLSearchParams();
     if (projectId) params.set('project_id', projectId);

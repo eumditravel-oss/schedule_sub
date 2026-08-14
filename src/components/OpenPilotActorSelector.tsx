@@ -33,6 +33,11 @@ export function OpenPilotActorSelector() {
         >
           {workers.map((worker) => <option key={worker.id} value={worker.id}>{worker.name} · {worker.access_role}</option>)}
         </select>
+        {workers.find((worker) => worker.id === session.actor.employeeId)?.can_manage_schedule_engine === 1 && (
+          <a href="/manager/operations" className="rounded border border-amber-500 bg-white px-2 py-1 font-semibold text-amber-800">
+            운영 현황
+          </a>
+        )}
       </label>
     </div>
   );
