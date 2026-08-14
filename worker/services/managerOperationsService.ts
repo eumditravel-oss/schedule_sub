@@ -3,7 +3,7 @@ import { ShadowScheduleError, enqueueShadowRecalculation } from './shadowSchedul
 
 type ManagerActor = { worker: any; canManage: boolean; canRead: boolean };
 
-async function queryStage<T>(stage: string, operation: () => Promise<T>): Promise<T> {
+async function queryStage(stage: string, operation: () => Promise<any>): Promise<any> {
   try { return await operation(); }
   catch { throw new ShadowScheduleError('MANAGER_DASHBOARD_QUERY_FAILED', 500, { stage }); }
 }
