@@ -2009,7 +2009,7 @@ async function validateAndNormalizeTaskAssigneesServer(
               foundation_progress: foundation,
             } : {}),
             conflict_count,
-            shadow_status: shadow?.status || 'NONE',
+            shadow_status: shadow && shadow.status === 'CURRENT' && (!shadow.apply_status || shadow.apply_status === 'NOT_APPLIED') ? 'CURRENT' : shadow ? 'STALE' : 'NONE',
             shadow_is_fresh: shadow?.status === 'CURRENT' && (!shadow.apply_status || shadow.apply_status === 'NOT_APPLIED'),
             shadow_forecast_start_date: shadow?.status === 'CURRENT' && (!shadow.apply_status || shadow.apply_status === 'NOT_APPLIED') ? shadow.shadow_forecast_start_date : null,
             shadow_forecast_end_date: shadow?.status === 'CURRENT' && (!shadow.apply_status || shadow.apply_status === 'NOT_APPLIED') ? shadow.shadow_forecast_end_date : null,
