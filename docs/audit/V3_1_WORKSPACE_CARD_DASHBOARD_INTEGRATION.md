@@ -5,7 +5,10 @@ Repository: `F:/Schedule`
 Source branch: `codex/v31-unified-web`  
 Workspace branch: `codex/v31-workspace-card-dashboard`  
 Base SHA before this scope: `ee50d2ec7fd9835baf3ad40c9780723c9da09b87`  
+Final branch SHA: `21d2c3941d167c382f94889ce04178532c79c2d5`  
 Pilot: `https://concost-dev-scheduler-pilot.eumditravel.workers.dev`  
+Pilot Worker version: `9eb27972-b921-406c-ad32-88f007eb9ac0`  
+Pilot build SHA: `21d2c3941d167c382f94889ce04178532c79c2d5`  
 Production: unchanged
 
 ## Scope and safety boundary
@@ -154,4 +157,4 @@ PRODUCTION: UNCHANGED
 READY_FOR_V31_CARD_DASHBOARD_GITHUB_MERGE: YES
 ```
 
-Merge is intentionally not performed by this task. The branch and Pilot SHA must be recorded in the release handoff after the final Pilot deployment of this branch.
+Merge is intentionally not performed by this task. The final Pilot deployment and full SHA above are the traceable release handoff for this branch.
