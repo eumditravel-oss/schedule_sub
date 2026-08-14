@@ -116,19 +116,17 @@ export async function getManagerOperations(db: any, actorContext: ActorContextSe
   const date = localDate(requestedDate);
   const visibleIds = await visibleEmployeeIds(db, actor);
   await queryStage('notifications.sync', () => syncManagerNotifications(db, { localDate: date }));
-  const [workers, worklogs, capacities, actuals, shadows, approvals, overtime, corrections, unread] = await Promise.all([
-    queryStage('workers', () => db.prepare(`SELECT id,name,country_code,access_role,ui_language FROM workers WHERE is_active=1 ORDER BY sort_order,name`).all()),
-    queryStage('worklogs', () => db.prepare(`SELECT * FROM daily_worklogs WHERE local_work_date=?`).bind(date).all()),
-    queryStage('capacity', () => db.prepare(`SELECT employee_id,SUM(adjustment_minutes) AS adjustment_minutes FROM employee_capacity_events WHERE local_work_date=? AND approval_status IN ('EFFECTIVE','APPROVED') GROUP BY employee_id`).bind(date).all()),
-    queryStage('actuals', () => db.prepare(`SELECT employee_id,SUM(approved_actual_minutes) AS actual_minutes,MAX(progress_after) AS progress FROM task_actual_contributions WHERE local_work_date=? AND is_effective=1 GROUP BY employee_id`).bind(date).all()),
-    queryStage('shadow', () => db.prepare(`SELECT st.employee_id,sv.project_id,sv.approval_classification,sv.status,sv.schedule_variance_workdays,sv.shadow_forecast_end_date,sv.official_forecast_end_date
-      FROM shadow_schedule_tasks st JOIN shadow_schedule_versions sv ON sv.shadow_version_id=st.shadow_version_id
-      WHERE sv.status='CURRENT'`).all()),
-    queryStage('approvals', () => db.prepare(`SELECT * FROM forecast_approval_requests WHERE status='PENDING' ORDER BY requested_at DESC`).all()),
-    queryStage('overtime', () => db.prepare(`SELECT * FROM overtime_candidates WHERE approval_status='PENDING_REVIEW' ORDER BY created_at DESC`).all()),
-    queryStage('corrections', () => db.prepare(`SELECT * FROM worklog_correction_requests WHERE status='PENDING_REVIEW' ORDER BY created_at DESC`).all()),
-    queryStage('unread', () => db.prepare(`SELECT COUNT(*) AS count FROM notification_recipients WHERE recipient_employee_id=? AND read_at IS NULL`).bind(actor.worker.id).first()),
-  ]);
+  const workers = await queryStage('workers', () => db.prepare(`SELECT id,name,country_code,access_role,ui_language FROM workers WHERE is_active=1 ORDER BY sort_order,name`).all());
+  const worklogs = await queryStage('worklogs', () => db.prepare(`SELECT * FROM daily_worklogs WHERE local_work_date=?`).bind(date).all());
+  const capacities = await queryStage('capacity', () => db.prepare(`SELECT employee_id,SUM(adjustment_minutes) AS adjustment_minutes FROM employee_capacity_events WHERE local_work_date=? AND approval_status IN ('EFFECTIVE','APPROVED') GROUP BY employee_id`).bind(date).all());
+  const actuals = await queryStage('actuals', () => db.prepare(`SELECT employee_id,SUM(approved_actual_minutes) AS actual_minutes,MAX(progress_after) AS progress FROM task_actual_contributions WHERE local_work_date=? AND is_effective=1 GROUP BY employee_id`).bind(date).all());
+  const shadows = await queryStage('shadow', () => db.prepare(`SELECT st.employee_id,sv.project_id,sv.approval_classification,sv.status,sv.schedule_variance_workdays,sv.shadow_forecast_end_date,sv.official_forecast_end_date
+    FROM shadow_schedule_tasks st JOIN shadow_schedule_versions sv ON sv.shadow_version_id=st.shadow_version_id
+    WHERE sv.status='CURRENT'`).all());
+  const approvals = await queryStage('approvals', () => db.prepare(`SELECT * FROM forecast_approval_requests WHERE status='PENDING' ORDER BY requested_at DESC`).all());
+  const overtime = await queryStage('overtime', () => db.prepare(`SELECT * FROM overtime_candidates WHERE approval_status='PENDING_REVIEW' ORDER BY created_at DESC`).all());
+  const corrections = await queryStage('corrections', () => db.prepare(`SELECT * FROM worklog_correction_requests WHERE status='PENDING_REVIEW' ORDER BY created_at DESC`).all());
+  const unread = await queryStage('unread', () => db.prepare(`SELECT COUNT(*) AS count FROM notification_recipients WHERE recipient_employee_id=? AND read_at IS NULL`).bind(actor.worker.id).first());
   const by = (rows: any[], key: string) => new Map((rows || []).map((r: any) => [r[key], r]));
   const wl = by(worklogs.results || [], 'employee_id'); const cap = by(capacities.results || [], 'employee_id'); const actual = by(actuals.results || [], 'employee_id');
   const shadow = by(shadows.results || [], 'employee_id');
