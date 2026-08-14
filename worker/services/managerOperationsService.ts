@@ -65,7 +65,13 @@ async function createNotification(db: any, input: any) {
       input.employee_id || null, input.project_id || null, input.local_work_date || null,
       input.dedupe_key, JSON.stringify(input.payload || {}),
     );
-  const rows = ids.map((id: string) => db.prepare(`INSERT OR IGNORE INTO notification_recipients(event_id,recipient_employee_id) VALUES (?,?)`).bind(eventId, id));
+  // `dedupe_key` is unique.  When a previous sync already inserted this event,
+  // the random eventId above is deliberately not persisted.  Linking recipients
+  // with that random id would then violate notification_recipients.event_id's FK.
+  // Resolve the persisted event inside the same D1 batch instead, so a duplicate
+  // sync remains idempotent and can still fan out to newly added subscribers.
+  const rows = ids.map((id: string) => db.prepare(`INSERT OR IGNORE INTO notification_recipients(event_id,recipient_employee_id)
+    SELECT event_id, ? FROM notification_events WHERE dedupe_key=?`).bind(id, input.dedupe_key));
   const result = await db.batch([event, ...rows]);
   const inserted = Number(result[0]?.meta?.changes || 0) === 1;
   return { created: inserted, recipients: inserted ? ids.length : 0 };

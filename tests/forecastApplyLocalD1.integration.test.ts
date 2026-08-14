@@ -7,7 +7,7 @@ import {
   rejectShadowForecast,
   restoreForecastVersion,
 } from '../worker/services/forecastApplyService';
-import { getCurrentProjectShadow, officialDataFingerprint } from '../worker/services/shadowScheduleService';
+import { enqueueShadowRecalculation, getCurrentProjectShadow, officialDataFingerprint } from '../worker/services/shadowScheduleService';
 
 const persistPath = process.env.FORECAST_LOCAL_D1_PERSIST_TO;
 const configPath = process.env.FORECAST_LOCAL_WRANGLER_CONFIG;
@@ -342,5 +342,15 @@ describe.runIf(enabled)('Checkpoint 3B D1 append-only Forecast integration', { t
     expect(current.shadow_version).toBeNull();
     expect(current.stale_shadow_version).toMatchObject({ shadow_version_id: 'shadow-a', status: 'STALE', stale_reason: 'SHADOW_AUTHORITY_STALE' });
     expect((await getCurrentProjectShadow(db, managerActor, 'project-a')).run).toBeNull();
+  });
+
+  it('stales pending approval requests when a new worklog invalidates their Shadow', async () => {
+    const db = await fixture({ classification: 'APPROVAL_REQUIRED' });
+    await enqueueShadowRecalculation(db, {
+      worklogId: 'worklog-new', revisionId: 'revision-new', projectId: 'project-a',
+      employeeId: 'manager', requestedBy: 'manager', idempotencyKey: 'stale-approval-enqueue',
+    });
+    expect(await db.prepare(`SELECT status FROM forecast_approval_requests WHERE shadow_version_id='shadow-a'`).first<any>())
+      .toMatchObject({ status: 'STALE' });
   });
 });
