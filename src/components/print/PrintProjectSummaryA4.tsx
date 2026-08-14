@@ -25,6 +25,7 @@ export interface PrintProjectSummaryA4Props {
   lang?: 'ko' | 'vi';
   viewerName?: string;
   referenceDate?: string;
+  comparison?: any;
 }
 
 export const PrintProjectSummaryA4: React.FC<PrintProjectSummaryA4Props> = ({
@@ -36,6 +37,7 @@ export const PrintProjectSummaryA4: React.FC<PrintProjectSummaryA4Props> = ({
   lang = 'ko',
   viewerName,
   referenceDate = new Date().toISOString().substring(0, 10),
+  comparison,
 }) => {
   const isKo = lang === 'ko';
   const workerMap = new Map(workers.map((w) => [w.id, w.name]));
@@ -177,6 +179,8 @@ export const PrintProjectSummaryA4: React.FC<PrintProjectSummaryA4Props> = ({
             colorMode={colorMode}
             lang={lang}
           />
+
+          {comparison && <div data-testid="print-comparison-provenance" className="mb-3 grid grid-cols-5 gap-2 border border-slate-200 rounded bg-slate-50 p-2 text-[10px] font-semibold"><span>Baseline {comparison.baseline?.version ? `V${comparison.baseline.version}` : '—'}<br /><b>{comparison.baseline?.end || '—'}</b></span><span>Official {comparison.officialForecast?.version == null ? '—' : `V${comparison.officialForecast.version}`}<br /><b>{comparison.officialForecast?.end || '—'}</b></span><span>Actual {comparison.actual?.progress ?? 0}%<br /><b>{comparison.actual?.provenance?.join(', ') || 'NONE'}</b></span><span>Shadow {comparison.shadow?.fresh ? 'FRESH' : comparison.shadow?.status || 'NONE'}<br /><b>{comparison.shadow?.fresh ? comparison.shadow.end || '—' : '—'}</b></span><span>As of<br /><b>{comparison.asOf}</b></span></div>}
 
           {/* Executive Overview KPI Grid */}
           <div className="grid grid-cols-4 gap-2.5 mb-3">

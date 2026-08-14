@@ -470,6 +470,12 @@ export const api = {
     return handleResponse<{ project: Project; tasks: Task[]; task_groups: TaskGroup[] }>(res);
   },
 
+  async getScheduleComparison(projectId: string, asOf?: string): Promise<any> {
+    const params = asOf ? `?as_of=${encodeURIComponent(asOf)}` : '';
+    const res = await fetch(`/api/v3/projects/${encodeURIComponent(projectId)}/schedule-comparison${params}`);
+    return handleResponse<any>(res);
+  },
+
   async getProjectProgressFoundation(id: string, date?: string): Promise<ProjectProgressFoundation> {
     const query = date ? `?date=${encodeURIComponent(date)}` : '';
     const res = await fetch(`/api/projects/${id}/progress-foundation${query}`);

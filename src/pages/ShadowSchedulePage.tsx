@@ -29,6 +29,7 @@ import {
 } from '../types';
 import { usePilotAuth } from '../auth/PilotAuthContext';
 import { LanguageSelector } from '../components/common/LanguageSelector';
+import { ScheduleComparisonPanel } from '../components/gantt/ScheduleComparisonPanel';
 
 const parseCodes = (value?: string | null): string[] => {
   if (!value) return [];
@@ -172,6 +173,7 @@ export function ShadowSchedulePage() {
   const [dependencies, setDependencies] = useState<TaskDependency[]>([]);
   const [permissions, setPermissions] = useState({ canReview: false, readOnly: true });
   const [shadow, setShadow] = useState<ShadowRunView | null>(null);
+  const [comparison, setComparison] = useState<any | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [dependencyLagMinutes, setDependencyLagMinutes] = useState('0');
   const [selectedTaskId, setSelectedTaskId] = useState('');
@@ -185,15 +187,17 @@ export function ShadowSchedulePage() {
 
   const load = async () => {
     setError('');
-    const [detail, workerList, dependencyList, currentShadow, priorities, krHolidays, vnHolidays, calendarOverrides] = await Promise.all([
+    const [detail, workerList, dependencyList, currentShadow, priorities, krHolidays, vnHolidays, calendarOverrides, comparisonData] = await Promise.all([
       api.getProjectDetail(projectId), api.getWorkers(), api.getDependencies(projectId),
       api.getCurrentProjectShadow(projectId), api.getProjectPriorities(),
       api.getHolidays('KR', 2026), api.getHolidays('VN', 2026), api.getCalendarOverrides(),
+      api.getScheduleComparison(projectId).catch(() => null),
     ]);
     setProject(detail.project); setTasks(detail.tasks); setGroups(detail.task_groups);
     setWorkers(workerList); setDependencies(dependencyList.dependencies); setPermissions(dependencyList.permissions);
     setHolidays([...krHolidays, ...vnHolidays]); setOverrides(calendarOverrides);
     setShadow(currentShadow); setSelectedTaskId((value) => value || detail.tasks[0]?.id || '');
+    setComparison(comparisonData || null);
     setCurrentWorkerState(workerList.find((worker) => worker.id === session?.actor.employeeId) || null);
     const priority = priorities.priorities?.find((item: any) => item.project_id === projectId);
     if (priority) setPriorityRank(String(priority.priority_rank));
@@ -249,6 +253,7 @@ export function ShadowSchedulePage() {
         {isStale && <section data-testid="shadow-stale-warning" className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm font-bold text-amber-900"><AlertTriangle className="mr-2 inline h-4 w-4" />{lang === 'vi' ? 'Kết quả này dựa trên phiên bản nhật ký công việc trước và không khớp với dữ liệu hiện tại. Đang chờ tính toán lại.' : '이 변경안은 이전 업무일지 Revision을 기준으로 계산되어 현재 데이터와 일치하지 않습니다. 재계산 대기 중입니다.'}</section>}
         {validationIssues.length > 0 && <section data-testid="shadow-validation-errors" className="rounded-xl border border-rose-300 bg-rose-50 p-4 text-sm font-bold text-rose-900"><AlertTriangle className="mr-2 inline h-4 w-4" />{validationIssues.map((issue: any) => issue.code).join(', ')}</section>}
         {error && <section className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs font-bold text-rose-700">{error}</section>}
+        {comparison && <ScheduleComparisonPanel comparison={comparison} />}
 
         <section className="grid gap-3 md:grid-cols-4 xl:grid-cols-8">
           {[

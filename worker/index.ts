@@ -109,6 +109,7 @@ import {
   syncManagerNotifications,
   listManagerHistory,
 } from './services/managerOperationsService';
+import { getScheduleComparison } from './services/scheduleComparisonService';
 
 export type WorkerEnv = Env & {
   KASI_HOLIDAY_API_KEY?: string;
@@ -1941,16 +1942,19 @@ async function validateAndNormalizeTaskAssigneesServer(
         const result = await bound.all();
 
         const calendarBatch = await fetchCalendarBatchData(db);
-        const [allActiveProjectsRes, allActiveTasksRes, allDailyStatusesRes, ackRes] = await Promise.all([
+        const [allActiveProjectsRes, allActiveTasksRes, allDailyStatusesRes, ackRes, shadowVersionsRes] = await Promise.all([
           db.prepare(`SELECT * FROM projects WHERE status = 'ACTIVE'`).all(),
           db.prepare(`SELECT * FROM tasks`).all(),
           db.prepare(`SELECT task_id, work_date, status FROM daily_status`).all(),
           db.prepare(`SELECT * FROM conflict_acknowledgements`).all().catch(() => ({ results: [] })),
+          db.prepare(`SELECT project_id,shadow_version_id,status,shadow_forecast_start_date,shadow_forecast_end_date,approval_classification,data_confidence,created_at FROM shadow_schedule_versions ORDER BY created_at DESC,shadow_version_number DESC`).all().catch(() => ({ results: [] })),
         ]);
 
         const allActiveProjects = allActiveProjectsRes.results || [];
         const allActiveTasks = allActiveTasksRes.results || [];
         const ackRecords = ackRes.results || [];
+        const latestShadowMap = new Map<string, any>();
+        for (const shadow of (shadowVersionsRes.results || [])) if (!latestShadowMap.has(shadow.project_id)) latestShadowMap.set(shadow.project_id, shadow);
         let foundationMap = new Map<string, any>();
         try {
           foundationMap = await getAllProjectProgressFoundationsServer(db, getTodayStrForWorkerServer(null));
@@ -1977,6 +1981,7 @@ async function validateAndNormalizeTaskAssigneesServer(
             dailyStatusMap
           );
           const foundation = foundationMap.get(prj.id) || null;
+          const shadow = latestShadowMap.get(prj.id) || null;
 
           let conflict_count = 0;
           if (prj.status === 'ACTIVE') {
@@ -2004,6 +2009,12 @@ async function validateAndNormalizeTaskAssigneesServer(
               foundation_progress: foundation,
             } : {}),
             conflict_count,
+            shadow_status: shadow?.status || 'NONE',
+            shadow_is_fresh: shadow?.status === 'CURRENT',
+            shadow_forecast_start_date: shadow?.status === 'CURRENT' ? shadow.shadow_forecast_start_date : null,
+            shadow_forecast_end_date: shadow?.status === 'CURRENT' ? shadow.shadow_forecast_end_date : null,
+            shadow_approval_classification: shadow?.status === 'CURRENT' ? shadow.approval_classification : null,
+            shadow_data_confidence: shadow?.status === 'CURRENT' ? shadow.data_confidence : null,
             participating_workers: participating,
           };
         });
@@ -2063,6 +2074,17 @@ async function validateAndNormalizeTaskAssigneesServer(
 
         const created = await db.prepare(`SELECT * FROM projects WHERE id = ?`).bind(id).first();
         return jsonResponse(created, 201);
+      }
+
+      // 4. GET /api/projects/:id/detail
+      const comparisonMatch = path.match(/^\/api\/v3\/projects\/([^/]+)\/schedule-comparison$/);
+      if (method === 'GET' && comparisonMatch) {
+        const comparison = await getScheduleComparison(db, {
+          projectId: decodeURIComponent(comparisonMatch[1]),
+          asOf: url.searchParams.get('as_of'),
+        });
+        if (!comparison) return errorResponse('Project not found.', 404, 'PROJECT_NOT_FOUND');
+        return jsonResponse(comparison);
       }
 
       // 4. GET /api/projects/:id/detail

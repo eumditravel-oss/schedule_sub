@@ -66,6 +66,7 @@ export const PrintViewPage: React.FC = () => {
   const [krHolidays, setKrHolidays] = useState<CountryHoliday[]>([]);
   const [vnHolidays, setVnHolidays] = useState<CountryHoliday[]>([]);
   const [calendarOverrides, setCalendarOverrides] = useState<CalendarOverride[]>([]);
+  const [comparison, setComparison] = useState<any | null>(null);
 
   const viewerName = session?.actor.displayName || 'Authenticated Viewer';
   const referenceDate = getKoreaDateString();
@@ -155,6 +156,7 @@ export const PrintViewPage: React.FC = () => {
           setCurrentProject(detail.project);
           setTasks(detail.tasks);
           setTaskGroups(detail.task_groups);
+          setComparison(await api.getScheduleComparison(projectId).catch(() => null));
 
           try {
             const allocs = await api.getProjectWorkerAllocations(projectId);
@@ -302,6 +304,7 @@ export const PrintViewPage: React.FC = () => {
             lang={lang}
             viewerName={viewerName}
             referenceDate={referenceDate}
+            comparison={comparison}
           />
         ) : (
           <div className="p-4 text-rose-600">{lang === 'ko' ? '선택된 프로젝트가 없습니다.' : 'Chưa chọn dự án.'}</div>
