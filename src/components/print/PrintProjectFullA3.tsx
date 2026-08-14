@@ -22,6 +22,7 @@ export interface PrintProjectFullA3Props {
   lang?: 'ko' | 'vi';
   viewerName?: string;
   referenceDate?: string;
+  comparison?: any;
 }
 
 export const PrintProjectFullA3: React.FC<PrintProjectFullA3Props> = ({
@@ -36,10 +37,13 @@ export const PrintProjectFullA3: React.FC<PrintProjectFullA3Props> = ({
   lang = 'ko',
   viewerName,
   referenceDate = new Date().toISOString().substring(0, 10),
+  comparison,
 }) => {
   const isKo = lang === 'ko';
   const workerMap = new Map(workers.map((w) => [w.id, w.name]));
   const allHolidays = [...krHolidays, ...vnHolidays];
+  const forecastStart = (task: Task) => task.official_forecast_start || task.start_date;
+  const forecastEnd = (task: Task) => task.official_forecast_end || task.end_date;
 
   const startDate = project.start_date ? parseISO(project.start_date) : new Date();
   const endDate = project.end_date ? parseISO(project.end_date) : addDays(startDate, 29);
@@ -64,7 +68,7 @@ export const PrintProjectFullA3: React.FC<PrintProjectFullA3Props> = ({
   // phases from being repeated on every subsequent 30-day page.
   const populatedBandPages = allBandPages.filter((band) =>
     tasks.some((task) => Boolean(
-      task.start_date && task.end_date && parseISO(task.start_date) <= band.end && parseISO(task.end_date) >= band.start
+      forecastStart(task) && forecastEnd(task) && parseISO(forecastStart(task)!) <= band.end && parseISO(forecastEnd(task)!) >= band.start
     ))
   );
   const bandPages = populatedBandPages.length > 0 ? populatedBandPages : allBandPages.slice(0, 1);
@@ -92,7 +96,7 @@ export const PrintProjectFullA3: React.FC<PrintProjectFullA3Props> = ({
           daysArray.push(addDays(band.start, i));
         }
         const bandTasks = tasks.filter((task) => Boolean(
-          task.start_date && task.end_date && parseISO(task.start_date) <= band.end && parseISO(task.end_date) >= band.start
+          forecastStart(task) && forecastEnd(task) && parseISO(forecastStart(task)!) <= band.end && parseISO(forecastEnd(task)!) >= band.start
         ));
         const dayColumnsWidth = getRemainingColumnPercent(groupWidth + taskNameWidth + picWidth + periodWidth + statusWidth);
 
@@ -138,6 +142,7 @@ export const PrintProjectFullA3: React.FC<PrintProjectFullA3Props> = ({
                   </span>
                 </div>
               </div>
+              {comparison && bandIdx === 0 && <div data-testid="print-comparison-provenance" className="mb-2 grid grid-cols-5 gap-2 border border-slate-200 rounded bg-white p-2 text-[9px] font-semibold"><span>Baseline<br /><b>{comparison.baseline?.end || '—'}</b></span><span>Official V{comparison.officialForecast?.version ?? '—'}<br /><b>{comparison.officialForecast?.end || '—'}</b></span><span>Actual {comparison.actual?.progress ?? 0}%<br /><b>{comparison.actual?.provenance?.join(', ') || 'NONE'}</b></span><span>Shadow {comparison.shadow?.fresh ? 'FRESH' : comparison.shadow?.status || 'NONE'}<br /><b>{comparison.shadow?.fresh ? comparison.shadow.end || '—' : '—'}</b></span><span>As of<br /><b>{comparison.asOf}</b></span></div>}
 
               {/* Detailed Gantt Matrix Table */}
               <div className="w-full overflow-x-auto mb-2 border border-slate-300 rounded">
@@ -201,8 +206,8 @@ export const PrintProjectFullA3: React.FC<PrintProjectFullA3Props> = ({
                         const taskPic = picWorker ? picWorker.name : task.worker_name || '-';
                         const tName = isKo ? (task.task_name_ko || task.task_name) : (task.task_name_vi || task.task_name);
 
-                        const taskStart = task.start_date ? parseISO(task.start_date) : null;
-                        const taskEnd = task.end_date ? parseISO(task.end_date) : null;
+                        const taskStart = forecastStart(task) ? parseISO(forecastStart(task)!) : null;
+                        const taskEnd = forecastEnd(task) ? parseISO(forecastEnd(task)!) : null;
 
                         return (
                           <tr key={task.id} className="border-b border-slate-200 hover:bg-slate-50">
@@ -222,7 +227,7 @@ export const PrintProjectFullA3: React.FC<PrintProjectFullA3Props> = ({
                               {taskPic}
                             </td>
                             <td className="border-r border-slate-300 px-1 py-1 text-center font-mono text-[9px] text-slate-600">
-                              {task.start_date?.substring(5)} ~ {task.end_date?.substring(5)}
+                              {forecastStart(task)?.substring(5)} ~ {forecastEnd(task)?.substring(5)}
                             </td>
                             <td className="border-r border-slate-300 px-1 py-1 text-center">
                               <span

@@ -1210,6 +1210,12 @@ export const ProjectOverviewPage: React.FC = () => {
                                       {lang === 'vi' ? 'Cơ sở chuyển đổi' : '전환 기준 데이터'}
                                     </span>
                                   )}
+                                  {project.shadow_status === 'STALE' && (
+                                    <span data-testid={`project-shadow-stale-${project.id}`} className="shrink-0 text-[9px] font-extrabold text-amber-800 bg-amber-50 px-1 py-0.5 rounded border border-amber-300">{lang === 'vi' ? 'Shadow cũ' : 'Shadow 재계산 필요'}</span>
+                                  )}
+                                  {project.shadow_is_fresh && project.shadow_forecast_end_date && (
+                                    <span data-testid={`project-shadow-fresh-${project.id}`} className="shrink-0 text-[9px] font-extrabold text-violet-700 bg-violet-50 px-1 py-0.5 rounded border border-violet-200">{lang === 'vi' ? `Shadow ${project.shadow_forecast_end_date.slice(5)}` : `Shadow ${project.shadow_forecast_end_date.slice(5)}`}</span>
+                                  )}
                                   {!isAllocationsLoading ? (
                                     <ProjectReadinessPopover
                                       readiness={calculateProjectReadiness(project, allTasks, allocationsMap[project.id] || [], workers, [...krHolidays, ...vnHolidays], calendarOverrides)}

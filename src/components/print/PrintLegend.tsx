@@ -8,6 +8,7 @@ export interface PrintLegendProps {
   lang?: 'ko' | 'vi';
   showGanttStatuses?: boolean;
   showCalendarStates?: boolean;
+  showComparisonLayers?: boolean;
 }
 
 export const PrintLegend: React.FC<PrintLegendProps> = ({
@@ -15,6 +16,7 @@ export const PrintLegend: React.FC<PrintLegendProps> = ({
   lang = 'ko',
   showGanttStatuses = true,
   showCalendarStates = true,
+  showComparisonLayers = true,
 }) => {
   const isKo = lang === 'ko';
 
@@ -38,6 +40,7 @@ export const PrintLegend: React.FC<PrintLegendProps> = ({
   return (
     <div className="print-legend w-full bg-slate-50 border border-slate-200 rounded p-2 text-[10px] text-slate-700">
       <div className="flex flex-wrap items-center justify-between gap-y-1.5 gap-x-4">
+        {showComparisonLayers && <div data-testid="print-comparison-layer-legend" className="flex flex-wrap items-center gap-x-3 gap-y-1 basis-full border-b border-slate-200 pb-1.5"><span className="font-bold text-slate-900 pr-1 border-r border-slate-300">{isKo ? '비교 레이어:' : 'Layers:'}</span><span><i className="mr-1 inline-block h-2.5 w-3.5 rounded border border-dashed border-slate-500 bg-slate-200" />Baseline</span><span><i className="mr-1 inline-block h-2.5 w-3.5 rounded border border-blue-600 bg-blue-500" />Official</span><span><i className="mr-1 inline-block h-2.5 w-3.5 rounded border border-emerald-700 bg-emerald-500" />Actual evidence</span><span><i className="mr-1 inline-block h-2.5 w-3.5 rounded border-2 border-dashed border-violet-600 bg-violet-200" />Shadow fresh only</span></div>}
         {/* Calendar Off/Leave Tokens */}
         {showCalendarStates && <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
           <span className="font-bold text-slate-900 pr-1 border-r border-slate-300">

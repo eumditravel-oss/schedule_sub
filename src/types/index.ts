@@ -283,6 +283,12 @@ export interface Project {
   legacy_v3_difference?: number;
   difference_reason?: string;
   foundation_progress?: ProjectProgressFoundation;
+  shadow_status?: 'CURRENT' | 'STALE' | 'INVALIDATED' | 'BLOCKED' | 'EXPIRED' | 'NONE';
+  shadow_is_fresh?: boolean;
+  shadow_forecast_start_date?: string | null;
+  shadow_forecast_end_date?: string | null;
+  shadow_approval_classification?: ShadowApprovalClassification | null;
+  shadow_data_confidence?: ShadowDataConfidence | null;
 }
 
 export type TaskGroupColorKey = 'BLUE' | 'GREEN' | 'ORANGE' | 'VIOLET' | 'SLATE';

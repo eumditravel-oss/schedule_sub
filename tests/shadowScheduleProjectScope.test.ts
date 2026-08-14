@@ -42,4 +42,13 @@ describe('Shadow project context selection', () => {
     expect(view.impacts).toEqual([]);
     expect(view.diffs).toEqual([]);
   });
+
+  it('does not expose stale task bars as a current candidate', () => {
+    const view = selectProjectShadowView(shadow, 'project-b');
+    expect(view.projectVersion?.status).toBe('STALE');
+    expect(view.tasks).toEqual([]);
+    expect(view.allocations).toEqual([]);
+    expect(view.diffs).toEqual([]);
+    expect(view.impacts.map((row: any) => row.primary_project_id)).toEqual(['project-b']);
+  });
 });

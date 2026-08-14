@@ -38,6 +38,7 @@ import { ProjectReadinessPopover } from '../components/common/ProjectReadinessPo
 import { calculateProjectReadiness } from '../utils/projectReadiness';
 import { resolvePrimaryWorkerId } from '../utils/crossProjectConflictDetector';
 import { calculateDateVarianceDays, formatVarianceBadgeText } from '../utils/scheduleBaseline';
+import { ScheduleComparisonPanel } from '../components/gantt/ScheduleComparisonPanel';
 
 function resolvePrimaryWorkerObj(taskItem: Task, workers: Worker[]): Worker | null {
   if (!taskItem || !Array.isArray(workers)) return null;
@@ -932,6 +933,7 @@ export const ProjectDetailPage: React.FC = () => {
   const [countryHolidays, setCountryHolidays] = useState<CountryHoliday[]>([]);
   const [calendarOverrides, setCalendarOverrides] = useState<CalendarOverride[]>([]);
   const [loading, setLoading] = useState(true);
+  const [comparison, setComparison] = useState<any | null>(null);
 
   // Mobile View Mode
   const [mobileViewMode, setMobileViewMode] = useState<'SUMMARY' | 'WEEK' | 'GANTT'>(() => {
@@ -1212,14 +1214,16 @@ export const ProjectDetailPage: React.FC = () => {
     if (!projectId) return;
     try {
       setLoading(true);
-      const [data, allocData] = await Promise.all([
+      const [data, allocData, comparisonData] = await Promise.all([
         api.getProjectDetail(projectId),
         api.getProjectWorkerAllocations(projectId),
+        api.getScheduleComparison(projectId).catch(() => null),
       ]);
       setProject(data.project);
       setTasks(data.tasks || []);
       setTaskGroups(data.task_groups || []);
       setAllocations(allocData || []);
+      setComparison(comparisonData || null);
     } catch (err: any) {
       alert(getLocalizedErrorMessage(err, t));
       navigate('/projects');
@@ -2141,6 +2145,7 @@ export const ProjectDetailPage: React.FC = () => {
 
       {/* Main Content Area */}
       <main className="flex-1 p-3 md:p-5 overflow-x-hidden flex flex-col">
+        {comparison && <div className="mb-4"><ScheduleComparisonPanel comparison={comparison} compact={isMobileView} /></div>}
         {isMobileView ? (
           /* Dedicated Mutually Exclusive Mobile & Fold Views */
           <div className="w-full flex-1 flex flex-col">
