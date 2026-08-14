@@ -27,6 +27,7 @@ describe('Checkpoint 6 schedule comparison read model', () => {
     expect(result.actual.provenance).toEqual(['NONE']);
     expect(result.actual.first_activity_date).toBeNull();
     expect(result.actual.latest_activity_date).toBeNull();
+    expect(result.taskRows[0].actual.activity_dates).toEqual([]);
     expect(result.shadow.fresh).toBe(false);
     expect(result.taskRows[0].shadow.start).toBeNull();
   });

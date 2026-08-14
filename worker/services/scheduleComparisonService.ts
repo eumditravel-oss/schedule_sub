@@ -65,7 +65,7 @@ export async function getScheduleComparison(db: any, options: ComparisonOptions)
   const project: any = await db.prepare(`SELECT * FROM projects WHERE id=?`).bind(options.projectId).first();
   if (!project) return null;
 
-  const [tasks, baselineProjects, baselineTasks, forecasts, forecastTasks, aggregates, contributions, completions, legacy, workers, holidays, overrides, shadowVersions] = await Promise.all([
+  const [tasks, baselineProjects, baselineTasks, forecasts, forecastTasks, aggregates, contributions, activityRows, completions, legacy, workers, holidays, overrides, shadowVersions] = await Promise.all([
     all(db, `SELECT * FROM tasks WHERE project_id=? ORDER BY task_sort_order ASC,start_date ASC,created_at ASC`, options.projectId),
     all(db, `SELECT * FROM project_baselines WHERE project_id=? ORDER BY version ASC`, options.projectId),
     all(db, `SELECT tb.* FROM task_baselines tb JOIN project_baselines pb ON pb.id=tb.baseline_id WHERE pb.project_id=? ORDER BY tb.task_id`, options.projectId),
@@ -73,6 +73,7 @@ export async function getScheduleComparison(db: any, options: ComparisonOptions)
     all(db, `SELECT svt.* FROM schedule_version_tasks svt JOIN schedule_versions sv ON sv.id=svt.version_id WHERE sv.project_id=? ORDER BY sv.version_number DESC,svt.task_id`, options.projectId),
     all(db, `SELECT * FROM task_actual_aggregates WHERE project_id=?`, options.projectId),
     all(db, `SELECT task_id,MIN(local_work_date) AS first_actual_date,MAX(local_work_date) AS latest_actual_date,SUM(approved_actual_minutes) AS approved_actual_minutes,MAX(progress_after) AS progress_after,GROUP_CONCAT(DISTINCT source_type) AS source_types FROM task_actual_contributions WHERE project_id=? AND is_effective=1 GROUP BY task_id`, options.projectId),
+    all(db, `SELECT task_id,local_work_date,source_type FROM task_actual_contributions WHERE project_id=? AND is_effective=1 ORDER BY local_work_date`, options.projectId),
     all(db, `SELECT * FROM task_completion_events WHERE project_id=? ORDER BY actual_end_date ASC,created_at ASC`, options.projectId),
     all(db, `SELECT * FROM task_actuals WHERE project_id=? ORDER BY task_id,created_at`, options.projectId),
     all(db, `SELECT * FROM workers WHERE is_active=1 ORDER BY sort_order,name`),
@@ -88,6 +89,12 @@ export async function getScheduleComparison(db: any, options: ComparisonOptions)
   const baselineTaskMap = new Map(baselineTasks.map((row: any) => [row.task_id, row]));
   const aggregateMap = new Map(aggregates.map((row: any) => [row.task_id, row]));
   const contributionMap = new Map(contributions.map((row: any) => [row.task_id, row]));
+  const activityMap = new Map<string, string[]>();
+  for (const activity of activityRows) {
+    const dates = activityMap.get(activity.task_id) || [];
+    if (activity.local_work_date && !dates.includes(activity.local_work_date)) dates.push(activity.local_work_date);
+    activityMap.set(activity.task_id, dates);
+  }
   const completionMap = new Map<string, any>();
   for (const event of completions) if (!completionMap.has(event.task_id)) completionMap.set(event.task_id, event);
   const legacyMap = new Map(legacy.filter((row: any) => row.source_type === 'LEGACY_BOOTSTRAP').map((row: any) => [row.task_id, row]));
@@ -118,7 +125,7 @@ export async function getScheduleComparison(db: any, options: ComparisonOptions)
       primary_worker_name: worker?.name || task.worker_name || null,
       baseline: { start: baseline?.baseline_start_date || task.baseline_start_date || task.start_date || null, end: baseline?.baseline_end_date || task.baseline_end_date || task.end_date || null, progress: Number(baseline?.baseline_progress || 0), version: baselineProject?.version ? Number(baselineProject.version) : null },
       official: { start: forecast?.forecast_start || task.start_date || null, end: forecast?.forecast_end || task.end_date || null, version_id: officialVersionId, version: official?.version_number == null ? null : Number(official.version_number) },
-      actual: { progress: Math.max(0, Math.min(100, actualProgress)), minutes: Number(contribution?.approved_actual_minutes || aggregate?.approved_actual_minutes || 0), first_activity_date: contribution?.first_actual_date || null, latest_activity_date: contribution?.latest_actual_date || null, completion_date: completion?.actual_end_date || null, provenance, legacy: legacyActual ? { source_type: legacyActual.source_type, source_detail: legacyActual.source_detail, cutover_date: legacyActual.cutover_date } : null },
+      actual: { progress: Math.max(0, Math.min(100, actualProgress)), minutes: Number(contribution?.approved_actual_minutes || aggregate?.approved_actual_minutes || 0), activity_dates: activityMap.get(task.id) || [], first_activity_date: contribution?.first_actual_date || null, latest_activity_date: contribution?.latest_actual_date || null, completion_date: completion?.actual_end_date || null, provenance, legacy: legacyActual ? { source_type: legacyActual.source_type, source_detail: legacyActual.source_detail, cutover_date: legacyActual.cutover_date } : null },
       comparison: { baseline_to_official_workdays: workdayDelta(baseline?.baseline_end_date || task.baseline_end_date || task.end_date, forecast?.forecast_end || task.end_date, worker, holidays, overrides) },
     };
   });
@@ -139,6 +146,8 @@ export async function getScheduleComparison(db: any, options: ComparisonOptions)
   const officialEnd = official?.project_forecast_end || project.end_date || null;
   const baselineEnd = baselineProject?.baseline_end_date || project.baseline_end_date || project.end_date || null;
   const shadowEnd = freshShadow?.shadow_forecast_end_date || null;
+  const baselineOfficialTaskDelta = taskRows.reduce((best: number, row: any) => Math.abs(Number(row.comparison.baseline_to_official_workdays || 0)) > Math.abs(best) ? Number(row.comparison.baseline_to_official_workdays || 0) : best, 0);
+  const officialShadowTaskDelta = taskRows.reduce((best: number, row: any) => row.comparison.official_to_shadow_workdays != null && Math.abs(Number(row.comparison.official_to_shadow_workdays)) > Math.abs(best) ? Number(row.comparison.official_to_shadow_workdays) : best, 0);
   return {
     project: { id: project.id, name: project.name, status: project.status },
     asOf,
@@ -147,7 +156,7 @@ export async function getScheduleComparison(db: any, options: ComparisonOptions)
     officialForecast: { start: official?.project_forecast_start || project.start_date || null, end: officialEnd, version_id: officialVersionId, version: official?.version_number == null ? null : Number(official.version_number) },
     actual: { progress: Number(foundation?.current_actual_overall_progress ?? taskRows.reduce((sum, row) => sum + row.actual.progress, 0) / Math.max(taskRows.length, 1)), first_activity_date: taskRows.map((row) => row.actual.first_activity_date).filter(Boolean).sort()[0] || null, latest_activity_date: taskRows.map((row) => row.actual.latest_activity_date).filter(Boolean).sort().pop() || null, completion_date: taskRows.map((row) => row.actual.completion_date).filter(Boolean).sort().pop() || null, provenance: Array.from(new Set(taskRows.map((row) => row.actual.provenance))) },
     shadow: { status: latestShadow?.status || 'NONE', fresh: Boolean(freshShadow), shadow_version_id: latestShadow?.shadow_version_id || null, run_id: latestShadow?.run_id || null, end: shadowEnd, approval_classification: freshShadow?.approval_classification || null, data_confidence: freshShadow?.data_confidence || null, stale_warning: latestShadow?.status === 'STALE' ? 'SHADOW_STALE' : null },
-    kpi: { baseline_progress: Number(foundation?.baseline_planned_progress_as_of_today ?? 0), actual_progress: Number(foundation?.current_actual_overall_progress ?? 0), progress_delta: Number(foundation?.progress_variance_percentage_point ?? 0), baseline_end: baselineEnd, official_end: officialEnd, baseline_to_official_workdays: foundation?.schedule_variance_workdays != null ? Number(foundation.schedule_variance_workdays) : workdayDelta(baselineEnd, officialEnd, workers[0], holidays, overrides), official_to_shadow_workdays: freshShadow ? workdayDelta(officialEnd, shadowEnd, workers[0], holidays, overrides) : null },
+    kpi: { baseline_progress: Number(foundation?.baseline_planned_progress_as_of_today ?? 0), actual_progress: Number(foundation?.current_actual_overall_progress ?? 0), progress_delta: Number(foundation?.progress_variance_percentage_point ?? 0), baseline_end: baselineEnd, official_end: officialEnd, baseline_to_official_workdays: baselineOfficialTaskDelta || workdayDelta(baselineEnd, officialEnd, workers[0], holidays, overrides), official_to_shadow_workdays: freshShadow ? (officialShadowTaskDelta || workdayDelta(officialEnd, shadowEnd, workers[0], holidays, overrides)) : null },
     taskRows,
     calendar: { workers: workers.map((worker: any) => ({ id: worker.id, name: worker.name, country_code: worker.country_code, workweek_profile: worker.workweek_profile })), holidays: holidays.map((holiday: any) => ({ country_code: holiday.country_code, date: holiday.holiday_date, name: holiday.name_local || holiday.name_ko || holiday.name_vi })), overrides: overrides.map((override: any) => ({ scope_type: override.scope_type, scope_key: override.scope_key, date: override.work_date, type: override.override_type })) },
     provenance: { baseline_version: baselineProject?.version == null ? null : Number(baselineProject.version), official_forecast_version_id: officialVersionId, actual_aggregate_revision: aggregates.map((row: any) => row.updated_at).sort().pop() || null, shadow_version_id: latestShadow?.shadow_version_id || null, shadow_run_id: latestShadow?.run_id || null, shadow_status: latestShadow?.status || 'NONE', as_of: asOf },
