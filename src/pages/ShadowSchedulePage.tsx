@@ -67,10 +67,11 @@ export function selectProjectShadowView(shadow: ShadowRunView | null, projectId:
   const projectVersion = shadow?.versions.find((version) => String(version.project_id) === String(projectId)) || null;
   const versionId = projectVersion?.shadow_version_id;
   const matchesVersion = (row: any) => !versionId || String(row.shadow_version_id || '') === String(versionId);
-  const tasks = (shadow?.tasks || []).filter((task) => String(task.project_id || '') === String(projectId) && matchesVersion(task));
-  const allocations = (shadow?.allocations || []).filter((allocation: any) => String(allocation.project_id || '') === String(projectId) && matchesVersion(allocation));
+  const isFresh = projectVersion?.status === 'CURRENT';
+  const tasks = isFresh ? (shadow?.tasks || []).filter((task) => String(task.project_id || '') === String(projectId) && matchesVersion(task)) : [];
+  const allocations = isFresh ? (shadow?.allocations || []).filter((allocation: any) => String(allocation.project_id || '') === String(projectId) && matchesVersion(allocation)) : [];
   const impacts = (shadow?.impacts || []).filter((impact: any) => String(impact.primary_project_id || '') === String(projectId));
-  const diffs = (shadow?.diffs || []).filter((diff: any) => String(diff.project_id || '') === String(projectId) && matchesVersion(diff));
+  const diffs = isFresh ? (shadow?.diffs || []).filter((diff: any) => String(diff.project_id || '') === String(projectId) && matchesVersion(diff)) : [];
   return { projectVersion, tasks, allocations, impacts, diffs };
 }
 
