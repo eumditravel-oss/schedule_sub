@@ -2,6 +2,12 @@ import type { Worker } from '../types';
 
 export type LandingRoute = '/projects' | '/dashboard';
 
+/** Scheduler dashboard navigation is available to editable actors only. */
+export function canShowDashboardNavigation(worker?: Partial<Worker> | null): boolean {
+  if (!worker) return false;
+  return worker.access_role !== 'VIEWER' && worker.name !== 'CEO' && worker.name !== 'COO';
+}
+
 /** Resolve the first screen from the server-resolved worker row. */
 export function resolveLandingRoute(worker?: Partial<Worker> | null): LandingRoute {
   if (!worker) return '/dashboard';

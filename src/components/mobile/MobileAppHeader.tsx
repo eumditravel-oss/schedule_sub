@@ -2,7 +2,8 @@
 import React, { useState } from 'react';
 import { Worker, isExecutiveViewer, isEditableWorker, getWorkerColorGroup } from '../../types';
 import { useI18n } from '../../hooks/useI18n';
-import { ArrowLeft, User, Calendar, Lock, ClipboardCheck } from 'lucide-react';
+import { ArrowLeft, User, Calendar, Lock, ClipboardCheck, LayoutDashboard } from 'lucide-react';
+import { canShowDashboardNavigation } from '../../utils/roleLanding';
 
 interface MobileAppHeaderProps {
   title?: string;
@@ -11,6 +12,7 @@ interface MobileAppHeaderProps {
   currentWorker: Worker | null;
   onOpenCalendarModal?: () => void;
   onOpenWorklog?: () => void;
+  onOpenDashboard?: () => void;
 }
 
 export const MobileAppHeader: React.FC<MobileAppHeaderProps> = ({
@@ -20,12 +22,14 @@ export const MobileAppHeader: React.FC<MobileAppHeaderProps> = ({
   currentWorker,
   onOpenCalendarModal,
   onOpenWorklog,
+  onOpenDashboard,
 }) => {
   const { t, lang } = useI18n();
   const [logoSrc, setLogoSrc] = useState('/logo3-mobile-tight.png');
 
   const isViewer = isExecutiveViewer(currentWorker);
   const isEditor = isEditableWorker(currentWorker);
+  const canOpenDashboard = canShowDashboardNavigation(currentWorker) && Boolean(onOpenDashboard);
 
   const getWorkerBtnStyles = () => {
     if (!currentWorker) return 'bg-slate-100 border-slate-200 text-slate-600';
@@ -147,6 +151,18 @@ export const MobileAppHeader: React.FC<MobileAppHeaderProps> = ({
               className="w-8 h-8 flex items-center justify-center bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg text-emerald-700 transition"
             >
               <ClipboardCheck className="w-4 h-4" />
+            </button>
+          )}
+
+          {canOpenDashboard && (
+            <button
+              type="button"
+              data-testid="mobile-dashboard-nav-btn"
+              onClick={onOpenDashboard}
+              aria-label="Dashboard"
+              className="w-8 h-8 flex items-center justify-center bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg text-blue-700 transition"
+            >
+              <LayoutDashboard className="w-4 h-4" />
             </button>
           )}
 
