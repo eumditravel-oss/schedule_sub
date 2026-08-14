@@ -58,6 +58,7 @@ import {
   getWorklogShadowStatus,
   getWorklogApprovalDetail,
   listWorklogApprovals,
+  bulkApproveWorklogs,
   listWorklogs,
   reviseWorklog,
   reviewWorklogApproval,
@@ -113,6 +114,7 @@ import {
   listManagerHistory,
 } from './services/managerOperationsService';
 import { getScheduleComparison } from './services/scheduleComparisonService';
+import { resolveQaRequestNow } from './services/testClock';
 
 export type WorkerEnv = Env & {
   KASI_HOLIDAY_API_KEY?: string;
@@ -133,6 +135,7 @@ export type WorkerEnv = Env & {
   TEST_ACTOR_MODE?: string;
   PILOT_SESSION_TTL_SECONDS?: string;
   QA_TEST_ACTOR_SECRET?: string;
+  QA_TEST_CLOCK_ENABLED?: string;
 };
 
 function jsonResponse(data: any, status = 200, extraHeaders: HeadersInit = {}) {
@@ -536,7 +539,7 @@ export default {
         const sessionActor = await resolveAuthenticatedActor(request, env);
         const actor = getActorContextServer(sessionActor);
         const idempotencyKey = request.headers.get('Idempotency-Key')?.trim() || `manager:${crypto.randomUUID()}`;
-        const requestNow = new Date();
+        const requestNow = resolveQaRequestNow(request, env, sessionActor);
         if (method === 'GET' && cleanPath === '/api/v3/manager/operations/today') {
           return jsonResponse(await getManagerOperations(db, actor, url.searchParams.get('local_work_date') || undefined));
         }
@@ -548,6 +551,16 @@ export default {
         }
         if (method === 'GET' && cleanPath === '/api/v3/manager/worklog-approvals') {
           return jsonResponse(await listWorklogApprovals(db, actor, Object.fromEntries(url.searchParams.entries())));
+        }
+        if (method === 'POST' && cleanPath === '/api/v3/manager/worklog-approvals/bulk-approve') {
+          const body: any = await request.json().catch(() => ({}));
+          const items = Array.isArray(body.items) ? body.items : [];
+          const result = await bulkApproveWorklogs(
+            db, actor, items, idempotencyKey, requestNow,
+            env.DYNAMIC_SCHEDULER_SHADOW_ENABLED === 'true',
+          );
+          try { await syncManagerNotifications(db, {}); } catch { /* notification sync is secondary */ }
+          return jsonResponse(result, 201);
         }
         const worklogApprovalDetail = cleanPath.match(/^\/api\/v3\/manager\/worklog-approvals\/([^/]+)$/);
         if (method === 'GET' && worklogApprovalDetail) {
@@ -591,8 +604,7 @@ export default {
         const sessionActor = await resolveAuthenticatedActor(request, env);
         if (!['GET', 'HEAD', 'OPTIONS'].includes(method)) await requireCsrf(request, env, sessionActor);
         let actor = getActorContextServer(sessionActor);
-        const testNowHeader = env.ENVIRONMENT_NAME === 'qa' && sessionActor.isQaTestSession ? request.headers.get('x-test-now-utc') : null;
-        const requestNow = testNowHeader && !Number.isNaN(Date.parse(testNowHeader)) ? new Date(testNowHeader) : new Date();
+        const requestNow = resolveQaRequestNow(request, env, sessionActor);
         const idempotencyKey = request.headers.get('Idempotency-Key')?.trim() || '';
 
         if (method === 'GET' && cleanPath === '/api/v3/worklogs/context') {

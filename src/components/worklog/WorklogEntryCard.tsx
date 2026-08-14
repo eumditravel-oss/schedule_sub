@@ -1,5 +1,5 @@
 import React from 'react';
-import { Minus, Plus } from 'lucide-react';
+import { CalendarDays, Minus, Plus } from 'lucide-react';
 import {
   categoryLabel,
   isPrimary,
@@ -20,6 +20,7 @@ interface WorklogEntryCardProps {
   currentProgress?: number;
   onChange: (entry: WorklogEntryDraft) => void;
   onRemove: () => void;
+  onOpenSchedule?: (entry: WorklogEntryDraft) => void;
   canRemove: boolean;
   taskOptions?: WorklogTask[];
   fullDayMinutes: number;
@@ -28,7 +29,7 @@ interface WorklogEntryCardProps {
 const CHIP_MINUTES = [30, 60, 120, 240];
 
 export function WorklogEntryCard({
-  entry, mode, language, readOnly, currentProgress = 0, onChange, onRemove, canRemove, taskOptions = [], fullDayMinutes,
+  entry, mode, language, readOnly, currentProgress = 0, onChange, onRemove, onOpenSchedule, canRemove, taskOptions = [], fullDayMinutes,
 }: WorklogEntryCardProps) {
   const t = (key: string) => worklogText(language, key);
   const primary = isPrimary(entry);
@@ -49,11 +50,10 @@ export function WorklogEntryCard({
             </p>
           )}
         </div>
-        {canRemove && !readOnly && (
-          <button type="button" onClick={onRemove} className="inline-flex h-8 items-center gap-1 rounded-lg border border-rose-200 px-2 text-xs font-bold text-rose-700 hover:bg-rose-50" aria-label={t('remove')}>
-            <Minus className="h-3.5 w-3.5" />{t('remove')}
-          </button>
-        )}
+        <div className="flex shrink-0 items-center gap-1.5">
+          {entry.taskId && onOpenSchedule && <button type="button" data-testid={`worklog-schedule-link-${entry.taskId}`} onClick={() => onOpenSchedule(entry)} className="inline-flex h-8 items-center gap-1 rounded-lg border border-blue-200 px-2 text-xs font-bold text-blue-700 hover:bg-blue-50" aria-label="일정에서 보기"><CalendarDays className="h-3.5 w-3.5" />일정 보기</button>}
+          {canRemove && !readOnly && <button type="button" onClick={onRemove} className="inline-flex h-8 items-center gap-1 rounded-lg border border-rose-200 px-2 text-xs font-bold text-rose-700 hover:bg-rose-50" aria-label={t('remove')}><Minus className="h-3.5 w-3.5" />{t('remove')}</button>}
+        </div>
       </div>
 
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
@@ -86,7 +86,7 @@ export function WorklogEntryCard({
         )}
 
         <label className="text-xs font-bold text-slate-700">
-          {mode === 'MORNING' ? t('plan') : t('actual')} ({t('minutes')})
+          {mode === 'MORNING' ? `${t('plan')} (${t('minutes')})` : `${t('actual')} (${t('plan')} ${Number(entry.plannedMinutes || 0)}${t('minutes')})`}
           <input
             type="number" min="0" step="30" inputMode="numeric" disabled={readOnly}
             data-testid={`worklog-${mode.toLowerCase()}-minutes`}

@@ -13,6 +13,8 @@ import {
   validatePrimaryProgress,
   validateTimeRanges,
   zonedLocalToUtc,
+  deriveWorklogTriage,
+  formatWorklogApprovalAge,
 } from '../worker/services/dailyWorklogService';
 
 const expectCode = (fn: () => unknown, code: string) => {
@@ -115,5 +117,18 @@ describe('Checkpoint 2 daily worklog policy', () => {
       [{ task_id: 'task-a', project_id: 'project-1' }],
       [{ task_id: 'task-b', project_id: 'project-1' }],
     ).entries()]).toEqual([['task-a', 'project-1'], ['task-b', 'project-1']]);
+  });
+
+  it('derives manager triage from server-owned worklog facts', () => {
+    expect(deriveWorklogTriage({ capacity_variance_minutes: 0 })).toEqual({ classification: 'NORMAL', reasonCodes: [] });
+    expect(deriveWorklogTriage({ capacity_variance_minutes: 60 })).toMatchObject({ classification: 'REVIEW_REQUIRED' });
+    expect(deriveWorklogTriage({ overtime_candidate_minutes: 30 })).toMatchObject({ classification: 'EXCEPTION', reasonCodes: ['OVERTIME_PENDING'] });
+    expect(deriveWorklogTriage({ contains_other_project_work: 1 })).toMatchObject({ classification: 'REVIEW_REQUIRED' });
+  });
+
+  it('formats approval aging independent of office local date', () => {
+    const now = new Date('2026-08-14T12:00:00.000Z');
+    expect(formatWorklogApprovalAge('2026-08-14T11:00:00.000Z', now)).toEqual({ ageMinutes: 60, ageLabel: '1시간 0분' });
+    expect(formatWorklogApprovalAge('2026-08-13T10:00:00.000Z', now)).toEqual({ ageMinutes: 1560, ageLabel: '1일 2시간' });
   });
 });

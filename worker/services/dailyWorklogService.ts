@@ -36,6 +36,57 @@ export interface WorklogActor extends ActorContextServer {
 
 export type WorklogApprovalAction = 'APPROVE' | 'RETURN' | 'REJECT';
 
+export type WorklogTriageClassification = 'NORMAL' | 'REVIEW_REQUIRED' | 'EXCEPTION';
+
+/**
+ * Manager triage is a derived read-model only.  It never changes the
+ * approval state and must be recomputed from server-owned worklog facts.
+ */
+export function deriveWorklogTriage(row: any): {
+  classification: WorklogTriageClassification;
+  reasonCodes: string[];
+} {
+  const exceptionReasons: string[] = [];
+  const reviewReasons: string[] = [];
+  const number = (value: unknown) => Number(value || 0);
+  const has = (value: unknown) => number(value) > 0 || value === true || value === '1';
+
+  if (number(row.overtime_candidate_minutes) > 0 || row.overtime_approval_status === 'PENDING_REVIEW') {
+    exceptionReasons.push('OVERTIME_PENDING');
+  }
+  if (has(row.contains_emergency_leave) || has(row.emergency_leave_entry_count)) {
+    exceptionReasons.push('EMERGENCY_LEAVE');
+  }
+  if (has(row.correction_request_count) || row.status === 'CORRECTION_REQUESTED') {
+    exceptionReasons.push('CORRECTION_REQUEST');
+  }
+
+  if (Math.abs(number(row.capacity_variance_minutes)) > 30 || has(row.has_gap)) {
+    reviewReasons.push('CAPACITY_VARIANCE');
+  }
+  if (has(row.contains_other_project_work) || has(row.other_project_entry_count)) {
+    reviewReasons.push('OTHER_PROJECT');
+  }
+  if (has(row.blocker_entry_count)) reviewReasons.push('BLOCKER');
+  if (number(row.progress_backward_count) > 0) reviewReasons.push('PROGRESS_BACKWARD');
+  if (number(row.progress_jump_count) > 0) reviewReasons.push('PROGRESS_JUMP');
+  if (number(row.completion_contradiction_count) > 0) reviewReasons.push('COMPLETION_CONTRADICTION');
+  if (number(row.eod_revision_number) > 1 || number(row.revision_number) > 1) reviewReasons.push('REVISION');
+  if (has(row.return_history_count) || row.approval_status === 'RETURNED' || row.approval_status === 'REJECTED') reviewReasons.push('RETURN_HISTORY');
+
+  if (exceptionReasons.length) return { classification: 'EXCEPTION', reasonCodes: [...new Set(exceptionReasons)] };
+  if (reviewReasons.length) return { classification: 'REVIEW_REQUIRED', reasonCodes: [...new Set(reviewReasons)] };
+  return { classification: 'NORMAL', reasonCodes: [] };
+}
+
+export function formatWorklogApprovalAge(submittedAtUtc: unknown, now = new Date()): { ageMinutes: number; ageLabel: string } {
+  const parsed = submittedAtUtc ? Date.parse(String(submittedAtUtc)) : NaN;
+  const ageMinutes = Number.isFinite(parsed) ? Math.max(0, Math.floor((now.getTime() - parsed) / 60000)) : 0;
+  if (ageMinutes < 60) return { ageMinutes, ageLabel: `${ageMinutes}분` };
+  if (ageMinutes < 24 * 60) return { ageMinutes, ageLabel: `${Math.floor(ageMinutes / 60)}시간 ${ageMinutes % 60}분` };
+  return { ageMinutes, ageLabel: `${Math.floor(ageMinutes / (24 * 60))}일 ${Math.floor((ageMinutes % (24 * 60)) / 60)}시간` };
+}
+
 function canApproveWorklogs(actor: WorklogActor): boolean {
   return actor.worker.access_role === 'EDITOR' && Number(actor.worker.can_manage_schedule_engine) === 1;
 }
@@ -492,6 +543,8 @@ export async function listWorklogApprovals(db: any, actorContext: ActorContextSe
   const actor = await requireWorklogApprovalManager(db, actorContext);
   const where = [`w.current_eod_revision_id IS NOT NULL`];
   const params: any[] = [];
+  const now = new Date();
+  const todayLocal = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Seoul' }).format(now);
   if (filters.status && filters.status !== 'ALL') { where.push('w.approval_status=?'); params.push(filters.status); }
   else where.push(`w.approval_status IN ('PENDING','RETURNED','APPROVED','REJECTED')`);
   if (filters.date) { where.push('w.local_work_date=?'); params.push(filters.date); }
@@ -499,6 +552,14 @@ export async function listWorklogApprovals(db: any, actorContext: ActorContextSe
   if (filters.date_to) { where.push('w.local_work_date<=?'); params.push(filters.date_to); }
   if (filters.employee) { where.push('w.employee_id=?'); params.push(filters.employee); }
   if (filters.project) { where.push(`EXISTS(SELECT 1 FROM daily_worklog_entries pe WHERE pe.worklog_id=w.id AND pe.project_id=?)`); params.push(filters.project); }
+  const aging = filters.aging || filters.age;
+  if (aging === 'TODAY' || aging === 'today') { where.push('w.local_work_date=?'); params.push(todayLocal); }
+  if (aging === '3H' || aging === '3h' || aging === '3H_PLUS') {
+    where.push('w.eod_submitted_at_utc <= ?'); params.push(new Date(now.getTime() - 3 * 60 * 60 * 1000).toISOString());
+  }
+  if (aging === '1D' || aging === '1d' || aging === '1D_PLUS') {
+    where.push('w.eod_submitted_at_utc <= ?'); params.push(new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString());
+  }
   if (actor.worker.access_role !== 'VIEWER') {
     const scoped = await db.prepare(`SELECT 1 AS scoped FROM pilot_employee_supervision WHERE manager_employee_id=? AND is_active=1 LIMIT 1`).bind(actor.worker.id).first();
     if (scoped) {
@@ -510,7 +571,20 @@ export async function listWorklogApprovals(db: any, actorContext: ActorContextSe
     `SELECT w.*, subject.name AS employee_name, subject.country_code AS employee_country,
        r.revision_number AS eod_revision_number,
        (SELECT COUNT(*) FROM daily_worklog_entries e WHERE e.worklog_id=w.id AND e.revision_id=w.current_eod_revision_id) AS entry_count,
-       (SELECT COUNT(*) FROM daily_worklog_entries e WHERE e.worklog_id=w.id AND e.revision_id=w.current_eod_revision_id AND e.progress_after IS NOT NULL) AS progress_change_count
+       (SELECT COUNT(*) FROM daily_worklog_entries e WHERE e.worklog_id=w.id AND e.revision_id=w.current_eod_revision_id AND e.progress_after IS NOT NULL) AS progress_change_count,
+       (SELECT COUNT(*) FROM daily_worklog_entries e WHERE e.worklog_id=w.id AND e.revision_id=w.current_eod_revision_id AND e.work_category IN ('EMERGENCY_LEAVE')) AS emergency_leave_entry_count,
+       (SELECT COUNT(*) FROM daily_worklog_entries e WHERE e.worklog_id=w.id AND e.revision_id=w.current_eod_revision_id AND e.related_project_id IS NOT NULL) AS other_project_entry_count,
+       (SELECT COUNT(*) FROM daily_worklog_entries e WHERE e.worklog_id=w.id AND e.revision_id=w.current_eod_revision_id AND e.blocker IS NOT NULL AND TRIM(e.blocker) <> '') AS blocker_entry_count,
+       (SELECT COUNT(*) FROM daily_worklog_entries e WHERE e.worklog_id=w.id AND e.revision_id=w.current_eod_revision_id AND e.progress_after IS NOT NULL AND e.progress_before IS NOT NULL AND e.progress_after < e.progress_before) AS progress_backward_count,
+       (SELECT COUNT(*) FROM daily_worklog_entries e WHERE e.worklog_id=w.id AND e.revision_id=w.current_eod_revision_id AND e.progress_after IS NOT NULL AND e.progress_before IS NOT NULL AND e.progress_after - e.progress_before >= 30) AS progress_jump_count,
+       (SELECT COUNT(*) FROM daily_worklog_entries e WHERE e.worklog_id=w.id AND e.revision_id=w.current_eod_revision_id AND e.progress_after >= 100 AND COALESCE(e.remaining_estimated_minutes,0) > 0) AS completion_contradiction_count,
+       (SELECT COUNT(*) FROM worklog_correction_requests c WHERE c.worklog_id=w.id) AS correction_request_count,
+       (SELECT COUNT(*) FROM worklog_approval_events ae WHERE ae.worklog_id=w.id AND ae.action='RETURN') AS return_history_count,
+       (SELECT COUNT(*) FROM task_actual_contributions ac WHERE ac.worklog_id=w.id) AS actual_contribution_count,
+       (SELECT COUNT(*) FROM task_actual_contributions ac WHERE ac.worklog_id=w.id AND ac.is_effective=1) AS effective_actual_contribution_count,
+       (SELECT request_id FROM schedule_recalculation_requests sr WHERE sr.source_worklog_id=w.id ORDER BY sr.requested_at DESC LIMIT 1) AS shadow_request_id,
+       (SELECT run_id FROM schedule_recalculation_runs rr JOIN schedule_recalculation_requests sr ON sr.request_id=rr.request_id WHERE sr.source_worklog_id=w.id ORDER BY rr.started_at DESC LIMIT 1) AS shadow_run_id,
+       (SELECT COUNT(*) FROM schedule_versions fv WHERE fv.source_worklog_id=w.id) AS official_forecast_change_count
      FROM daily_worklogs w
      JOIN workers subject ON subject.id=w.employee_id
      LEFT JOIN daily_worklog_revisions r ON r.id=w.current_eod_revision_id
@@ -518,7 +592,27 @@ export async function listWorklogApprovals(db: any, actorContext: ActorContextSe
      ORDER BY CASE w.approval_status WHEN 'PENDING' THEN 0 WHEN 'RETURNED' THEN 1 ELSE 2 END,
        w.local_work_date DESC,w.eod_submitted_at_utc DESC,w.employee_id`
   ).bind(...params).all();
-  return result.results || [];
+  return (result.results || []).map((row: any) => {
+    const age = formatWorklogApprovalAge(row.eod_submitted_at_utc || row.updated_at || row.created_at, now);
+    const triage = deriveWorklogTriage(row);
+    return {
+      ...row,
+      submitted_at_utc: row.eod_submitted_at_utc || null,
+      age_minutes: age.ageMinutes,
+      age_label: age.ageLabel,
+      triage_classification: triage.classification,
+      triage_reason_codes: triage.reasonCodes,
+      lineage: {
+        worklog_id: row.id,
+        revision_id: row.current_eod_revision_id,
+        actual_contribution_count: Number(row.actual_contribution_count || 0),
+        effective_actual_contribution_count: Number(row.effective_actual_contribution_count || 0),
+        shadow_request_id: row.shadow_request_id || null,
+        shadow_run_id: row.shadow_run_id || null,
+        official_forecast_change_count: Number(row.official_forecast_change_count || 0),
+      },
+    };
+  }).filter((row: any) => !filters.classification || filters.classification === 'ALL' || row.triage_classification === filters.classification);
 }
 
 export async function getWorklogApprovalDetail(db: any, actorContext: ActorContextServer, worklogId: string) {
@@ -527,7 +621,107 @@ export async function getWorklogApprovalDetail(db: any, actorContext: ActorConte
   if (!worklog || !(await canManageWorklogSubject(db, actor, String(worklog.employee_id)))) {
     throw new WorklogError('WORKLOG_APPROVAL_NOT_FOUND', 404);
   }
-  return worklogResponse(db, worklogId);
+  const [detail, triageRow, approvalEvents, actual, shadowRequests, shadowRuns, shadowVersions, officialVersions] = await Promise.all([
+    worklogResponse(db, worklogId),
+    db.prepare(`SELECT w.*,r.revision_number AS eod_revision_number,
+      (SELECT COUNT(*) FROM daily_worklog_entries e WHERE e.worklog_id=w.id AND e.revision_id=w.current_eod_revision_id AND e.work_category IN ('EMERGENCY_LEAVE')) AS emergency_leave_entry_count,
+      (SELECT COUNT(*) FROM daily_worklog_entries e WHERE e.worklog_id=w.id AND e.revision_id=w.current_eod_revision_id AND e.related_project_id IS NOT NULL) AS other_project_entry_count,
+      (SELECT COUNT(*) FROM daily_worklog_entries e WHERE e.worklog_id=w.id AND e.revision_id=w.current_eod_revision_id AND e.blocker IS NOT NULL AND TRIM(e.blocker) <> '') AS blocker_entry_count,
+      (SELECT COUNT(*) FROM daily_worklog_entries e WHERE e.worklog_id=w.id AND e.revision_id=w.current_eod_revision_id AND e.progress_after IS NOT NULL AND e.progress_before IS NOT NULL AND e.progress_after < e.progress_before) AS progress_backward_count,
+      (SELECT COUNT(*) FROM daily_worklog_entries e WHERE e.worklog_id=w.id AND e.revision_id=w.current_eod_revision_id AND e.progress_after IS NOT NULL AND e.progress_before IS NOT NULL AND e.progress_after - e.progress_before >= 30) AS progress_jump_count,
+      (SELECT COUNT(*) FROM daily_worklog_entries e WHERE e.worklog_id=w.id AND e.revision_id=w.current_eod_revision_id AND e.progress_after >= 100 AND COALESCE(e.remaining_estimated_minutes,0) > 0) AS completion_contradiction_count,
+      (SELECT COUNT(*) FROM worklog_correction_requests c WHERE c.worklog_id=w.id) AS correction_request_count,
+      (SELECT COUNT(*) FROM worklog_approval_events ae WHERE ae.worklog_id=w.id AND ae.action='RETURN') AS return_history_count
+      FROM daily_worklogs w LEFT JOIN daily_worklog_revisions r ON r.id=w.current_eod_revision_id WHERE w.id=?`).bind(worklogId).first(),
+    db.prepare(`SELECT * FROM worklog_approval_events WHERE worklog_id=? ORDER BY created_at,id`).bind(worklogId).all(),
+    db.prepare(`SELECT id,task_id,project_id,revision_id,raw_actual_minutes,approved_actual_minutes,is_effective,local_work_date,created_at
+      FROM task_actual_contributions WHERE worklog_id=? ORDER BY created_at,id`).bind(worklogId).all(),
+    db.prepare(`SELECT request_id,source_worklog_id,source_revision_id,trigger_type,status,requested_at,updated_at,last_error_code
+      FROM schedule_recalculation_requests WHERE source_worklog_id=? ORDER BY requested_at DESC`).bind(worklogId).all(),
+    db.prepare(`SELECT rr.run_id,rr.request_id,rr.engine_version,rr.status,rr.data_confidence,rr.started_at,rr.completed_at
+      FROM schedule_recalculation_runs rr JOIN schedule_recalculation_requests rq ON rq.request_id=rr.request_id
+      WHERE rq.source_worklog_id=? ORDER BY rr.started_at DESC`).bind(worklogId).all(),
+    db.prepare(`SELECT sv.shadow_version_id,sv.run_id,sv.project_id,sv.status,sv.approval_classification,sv.data_confidence,
+      sv.shadow_forecast_start_date,sv.shadow_forecast_end_date,sv.official_forecast_start_date,sv.official_forecast_end_date
+      FROM shadow_schedule_versions sv JOIN schedule_recalculation_runs rr ON rr.run_id=sv.run_id
+      JOIN schedule_recalculation_requests rq ON rq.request_id=rr.request_id WHERE rq.source_worklog_id=?
+      ORDER BY sv.created_at DESC`).bind(worklogId).all(),
+    db.prepare(`SELECT id,project_id,version_number,start_date,end_date,source_worklog_id,source_revision_id,source_shadow_run_id,source_shadow_version_id,created_at
+      FROM schedule_versions WHERE source_worklog_id=? ORDER BY created_at DESC`).bind(worklogId).all(),
+  ]);
+  const age = formatWorklogApprovalAge(triageRow?.eod_submitted_at_utc || triageRow?.updated_at || triageRow?.created_at);
+  const triage = deriveWorklogTriage(triageRow || {});
+  const contributionRows = actual.results || [];
+  return {
+    ...detail,
+    submitted_at_utc: triageRow?.eod_submitted_at_utc || null,
+    age_minutes: age.ageMinutes,
+    age_label: age.ageLabel,
+    triage_classification: triage.classification,
+    triage_reason_codes: triage.reasonCodes,
+    lineage: {
+      worklog_id: worklogId,
+      revision_id: detail.current_eod_revision_id || null,
+      approval_status: detail.approval_status || null,
+      events: approvalEvents.results || [],
+      actual: {
+        contribution_count: contributionRows.length,
+        effective_contribution_count: contributionRows.filter((row: any) => Number(row.is_effective) === 1).length,
+        contributions: contributionRows,
+      },
+      shadow: { requests: shadowRequests.results || [], runs: shadowRuns.results || [], versions: shadowVersions.results || [] },
+      official_forecast: { versions: officialVersions.results || [], changed: (officialVersions.results || []).length > 0 },
+      official_forecast_changed: (officialVersions.results || []).length > 0,
+    },
+  };
+}
+
+export async function bulkApproveWorklogs(
+  db: any,
+  actorContext: ActorContextServer,
+  items: Array<{ worklog_id: string; revision_id: string }>,
+  key: string,
+  now = new Date(),
+  shadowEnabled = false,
+) {
+  const actor = await requireWorklogApprovalManager(db, actorContext);
+  if (!Array.isArray(items) || items.length === 0) throw new WorklogError('WORKLOG_BULK_ITEMS_REQUIRED', 400);
+  if (items.length > 50) throw new WorklogError('WORKLOG_BULK_LIMIT_EXCEEDED', 400, { max_items: 50 });
+  const unique = new Set<string>();
+  const results: any[] = [];
+  for (const item of items) {
+    const worklogId = String(item?.worklog_id || '').trim();
+    const revisionId = String(item?.revision_id || '').trim();
+    if (!worklogId || !revisionId || unique.has(worklogId)) {
+      results.push({ worklog_id: worklogId || null, revision_id: revisionId || null, result: 'VALIDATION_FAILED', code: 'WORKLOG_BULK_ITEM_INVALID' });
+      continue;
+    }
+    unique.add(worklogId);
+    const row = await db.prepare(`SELECT w.*,r.revision_number AS eod_revision_number,
+      (SELECT COUNT(*) FROM daily_worklog_entries e WHERE e.worklog_id=w.id AND e.revision_id=w.current_eod_revision_id AND e.work_category IN ('EMERGENCY_LEAVE')) AS emergency_leave_entry_count,
+      (SELECT COUNT(*) FROM daily_worklog_entries e WHERE e.worklog_id=w.id AND e.revision_id=w.current_eod_revision_id AND e.related_project_id IS NOT NULL) AS other_project_entry_count,
+      (SELECT COUNT(*) FROM daily_worklog_entries e WHERE e.worklog_id=w.id AND e.revision_id=w.current_eod_revision_id AND e.blocker IS NOT NULL AND TRIM(e.blocker) <> '') AS blocker_entry_count,
+      (SELECT COUNT(*) FROM daily_worklog_entries e WHERE e.worklog_id=w.id AND e.revision_id=w.current_eod_revision_id AND e.progress_after IS NOT NULL AND e.progress_before IS NOT NULL AND e.progress_after < e.progress_before) AS progress_backward_count,
+      (SELECT COUNT(*) FROM daily_worklog_entries e WHERE e.worklog_id=w.id AND e.revision_id=w.current_eod_revision_id AND e.progress_after IS NOT NULL AND e.progress_before IS NOT NULL AND e.progress_after - e.progress_before >= 30) AS progress_jump_count,
+      (SELECT COUNT(*) FROM daily_worklog_entries e WHERE e.worklog_id=w.id AND e.revision_id=w.current_eod_revision_id AND e.progress_after >= 100 AND COALESCE(e.remaining_estimated_minutes,0) > 0) AS completion_contradiction_count,
+      (SELECT COUNT(*) FROM worklog_correction_requests c WHERE c.worklog_id=w.id) AS correction_request_count,
+      (SELECT COUNT(*) FROM worklog_approval_events ae WHERE ae.worklog_id=w.id AND ae.action='RETURN') AS return_history_count
+      FROM daily_worklogs w LEFT JOIN daily_worklog_revisions r ON r.id=w.current_eod_revision_id WHERE w.id=?`).bind(worklogId).first();
+    if (!row) { results.push({ worklog_id: worklogId, revision_id: revisionId, result: 'STALE', code: 'WORKLOG_APPROVAL_NOT_FOUND' }); continue; }
+    const triage = deriveWorklogTriage(row);
+    if (triage.classification !== 'NORMAL') {
+      results.push({ worklog_id: worklogId, revision_id: revisionId, result: 'VALIDATION_FAILED', code: 'WORKLOG_BULK_NORMAL_ONLY', classification: triage.classification, reason_codes: triage.reasonCodes });
+      continue;
+    }
+    try {
+      const reviewed = await reviewWorklogApproval(db, actor, worklogId, revisionId, 'APPROVE', undefined, `${key}:${worklogId}:${revisionId}`, now, shadowEnabled);
+      results.push({ worklog_id: worklogId, revision_id: revisionId, result: 'APPROVED', response: reviewed });
+    } catch (error: any) {
+      const code = error?.code || 'WORKLOG_APPROVAL_FAILED';
+      results.push({ worklog_id: worklogId, revision_id: revisionId, result: code === 'WORKLOG_ALREADY_RESOLVED' ? 'ALREADY_RESOLVED' : code === 'VERSION_CONFLICT' ? 'STALE' : 'VALIDATION_FAILED', code });
+    }
+  }
+  return { action: 'APPROVE_NORMAL_ONLY', requested: items.length, processed: results.length, approved: results.filter((item) => item.result === 'APPROVED').length, results };
 }
 
 export async function reviewWorklogApproval(

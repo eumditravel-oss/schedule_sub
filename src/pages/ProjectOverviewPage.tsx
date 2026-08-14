@@ -49,6 +49,7 @@ import { ProjectDeleteConfirmModal } from '../components/modals/ProjectDeleteCon
 import { ProjectCompleteConfirmModal } from '../components/modals/ProjectCompleteConfirmModal';
 import { PrintDropdownMenu } from '../components/print/PrintDropdownMenu';
 import { TodayWorklogNavButton } from '../components/worklog/TodayWorklogNavButton';
+import { TodayWorklogEntryCard } from '../components/worklog/TodayWorklogEntryCard';
 import { usePilotAuth } from '../auth/PilotAuthContext';
 
 export type MobileViewMode = 'SUMMARY' | 'WEEK' | 'GANTT';
@@ -92,6 +93,7 @@ export const ProjectOverviewPage: React.FC = () => {
 
   // Worker & Modal States
   const [currentWorker, setCurrentWorker] = useState<Worker | null>(null);
+  const isWorklogManager = Boolean(currentWorker && (currentWorker.access_role === 'VIEWER' || (currentWorker.access_role === 'EDITOR' && Number(currentWorker.can_manage_schedule_engine) === 1)));
   const [isCalendarModalOpen, setIsCalendarModalOpen] = useState(false);
   const [isIntegrationModalOpen, setIsIntegrationModalOpen] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -666,6 +668,7 @@ export const ProjectOverviewPage: React.FC = () => {
         {isMobileView ? (
           /* Dedicated Mutually Exclusive Mobile & Fold Views */
           <div className="w-full flex-1 flex flex-col">
+            <div className="mb-3"><TodayWorklogEntryCard currentWorker={currentWorker} language={lang === 'vi' ? 'vi' : 'ko'} onOpen={() => navigate(isWorklogManager ? '/manager/worklog-approvals' : '/worklog/today')} /></div>
             {mobileViewMode === 'SUMMARY' && (
               <MobileSummaryView
                 mode="OVERVIEW"
@@ -701,6 +704,7 @@ export const ProjectOverviewPage: React.FC = () => {
         ) : (
           /* Desktop Table View */
           <div className="space-y-3 flex-1 flex flex-col">
+            <TodayWorklogEntryCard currentWorker={currentWorker} language={lang === 'vi' ? 'vi' : 'ko'} onOpen={() => navigate(isWorklogManager ? '/manager/worklog-approvals' : '/worklog/today')} />
             {/* Today Summary Card */}
             <TodaySummaryCard
               currentWorker={currentWorker}
