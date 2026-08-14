@@ -190,6 +190,24 @@ function testActorView(worker: any, policy: any): AuthenticatedActor {
   };
 }
 
+function internalTrustActorView(worker: any, policy: any): AuthenticatedActor {
+  return {
+    actorMode: 'INTERNAL_TRUST',
+    actorUserId: worker.id,
+    actorEmployeeId: worker.id,
+    selectedViewEmployeeId: worker.id,
+    testSessionId: null,
+    employeeId: worker.id,
+    displayName: worker.name,
+    role: worker.access_role,
+    office: policy?.office_code || worker.country_code || null,
+    timezone: policy?.timezone || null,
+    worker,
+    sessionId: `internal_${worker.id}`,
+    isQaTestSession: false,
+  };
+}
+
 export async function resolveTestActor(request: Request, env: PilotAuthEnv): Promise<AuthenticatedActor> {
   const employeeId = request.headers.get('x-test-actor-employee-id')?.trim() || '';
   if (!employeeId) throw new PilotAuthError('TEST_ACTOR_REQUIRED', 400);
@@ -200,6 +218,18 @@ export async function resolveTestActor(request: Request, env: PilotAuthEnv): Pro
   ).bind(employeeId).first<any>();
   if (!record) throw new PilotAuthError('TEST_ACTOR_NOT_FOUND', 404);
   return testActorView(record, record);
+}
+
+export async function resolveInternalTrustActor(request: Request, env: PilotAuthEnv): Promise<AuthenticatedActor> {
+  const employeeId = request.headers.get('x-internal-employee-id')?.trim() || '';
+  if (!employeeId) throw new PilotAuthError('INTERNAL_TRUST_EMPLOYEE_REQUIRED', 400);
+  const record = await env.DB.prepare(
+    `SELECT w.*, p.office_code, p.timezone
+     FROM workers w LEFT JOIN office_work_policies p ON p.country_code=w.country_code
+     WHERE w.id=? AND w.is_active=1`,
+  ).bind(employeeId).first<any>();
+  if (!record) throw new PilotAuthError('INTERNAL_TRUST_EMPLOYEE_NOT_FOUND', 404);
+  return internalTrustActorView(record, record);
 }
 
 async function loadWorkerActor(db: D1Database, employeeId: string, sessionId: string, isQaTestSession: boolean): Promise<AuthenticatedActor> {
@@ -316,6 +346,7 @@ export async function pilotLogin(request: Request, env: PilotAuthEnv, body: any)
 
 export async function resolveAuthenticatedActor(request: Request, env: PilotAuthEnv): Promise<AuthenticatedActor> {
   if (env.SCHEDULER_ACCESS_MODE === 'open_test') return resolveTestActor(request, env);
+  if (env.SCHEDULER_ACCESS_MODE === 'internal_trust') return resolveInternalTrustActor(request, env);
   if (env.PILOT_SESSION_AUTH_ENABLED !== 'true') throw new PilotAuthError('AUTH_REQUIRED', 401);
   const rawToken = cookieValue(request, PILOT_SESSION_COOKIE);
   if (!rawToken) throw new PilotAuthError('AUTH_REQUIRED', 401);
@@ -341,6 +372,10 @@ export async function resolveAuthenticatedActor(request: Request, env: PilotAuth
 export async function requireCsrf(request: Request, env: PilotAuthEnv, actor?: AuthenticatedActor): Promise<AuthenticatedActor> {
   const resolved = actor || await resolveAuthenticatedActor(request, env);
   if (env.SCHEDULER_ACCESS_MODE === 'open_test' && resolved.actorMode === 'TEST_SELECTOR') return resolved;
+  if (env.SCHEDULER_ACCESS_MODE === 'internal_trust' && resolved.actorMode === 'INTERNAL_TRUST') {
+    requireSameOrigin(request);
+    return resolved;
+  }
   const origin = request.headers.get('Origin');
   if (!origin) throw new PilotAuthError('CSRF_REQUIRED', 403);
   if (origin !== new URL(request.url).origin) throw new PilotAuthError('CSRF_INVALID', 403);
@@ -356,6 +391,10 @@ export async function requireCsrf(request: Request, env: PilotAuthEnv, actor?: A
 
 export async function getPilotSession(request: Request, env: PilotAuthEnv) {
   if (env.SCHEDULER_ACCESS_MODE === 'open_test') throw new PilotAuthError('AUTH_DISABLED_OPEN_TEST', 404);
+  if (env.SCHEDULER_ACCESS_MODE === 'internal_trust') {
+    const actor = await resolveInternalTrustActor(request, env);
+    return { authenticated: true, actor: { employeeId: actor.employeeId, displayName: actor.displayName, role: actor.role, office: actor.office, timezone: actor.timezone }, csrfToken: null, expiresAt: null, isQaTestSession: false };
+  }
   const actor = await resolveAuthenticatedActor(request, env);
   // Rotate the CSRF proof on a session read.  The database keeps only its hash
   // while a refreshed browser can resume mutations without exposing the
@@ -376,6 +415,7 @@ export async function getPilotSession(request: Request, env: PilotAuthEnv) {
 
 export async function logoutPilotSession(request: Request, env: PilotAuthEnv) {
   if (env.SCHEDULER_ACCESS_MODE === 'open_test') throw new PilotAuthError('AUTH_DISABLED_OPEN_TEST', 404);
+  if (env.SCHEDULER_ACCESS_MODE === 'internal_trust') return;
   const actor = await requireCsrf(request, env);
   await env.DB.prepare(`UPDATE pilot_auth_sessions SET revoked_at=? WHERE session_id=? AND revoked_at IS NULL`)
     .bind(nowIso(), actor.sessionId).run();

@@ -56,8 +56,11 @@ import {
   getWorklogForActor,
   getWorklogContext,
   getWorklogShadowStatus,
+  getWorklogApprovalDetail,
+  listWorklogApprovals,
   listWorklogs,
   reviseWorklog,
+  reviewWorklogApproval,
   submitEod,
   submitMorning,
 } from './services/dailyWorklogService';
@@ -469,7 +472,8 @@ export default {
         return jsonResponse(session.data, 200, { 'Set-Cookie': session.setCookie });
       }
       if (cleanPath === '/api/auth/pilot/employees' && method === 'GET') {
-        const employees = env.SCHEDULER_ACCESS_MODE === 'open_test'
+        const accessMode = String(env.SCHEDULER_ACCESS_MODE || '');
+        const employees = accessMode === 'open_test' || accessMode === 'internal_trust'
           ? await db.prepare(`SELECT w.id,w.name,w.country_code,w.access_role,w.ui_language,w.can_manage_schedule_engine,w.can_manage_country_calendar FROM workers w WHERE w.is_active=1 ORDER BY w.sort_order,w.name`).all()
           : await db.prepare(
             `SELECT w.id,w.name,w.country_code,w.access_role,w.ui_language
@@ -541,6 +545,26 @@ export default {
         }
         if (method === 'GET' && cleanPath === '/api/v3/manager/history') {
           return jsonResponse(await listManagerHistory(db, actor, url.searchParams.get('project_id') || undefined));
+        }
+        if (method === 'GET' && cleanPath === '/api/v3/manager/worklog-approvals') {
+          return jsonResponse(await listWorklogApprovals(db, actor, Object.fromEntries(url.searchParams.entries())));
+        }
+        const worklogApprovalDetail = cleanPath.match(/^\/api\/v3\/manager\/worklog-approvals\/([^/]+)$/);
+        if (method === 'GET' && worklogApprovalDetail) {
+          return jsonResponse(await getWorklogApprovalDetail(db, actor, decodeURIComponent(worklogApprovalDetail[1])));
+        }
+        const worklogApprovalAction = cleanPath.match(/^\/api\/v3\/manager\/worklog-approvals\/([^/]+)\/(approve|return|reject)$/);
+        if (method === 'POST' && worklogApprovalAction) {
+          const body: any = await request.json().catch(() => ({}));
+          const action = worklogApprovalAction[2] === 'approve' ? 'APPROVE' : worklogApprovalAction[2] === 'return' ? 'RETURN' : 'REJECT';
+          if (typeof body.revision_id !== 'string' || !body.revision_id.trim()) return errorResponse('revision_id is required.', 400, 'WORKLOG_REVISION_REQUIRED');
+          const reviewedWorklog = await reviewWorklogApproval(
+            db, actor, decodeURIComponent(worklogApprovalAction[1]), body.revision_id.trim(), action,
+            typeof body.reason === 'string' ? body.reason : undefined, idempotencyKey, requestNow,
+            env.DYNAMIC_SCHEDULER_SHADOW_ENABLED === 'true',
+          );
+          try { await syncManagerNotifications(db, { localDate: body.local_work_date }); } catch { /* notification sync is secondary */ }
+          return jsonResponse(reviewedWorklog, 201);
         }
         if (method === 'GET' && cleanPath === '/api/v3/manager/notifications') {
           await syncManagerNotifications(db, { localDate: url.searchParams.get('local_work_date') || undefined });

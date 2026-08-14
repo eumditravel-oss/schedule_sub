@@ -31,6 +31,9 @@ const ScheduleControlPage = lazy(() =>
 const ManagerOperationsPage = lazy(() =>
   import('./pages/ManagerOperationsPage').then((module) => ({ default: module.ManagerOperationsPage }))
 );
+const ManagerWorklogApprovalsPage = lazy(() =>
+  import('./pages/ManagerWorklogApprovalsPage').then((module) => ({ default: module.ManagerWorklogApprovalsPage }))
+);
 const PilotLoginPage = lazy(() =>
   import('./pages/PilotLoginPage').then((module) => ({ default: module.PilotLoginPage }))
 );
@@ -130,6 +133,14 @@ export function App() {
             element={
               <ErrorBoundary fallbackViewName="Manager Operations Dashboard">
                 <RequirePilotAuth><ManagerOperationsPage /></RequirePilotAuth>
+              </ErrorBoundary>
+            }
+          />
+          <Route
+            path="/manager/worklog-approvals"
+            element={
+              <ErrorBoundary fallbackViewName="Manager Worklog Approval Queue">
+                <RequirePilotAuth><ManagerWorklogApprovalsPage /></RequirePilotAuth>
               </ErrorBoundary>
             }
           />

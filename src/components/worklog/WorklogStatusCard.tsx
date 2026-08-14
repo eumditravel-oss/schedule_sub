@@ -11,6 +11,10 @@ interface WorklogStatusCardProps {
 
 function stateInfo(context: any, t: (key: string) => string) {
   const worklog = context?.worklog || {};
+  if (worklog.approval_status === 'PENDING') return { text: '관리자 승인 대기', tone: 'amber', icon: AlertCircle };
+  if (worklog.approval_status === 'RETURNED') return { text: '수정 요청', tone: 'amber', icon: Clock3 };
+  if (worklog.approval_status === 'REJECTED') return { text: '반려됨', tone: 'slate', icon: AlertCircle };
+  if (worklog.approval_status === 'APPROVED') return { text: '승인 완료 · Actual 반영', tone: 'emerald', icon: CheckCircle2 };
   if (worklog.status === 'CORRECTION_REQUESTED') return { text: t('correctionRequested'), tone: 'amber', icon: Clock3 };
   if (worklog.status === 'EOD_SUBMITTED' || worklog.status === 'SELF_REVISED' || worklog.status === 'MANAGER_CORRECTED') return { text: t('eodSubmitted'), tone: 'emerald', icon: CheckCircle2 };
   if (worklog.status === 'RETROACTIVE_PENDING_REVIEW' || worklog.requires_manager_review) return { text: t('managerReview'), tone: 'amber', icon: AlertCircle };
@@ -34,7 +38,7 @@ export function WorklogStatusCard({ context, language, readOnly }: WorklogStatus
     [t('lunch'), `${capacity.lunch_start_local || '-'} ~ ${capacity.lunch_end_local || '-'}`],
     [t('capacity'), `${Number(capacity.effective_capacity_minutes || 0)}${t('minutes')}`],
     [t('morningStatus'), worklog.current_morning_revision_id ? t('morningSubmitted') : t('notCreated')],
-    [t('eodStatus'), worklog.current_eod_revision_id ? t('eodSubmitted') : t('eodRequired')],
+    [t('eodStatus'), worklog.current_eod_revision_id ? (worklog.approval_status === 'PENDING' ? '승인 대기' : worklog.approval_status === 'APPROVED' ? '승인 완료' : worklog.approval_status === 'RETURNED' ? '수정 요청' : worklog.approval_status === 'REJECTED' ? '반려' : t('eodSubmitted')) : t('eodRequired')],
   ];
 
   return (

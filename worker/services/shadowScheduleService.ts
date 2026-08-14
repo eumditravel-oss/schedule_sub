@@ -339,8 +339,8 @@ export function normalizeShadowCutoff(input: {
 export function validateSourceWorklogRevisionPair(input: {
   requestedWorklogId?: string | null;
   requestedRevisionId?: string | null;
-  sourceWorklog: { id?: unknown; current_eod_revision_id?: unknown } | null | undefined;
-  sourceRevision: { id?: unknown; worklog_id?: unknown; is_effective?: unknown } | null | undefined;
+  sourceWorklog: { id?: unknown; current_eod_revision_id?: unknown; approval_status?: unknown } | null | undefined;
+  sourceRevision: { id?: unknown; worklog_id?: unknown; is_effective?: unknown; approval_status?: unknown } | null | undefined;
   resolvedRevisionId: string | null;
 }): void {
   if (input.requestedRevisionId && !input.requestedWorklogId) {
@@ -352,6 +352,12 @@ export function validateSourceWorklogRevisionPair(input: {
       Number(input.sourceRevision.is_effective) !== 1 ||
       input.sourceWorklog.current_eod_revision_id !== input.resolvedRevisionId) {
     throw new ShadowScheduleError('SHADOW_RUN_INPUT_CHANGED', 409, { reason: 'SOURCE_WORKLOG_REVISION_MISMATCH' });
+  }
+  if (input.sourceWorklog.approval_status && input.sourceWorklog.approval_status !== 'APPROVED') {
+    throw new ShadowScheduleError('SHADOW_WORKLOG_NOT_APPROVED', 409);
+  }
+  if (input.sourceRevision.approval_status && input.sourceRevision.approval_status !== 'APPROVED') {
+    throw new ShadowScheduleError('SHADOW_WORKLOG_NOT_APPROVED', 409);
   }
 }
 
