@@ -3,6 +3,11 @@ import { ShadowScheduleError, enqueueShadowRecalculation } from './shadowSchedul
 
 type ManagerActor = { worker: any; canManage: boolean; canRead: boolean };
 
+async function queryStage(stage: string, operation: () => Promise<any>): Promise<any> {
+  try { return await operation(); }
+  catch { throw new ShadowScheduleError('MANAGER_DASHBOARD_QUERY_FAILED', 500, { stage }); }
+}
+
 function json(value: unknown, fallback: any = {}) {
   if (typeof value !== 'string' || !value) return fallback;
   try { return JSON.parse(value); } catch { return fallback; }
@@ -34,14 +39,14 @@ async function recipients(db: any, projectId?: string | null, employeeId?: strin
 
 async function visibleEmployeeIds(db: any, actor: ManagerActor): Promise<Set<string> | null> {
   if (actor.worker.access_role === 'VIEWER') return null;
-  const supervised = await db.prepare(`SELECT employee_id FROM pilot_employee_supervision WHERE manager_employee_id=? AND is_active=1`).bind(actor.worker.id).all();
+  const supervised = await queryStage('scope.supervision', () => db.prepare(`SELECT employee_id FROM pilot_employee_supervision WHERE manager_employee_id=? AND is_active=1`).bind(actor.worker.id).all());
   const ids = new Set<string>([actor.worker.id, ...(supervised.results || []).map((r: any) => String(r.employee_id))]);
   if ((supervised.results || []).length) return ids;
-  const subscriptions = await db.prepare(`SELECT scope_type,scope_value FROM notification_subscriptions WHERE recipient_employee_id=? AND enabled=1`).bind(actor.worker.id).all();
+  const subscriptions = await queryStage('scope.subscriptions', () => db.prepare(`SELECT scope_type,scope_value FROM notification_subscriptions WHERE recipient_employee_id=? AND enabled=1`).bind(actor.worker.id).all());
   for (const subscription of subscriptions.results || []) {
     if (subscription.scope_type === 'EMPLOYEE') ids.add(String(subscription.scope_value));
     if (subscription.scope_type === 'OFFICE') {
-      const workers = await db.prepare(`SELECT id FROM workers WHERE is_active=1 AND country_code=?`).bind(subscription.scope_value).all();
+      const workers = await queryStage('scope.office', () => db.prepare(`SELECT id FROM workers WHERE is_active=1 AND country_code=?`).bind(subscription.scope_value).all());
       for (const worker of workers.results || []) ids.add(String(worker.id));
     }
   }
@@ -110,26 +115,24 @@ export async function getManagerOperations(db: any, actorContext: ActorContextSe
   const actor = await resolveManagerActor(db, actorContext);
   const date = localDate(requestedDate);
   const visibleIds = await visibleEmployeeIds(db, actor);
-  await syncManagerNotifications(db, { localDate: date });
-  const [workers, worklogs, capacities, actuals, shadows, approvals, overtime, corrections, unread] = await Promise.all([
-    db.prepare(`SELECT id,name,country_code,access_role,ui_language FROM workers WHERE is_active=1 ORDER BY sort_order,name`).all(),
-    db.prepare(`SELECT * FROM daily_worklogs WHERE local_work_date=?`).bind(date).all(),
-    db.prepare(`SELECT employee_id,SUM(adjustment_minutes) AS adjustment_minutes FROM employee_capacity_events WHERE local_work_date=? AND approval_status IN ('EFFECTIVE','APPROVED') GROUP BY employee_id`).bind(date).all(),
-    db.prepare(`SELECT employee_id,SUM(approved_actual_minutes) AS actual_minutes,MAX(progress_after) AS progress FROM task_actual_contributions WHERE local_work_date=? AND is_effective=1 GROUP BY employee_id`).bind(date).all(),
-    db.prepare(`SELECT st.employee_id,sv.project_id,sv.approval_classification,sv.status,sv.schedule_variance_workdays,sv.shadow_forecast_end_date,sv.official_forecast_end_date
-      FROM shadow_schedule_tasks st JOIN shadow_schedule_versions sv ON sv.shadow_version_id=st.shadow_version_id
-      WHERE sv.status='CURRENT'`).all(),
-    db.prepare(`SELECT * FROM forecast_approval_requests WHERE status='PENDING' ORDER BY requested_at DESC`).all(),
-    db.prepare(`SELECT * FROM overtime_candidates WHERE approval_status='PENDING_REVIEW' ORDER BY created_at DESC`).all(),
-    db.prepare(`SELECT * FROM worklog_correction_requests WHERE status='PENDING_REVIEW' ORDER BY created_at DESC`).all(),
-    db.prepare(`SELECT COUNT(*) AS count FROM notification_recipients WHERE recipient_employee_id=? AND read_at IS NULL`).bind(actor.worker.id).first(),
-  ]);
+  await queryStage('notifications.sync', () => syncManagerNotifications(db, { localDate: date }));
+  const workers = await queryStage('workers', () => db.prepare(`SELECT id,name,country_code,access_role,ui_language FROM workers WHERE is_active=1 ORDER BY sort_order,name`).all());
+  const worklogs = await queryStage('worklogs', () => db.prepare(`SELECT * FROM daily_worklogs WHERE local_work_date=?`).bind(date).all());
+  const capacities = await queryStage('capacity', () => db.prepare(`SELECT employee_id,SUM(adjustment_minutes) AS adjustment_minutes FROM employee_capacity_events WHERE local_work_date=? AND approval_status IN ('EFFECTIVE','APPROVED') GROUP BY employee_id`).bind(date).all());
+  const actuals = await queryStage('actuals', () => db.prepare(`SELECT employee_id,SUM(approved_actual_minutes) AS actual_minutes,MAX(progress_after) AS progress FROM task_actual_contributions WHERE local_work_date=? AND is_effective=1 GROUP BY employee_id`).bind(date).all());
+  const shadows = await queryStage('shadow', () => db.prepare(`SELECT st.employee_id,sv.project_id,sv.approval_classification,sv.status,sv.schedule_variance_workdays,sv.shadow_forecast_end_date,sv.official_forecast_end_date
+    FROM shadow_schedule_tasks st JOIN shadow_schedule_versions sv ON sv.shadow_version_id=st.shadow_version_id
+    WHERE sv.status='CURRENT'`).all());
+  const approvals = await queryStage('approvals', () => db.prepare(`SELECT * FROM forecast_approval_requests WHERE status='PENDING' ORDER BY requested_at DESC`).all());
+  const overtime = await queryStage('overtime', () => db.prepare(`SELECT * FROM overtime_candidates WHERE approval_status='PENDING_REVIEW' ORDER BY created_at DESC`).all());
+  const corrections = await queryStage('corrections', () => db.prepare(`SELECT * FROM worklog_correction_requests WHERE status='PENDING_REVIEW' ORDER BY created_at DESC`).all());
+  const unread = await queryStage('unread', () => db.prepare(`SELECT COUNT(*) AS count FROM notification_recipients WHERE recipient_employee_id=? AND read_at IS NULL`).bind(actor.worker.id).first());
   const by = (rows: any[], key: string) => new Map((rows || []).map((r: any) => [r[key], r]));
   const wl = by(worklogs.results || [], 'employee_id'); const cap = by(capacities.results || [], 'employee_id'); const actual = by(actuals.results || [], 'employee_id');
   const shadow = by(shadows.results || [], 'employee_id');
   const employees = (workers.results || []).filter((worker: any) => !visibleIds || visibleIds.has(String(worker.id))).map((worker: any) => {
     const w = wl.get(worker.id); const s = shadow.get(worker.id); const a = actual.get(worker.id);
-    return { ...worker, capacity_adjustment_minutes: Number(cap.get(worker.id)?.adjustment_minutes || 0), morning: w?.morning_submitted_at_utc ? (Number(w.morning_late) ? 'LATE' : 'COMPLETE') : (Number(w.morning_missing) ? 'MISSING' : 'PENDING'), eod: w?.eod_submitted_at_utc ? 'COMPLETE' : (w?.status ? 'MISSING' : 'PENDING'), actual_minutes: Number(a?.actual_minutes || 0), progress: a?.progress == null ? null : Number(a.progress), shadow_status: s?.status || 'NO_SHADOW', schedule_variance_workdays: Number(s?.schedule_variance_workdays || 0), approval_required: s?.approval_classification === 'APPROVAL_REQUIRED' || Number(w?.requires_manager_review || 0) === 1 };
+    return { ...worker, capacity_adjustment_minutes: Number(cap.get(worker.id)?.adjustment_minutes || 0), morning: w?.morning_submitted_at_utc ? (Number(w.morning_late) ? 'LATE' : 'COMPLETE') : (Number(w?.morning_missing) ? 'MISSING' : 'PENDING'), eod: w?.eod_submitted_at_utc ? 'COMPLETE' : (w?.status ? 'MISSING' : 'PENDING'), actual_minutes: Number(a?.actual_minutes || 0), progress: a?.progress == null ? null : Number(a.progress), shadow_status: s?.status || 'NO_SHADOW', schedule_variance_workdays: Number(s?.schedule_variance_workdays || 0), approval_required: s?.approval_classification === 'APPROVAL_REQUIRED' || Number(w?.requires_manager_review || 0) === 1 };
   });
   const count = (field: string, value: string) => employees.filter((e: any) => e[field] === value).length;
   return { scope: { actor_employee_id: actor.worker.id, office: actor.worker.country_code, can_manage: actor.canManage, read_only: !actor.canManage }, local_date: date, employees, worklogSummary: { employee_count: employees.length, morning_complete: count('morning','COMPLETE'), morning_late: count('morning','LATE'), morning_missing: count('morning','MISSING'), eod_complete: count('eod','COMPLETE'), eod_missing: count('eod','MISSING') }, scheduleSummary: { advanced: employees.filter((e: any) => e.schedule_variance_workdays < 0).length, delayed: employees.filter((e: any) => e.schedule_variance_workdays > 0).length, blocked: employees.filter((e: any) => e.shadow_status === 'BLOCKED').length }, approvalSummary: { pending: (approvals.results || []).length, overtime: (overtime.results || []).length, corrections: (corrections.results || []).length }, notifications: { unread: Number(unread?.count || 0) }, approvals: approvals.results || [], overtime: overtime.results || [], corrections: corrections.results || [] };

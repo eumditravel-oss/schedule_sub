@@ -40,4 +40,24 @@ describe('Checkpoint 5 manager operations', () => {
     await markManagerNotificationRead(db, { actorEmployeeId: 'wrk_01' } as any, 'e1');
     expect(args).toEqual(['e1', 'wrk_01']);
   });
+
+  it('treats a missing daily worklog as pending instead of crashing the dashboard', async () => {
+    const db: any = {
+      prepare: (sql: string) => {
+        const result = sql.includes('COUNT(*)') ? { count: 0 } : workerRow('wrk_01');
+        return {
+          bind: () => ({
+            first: async () => result,
+            all: async () => ({ results: sql.includes('SELECT id,name,country_code') ? [workerRow('wrk_01')] : [] }),
+          }),
+          first: async () => result,
+          all: async () => ({ results: sql.includes('SELECT id,name,country_code') ? [workerRow('wrk_01')] : [] }),
+        };
+      },
+    };
+    const snapshot = await getManagerOperations(db, { actorEmployeeId: 'wrk_01' } as any, '2026-08-14');
+    expect(snapshot.employees).toHaveLength(1);
+    expect(snapshot.employees[0].morning).toBe('PENDING');
+    expect(snapshot.employees[0].eod).toBe('PENDING');
+  });
 });
