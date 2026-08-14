@@ -6,8 +6,10 @@ describe('Checkpoint 6 schedule comparison read model', () => {
     const project = { id: 'p1', name: 'Pilot project', status: 'ACTIVE', start_date: '2026-08-10', end_date: '2026-08-15' };
     const task = { id: 't1', project_id: 'p1', task_name: 'Task A', worker_name: 'wrk_01', primary_worker_id: 'wrk_01', start_date: '2026-08-10', end_date: '2026-08-15', progress: 0 };
     const worker = { id: 'wrk_01', name: 'Manager', country_code: 'KR', workweek_profile: 'MON_FRI' };
+    let prepareCount = 0;
     const db: any = {
       prepare: (sql: string) => ({
+        ...(() => { prepareCount += 1; return {}; })(),
         bind: (...args: any[]) => ({
           first: async () => sql.includes('FROM projects WHERE id') ? project : null,
           all: async () => ({ results: sql.includes('FROM tasks WHERE project_id') ? [task] : [] }),
@@ -30,5 +32,8 @@ describe('Checkpoint 6 schedule comparison read model', () => {
     expect(result.taskRows[0].actual.activity_dates).toEqual([]);
     expect(result.shadow.fresh).toBe(false);
     expect(result.taskRows[0].shadow.start).toBeNull();
+    // The model uses a fixed batch of reads (including optional provenance and
+    // calendar tables); it must remain bounded rather than growing per task.
+    expect(prepareCount).toBeLessThan(35);
   });
 });
