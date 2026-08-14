@@ -1040,6 +1040,27 @@ export async function enqueueShadowRecalculation(db: any, input: {
           )
         )
       )`).bind(input.projectId || null, input.employeeId, input.worklogId, input.revisionId),
+    db.prepare(`UPDATE forecast_approval_requests SET status='STALE',updated_at=CURRENT_TIMESTAMP
+      WHERE status='PENDING' AND shadow_version_id IN (
+        SELECT sv.shadow_version_id FROM shadow_schedule_versions sv
+        WHERE sv.status='STALE' AND (
+          (?1 IS NOT NULL AND sv.project_id=?1)
+          OR EXISTS (
+            SELECT 1 FROM shadow_schedule_tasks st
+            WHERE st.shadow_version_id=sv.shadow_version_id AND st.employee_id=?2
+          )
+          OR EXISTS (
+            SELECT 1 FROM shadow_capacity_allocations a
+            WHERE a.shadow_version_id=sv.shadow_version_id AND a.employee_id=?2
+          )
+          OR sv.run_id IN (
+            SELECT run_id FROM schedule_recalculation_runs WHERE request_id IN (
+              SELECT request_id FROM schedule_recalculation_requests
+              WHERE source_worklog_id=?3 AND source_revision_id<>?4
+            )
+          )
+        )
+      )`).bind(input.projectId || null, input.employeeId, input.worklogId, input.revisionId),
     db.prepare(
       `INSERT INTO schedule_recalculation_requests
        (request_id,trigger_type,source_worklog_id,source_revision_id,project_id,employee_id,requested_by,requested_at,
