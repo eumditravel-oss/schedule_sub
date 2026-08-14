@@ -5,10 +5,9 @@ Repository: `F:/Schedule`
 Source branch: `codex/v31-unified-web`  
 Workspace branch: `codex/v31-workspace-card-dashboard`  
 Base SHA before this scope: `ee50d2ec7fd9835baf3ad40c9780723c9da09b87`  
-Final branch SHA: `21d2c3941d167c382f94889ce04178532c79c2d5`  
+Code implementation commit: `21d2c3941d167c382f94889ce04178532c79c2d5`  
 Pilot: `https://concost-dev-scheduler-pilot.eumditravel.workers.dev`  
-Pilot Worker version: `9eb27972-b921-406c-ad32-88f007eb9ac0`  
-Pilot build SHA: `21d2c3941d167c382f94889ce04178532c79c2d5`  
+Final branch HEAD and Pilot Worker version are recorded in the release handoff after the final documentation commit.  
 Production: unchanged
 
 ## Scope and safety boundary
