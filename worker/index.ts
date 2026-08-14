@@ -50,6 +50,7 @@ import {
 import {
   WorklogError,
   createCorrectionRequest,
+  reviewCorrectionRequest,
   getDailyCapacity,
   getTaskActual,
   getWorklogForActor,
@@ -99,6 +100,15 @@ import {
   requireCsrf,
   resolveAuthenticatedActor,
 } from './services/pilotAuthService';
+import {
+  getManagerOperations,
+  listManagerNotifications,
+  markManagerNotificationRead,
+  reviewOvertime,
+  getManagerDigest,
+  syncManagerNotifications,
+  listManagerHistory,
+} from './services/managerOperationsService';
 
 export type WorkerEnv = Env & {
   KASI_HOLIDAY_API_KEY?: string;
@@ -514,6 +524,42 @@ export default {
         }
       }
 
+      // Checkpoint 5 Manager Operations. Reads are available to schedule
+      // managers and executives; mutations are enforced in the service and
+      // remain manager-only. Notification data is in-app and DB-backed.
+      if (cleanPath.startsWith('/api/v3/manager')) {
+        const sessionActor = await resolveAuthenticatedActor(request, env);
+        const actor = getActorContextServer(sessionActor);
+        const idempotencyKey = request.headers.get('Idempotency-Key')?.trim() || `manager:${crypto.randomUUID()}`;
+        const requestNow = new Date();
+        if (method === 'GET' && cleanPath === '/api/v3/manager/operations/today') {
+          return jsonResponse(await getManagerOperations(db, actor, url.searchParams.get('local_work_date') || undefined));
+        }
+        if (method === 'GET' && cleanPath === '/api/v3/manager/daily-digest') {
+          return jsonResponse(await getManagerDigest(db, actor, url.searchParams.get('local_work_date') || undefined));
+        }
+        if (method === 'GET' && cleanPath === '/api/v3/manager/history') {
+          return jsonResponse(await listManagerHistory(db, actor, url.searchParams.get('project_id') || undefined));
+        }
+        if (method === 'GET' && cleanPath === '/api/v3/manager/notifications') {
+          await syncManagerNotifications(db, { localDate: url.searchParams.get('local_work_date') || undefined });
+          return jsonResponse(await listManagerNotifications(db, actor, Object.fromEntries(url.searchParams.entries())));
+        }
+        const readMatch = cleanPath.match(/^\/api\/v3\/manager\/notifications\/([^/]+)\/read$/);
+        if (method === 'POST' && readMatch) return jsonResponse(await markManagerNotificationRead(db, actor, decodeURIComponent(readMatch[1])));
+        if (method === 'POST' && cleanPath === '/api/v3/manager/notifications/read-all') return jsonResponse(await markManagerNotificationRead(db, actor, '', true));
+        const overtimeMatch = cleanPath.match(/^\/api\/v3\/manager\/overtime\/([^/]+)\/(approve|reject)$/);
+        if (method === 'POST' && overtimeMatch) {
+          const body: any = await request.json().catch(() => ({}));
+          return jsonResponse(await reviewOvertime(db, actor, decodeURIComponent(overtimeMatch[1]), overtimeMatch[2] === 'approve' ? 'APPROVED' : 'REJECTED', body.reason), 201);
+        }
+        const correctionMatch = cleanPath.match(/^\/api\/v3\/manager\/corrections\/([^/]+)\/(approve|reject)$/);
+        if (method === 'POST' && correctionMatch) {
+          const body: any = await request.json().catch(() => ({}));
+          return jsonResponse(await reviewCorrectionRequest(db, actor, decodeURIComponent(correctionMatch[1]), correctionMatch[2] === 'approve' ? 'APPROVED' : 'REJECTED', body.reason, idempotencyKey, requestNow), 201);
+        }
+      }
+
       // 0.004 / 4.1 Worklog and Capacity.  No browser-supplied actor header
       // participates in identity resolution; selected employee is read scope.
       if (cleanPath.startsWith('/api/v3/worklogs') || cleanPath === '/api/v3/capacity/day' || /^\/api\/v3\/tasks\/[^/]+\/actual$/.test(cleanPath)) {
@@ -564,7 +610,7 @@ export default {
         const eodMatch = cleanPath.match(/^\/api\/v3\/worklogs\/([^/]+)\/eod$/);
         if (method === 'POST' && eodMatch) {
           const body: any = await request.json().catch(() => ({}));
-          return jsonResponse(await submitEod(
+          const response = await submitEod(
             db,
             actor,
             decodeURIComponent(eodMatch[1]),
@@ -572,7 +618,9 @@ export default {
             idempotencyKey,
             requestNow,
             env.DYNAMIC_SCHEDULER_SHADOW_ENABLED === 'true',
-          ), 201);
+          );
+          try { await syncManagerNotifications(db, { localDate: body.local_work_date }); } catch { /* notification rebuild is secondary */ }
+          return jsonResponse(response, 201);
         }
 
         const revisionMatch = cleanPath.match(/^\/api\/v3\/worklogs\/([^/]+)\/revisions$/);
@@ -673,6 +721,7 @@ export default {
           if (env.DYNAMIC_SCHEDULER_SHADOW_ENABLED !== 'true') return errorResponse('Shadow scheduling is disabled.', 503, 'SHADOW_SCHEDULER_DISABLED');
           const body: any = await request.json().catch(() => ({}));
           const run = await runShadowForActor(db, actor, body, idempotencyKey);
+          try { await syncManagerNotifications(db, { localDate: body.planning_cutoff_local_date }); } catch { /* notification rebuild is secondary */ }
           // Automatic application is deliberately opt-in.  With the default
           // false flag this endpoint only creates an auditable candidate; QA
           // can turn the flag on for the eligible-fixture verification.

@@ -941,6 +941,36 @@ export async function createCorrectionRequest(db: any, actorContext: ActorContex
   return response;
 }
 
+export async function reviewCorrectionRequest(
+  db: any,
+  actorContext: ActorContextServer,
+  requestId: string,
+  decision: 'APPROVED' | 'REJECTED',
+  reason?: string,
+  key = `manager-correction:${requestId}:${decision}`,
+  now = new Date(),
+) {
+  const actor = await resolveActor(db, actorContext);
+  if (!actor.isManager) throw new WorklogError('WORKLOG_PERMISSION_DENIED', 403);
+  const request = await db.prepare(`SELECT * FROM worklog_correction_requests WHERE id=? AND status='PENDING_REVIEW'`).bind(requestId).first();
+  if (!request) throw new WorklogError('CORRECTION_REQUEST_NOT_FOUND', 404);
+  if (decision === 'REJECTED') {
+    if (!String(reason || '').trim()) throw new WorklogError('REJECT_REASON_REQUIRED', 400);
+    await db.batch([
+      db.prepare(`UPDATE worklog_correction_requests SET status='REJECTED',reviewed_by_employee_id=?,reviewed_at=CURRENT_TIMESTAMP WHERE id=? AND status='PENDING_REVIEW'`).bind(actor.worker.id, requestId),
+      db.prepare(`UPDATE daily_worklogs SET status='EOD_SUBMITTED',requires_manager_review=0,updated_at=CURRENT_TIMESTAMP WHERE id=?`).bind(request.worklog_id),
+      db.prepare(`INSERT INTO worklog_audit_events(id,worklog_id,revision_id,event_type,actor_mode,actor_user_id,actor_employee_id,subject_employee_id,local_work_date,event_time_utc,reason,request_id) SELECT ?,worklog_id,requested_revision_id,'CORRECTION_REJECTED',?,?,?,?,local_work_date,?,?,? FROM daily_worklogs WHERE id=?`).bind(`wla_${crypto.randomUUID()}`, actor.actorMode, actor.actorUserId, actor.worker.id, request.requested_by_employee_id, now.toISOString(), String(reason).trim(), key, request.worklog_id),
+    ]);
+    return { correction_request_id: requestId, status: 'REJECTED', official_forecast_changed: false };
+  }
+  const worklog = await db.prepare(`SELECT * FROM daily_worklogs WHERE id=?`).bind(request.worklog_id).first();
+  if (!worklog) throw new WorklogError('INVALID_LOCAL_WORK_DATE', 404);
+  const proposed = typeof request.proposed_payload_json === 'string' ? JSON.parse(request.proposed_payload_json || '{}') : (request.proposed_payload_json || {});
+  const revision = await submitEodRevision(db, actor, worklog, { ...proposed, reason: reason || proposed.reason || 'MANAGER_CORRECTION' }, key, now, 'MANAGER_CORRECTION', true);
+  await db.prepare(`UPDATE worklog_correction_requests SET status='APPROVED',reviewed_by_employee_id=?,reviewed_at=CURRENT_TIMESTAMP WHERE id=? AND status='PENDING_REVIEW'`).bind(actor.worker.id, requestId).run();
+  return { correction_request_id: requestId, status: 'APPROVED', revision, official_forecast_changed: false };
+}
+
 export async function listWorklogs(db: any, actorContext: ActorContextServer, filters: Record<string, string>) {
   const actor = await resolveReadActor(db, actorContext);
   const scopedFilters = { ...filters };

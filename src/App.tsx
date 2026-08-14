@@ -28,6 +28,9 @@ const ShadowSchedulePage = lazy(() =>
 const ScheduleControlPage = lazy(() =>
   import('./pages/ScheduleControlPage').then((module) => ({ default: module.ScheduleControlPage }))
 );
+const ManagerOperationsPage = lazy(() =>
+  import('./pages/ManagerOperationsPage').then((module) => ({ default: module.ManagerOperationsPage }))
+);
 const PilotLoginPage = lazy(() =>
   import('./pages/PilotLoginPage').then((module) => ({ default: module.PilotLoginPage }))
 );
@@ -119,6 +122,14 @@ export function App() {
             element={
               <ErrorBoundary fallbackViewName="Official Forecast Schedule Control">
                 <RequirePilotAuth><ScheduleControlPage /></RequirePilotAuth>
+              </ErrorBoundary>
+            }
+          />
+          <Route
+            path="/manager/operations"
+            element={
+              <ErrorBoundary fallbackViewName="Manager Operations Dashboard">
+                <RequirePilotAuth><ManagerOperationsPage /></RequirePilotAuth>
               </ErrorBoundary>
             }
           />
