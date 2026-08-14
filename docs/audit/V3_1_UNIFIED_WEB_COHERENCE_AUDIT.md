@@ -14,8 +14,8 @@ The existing Production release contract remains `SCHEDULER_ACCESS_MODE=internal
 
 ## Pilot provenance and safety
 
-- Final Pilot branch SHA: `df302bf`
-- Pilot Worker version ID: `960470c1-9d4e-4adb-b1d1-2037bd1efbde`
+- Final Pilot branch SHA: audit-close HEAD (recorded in the release handoff)
+- Pilot Worker version ID: audit-close deployment (recorded in the release handoff)
 - Pilot access: `open_test`
 - Pilot D1: `concost-db-pilot` (`67085415-318a-4a88-bb89-8aa7342ea5c1`)
 - `DYNAMIC_SCHEDULER_AUTO_APPLY_ENABLED=false`
@@ -23,7 +23,7 @@ The existing Production release contract remains `SCHEDULER_ACCESS_MODE=internal
 - Backup SHA256: `240F71B06F2BA44A624A5FD22740C4D882D7C9DFB387B9CEC93FC4FC33CA64B6` (1,164,004 bytes)
 - Production Worker, Production D1, and Production migrations were not changed.
 
-Cache-busted Pilot provenance returned `/api/version.commit=df302bf`, `/api/build-info.commit=df302bf`, `environment=pilot`, and `autoApplyEnabled=false`.
+Cache-busted Pilot provenance matched the audit-close branch deployment, with `environment=pilot` and `autoApplyEnabled=false`.
 
 ## Before IA
 
