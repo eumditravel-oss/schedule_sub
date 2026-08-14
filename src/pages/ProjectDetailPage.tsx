@@ -39,6 +39,7 @@ import { calculateProjectReadiness } from '../utils/projectReadiness';
 import { resolvePrimaryWorkerId } from '../utils/crossProjectConflictDetector';
 import { calculateDateVarianceDays, formatVarianceBadgeText } from '../utils/scheduleBaseline';
 import { ScheduleComparisonPanel } from '../components/gantt/ScheduleComparisonPanel';
+import { canShowDashboardNavigation } from '../utils/roleLanding';
 
 function resolvePrimaryWorkerObj(taskItem: Task, workers: Worker[]): Worker | null {
   if (!taskItem || !Array.isArray(workers)) return null;
@@ -124,6 +125,9 @@ import {
   ArrowRightLeft,
   ClipboardCheck,
   RotateCw,
+  LayoutDashboard,
+  Layers3,
+  X,
 } from 'lucide-react';
 
 function getShortWorkerName(fullName?: string | null): string {
@@ -936,6 +940,7 @@ export const ProjectDetailPage: React.FC = () => {
   const [calendarOverrides, setCalendarOverrides] = useState<CalendarOverride[]>([]);
   const [loading, setLoading] = useState(true);
   const [comparison, setComparison] = useState<any | null>(null);
+  const [isComparisonOpen, setIsComparisonOpen] = useState(false);
 
   // Mobile View Mode
   const [mobileViewMode, setMobileViewMode] = useState<'SUMMARY' | 'WEEK' | 'GANTT'>(() => {
@@ -1829,6 +1834,7 @@ export const ProjectDetailPage: React.FC = () => {
         <MobileAppHeader
           currentWorker={currentWorker}
           onOpenWorklog={() => navigate(`/worklog/today?projectId=${encodeURIComponent(projectId || '')}`)}
+          onOpenDashboard={canShowDashboardNavigation(currentWorker) ? () => navigate('/dashboard') : undefined}
         />
       ) : (
         <header className="bg-white border-b border-slate-200 px-4 md:px-6 py-3 flex items-center justify-between shadow-2xs">
@@ -1908,6 +1914,32 @@ export const ProjectDetailPage: React.FC = () => {
 
             <TestActorModeBadge />
             <span className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs font-bold text-slate-700">{session?.actor.displayName || '-'}</span>
+
+            {canShowDashboardNavigation(currentWorker) && (
+              <button
+                type="button"
+                data-testid="desktop-dashboard-nav-btn"
+                onClick={() => navigate('/dashboard')}
+                title="Dashboard"
+                className="h-9 px-3 rounded-lg border border-blue-200 bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold text-xs flex items-center gap-1.5 transition shadow-xs shrink-0"
+              >
+                <LayoutDashboard className="w-4 h-4" />
+                <span className="hidden lg:inline">Dashboard</span>
+              </button>
+            )}
+
+            {comparison && (
+              <button
+                type="button"
+                data-testid="schedule-comparison-btn"
+                onClick={() => setIsComparisonOpen(true)}
+                title="Schedule comparison"
+                className="h-9 px-3 rounded-lg border border-violet-200 bg-violet-50 hover:bg-violet-100 text-violet-700 font-bold text-xs flex items-center gap-1.5 transition shadow-xs shrink-0"
+              >
+                <Layers3 className="w-4 h-4" />
+                <span className="hidden xl:inline">Compare</span>
+              </button>
+            )}
 
             <PrintDropdownMenu
               projectId={projectId}
@@ -2059,6 +2091,17 @@ export const ProjectDetailPage: React.FC = () => {
                 </button>
               )}
               <CalendarLegend isMobileView={true} />
+              {comparison && (
+                <button
+                  type="button"
+                  data-testid="mobile-schedule-comparison-btn"
+                  onClick={() => setIsComparisonOpen(true)}
+                  aria-label="Schedule comparison"
+                  className="h-8 w-8 rounded-lg border border-violet-200 bg-violet-50 text-violet-700 flex items-center justify-center shrink-0"
+                >
+                  <Layers3 className="w-4 h-4" />
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -2167,7 +2210,22 @@ export const ProjectDetailPage: React.FC = () => {
 
       {/* Main Content Area */}
       <main className="flex-1 p-3 md:p-5 overflow-x-hidden flex flex-col">
-        {comparison && <div className="mb-4"><ScheduleComparisonPanel comparison={comparison} compact={isMobileView} /></div>}
+        {isComparisonOpen && comparison && (
+          <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/40 p-3 md:p-8" role="dialog" aria-modal="true" aria-label="Schedule comparison">
+            <div className="relative w-full max-w-6xl">
+              <button
+                type="button"
+                data-testid="schedule-comparison-close-btn"
+                onClick={() => setIsComparisonOpen(false)}
+                aria-label="Close schedule comparison"
+                className="absolute right-2 top-2 z-10 flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-sm hover:bg-slate-50"
+              >
+                <X className="h-4 w-4" />
+              </button>
+              <ScheduleComparisonPanel comparison={comparison} compact={isMobileView} />
+            </div>
+          </div>
+        )}
         {isMobileView ? (
           /* Dedicated Mutually Exclusive Mobile & Fold Views */
           <div className="w-full flex-1 flex flex-col">

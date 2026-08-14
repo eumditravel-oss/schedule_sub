@@ -36,7 +36,8 @@ import { MobileThirtyDayGanttView } from '../components/mobile/MobileThirtyDayGa
 import { CalendarLegend } from '../components/common/CalendarLegend';
 import { DateHeaderInfoPanel } from '../components/modals/DateHeaderInfoPanel';
 import { IntegrationManagerModal } from '../components/modals/IntegrationManagerModal';
-import { Plus, ChevronRight, ChevronLeft, Calendar, Lock, Pencil, Trash2, KeyRound, Users } from 'lucide-react';
+import { Plus, ChevronRight, ChevronLeft, Calendar, Lock, Pencil, Trash2, KeyRound, Users, LayoutDashboard } from 'lucide-react';
+import { canShowDashboardNavigation } from '../utils/roleLanding';
 import { BuildVersionIndicator } from '../components/common/BuildVersionIndicator';
 import { ScheduleBar } from '../components/gantt/ScheduleBar';
 import { ProjectCalendarHatchOverlay } from '../components/gantt/ProjectCalendarHatchOverlay';
@@ -421,6 +422,7 @@ export const ProjectOverviewPage: React.FC = () => {
         <MobileAppHeader
           currentWorker={currentWorker}
           onOpenWorklog={() => navigate('/worklog/today')}
+          onOpenDashboard={canShowDashboardNavigation(currentWorker) ? () => navigate('/dashboard') : undefined}
         />
       ) : (
         /* Desktop App Header — Status Tabs가 Header 우측에 통합됨 (1024px 반응형 컴팩트 가로폭) */
@@ -464,6 +466,19 @@ export const ProjectOverviewPage: React.FC = () => {
               <KeyRound className="w-3.5 h-3.5 text-blue-600 shrink-0" />
               <span>Open API</span>
             </button>
+
+            {canShowDashboardNavigation(currentWorker) && (
+              <button
+                type="button"
+                data-testid="desktop-dashboard-nav-btn"
+                onClick={() => navigate('/dashboard')}
+                title="Dashboard"
+                className="h-8 px-2.5 rounded-lg border border-blue-200 bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold text-xs flex items-center gap-1.5 transition shadow-2xs shrink-0 whitespace-nowrap"
+              >
+                <LayoutDashboard className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Dashboard</span>
+              </button>
+            )}
 
             {/* [0.5] Workforce Capacity Board Button */}
             <button
