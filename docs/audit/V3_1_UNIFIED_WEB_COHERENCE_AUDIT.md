@@ -180,6 +180,36 @@ Fresh review after the Pilot fixes found **0 Critical, 0 High, and 0 blocking Me
 
 No Critical finding was introduced by this UX scope. No Production business data was created or changed.
 
+## Dashboard design conformance
+
+| Requirement | Current implementation | Status |
+|---|---|---|
+| Employee landing | Root redirects regular/Primary/Support to `/dashboard` with local date, office, Worklog CTA, and official-task context | PASS |
+| Employee Worklog status | Morning/EOD state is visible above the task list; zero-worklog state has an immediate CTA | PASS |
+| Employee Today Tasks | Current Official Forecast tasks show project, task, role, official range, today planned minutes, and Approved Actual progress | PASS |
+| Employee Capacity | Existing Capacity Service value is shown beside today plan and current status | PASS |
+| Employee attention / next action | Worklog CTA and current Morning/EOD state are prominent; scheduler remains secondary | PASS |
+| Manager landing | Root redirects schedule managers to Team Dashboard | PASS |
+| Manager team KPI | Managed employee count, Morning completion/late, EOD completion, approval pending, and schedule delay are visible | PASS |
+| Manager action queue | Worklog approval CTA plus NORMAL/REVIEW_REQUIRED/EXCEPTION and aging indicators link to the existing approval queue | PASS |
+| Manager employee status | Employee rows show Morning, EOD, Approved Actual, Shadow state, schedule variance, and approval-required marker | PASS |
+| Manager schedule impact | Compact delayed/advanced/blocked summary links to Scheduler; no full Gantt is embedded | PASS |
+| CEO/COO landing | Root opens `/projects` Scheduler in read-only mode | PASS |
+| Scheduler cleanup | No Morning/EOD cards, Worklog editor, approval queue, or team KPI in the main Scheduler layout | PASS |
+| Independent Worklog | `/worklog/today` and `/worklog/history` remain standalone top-level destinations | PASS |
+| Project Publish | Project Detail Publish creates/reuses Baseline + initial Official Forecast; Scheduler consumes the same project | PASS |
+| Context continuity | Dashboard Task → Worklog → Scheduler preserves `project_id`/`task_id`; no name matching | PASS |
+| Zero duplicate entry | Morning carries official tasks forward; EOD does not recreate the Task; Manager does not re-enter Actual | PASS |
+
+### Dashboard findings fixed in this audit
+
+- **V31-DASH-001 — MISSING_OPERATIONAL_CONTEXT (MEDIUM, fixed):** Employee Dashboard Task cards omitted card-level planned minutes and Approved Actual progress. The Worklog context now returns authoritative aggregate/legacy Actual progress and the effective Morning planned minutes for the same employee/date; cards display both without frontend recalculation.
+- **V31-DASH-002 — DASHBOARD_HIERARCHY (MEDIUM, fixed):** Manager Dashboard exposed only a flat KPI row while Morning missing, review-required, exception/correction, notification, and aging signals were below the first decision point. A compact attention strip and employee status detail now surface those existing API aggregates with direct approval/operations CTAs.
+
+### Routes reviewed in the final browser audit
+
+`/`, `/dashboard`, `/projects`, Project Detail, `/worklog/today`, `/worklog/history`, `/manager/operations`, and `/manager/worklog-approvals` were inspected with Support employee, schedule manager, and CEO actors. Employee and manager mobile layouts were also checked at 375px; the employee Dashboard document width matched the viewport and retained the Task/Worklog actions.
+
 ## Tests
 
 | Check | Result |
