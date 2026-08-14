@@ -900,6 +900,13 @@ export async function getWorklogContext(db: any, actorContext: ActorContextServe
     `SELECT DISTINCT t.id AS task_id, t.project_id, t.task_name, t.start_date, t.end_date,
             COALESCE(svt.forecast_start, t.start_date) AS official_forecast_start,
             COALESCE(svt.forecast_end, t.end_date) AS official_forecast_end,
+            COALESCE((SELECT current_progress FROM task_actual_aggregates WHERE task_id=t.id),
+                     (SELECT actual_progress FROM task_actuals WHERE task_id=t.id ORDER BY created_at DESC LIMIT 1),
+                     t.progress,0) AS actual_progress,
+            COALESCE((SELECT SUM(e.planned_minutes) FROM daily_worklog_entries e
+                      JOIN daily_worklogs w ON w.id=e.worklog_id
+                      WHERE e.employee_id=? AND e.task_id=t.id AND e.phase='MORNING'
+                        AND w.local_work_date=? AND e.revision_id=w.current_morning_revision_id),0) AS morning_planned_minutes,
             COALESCE(tpa.id, ta.id) AS assignment_id,
             CASE WHEN tpa.id IS NOT NULL THEN 'PRIMARY' ELSE ta.assignment_role END AS assignment_role,
             p.name AS project_name
@@ -919,11 +926,14 @@ export async function getWorklogContext(db: any, actorContext: ActorContextServe
        AND (COALESCE(svt.forecast_start, t.start_date) IS NULL OR COALESCE(svt.forecast_start, t.start_date) <= ?)
        AND (COALESCE(svt.forecast_end, t.end_date) IS NULL OR COALESCE(svt.forecast_end, t.end_date) >= ?)
      ORDER BY p.name, t.task_sort_order, t.id`
-  ).bind(employeeId, employeeId, localDate, localDate, localDate, localDate).all();
+  ).bind(employeeId, localDate, employeeId, employeeId, localDate, localDate, localDate, localDate).all();
   const eligibleTasks = await db.prepare(
     `SELECT DISTINCT t.id AS task_id, t.project_id, t.task_name, t.start_date, t.end_date,
             COALESCE(svt.forecast_start, t.start_date) AS official_forecast_start,
             COALESCE(svt.forecast_end, t.end_date) AS official_forecast_end,
+            COALESCE((SELECT current_progress FROM task_actual_aggregates WHERE task_id=t.id),
+                     (SELECT actual_progress FROM task_actuals WHERE task_id=t.id ORDER BY created_at DESC LIMIT 1),
+                     t.progress,0) AS actual_progress,
             COALESCE(tpa.id, ta.id) AS assignment_id,
             CASE WHEN tpa.id IS NOT NULL THEN 'PRIMARY' ELSE ta.assignment_role END AS assignment_role,
             p.name AS project_name
