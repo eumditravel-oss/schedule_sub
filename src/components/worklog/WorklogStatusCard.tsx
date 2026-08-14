@@ -53,6 +53,13 @@ export function WorklogStatusCard({ context, language, readOnly }: WorklogStatus
         </div>
         {worklog.current_eod_revision_id && <span className="text-xs font-semibold text-slate-500">{t('revision')} {worklog.current_revision_number || 0}</span>}
       </div>
+      {worklog.current_eod_revision_id && (
+        <div data-testid="worklog-actual-authority-label" className={`mt-3 rounded-lg border px-3 py-2 text-xs font-bold ${worklog.approval_status === 'APPROVED' ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-amber-200 bg-amber-50 text-amber-900'}`}>
+          {worklog.approval_status === 'APPROVED'
+            ? '확정 Actual · 관리자 승인 완료'
+            : '승인 대기 Actual · 관리자 승인 전에는 공식 Actual에 반영되지 않습니다'}
+        </div>
+      )}
       <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-4">
         {cells.map(([label, value]) => (
           <div key={label} className="min-w-0">

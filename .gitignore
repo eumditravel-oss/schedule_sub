@@ -5,6 +5,8 @@ node_modules/
 dist/
 build/
 .wrangler/
+.local-d1/
+.local-d1-run/
 
 # Playwright Test Reports & Contexts
 playwright-report/

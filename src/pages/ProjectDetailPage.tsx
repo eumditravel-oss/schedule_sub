@@ -1,6 +1,6 @@
 // src/pages/ProjectDetailPage.tsx
 import React, { useCallback, useState, useEffect, useRef, useMemo } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { Project, Task, TaskGroup, TaskGroupColorKey, Worker, ProjectWorkerAllocation, CountryHoliday, CalendarOverride, DailyStatusType, WorkDayStatus, CountryCode, WorkweekProfile, ScheduleConflictDetail, isExecutiveViewer, isEditableWorker, GanttDateColumn, DateColumn } from '../types';
 import { WorkerConflictModal } from '../components/modals/WorkerConflictModal';
 import { TaskGroupModal } from '../components/modals/TaskGroupModal';
@@ -852,6 +852,8 @@ const TaskDragOverlay: React.FC<{ activeDragItem: any; lang: string }> = ({ acti
 
 export const ProjectDetailPage: React.FC = () => {
   const { projectId } = useParams<{ projectId: string }>();
+  const [searchParams] = useSearchParams();
+  const focusTaskId = searchParams.get('taskId');
   const navigate = useNavigate();
   const { t, lang, setLanguage } = useI18n();
   const { session } = usePilotAuth();
@@ -1582,6 +1584,26 @@ export const ProjectDetailPage: React.FC = () => {
     fetchCalendarData();
     fetchProjectDetail();
   }, [fetchCalendarData, fetchProjectDetail]);
+
+  // Worklog -> Scheduler navigation carries taskId so the same task is visible
+  // when the Gantt opens.  Expand its group first, then scroll/highlight only
+  // the requested row; this is a read-only UI affordance and never changes data.
+  useEffect(() => {
+    if (!focusTaskId || !tasks.length) return;
+    const task = tasks.find((item) => item.id === focusTaskId);
+    if (!task) return;
+    if (task.task_group_id && collapsedGroupIds[task.task_group_id]) {
+      setCollapsedGroupIds((previous) => ({ ...previous, [task.task_group_id as string]: false }));
+    }
+    const timer = window.setTimeout(() => {
+      const row = document.querySelector(`[data-testid="task-row-${focusTaskId}"]`) as HTMLElement | null;
+      if (!row) return;
+      row.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+      row.classList.add('ring-2', 'ring-emerald-400', 'ring-inset', 'bg-emerald-50/40');
+      window.setTimeout(() => row.classList.remove('ring-2', 'ring-emerald-400', 'ring-inset', 'bg-emerald-50/40'), 2400);
+    }, 80);
+    return () => window.clearTimeout(timer);
+  }, [collapsedGroupIds, focusTaskId, tasks]);
 
   const requireWorkerSelection = (): boolean => Boolean(currentWorker);
 

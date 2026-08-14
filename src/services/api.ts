@@ -202,6 +202,12 @@ export const api = {
     });
     return handleResponse<any>(res);
   },
+  async bulkApproveManagerWorklogs(items: Array<{ worklog_id: string; revision_id: string }>): Promise<any> {
+    const res = await fetch('/api/v3/manager/worklog-approvals/bulk-approve', {
+      method: 'POST', headers: withIdempotencyKey(), body: JSON.stringify({ items }),
+    });
+    return handleResponse<any>(res);
+  },
   async getManagerNotifications(filters: Record<string, string> = {}): Promise<any> {
     const params = new URLSearchParams(filters);
     const res = await fetch(`/api/v3/manager/notifications?${params.toString()}`);
