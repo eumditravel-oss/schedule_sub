@@ -102,6 +102,10 @@ export async function syncManagerNotifications(db: any, options: { localDate?: s
     db.prepare(`SELECT * FROM overtime_candidates WHERE approval_status='PENDING_REVIEW' ORDER BY created_at DESC LIMIT 100`).all(),
     db.prepare(`SELECT * FROM worklog_correction_requests WHERE status='PENDING_REVIEW' ORDER BY created_at DESC LIMIT 100`).all(),
   ]);
+  const worklogs = await db.prepare(`SELECT w.*,r.id AS revision_id,r.revision_number FROM daily_worklogs w
+    LEFT JOIN daily_worklog_revisions r ON r.id=w.current_eod_revision_id
+    WHERE w.local_work_date=? AND w.approval_status IN ('PENDING','RETURNED','APPROVED','REJECTED')
+    ORDER BY w.updated_at DESC LIMIT 200`).bind(date).all();
   for (const row of approvals.results || []) {
     const result = await createNotification(db, { event_type: 'APPROVAL_REQUIRED', severity: 'ACTION_REQUIRED', source_type: 'FORECAST_APPROVAL', source_id: row.approval_request_id, correlation_id: row.shadow_run_id, project_id: row.project_id, dedupe_key: `APPROVAL_REQUIRED:${row.shadow_version_id}`, payload: row });
     if (result.created) created++;
@@ -112,6 +116,19 @@ export async function syncManagerNotifications(db: any, options: { localDate?: s
   }
   for (const row of corrections.results || []) {
     const result = await createNotification(db, { event_type: 'CORRECTION_REQUESTED', severity: 'ACTION_REQUIRED', source_type: 'CORRECTION_REQUEST', source_id: row.id, worklog_id: row.worklog_id, dedupe_key: `CORRECTION_REQUESTED:${row.id}`, payload: row });
+    if (result.created) created++;
+  }
+  for (const row of worklogs.results || []) {
+    if (!row.revision_id) continue;
+    const eventType = row.approval_status === 'PENDING' ? 'WORKLOG_SUBMITTED'
+      : row.approval_status === 'RETURNED' ? 'WORKLOG_RETURNED'
+        : row.approval_status === 'APPROVED' ? 'WORKLOG_APPROVED' : 'WORKLOG_REJECTED';
+    const result = await createNotification(db, {
+      event_type: eventType, severity: row.approval_status === 'PENDING' || row.approval_status === 'RETURNED' ? 'ACTION_REQUIRED' : 'INFO',
+      source_type: 'WORKLOG_APPROVAL', source_id: row.revision_id, worklog_id: row.id, employee_id: row.employee_id,
+      local_work_date: row.local_work_date, dedupe_key: `${eventType}:${row.revision_id}`,
+      payload: { worklog_id: row.id, revision_id: row.revision_id, employee_id: row.employee_id, approval_status: row.approval_status, local_work_date: row.local_work_date },
+    });
     if (result.created) created++;
   }
   return { created, date };
@@ -130,6 +147,12 @@ export async function getManagerOperations(db: any, actorContext: ActorContextSe
     FROM shadow_schedule_tasks st JOIN shadow_schedule_versions sv ON sv.shadow_version_id=st.shadow_version_id
     WHERE sv.status='CURRENT'`).all());
   const approvals = await queryStage('approvals', () => db.prepare(`SELECT * FROM forecast_approval_requests WHERE status='PENDING' ORDER BY requested_at DESC`).all());
+  const worklogApprovals = await queryStage('worklogApprovals', () => db.prepare(`SELECT w.*,r.revision_number AS eod_revision_number,subject.name AS employee_name,subject.country_code AS employee_country
+    FROM daily_worklogs w JOIN workers subject ON subject.id=w.employee_id
+    LEFT JOIN daily_worklog_revisions r ON r.id=w.current_eod_revision_id
+    WHERE w.local_work_date=? AND w.current_eod_revision_id IS NOT NULL
+      AND w.approval_status IN ('PENDING','RETURNED','APPROVED','REJECTED')
+    ORDER BY w.eod_submitted_at_utc DESC`).bind(date).all());
   const overtime = await queryStage('overtime', () => db.prepare(`SELECT * FROM overtime_candidates WHERE approval_status='PENDING_REVIEW' ORDER BY created_at DESC`).all());
   const corrections = await queryStage('corrections', () => db.prepare(`SELECT * FROM worklog_correction_requests WHERE status='PENDING_REVIEW' ORDER BY created_at DESC`).all());
   const unread = await queryStage('unread', () => db.prepare(`SELECT COUNT(*) AS count FROM notification_recipients WHERE recipient_employee_id=? AND read_at IS NULL`).bind(actor.worker.id).first());
@@ -141,7 +164,9 @@ export async function getManagerOperations(db: any, actorContext: ActorContextSe
     return { ...worker, capacity_adjustment_minutes: Number(cap.get(worker.id)?.adjustment_minutes || 0), morning: w?.morning_submitted_at_utc ? (Number(w.morning_late) ? 'LATE' : 'COMPLETE') : (Number(w?.morning_missing) ? 'MISSING' : 'PENDING'), eod: w?.eod_submitted_at_utc ? 'COMPLETE' : (w?.status ? 'MISSING' : 'PENDING'), actual_minutes: Number(a?.actual_minutes || 0), progress: a?.progress == null ? null : Number(a.progress), shadow_status: s?.status || 'NO_SHADOW', schedule_variance_workdays: Number(s?.schedule_variance_workdays || 0), approval_required: s?.approval_classification === 'APPROVAL_REQUIRED' || Number(w?.requires_manager_review || 0) === 1 };
   });
   const count = (field: string, value: string) => employees.filter((e: any) => e[field] === value).length;
-  return { scope: { actor_employee_id: actor.worker.id, office: actor.worker.country_code, can_manage: actor.canManage, read_only: !actor.canManage }, local_date: date, employees, worklogSummary: { employee_count: employees.length, morning_complete: count('morning','COMPLETE'), morning_late: count('morning','LATE'), morning_missing: count('morning','MISSING'), eod_complete: count('eod','COMPLETE'), eod_missing: count('eod','MISSING') }, scheduleSummary: { advanced: employees.filter((e: any) => e.schedule_variance_workdays < 0).length, delayed: employees.filter((e: any) => e.schedule_variance_workdays > 0).length, blocked: employees.filter((e: any) => e.shadow_status === 'BLOCKED').length }, approvalSummary: { pending: (approvals.results || []).length, overtime: (overtime.results || []).length, corrections: (corrections.results || []).length }, notifications: { unread: Number(unread?.count || 0) }, approvals: approvals.results || [], overtime: overtime.results || [], corrections: corrections.results || [] };
+  const visibleWorklogApprovals = (worklogApprovals.results || []).filter((row: any) => !visibleIds || visibleIds.has(String(row.employee_id)));
+  const countWorklog = (status: string) => visibleWorklogApprovals.filter((row: any) => row.approval_status === status).length;
+  return { scope: { actor_employee_id: actor.worker.id, office: actor.worker.country_code, can_manage: actor.canManage, read_only: !actor.canManage }, local_date: date, employees, worklogSummary: { employee_count: employees.length, morning_complete: count('morning','COMPLETE'), morning_late: count('morning','LATE'), morning_missing: count('morning','MISSING'), eod_complete: count('eod','COMPLETE'), eod_missing: count('eod','MISSING'), eod_submitted: visibleWorklogApprovals.length, eod_pending_approval: countWorklog('PENDING'), eod_approved: countWorklog('APPROVED'), eod_returned: countWorklog('RETURNED'), eod_rejected: countWorklog('REJECTED') }, scheduleSummary: { advanced: employees.filter((e: any) => e.schedule_variance_workdays < 0).length, delayed: employees.filter((e: any) => e.schedule_variance_workdays > 0).length, blocked: employees.filter((e: any) => e.shadow_status === 'BLOCKED').length }, approvalSummary: { pending: (approvals.results || []).length, worklog_pending: countWorklog('PENDING'), worklog_approved: countWorklog('APPROVED'), worklog_returned: countWorklog('RETURNED'), worklog_rejected: countWorklog('REJECTED'), overtime: (overtime.results || []).length, corrections: (corrections.results || []).length }, notifications: { unread: Number(unread?.count || 0) }, approvals: approvals.results || [], worklogApprovals: visibleWorklogApprovals, overtime: overtime.results || [], corrections: corrections.results || [] };
 }
 
 export async function listManagerNotifications(db: any, actorContext: ActorContextServer, filters: any = {}) {

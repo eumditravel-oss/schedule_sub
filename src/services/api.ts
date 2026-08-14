@@ -4,6 +4,7 @@ import { ApiResponse, Project, ProjectProgressFoundation, Task, TaskGroup, Worke
 const WORKER_ID_KEY = 'schedule_current_worker_id';
 const WORKER_NAME_KEY = 'schedule_current_worker_name';
 const OPEN_PILOT_ACTOR_KEY = 'selectedTestActorEmployeeId';
+const ACCESS_MODE_KEY = 'scheduler_access_mode';
 let csrfToken = '';
 
 export type PilotSession = {
@@ -12,8 +13,16 @@ export type PilotSession = {
   csrfToken?: string;
   expiresAt: string | null;
   isQaTestSession?: boolean;
-  accessMode?: 'open_test' | 'pilot_session';
+  accessMode?: 'open_test' | 'pilot_session' | 'internal_trust';
 };
+
+export function setAccessMode(mode: PilotSession['accessMode']): void {
+  try { if (mode) localStorage.setItem(ACCESS_MODE_KEY, mode); } catch {}
+}
+
+export function getAccessMode(): PilotSession['accessMode'] {
+  try { return (localStorage.getItem(ACCESS_MODE_KEY) as PilotSession['accessMode']) || undefined; } catch { return undefined; }
+}
 
 export function getOpenPilotActorId(): string {
   try { return localStorage.getItem(OPEN_PILOT_ACTOR_KEY) || localStorage.getItem(WORKER_ID_KEY) || ''; } catch { return ''; }
@@ -33,7 +42,10 @@ export function setOpenPilotActorId(employeeId: string): void {
 function apiFetch(input: RequestInfo | URL, init: RequestInit = {}): Promise<Response> {
   const headers = new Headers(init.headers || {});
   const actorId = getOpenPilotActorId();
-  if (actorId) headers.set('X-Test-Actor-Employee-Id', actorId);
+  if (actorId) {
+    if (getAccessMode() === 'internal_trust') headers.set('X-Internal-Employee-Id', actorId);
+    else headers.set('X-Test-Actor-Employee-Id', actorId);
+  }
   return globalThis.fetch(input, { ...init, headers, credentials: init.credentials || 'same-origin' });
 }
 
@@ -173,6 +185,21 @@ export const api = {
   async getManagerOperations(localWorkDate?: string): Promise<any> {
     const params = localWorkDate ? `?local_work_date=${encodeURIComponent(localWorkDate)}` : '';
     const res = await fetch(`/api/v3/manager/operations/today${params}`);
+    return handleResponse<any>(res);
+  },
+  async getManagerWorklogApprovals(filters: Record<string, string> = {}): Promise<any[]> {
+    const params = new URLSearchParams(filters);
+    const res = await fetch(`/api/v3/manager/worklog-approvals?${params.toString()}`);
+    return handleResponse<any[]>(res);
+  },
+  async getManagerWorklogApproval(worklogId: string): Promise<any> {
+    const res = await fetch(`/api/v3/manager/worklog-approvals/${encodeURIComponent(worklogId)}`);
+    return handleResponse<any>(res);
+  },
+  async reviewManagerWorklog(worklogId: string, action: 'approve' | 'return' | 'reject', revisionId: string, reason?: string): Promise<any> {
+    const res = await fetch(`/api/v3/manager/worklog-approvals/${encodeURIComponent(worklogId)}/${action}`, {
+      method: 'POST', headers: withIdempotencyKey(), body: JSON.stringify({ revision_id: revisionId, reason }),
+    });
     return handleResponse<any>(res);
   },
   async getManagerNotifications(filters: Record<string, string> = {}): Promise<any> {

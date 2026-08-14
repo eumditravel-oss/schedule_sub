@@ -1,6 +1,6 @@
 import { resolveWorkDayStatusServer } from './workCalendar';
 import type { ActorContextServer } from './v3FoundationService';
-import { enqueueShadowRecalculation } from './shadowScheduleService';
+import { enqueueShadowRecalculation, runShadowForActor } from './shadowScheduleService';
 
 export const WORK_CATEGORIES = [
   'NORMAL_ASSIGNED_TASK', 'UNPLANNED_SAME_PROJECT_TASK', 'OTHER_PROJECT_TASK',
@@ -32,6 +32,31 @@ export class WorklogError extends Error {
 export interface WorklogActor extends ActorContextServer {
   worker: any;
   isManager: boolean;
+}
+
+export type WorklogApprovalAction = 'APPROVE' | 'RETURN' | 'REJECT';
+
+function canApproveWorklogs(actor: WorklogActor): boolean {
+  return actor.worker.access_role === 'EDITOR' && Number(actor.worker.can_manage_schedule_engine) === 1;
+}
+
+async function requireWorklogApprovalManager(db: any, actorContext: ActorContextServer): Promise<WorklogActor> {
+  const actor = await resolveReadActor(db, actorContext);
+  if (!canApproveWorklogs(actor)) throw new WorklogError('WORKLOG_APPROVAL_PERMISSION_DENIED', 403);
+  return actor;
+}
+
+async function canManageWorklogSubject(db: any, actor: WorklogActor, employeeId: string): Promise<boolean> {
+  if (actor.worker.access_role === 'VIEWER') return true;
+  if (actor.worker.id === employeeId) return true;
+  if (!canApproveWorklogs(actor)) return false;
+  const relation = await db.prepare(
+    `SELECT 1 AS allowed FROM pilot_employee_supervision
+     WHERE manager_employee_id=? AND employee_id=? AND is_active=1 LIMIT 1`,
+  ).bind(actor.worker.id, employeeId).first();
+  if (relation) return true;
+  const scoped = await db.prepare(`SELECT 1 AS scoped FROM pilot_employee_supervision WHERE manager_employee_id=? AND is_active=1 LIMIT 1`).bind(actor.worker.id).first();
+  return !scoped;
 }
 
 async function resolveReadActor(db: any, actorContext: ActorContextServer): Promise<WorklogActor> {
@@ -463,15 +488,166 @@ export async function getWorklogForActor(db: any, actorContext: ActorContextServ
   return worklogResponse(db, worklogId);
 }
 
+export async function listWorklogApprovals(db: any, actorContext: ActorContextServer, filters: Record<string, string> = {}) {
+  const actor = await requireWorklogApprovalManager(db, actorContext);
+  const where = [`w.current_eod_revision_id IS NOT NULL`];
+  const params: any[] = [];
+  if (filters.status && filters.status !== 'ALL') { where.push('w.approval_status=?'); params.push(filters.status); }
+  else where.push(`w.approval_status IN ('PENDING','RETURNED','APPROVED','REJECTED')`);
+  if (filters.date) { where.push('w.local_work_date=?'); params.push(filters.date); }
+  if (filters.date_from) { where.push('w.local_work_date>=?'); params.push(filters.date_from); }
+  if (filters.date_to) { where.push('w.local_work_date<=?'); params.push(filters.date_to); }
+  if (filters.employee) { where.push('w.employee_id=?'); params.push(filters.employee); }
+  if (filters.project) { where.push(`EXISTS(SELECT 1 FROM daily_worklog_entries pe WHERE pe.worklog_id=w.id AND pe.project_id=?)`); params.push(filters.project); }
+  if (actor.worker.access_role !== 'VIEWER') {
+    const scoped = await db.prepare(`SELECT 1 AS scoped FROM pilot_employee_supervision WHERE manager_employee_id=? AND is_active=1 LIMIT 1`).bind(actor.worker.id).first();
+    if (scoped) {
+      where.push(`(w.employee_id=? OR EXISTS(SELECT 1 FROM pilot_employee_supervision s WHERE s.manager_employee_id=? AND s.employee_id=w.employee_id AND s.is_active=1))`);
+      params.push(actor.worker.id, actor.worker.id);
+    }
+  }
+  const result = await db.prepare(
+    `SELECT w.*, subject.name AS employee_name, subject.country_code AS employee_country,
+       r.revision_number AS eod_revision_number,
+       (SELECT COUNT(*) FROM daily_worklog_entries e WHERE e.worklog_id=w.id AND e.revision_id=w.current_eod_revision_id) AS entry_count,
+       (SELECT COUNT(*) FROM daily_worklog_entries e WHERE e.worklog_id=w.id AND e.revision_id=w.current_eod_revision_id AND e.progress_after IS NOT NULL) AS progress_change_count
+     FROM daily_worklogs w
+     JOIN workers subject ON subject.id=w.employee_id
+     LEFT JOIN daily_worklog_revisions r ON r.id=w.current_eod_revision_id
+     WHERE ${where.join(' AND ')}
+     ORDER BY CASE w.approval_status WHEN 'PENDING' THEN 0 WHEN 'RETURNED' THEN 1 ELSE 2 END,
+       w.local_work_date DESC,w.eod_submitted_at_utc DESC,w.employee_id`
+  ).bind(...params).all();
+  return result.results || [];
+}
+
+export async function getWorklogApprovalDetail(db: any, actorContext: ActorContextServer, worklogId: string) {
+  const actor = await requireWorklogApprovalManager(db, actorContext);
+  const worklog = await db.prepare(`SELECT employee_id FROM daily_worklogs WHERE id=?`).bind(worklogId).first();
+  if (!worklog || !(await canManageWorklogSubject(db, actor, String(worklog.employee_id)))) {
+    throw new WorklogError('WORKLOG_APPROVAL_NOT_FOUND', 404);
+  }
+  return worklogResponse(db, worklogId);
+}
+
+export async function reviewWorklogApproval(
+  db: any,
+  actorContext: ActorContextServer,
+  worklogId: string,
+  revisionId: string,
+  action: WorklogApprovalAction,
+  reason: string | undefined,
+  key: string,
+  now = new Date(),
+  shadowEnabled = false,
+) {
+  const actor = await requireWorklogApprovalManager(db, actorContext);
+  if ((action === 'RETURN' || action === 'REJECT') && !String(reason || '').trim()) {
+    throw new WorklogError(`${action}_REASON_REQUIRED`, 400);
+  }
+  const operation = `WORKLOG_APPROVAL_${action}`;
+  const body = { worklog_id: worklogId, revision_id: revisionId, action, reason: String(reason || '').trim() };
+  const idem = await idempotentResult(db, key, operation, body);
+  if (idem.response) return idem.response;
+  const worklog = await db.prepare(`SELECT * FROM daily_worklogs WHERE id=?`).bind(worklogId).first();
+  if (!worklog || !(await canManageWorklogSubject(db, actor, String(worklog.employee_id)))) {
+    throw new WorklogError('WORKLOG_APPROVAL_NOT_FOUND', 404);
+  }
+  if (String(worklog.current_eod_revision_id) !== revisionId || worklog.approval_status !== 'PENDING') {
+    throw new WorklogError('WORKLOG_ALREADY_RESOLVED', 409, { worklog_id: worklogId, revision_id: revisionId });
+  }
+  const revision = await db.prepare(`SELECT * FROM daily_worklog_revisions WHERE id=? AND worklog_id=?`).bind(revisionId, worklogId).first();
+  if (!revision) throw new WorklogError('WORKLOG_APPROVAL_NOT_FOUND', 404);
+  const affected = await db.prepare(
+    `SELECT DISTINCT task_id,project_id FROM task_actual_contributions
+     WHERE worklog_id=? AND (is_effective=1 OR revision_id=?) AND task_id IS NOT NULL`,
+  ).bind(worklogId, revisionId).all();
+  const targets = collectAggregateRefreshTargets(affected.results || [], affected.results || []);
+  const approved = action === 'APPROVE';
+  const nextWorklogStatus = action === 'RETURN' ? 'CORRECTION_REQUESTED' : worklog.status;
+  const response = {
+    worklog_id: worklogId, revision_id: revisionId, action,
+    approval_status: approved ? 'APPROVED' : action === 'RETURN' ? 'RETURNED' : 'REJECTED',
+    actualUpdated: approved, officialForecastChanged: false,
+    shadowRecalculation: shadowEnabled && approved
+      ? { requestId: null as string | null, status: 'PENDING', errorCode: null as string | null }
+      : { requestId: null as string | null, status: approved ? 'DISABLED' : 'NOT_STARTED', errorCode: null as string | null },
+  };
+  const nextStatus = response.approval_status;
+  const statements: any[] = [
+    db.prepare(
+      `UPDATE daily_worklogs SET status=?,approval_status=?,approved_revision_id=?,approved_by_employee_id=?,approved_at=?,approval_reason=?,requires_manager_review=0,updated_at=CURRENT_TIMESTAMP
+       WHERE id=? AND current_eod_revision_id=? AND approval_status='PENDING'`,
+    ).bind(nextWorklogStatus, nextStatus, approved ? revisionId : null, approved ? actor.worker.id : null, approved ? now.toISOString() : null, String(reason || '').trim() || null, worklogId, revisionId),
+    db.prepare(
+      `UPDATE daily_worklog_revisions SET approval_status=?,approval_action=?,approval_reason=?,approved_by_employee_id=?,approved_at=?
+       WHERE id=? AND worklog_id=? AND approval_status='PENDING'`,
+    ).bind(nextStatus, action, String(reason || '').trim() || null, approved ? actor.worker.id : null, approved ? now.toISOString() : null, revisionId, worklogId),
+    db.prepare(
+      `INSERT OR IGNORE INTO worklog_approval_events(id,worklog_id,revision_id,employee_id,work_date,manager_employee_id,action,reason,created_at)
+       VALUES (?,?,?,?,?,?,?,?,?)`,
+    ).bind(id('wlae'), worklogId, revisionId, worklog.employee_id, worklog.local_work_date, actor.worker.id, action, String(reason || '').trim() || null, now.toISOString()),
+    db.prepare(
+      `INSERT INTO worklog_audit_events(id,worklog_id,revision_id,event_type,actor_mode,actor_user_id,actor_employee_id,subject_employee_id,local_work_date,event_time_utc,reason,test_session_id,request_id)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+    ).bind(id('wla'), worklogId, revisionId, `WORKLOG_${action}`, actor.actorMode, actor.actorUserId, actor.worker.id, worklog.employee_id, worklog.local_work_date, now.toISOString(), String(reason || '').trim() || null, actor.testSessionId, key),
+  ];
+  if (approved) {
+    statements.push(
+      db.prepare(`UPDATE task_actual_contributions SET is_effective=0 WHERE worklog_id=? AND revision_id<>? AND is_effective=1 AND EXISTS(SELECT 1 FROM daily_worklogs WHERE id=? AND approval_status='APPROVED' AND approved_revision_id=?)`).bind(worklogId, revisionId, worklogId, revisionId),
+      db.prepare(`UPDATE task_actual_contributions SET is_effective=1,approved_actual_minutes=raw_actual_minutes WHERE worklog_id=? AND revision_id=? AND EXISTS(SELECT 1 FROM daily_worklogs WHERE id=? AND approval_status='APPROVED' AND approved_revision_id=?)`).bind(worklogId, revisionId, worklogId, revisionId),
+      db.prepare(`UPDATE employee_capacity_events SET approval_status='EFFECTIVE' WHERE worklog_id=? AND revision_id=? AND approval_status='PENDING_REVIEW'`).bind(worklogId, revisionId),
+    );
+    for (const [taskId, projectId] of targets) statements.push(aggregateStatement(db, taskId, projectId));
+  }
+  statements.push(db.prepare(`INSERT INTO worklog_idempotency_keys (idempotency_key,operation,payload_hash,worklog_id,revision_id,response_json,created_at) VALUES (?,?,?,?,?,?,?)`)
+    .bind(key, operation, idem.hash, worklogId, revisionId, stableStringify(response), now.toISOString()));
+  const results = await db.batch(statements);
+  if (Number(results[0]?.meta?.changes || 0) !== 1) {
+    // D1 remote batch metadata may report zero changes even when the batch
+    // committed. The idempotency row is the authoritative commit marker; a
+    // second request with another key still fails the current-state guard.
+    const committed = await db.prepare(`SELECT response_json FROM worklog_idempotency_keys WHERE idempotency_key=? AND operation=?`).bind(key, operation).first();
+    if (!committed?.response_json) throw new WorklogError('WORKLOG_ALREADY_RESOLVED', 409, { worklog_id: worklogId, revision_id: revisionId });
+  }
+  if (shadowEnabled && approved) {
+    try {
+      const projectIds = [...targets.values()];
+      const queued = await enqueueShadowRecalculation(db, {
+        worklogId, revisionId, projectId: projectIds.length === 1 ? String(projectIds[0]) : null,
+        employeeId: worklog.employee_id, requestedBy: actor.worker.id,
+        idempotencyKey: `shadow:approved-worklog:${worklogId}:${revisionId}`,
+      });
+      const run = await runShadowForActor(db, actor, {
+        project_id: projectIds.length === 1 ? String(projectIds[0]) : null,
+        source_worklog_id: worklogId,
+        source_revision_id: revisionId,
+        trigger_type: 'WORKLOG_APPROVAL',
+        planning_cutoff_utc: now.toISOString(),
+        planning_cutoff_local_date: worklog.local_work_date,
+      }, `shadow-run:approved-worklog:${worklogId}:${revisionId}`);
+      response.shadowRecalculation = { requestId: queued.requestId, status: run.run?.status || queued.status, errorCode: null };
+    } catch (error: any) {
+      response.shadowRecalculation = { requestId: null, status: 'FAILED_RETRYABLE', errorCode: error?.code || 'SHADOW_REQUEST_CREATE_FAILED' };
+    }
+    await db.prepare(`UPDATE worklog_idempotency_keys SET response_json=? WHERE idempotency_key=? AND operation=?`)
+      .bind(stableStringify(response), key, operation).run();
+  }
+  return response;
+}
+
 // The recalculation request is asynchronous.  The employee UI needs a
 // bounded, read-only status endpoint so a successful EOD never has to infer
 // schedule success from the worklog itself.  It deliberately exposes no
 // manager action and no Official Forecast mutation path.
 export async function getWorklogShadowStatus(db: any, actorContext: ActorContextServer, worklogId: string) {
   const actor = await resolveReadActor(db, actorContext);
-  const worklog = await db.prepare(`SELECT id,employee_id FROM daily_worklogs WHERE id=?`).bind(worklogId).first();
+  const worklog = await db.prepare(`SELECT id,employee_id,approval_status FROM daily_worklogs WHERE id=?`).bind(worklogId).first();
   if (!worklog) throw new WorklogError('INVALID_LOCAL_WORK_DATE', 404, { worklog_id: worklogId });
   if (!canReadSubject(actor, worklog.employee_id)) throw new WorklogError('WORKLOG_PERMISSION_DENIED', 403);
+  if (worklog.approval_status === 'PENDING' || worklog.approval_status === 'RETURNED' || worklog.approval_status === 'REJECTED') {
+    return { request: null, run: null, versions: [], impacts: [], officialForecastChanged: false, status: worklog.approval_status === 'PENDING' ? 'PENDING_APPROVAL' : worklog.approval_status };
+  }
   const request = await db.prepare(`SELECT * FROM schedule_recalculation_requests WHERE source_worklog_id=? ORDER BY requested_at DESC LIMIT 1`)
     .bind(worklogId).first();
   if (!request) return { request: null, run: null, versions: [], impacts: [], officialForecastChanged: false };
@@ -481,7 +657,7 @@ export async function getWorklogShadowStatus(db: any, actorContext: ActorContext
   const [versions, impacts] = await Promise.all([
     db.prepare(`SELECT shadow_version_id,project_id,status,approval_classification,shadow_forecast_start_date,shadow_forecast_end_date,official_forecast_start_date,official_forecast_end_date
       FROM shadow_schedule_versions WHERE run_id=? ORDER BY project_id`).bind(run.run_id).all(),
-    db.prepare(`SELECT primary_project_id,employee_id,affected_task_count,affected_project_count,cross_project_impact,approval_required,reason_codes_json
+    db.prepare(`SELECT primary_project_id,employee_id,affected_task_count,affected_project_count,cross_project_impact,approval_required,approval_reason_codes_json AS reason_codes_json
       FROM shadow_impact_summaries WHERE run_id=?`).bind(run.run_id).all(),
   ]);
   return {
@@ -718,6 +894,8 @@ async function submitEodRevision(
   const deadline = worklog.self_edit_deadline_utc || await getSelfEditDeadline(db, worklog.employee_id, worklog.local_work_date);
   const retroactive = mode === 'INITIAL_EOD' && now.getTime() > new Date(deadline).getTime();
   const status = isManager ? 'MANAGER_CORRECTED' : mode === 'SELF_REVISION' ? 'SELF_REVISED' : retroactive ? 'RETROACTIVE_PENDING_REVIEW' : 'EOD_SUBMITTED';
+  const approvalStatus = isManager ? 'APPROVED' : 'PENDING';
+  const authoritativeNow = approvalStatus === 'APPROVED';
   const selfReview = retroactive || validated.some((entry) => entry.work_category === 'EMERGENCY_LEAVE' || (OTHER_PROJECT.has(entry.work_category) && entry.reason_source === 'SELF_DECISION'));
   const response = {
     worklog_id: worklog.id, revision_id: revisionId, revision_number: nextRevisionNumber, status,
@@ -725,12 +903,13 @@ async function submitEodRevision(
     actual_recorded_minutes: actualMinutes, capacity_variance_minutes: variance,
     has_gap: hasGap, overtime_candidate_minutes: overtime,
     overtime_approval_status: overtime > 0 ? 'PENDING_REVIEW' : 'NOT_APPLICABLE',
-    requires_manager_review: selfReview || hasGap || overtime > 0,
-    actualUpdated: true,
+    requires_manager_review: !authoritativeNow || selfReview || hasGap || overtime > 0,
+    approval_status: approvalStatus,
+    actualUpdated: authoritativeNow,
     officialForecastChanged: false,
     forecast_date_change_count: 0, schedule_adjustment_event_count: 0,
     shadowRecalculation: shadowEnabled
-      ? { requestId: null as string | null, status: 'PENDING', errorCode: null as string | null }
+      ? { requestId: null as string | null, status: authoritativeNow ? 'PENDING' : 'PENDING_APPROVAL', errorCode: null as string | null }
       : { requestId: null as string | null, status: 'DISABLED', errorCode: null as string | null },
   };
   const statements: any[] = [];
@@ -738,11 +917,11 @@ async function submitEodRevision(
   const previousContributions = mode !== 'INITIAL_EOD' && worklog.current_eod_revision_id
     ? await db.prepare(`SELECT task_id,project_id FROM task_actual_contributions WHERE worklog_id=? AND is_effective=1`).bind(worklog.id).all()
     : { results: [] };
-  if (mode !== 'INITIAL_EOD' && worklog.current_eod_revision_id) {
+  if (authoritativeNow && mode !== 'INITIAL_EOD' && worklog.current_eod_revision_id) {
     statements.push(db.prepare(`UPDATE task_actual_contributions SET is_effective=0 WHERE worklog_id=? AND is_effective=1`).bind(worklog.id));
     statements.push(db.prepare(`UPDATE employee_capacity_events SET approval_status='SUPERSEDED' WHERE worklog_id=? AND approval_status IN ('EFFECTIVE','APPROVED')`).bind(worklog.id));
   }
-  const commonValues = [status, nextRevisionNumber, revisionId, now.toISOString(), worklog.current_morning_revision_id ? 0 : 1,
+  const commonValues = [status, approvalStatus, nextRevisionNumber, revisionId, now.toISOString(), worklog.current_morning_revision_id ? 0 : 1,
     retroactive ? 1 : 0, effectiveCapacity, actualMinutes, variance, hasGap ? body.gap_reason_code : null,
     hasGap ? body.gap_reason_text : null, overtime, overtime > 0 ? 'PENDING_REVIEW' : 'NOT_APPLICABLE', hasGap ? 1 : 0,
     overtime > 0 ? 1 : 0, response.requires_manager_review ? 1 : 0,
@@ -751,17 +930,17 @@ async function submitEodRevision(
     validated.some((entry) => entry.work_category === 'EMERGENCY_LEAVE') ? 1 : 0, deadline];
   if (worklog._isNew) {
     statements.push(db.prepare(
-      `INSERT INTO daily_worklogs (id,employee_id,local_work_date,office_code,timezone,status,current_revision_number,
+      `INSERT INTO daily_worklogs (id,employee_id,local_work_date,office_code,timezone,status,approval_status,current_revision_number,
        current_eod_revision_id,eod_submitted_at_utc,morning_missing,retroactive_submission,capacity_minutes,
        actual_recorded_minutes,capacity_variance_minutes,gap_reason_code,gap_reason_text,overtime_candidate_minutes,
        overtime_approval_status,has_gap,has_overtime_candidate,requires_manager_review,contains_other_project_work,
        contains_company_duty,contains_emergency_leave,self_edit_deadline_utc,actor_mode,actor_user_id,subject_employee_id,
-       test_session_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
+       test_session_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
     ).bind(worklog.id, worklog.employee_id, worklog.local_work_date, worklog.office_code, worklog.timezone,
       ...commonValues, actor.actorMode, actor.actorUserId, worklog.employee_id, actor.testSessionId));
   } else {
     statements.push(db.prepare(
-      `UPDATE daily_worklogs SET status=?,current_revision_number=?,current_eod_revision_id=?,eod_submitted_at_utc=?,
+      `UPDATE daily_worklogs SET status=?,approval_status=?,current_revision_number=?,current_eod_revision_id=?,eod_submitted_at_utc=?,
        morning_missing=?,retroactive_submission=?,capacity_minutes=?,actual_recorded_minutes=?,capacity_variance_minutes=?,
        gap_reason_code=?,gap_reason_text=?,overtime_candidate_minutes=?,overtime_approval_status=?,has_gap=?,
        has_overtime_candidate=?,requires_manager_review=?,contains_other_project_work=?,contains_company_duty=?,
@@ -770,10 +949,10 @@ async function submitEodRevision(
   }
   statements.push(db.prepare(
     `INSERT INTO daily_worklog_revisions (id,worklog_id,revision_number,phase,previous_revision_id,created_by_employee_id,
-     created_at,reason,change_type,payload_snapshot,is_effective,actor_mode,actor_user_id,subject_employee_id,test_session_id,request_fingerprint)
-     VALUES (?,?,?,'EOD',?,?,?,?,?,?,1,?,?,?,?,?)`
+     created_at,reason,change_type,payload_snapshot,is_effective,approval_status,actor_mode,actor_user_id,subject_employee_id,test_session_id,request_fingerprint)
+     VALUES (?,?,?,'EOD',?,?,?,?,?,?,1,?,?,?,?,?,?)`
   ).bind(revisionId, worklog.id, nextRevisionNumber, previousRevisionId, actor.worker.id, now.toISOString(), body.reason || null,
-    mode, stableStringify(body), actor.actorMode, actor.actorUserId, worklog.employee_id, actor.testSessionId, idem.hash));
+    mode, stableStringify(body), approvalStatus, actor.actorMode, actor.actorUserId, worklog.employee_id, actor.testSessionId, idem.hash));
   const affectedTasks = collectAggregateRefreshTargets(previousContributions.results || [], []);
   for (const entry of validated) {
     const entryId = id('wle');
@@ -799,20 +978,20 @@ async function submitEodRevision(
       statements.push(db.prepare(
         `INSERT INTO task_actual_contributions (id,task_id,project_id,employee_id,worklog_id,revision_id,local_work_date,
          assignment_role,raw_actual_minutes,approved_actual_minutes,progress_before,progress_after,remaining_estimated_minutes,
-         completion_reported,source_type,is_effective,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,'DAILY_WORKLOG_EOD',1,?)`
+         completion_reported,source_type,is_effective,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,'DAILY_WORKLOG_EOD',?,?)`
       ).bind(id('tac'), entry.task_id, projectId, worklog.employee_id, worklog.id, revisionId, worklog.local_work_date,
-        entry.assignment.role, entry.actual_minutes, entry.actual_minutes, entry.progress_before,
+        entry.assignment.role, entry.actual_minutes, authoritativeNow ? entry.actual_minutes : 0, entry.progress_before,
         entry.assignment.role === 'PRIMARY' ? entry.progress_after : null,
         entry.assignment.role === 'PRIMARY' ? entry.remaining_estimated_minutes : null,
-        entry.assignment.role === 'PRIMARY' && asBool(entry.completion_reported) ? 1 : 0, now.toISOString()));
+        entry.assignment.role === 'PRIMARY' && asBool(entry.completion_reported) ? 1 : 0, authoritativeNow ? 1 : 0, now.toISOString()));
     }
     if (LEAVE_CATEGORIES.has(entry.work_category) && capacityBeforeLeave.base_capacity_minutes > 0) {
       statements.push(db.prepare(
         `INSERT INTO employee_capacity_events (id,employee_id,local_work_date,event_type,adjustment_minutes,source_type,
          source_reference_id,worklog_id,revision_id,approval_status,requires_manager_review,reason,created_at,actor_mode,actor_user_id,test_session_id)
-         VALUES (?,?,?,?,?,?,?,?,?,'EFFECTIVE',?,?,?,?,?,?)`
+         VALUES (?,?,?,?,?,?,?,?,?,? ,?,?,?,?,?,?)`
       ).bind(id('cap'), worklog.employee_id, worklog.local_work_date, entry.work_category, -entry.actual_minutes,
-        'WORKLOG_ENTRY', entryId, worklog.id, revisionId, entry.work_category === 'EMERGENCY_LEAVE' ? 1 : 0,
+        'WORKLOG_ENTRY', entryId, worklog.id, revisionId, authoritativeNow ? 'EFFECTIVE' : 'PENDING_REVIEW', entry.work_category === 'EMERGENCY_LEAVE' ? 1 : 0,
         entry.exception_reason || null, now.toISOString(), actor.actorMode, actor.actorUserId, actor.testSessionId));
     }
   }
@@ -840,7 +1019,7 @@ async function submitEodRevision(
     if (String(error?.message || error).includes('UNIQUE')) throw new WorklogError('VERSION_CONFLICT', 409);
     throw error;
   }
-  if (shadowEnabled) {
+  if (shadowEnabled && authoritativeNow) {
     try {
       const projectIds = [...new Set(validated.map((entry) => entry.project_id || entry.assignment?.task?.project_id).filter(Boolean))];
       const queued = await enqueueShadowRecalculation(db, {
@@ -859,6 +1038,10 @@ async function submitEodRevision(
         errorCode: error?.code || 'SHADOW_REQUEST_CREATE_FAILED',
       };
     }
+    await db.prepare(`UPDATE worklog_idempotency_keys SET response_json=? WHERE idempotency_key=? AND operation=?`)
+      .bind(stableStringify(response), key, operation)
+      .run();
+  } else if (shadowEnabled) {
     await db.prepare(`UPDATE worklog_idempotency_keys SET response_json=? WHERE idempotency_key=? AND operation=?`)
       .bind(stableStringify(response), key, operation)
       .run();
@@ -1012,11 +1195,14 @@ export async function getTaskActual(db: any, taskId: string, actorContext?: Acto
   const aggregate = await currentTaskActual(db, taskId);
   const contributions = await db.prepare(`SELECT * FROM task_actual_contributions WHERE task_id=? ORDER BY local_work_date,created_at,id`).bind(taskId).all();
   const contributionRows = contributions.results || [];
-  const view = buildTaskActualView(taskId, task.project_id, aggregate, contributionRows);
+  const effectiveRows = contributionRows.filter((row: any) => Number(row.is_effective) === 1);
+  const pendingRows = contributionRows.filter((row: any) => Number(row.is_effective) !== 1);
+  const view = buildTaskActualView(taskId, task.project_id, aggregate, effectiveRows);
   return {
     task_id: taskId,
     ...view,
-    contributions: contributionRows,
-    effective_contribution_count: contributionRows.filter((row: any) => Number(row.is_effective) === 1).length,
+    contributions: effectiveRows,
+    pending_contributions: pendingRows,
+    effective_contribution_count: effectiveRows.length,
   };
 }

@@ -7,7 +7,7 @@ export type LegacyProgressSource = 'MANUAL' | 'AUTO_TIME' | 'SYSTEM' | 'UNKNOWN'
 export interface ActorContextServer {
   // TEST_SELECTOR remains type-only compatibility for historical pure-service
   // fixtures; HTTP business routes never construct it.
-  actorMode: 'PILOT_SESSION' | 'QA_TEST_SESSION' | 'SYSTEM_MIGRATION' | 'TEST_SELECTOR';
+  actorMode: 'PILOT_SESSION' | 'QA_TEST_SESSION' | 'SYSTEM_MIGRATION' | 'TEST_SELECTOR' | 'INTERNAL_TRUST';
   actorUserId: string | null;
   actorEmployeeId: string | null;
   selectedViewEmployeeId: string | null;

@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { api, getOpenPilotActorId, pilotAuth, setOpenPilotActorId, type PilotSession } from '../services/api';
+import { api, getAccessMode, getOpenPilotActorId, pilotAuth, setAccessMode, setOpenPilotActorId, type PilotSession } from '../services/api';
 
 type PilotAuthState = {
   loading: boolean;
@@ -21,7 +21,9 @@ export function PilotAuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const infoResponse = await globalThis.fetch('/api/build-info', { credentials: 'same-origin' });
       const info: any = await infoResponse.json();
-      const isOpen = info?.data?.featureFlags?.accessMode === 'open_test';
+      const accessMode = info?.data?.featureFlags?.accessMode as PilotSession['accessMode'];
+      const isOpen = accessMode === 'open_test' || accessMode === 'internal_trust';
+      setAccessMode(accessMode);
       setOpenTestMode(isOpen);
       if (isOpen) {
         const employees = await api.getPilotLoginEmployees();
@@ -35,14 +37,16 @@ export function PilotAuthProvider({ children }: { children: React.ReactNode }) {
           actor: { employeeId: actor.id, displayName: actor.name, role: actor.access_role || 'EDITOR', office: actor.country_code || null, timezone: null },
           expiresAt: null,
           isQaTestSession: false,
-          accessMode: 'open_test',
+          accessMode,
         };
         setSession(openSession);
         return openSession;
       }
       const next = await pilotAuth.session();
-      setSession(next);
-      return next;
+      const resolved = { ...next, accessMode: next.accessMode || accessMode || getAccessMode() };
+      setAccessMode(resolved.accessMode);
+      setSession(resolved);
+      return resolved;
     } catch (error: any) {
       if (error?.code === 'AUTH_REQUIRED' || error?.code === 'SESSION_EXPIRED' || error?.code === 'SESSION_REVOKED') {
         pilotAuth.clearLocalSession();
@@ -75,7 +79,7 @@ export function PilotAuthProvider({ children }: { children: React.ReactNode }) {
     const employees = await api.getPilotLoginEmployees();
     const actor = employees.find((employee) => employee.id === employeeId);
     if (!actor) return session;
-    const next: PilotSession = { authenticated: true, actor: { employeeId: actor.id, displayName: actor.name, role: actor.access_role || 'EDITOR', office: actor.country_code || null, timezone: null }, expiresAt: null, accessMode: 'open_test' };
+    const next: PilotSession = { authenticated: true, actor: { employeeId: actor.id, displayName: actor.name, role: actor.access_role || 'EDITOR', office: actor.country_code || null, timezone: null }, expiresAt: null, accessMode: session?.accessMode || 'open_test' };
     setSession(next);
     return next;
   }, [openTestMode, session]);
