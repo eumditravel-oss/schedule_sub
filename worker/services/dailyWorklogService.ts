@@ -914,7 +914,7 @@ export async function getWorklogContext(db: any, actorContext: ActorContextServe
      WHERE (ta.id IS NOT NULL OR tpa.id IS NOT NULL)
        AND COALESCE((SELECT current_progress FROM task_actual_aggregates WHERE task_id=t.id),
                     (SELECT actual_progress FROM task_actuals WHERE task_id=t.id ORDER BY created_at DESC LIMIT 1),
-                    t.actual_progress,t.progress,0) < 100
+                    t.progress,0) < 100
        AND COALESCE(t.completion_confirmed,0) <> 1
        AND (COALESCE(svt.forecast_start, t.start_date) IS NULL OR COALESCE(svt.forecast_start, t.start_date) <= ?)
        AND (COALESCE(svt.forecast_end, t.end_date) IS NULL OR COALESCE(svt.forecast_end, t.end_date) >= ?)
@@ -938,7 +938,7 @@ export async function getWorklogContext(db: any, actorContext: ActorContextServe
      WHERE (ta.id IS NOT NULL OR tpa.id IS NOT NULL)
        AND COALESCE((SELECT current_progress FROM task_actual_aggregates WHERE task_id=t.id),
                     (SELECT actual_progress FROM task_actuals WHERE task_id=t.id ORDER BY created_at DESC LIMIT 1),
-                    t.actual_progress,t.progress,0) < 100
+                    t.progress,0) < 100
        AND COALESCE(t.completion_confirmed,0) <> 1
      ORDER BY p.name, t.task_sort_order, t.id`
   ).bind(employeeId, employeeId, localDate, localDate).all();
