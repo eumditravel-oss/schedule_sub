@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, ArrowRight, CalendarDays, CheckCircle2, Clock3, ClipboardCheck, Gauge, Users } from 'lucide-react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { usePilotAuth } from '../auth/PilotAuthContext';
 import { api } from '../services/api';
 import type { Worker } from '../types';
@@ -81,6 +81,7 @@ export function DashboardPage() {
   const [worker, setWorker] = useState<Worker | null>(null);
   useEffect(() => { if (!session?.actor.employeeId) return; void api.getWorkers().then((rows) => setWorker((rows || []).find((row) => row.id === session.actor.employeeId) || null)); }, [session?.actor.employeeId]);
   if (!worker) return <main className="grid min-h-screen place-items-center bg-slate-100 text-sm font-semibold text-slate-600">사용자 정보를 불러오는 중입니다…</main>;
+  if (worker.access_role === 'VIEWER' || worker.name === 'CEO' || worker.name === 'COO') return <Navigate to="/projects" replace />;
   return isManagerWorker(worker) ? <ManagerDashboard worker={worker} /> : <EmployeeDashboard worker={worker} />;
 }
 

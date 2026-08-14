@@ -30,12 +30,11 @@ export function AppShell({ children, worker }: AppShellProps) {
           <span className="hidden min-w-0 sm:block"><span className="block truncate text-sm font-black tracking-tight">CON-COST</span><span className="block text-[10px] font-semibold text-slate-500">Unified Work Operations</span></span>
         </Link>
         <nav className="hidden items-center gap-1 lg:flex" aria-label="주 메뉴">
-          <NavItem to="/dashboard" icon={LayoutDashboard} label={dashboardLabel} active={active('/dashboard')} />
+          {!viewer && <NavItem to="/dashboard" icon={LayoutDashboard} label={dashboardLabel} active={active('/dashboard')} />}
           <NavItem to="/projects" icon={FolderKanban} label="프로젝트" active={active('/projects') && !active('/projects/') } />
-          <NavItem to="/worklog/today" icon={ClipboardCheck} label="업무일지" active={active('/worklog')} />
+          {!viewer && <NavItem to="/worklog/today" icon={ClipboardCheck} label="업무일지" active={active('/worklog')} />}
           <NavItem to="/print/projects/year-a4" icon={History} label="보고서·이력" active={active('/print')} />
           {manager && <NavItem to="/manager/operations" icon={BarChart3} label="운영 현황" active={active('/manager')} />}
-          {viewer && <NavItem to="/projects" icon={CalendarRange} label="스케줄러" active={active('/projects')} />}
         </nav>
         <div className="ml-auto flex items-center gap-2">
           <span className="hidden rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs font-bold text-slate-700 sm:inline-flex">{session?.actor.displayName || '사용자'}</span>
@@ -43,9 +42,9 @@ export function AppShell({ children, worker }: AppShellProps) {
         </div>
       </div>
       <nav className="mx-auto flex max-w-[1600px] gap-1 overflow-x-auto border-t border-slate-100 px-4 py-2 lg:hidden sm:px-6" aria-label="모바일 메뉴">
-        <NavItem to="/dashboard" icon={LayoutDashboard} label={dashboardLabel} active={active('/dashboard')} />
+        {!viewer && <NavItem to="/dashboard" icon={LayoutDashboard} label={dashboardLabel} active={active('/dashboard')} />}
         <NavItem to="/projects" icon={FolderKanban} label="프로젝트" active={active('/projects')} />
-        <NavItem to="/worklog/today" icon={ClipboardCheck} label="업무일지" active={active('/worklog')} />
+        {!viewer && <NavItem to="/worklog/today" icon={ClipboardCheck} label="업무일지" active={active('/worklog')} />}
         {manager && <NavItem to="/manager/operations" icon={BarChart3} label="운영" active={active('/manager')} />}
       </nav>
     </header>
