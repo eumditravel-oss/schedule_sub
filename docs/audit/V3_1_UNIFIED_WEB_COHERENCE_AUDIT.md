@@ -3,13 +3,27 @@
 Audit date: 2026-08-14 (KST)
 Repository: `F:/Schedule`
 Baseline source expected by the task: `0c67566a05583a8e479dc3f698ea7844060948da`
-Production: `https://concost-dev-scheduler.eumditravel.workers.dev`
+Production: `https://concost-dev-scheduler.eumditravel.workers.dev` (unchanged)
+Pilot: `https://concost-dev-scheduler-pilot.eumditravel.workers.dev`
 
 ## Status boundary
 
-V3 Core remains **100% complete**. This work is tracked separately as **V3.1 Unified Web Experience — implementation started**. No authentication redesign, migration, fake business data, Production cleanup, AUTO_APPLY change, or scheduling-engine rewrite was performed.
+V3 Core remains **100% complete**. V3.1 Unified Web Experience implementation is committed on `codex/v31-unified-web` and validated on Pilot. No authentication redesign, migration, Production cleanup, AUTO_APPLY change, or scheduling-engine rewrite was performed.
 
 The existing Production release contract remains `SCHEDULER_ACCESS_MODE=internal_trust`, `AUTO_APPLY=false`, and `WAITING_FOR_FIRST_REAL_EMPLOYEE_WORKLOG`.
+
+## Pilot provenance and safety
+
+- Final Pilot branch SHA: `c31fe39`
+- Pilot Worker version ID: `595523d5-73f9-4e0d-9876-1d49b0b2ef71`
+- Pilot access: `open_test`
+- Pilot D1: `concost-db-pilot` (`67085415-318a-4a88-bb89-8aa7342ea5c1`)
+- `DYNAMIC_SCHEDULER_AUTO_APPLY_ENABLED=false`
+- Pre-deploy Pilot D1 backup: `qa/v31-pilot-backups/pilot-before-v31-20260814.sql`
+- Backup SHA256: `240F71B06F2BA44A624A5FD22740C4D882D7C9DFB387B9CEC93FC4FC33CA64B6` (1,164,004 bytes)
+- Production Worker, Production D1, and Production migrations were not changed.
+
+Cache-busted Pilot provenance returned `/api/version.commit=c31fe39`, `/api/build-info.commit=c31fe39`, `environment=pilot`, and `autoApplyEnabled=false`.
 
 ## Before IA
 
@@ -55,6 +69,25 @@ Managers land on a Team Dashboard backed by `getManagerOperations()`. It exposes
 ## CEO/COO journey
 
 CEO/COO Viewer sessions land on the Scheduler. They have read-only project, baseline, Official Forecast, Actual, Shadow, schedule delta, report, and history visibility. Worklog submission, approval, Project publish, and schedule mutations remain server-gated.
+
+## Pilot browser validation
+
+The route-level validation used the real Pilot Worker in the browser with the open-test actor selector and no fabricated Worklog/Actual records.
+
+| Journey | Result | Evidence |
+|---|---|---|
+| Employee / Support root landing | PASS | `/` redirected to `/dashboard`; `personal-dashboard` rendered with official task count, Morning/EOD, Capacity, Approved Actual, Worklog CTA |
+| Manager root landing | PASS | `/` redirected to `/dashboard`; `manager-dashboard`, Worklog Approval, and Operations CTAs rendered |
+| CEO root landing | PASS | `/` redirected to `/projects`; Scheduler table rendered, no Today/Worklog cards or employee dashboard |
+| Employee Worklog | PASS | `/worklog/today` rendered Morning/EOD controls, official task cards, VN policy/capacity, no alert/500 |
+| Worklog → Scheduler | PASS | CTA preserved `project_id` and `taskId` in `/projects/:projectId?taskId=...` |
+| Project Publish | PASS | Marker-owned Pilot draft published one Baseline + one initial Official Forecast in one batch |
+| Publish idempotency | PASS | Repeated Publish kept Baseline count `1` and Official version count `1` |
+| Mobile employee | PASS | Dashboard and Worklog rendered at 375/390/430 widths; measured document width matched viewport after Pilot-selector and dashboard overflow fixes |
+| Mobile manager | PASS | Team Dashboard rendered with mobile navigation and approval/operations CTAs |
+| Scheduler-only executive UI | PASS | CEO Scheduler contained timeline/report controls, with Worklog operation widgets absent |
+
+The marker Project Publish fixture was intentionally Pilot-owned. Its post-publish deletion was correctly refused with `OFFICIAL_FORECAST_HISTORY_PROTECTED`; it remains an explicitly labelled Pilot evidence row so immutable Official history is not destroyed.
 
 ## Project publish journey
 
@@ -132,13 +165,18 @@ KR/VN local date and calendar policy are derived from the employee country/timez
 - **MEDIUM — Completed Task re-suggestion:** Worklog context now excludes completed/confirmed Tasks.
 - **MEDIUM — Multi-project Shadow summary:** manager employee rows now aggregate status, approval, and schedule variance deterministically.
 - **MEDIUM — Viewer approval affordance:** Manager Operations now shows a read-only marker instead of an approval link when `scope.can_manage=false`.
+- **HIGH — Pilot Worklog schema mismatch:** the context query referenced non-existent legacy `tasks.actual_progress` in the production-shaped Pilot schema. The query now uses canonical aggregate/legacy Actual fallbacks followed by `tasks.progress`; browser Worklog validation is green.
+- **MEDIUM — Mobile dashboard overflow:** long official Task content could widen a single-column grid beyond 375px. Dashboard cards and the Pilot actor selector now allow min-width collapse/wrapping; 375/390/430 measurements are within viewport.
 
-### Deferred before Pilot release
+### Deferred after independent audit
 
-- Route-level Pilot browser smoke for employee, manager, CEO/COO, KR/VN, mobile, and Project Publish is still required.
-- `wrangler types --check` requires a writable Wrangler cache and regenerated binding file; the default Windows log location is restricted.
-- Restored full D1 integration suites remain CI/Linux workerd validation; focused migration-backed local D1 provisioning passes.
-- Manager Digest project rows remain empty until a digest consumer is activated.
+- `wrangler types --check` remains an environment/tooling check requiring a writable Wrangler cache; TypeScript, Vite build, focused D1, and full local Vitest are green. Non-blocking for this Pilot-only gate.
+- Restored full D1 integration suites remain CI/Linux workerd validation; focused migration-backed local D1 provisioning passes. No browser/domain blocker was found.
+- Manager Digest project rows remain empty until a digest consumer is activated; this is outside the V3.1 daily employee/manager workflow and does not change official data.
+
+### Independent audit result
+
+Fresh review after the Pilot fixes found **0 Critical, 0 High, and 0 blocking Medium findings**. The audit specifically rechecked role landing, official-vs-shadow source separation, Worklog/Scheduler identity continuity, publish idempotency, pending-vs-approved semantics, scheduler-only executive UI, mobile overflow, and Production safety. The remaining items above are non-blocking, documented, and do not require duplicate core input.
 
 No Critical finding was introduced by this UX scope. No Production business data was created or changed.
 
@@ -150,18 +188,21 @@ No Critical finding was introduced by this UX scope. No Production business data
 | Vite build | PASS |
 | Vitest local | 48 files passed, 342 tests passed, 5 files / 33 tests skipped |
 | Focused role landing tests | PASS |
-| Local D1 provisioning tests | Previously PASS, 4 tests |
+| Focused Worklog policy/role tests | 19 passed |
+| Local D1 provisioning + QA clock | 4 passed |
 | `git diff --check` | PASS; only CRLF normalization warnings |
+| Pilot browser matrix | PASS: employee, manager, CEO, Worklog, Project Publish/idempotency, 375/390/430 mobile |
 
 ## Release gate
 
-Current result:
+Final result:
 
 ```text
 V3_CORE: 100%
-V3.1_UNIFIED_WEB_EXPERIENCE: STARTING
-SYSTEM_COHERENCE: PASS_WITH_DEFERRED
+V3.1_UNIFIED_WEB_EXPERIENCE: PILOT_VALIDATED
+SYSTEM_COHERENCE: PASS_WITH_NONBLOCKING_DEFERRED
 CANARY_STATUS: WAITING_FOR_FIRST_REAL_EMPLOYEE_WORKLOG
+READY_FOR_V31_GITHUB_MERGE: YES
 ```
 
-Before QA/Pilot release: preserve the existing evidence/backups, commit the bounded changes, deploy only to Pilot with `open_test` and `AUTO_APPLY=false`, run the route-level UX matrix, perform an independent audit against the merged SHA, then take the documented Production backup and deploy. Production must remain free of fabricated Worklog, Actual, Shadow, or Project records.
+The bounded V3.1 branch is ready for the next GitHub merge/review step. Do not merge main or deploy Production as part of this task. Production must remain free of fabricated Worklog, Actual, Shadow, or Project records.
