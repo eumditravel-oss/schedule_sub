@@ -1,7 +1,12 @@
 import type { Project, Task } from '../types';
 
-// Forecast application does not mutate operational dates. Every schedule
-// surface must prefer the append-only Official Forecast projection.
+/**
+ * Display-only date selectors for the current Official Forecast.
+ *
+ * Forecast apply is append-only: the original projects/tasks dates remain
+ * baseline/legacy fields. Every schedule-facing surface must therefore use
+ * the latest official snapshot when one is present.
+ */
 export function officialProjectStart(project: Project): string | null | undefined {
   return project.current_forecast_start_date || project.start_date;
 }

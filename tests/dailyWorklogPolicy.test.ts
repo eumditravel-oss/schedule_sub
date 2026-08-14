@@ -15,6 +15,7 @@ import {
   zonedLocalToUtc,
   deriveWorklogTriage,
   formatWorklogApprovalAge,
+  worklogApprovalResolutionKey,
 } from '../worker/services/dailyWorklogService';
 
 const expectCode = (fn: () => unknown, code: string) => {
@@ -130,5 +131,11 @@ describe('Checkpoint 2 daily worklog policy', () => {
     const now = new Date('2026-08-14T12:00:00.000Z');
     expect(formatWorklogApprovalAge('2026-08-14T11:00:00.000Z', now)).toEqual({ ageMinutes: 60, ageLabel: '1시간 0분' });
     expect(formatWorklogApprovalAge('2026-08-13T10:00:00.000Z', now)).toEqual({ ageMinutes: 1560, ageLabel: '1일 2시간' });
+  });
+
+  it('uses one resolution reservation key for concurrent manager decisions', () => {
+    expect(worklogApprovalResolutionKey('wl-1', 'rev-2')).toBe('worklog-resolution:wl-1:rev-2');
+    expect(worklogApprovalResolutionKey('wl-1', 'rev-2')).toBe(worklogApprovalResolutionKey('wl-1', 'rev-2'));
+    expect(worklogApprovalResolutionKey('wl-1', 'rev-2')).not.toBe(worklogApprovalResolutionKey('wl-1', 'rev-3'));
   });
 });

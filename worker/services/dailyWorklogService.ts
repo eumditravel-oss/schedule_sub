@@ -23,6 +23,10 @@ const TASK_SCOPED_CATEGORIES = new Set([
 ]);
 const PROGRESS_FIELDS = ['progress_after', 'remaining_estimated_minutes', 'completion_reported'] as const;
 
+export function worklogApprovalResolutionKey(worklogId: string, revisionId: string): string {
+  return `worklog-resolution:${worklogId}:${revisionId}`;
+}
+
 export class WorklogError extends Error {
   constructor(public code: string, public status = 400, public details?: unknown, message?: string) {
     super(message || code);
@@ -794,9 +798,26 @@ export async function reviewWorklogApproval(
     );
     for (const [taskId, projectId] of targets) statements.push(aggregateStatement(db, taskId, projectId));
   }
+  // A client idempotency key protects retries from the same request, but it
+  // cannot serialize two managers using different keys. Reserve one stable
+  // resolution key per worklog revision inside the same D1 batch so only the
+  // first approval/return/reject can commit.
+  const resolutionKey = worklogApprovalResolutionKey(worklogId, revisionId);
   statements.push(db.prepare(`INSERT INTO worklog_idempotency_keys (idempotency_key,operation,payload_hash,worklog_id,revision_id,response_json,created_at) VALUES (?,?,?,?,?,?,?)`)
-    .bind(key, operation, idem.hash, worklogId, revisionId, stableStringify(response), now.toISOString()));
-  const results = await db.batch(statements);
+    .bind(resolutionKey, 'WORKLOG_APPROVAL_RESOLUTION', idem.hash, worklogId, revisionId, stableStringify(response), now.toISOString()));
+  if (key !== resolutionKey) {
+    statements.push(db.prepare(`INSERT INTO worklog_idempotency_keys (idempotency_key,operation,payload_hash,worklog_id,revision_id,response_json,created_at) VALUES (?,?,?,?,?,?,?)`)
+      .bind(key, operation, idem.hash, worklogId, revisionId, stableStringify(response), now.toISOString()));
+  }
+  let results: any[];
+  try {
+    results = await db.batch(statements);
+  } catch (error: any) {
+    if (String(error?.message || error).includes('UNIQUE')) {
+      throw new WorklogError('WORKLOG_ALREADY_RESOLVED', 409, { worklog_id: worklogId, revision_id: revisionId });
+    }
+    throw error;
+  }
   if (Number(results[0]?.meta?.changes || 0) !== 1) {
     // D1 remote batch metadata may report zero changes even when the batch
     // committed. The idempotency row is the authoritative commit marker; a
@@ -891,6 +912,10 @@ export async function getWorklogContext(db: any, actorContext: ActorContextServe
      LEFT JOIN schedule_version_tasks svt ON svt.task_id = t.id
        AND svt.version_id = (SELECT id FROM schedule_versions WHERE project_id = t.project_id ORDER BY version_number DESC LIMIT 1)
      WHERE (ta.id IS NOT NULL OR tpa.id IS NOT NULL)
+       AND COALESCE((SELECT current_progress FROM task_actual_aggregates WHERE task_id=t.id),
+                    (SELECT actual_progress FROM task_actuals WHERE task_id=t.id ORDER BY created_at DESC LIMIT 1),
+                    t.actual_progress,t.progress,0) < 100
+       AND COALESCE(t.completion_confirmed,0) <> 1
        AND (COALESCE(svt.forecast_start, t.start_date) IS NULL OR COALESCE(svt.forecast_start, t.start_date) <= ?)
        AND (COALESCE(svt.forecast_end, t.end_date) IS NULL OR COALESCE(svt.forecast_end, t.end_date) >= ?)
      ORDER BY p.name, t.task_sort_order, t.id`
@@ -911,6 +936,10 @@ export async function getWorklogContext(db: any, actorContext: ActorContextServe
      LEFT JOIN schedule_version_tasks svt ON svt.task_id = t.id
        AND svt.version_id = (SELECT id FROM schedule_versions WHERE project_id = t.project_id ORDER BY version_number DESC LIMIT 1)
      WHERE (ta.id IS NOT NULL OR tpa.id IS NOT NULL)
+       AND COALESCE((SELECT current_progress FROM task_actual_aggregates WHERE task_id=t.id),
+                    (SELECT actual_progress FROM task_actuals WHERE task_id=t.id ORDER BY created_at DESC LIMIT 1),
+                    t.actual_progress,t.progress,0) < 100
+       AND COALESCE(t.completion_confirmed,0) <> 1
      ORDER BY p.name, t.task_sort_order, t.id`
   ).bind(employeeId, employeeId, localDate, localDate).all();
   const uniqueTaskRows = (rows: any[]) => Array.from(new Map(rows.map((row) => [row.task_id, row])).values());

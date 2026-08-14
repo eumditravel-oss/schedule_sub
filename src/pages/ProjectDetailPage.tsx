@@ -1614,7 +1614,7 @@ export const ProjectDetailPage: React.FC = () => {
     if (!project || isViewer) return;
     if (!confirm(lang === 'vi' ? 'Lưu lịch hiện tại làm lịch cơ sở (Baseline)?' : '현재 확정 일정을 기준 일정(Baseline)으로 저장하시겠습니까?')) return;
     try {
-      await api.saveProjectBaseline(project.id);
+      await api.publishProject(project.id);
       await fetchProjectDetail();
       alert(lang === 'vi' ? 'Đã lưu lịch cơ sở thành công.' : '기준 일정이 성공적으로 저장되었습니다.');
     } catch (err: any) {
@@ -1895,13 +1895,13 @@ export const ProjectDetailPage: React.FC = () => {
                 </button>
                 <button
                   type="button"
-                  data-testid="save-baseline-btn"
+                  data-testid="project-publish-btn"
                   onClick={handleSaveBaseline}
-                  title={lang === 'vi' ? 'Lưu lịch cơ sở (Baseline)' : '현재 확정 일정을 기준 일정(Baseline)으로 저장'}
+                  title={lang === 'vi' ? 'Publish Project' : '프로젝트 발행: Baseline과 Official Forecast 생성'}
                   className="h-9 px-3 rounded-lg border border-purple-200 bg-purple-50 hover:bg-purple-100 text-xs font-bold text-purple-700 flex items-center gap-1.5 transition shadow-xs"
                 >
                   <BookmarkCheck className="w-4 h-4 text-purple-600" />
-                  <span>{lang === 'vi' ? 'Lưu lịch cơ sở' : '기준 일정 저장'}</span>
+                  <span>{lang === 'vi' ? 'Publish Project' : '프로젝트 발행'}</span>
                 </button>
               </div>
             )}
@@ -2548,8 +2548,8 @@ export const ProjectDetailPage: React.FC = () => {
         onClose={() => setInfoSheetState({ isOpen: false, task: null })}
         title={infoSheetState.task ? getTaskDisplayName(infoSheetState.task) : ''}
         subtitle={infoSheetState.task?.worker_name}
-        startDate={infoSheetState.task?.start_date || undefined}
-        endDate={infoSheetState.task?.end_date || undefined}
+        startDate={infoSheetState.task ? officialTaskStart(infoSheetState.task) || undefined : undefined}
+        endDate={infoSheetState.task ? officialTaskEnd(infoSheetState.task) || undefined : undefined}
         progress={infoSheetState.task?.progress}
         workerName={infoSheetState.task?.worker_name}
         isReadOnly={isViewer || isCompleted}

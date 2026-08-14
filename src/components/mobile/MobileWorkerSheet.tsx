@@ -73,7 +73,7 @@ export const MobileWorkerSheet: React.FC<MobileWorkerSheetProps> = ({
 
         <div className="space-y-2 max-h-72 overflow-y-auto custom-scrollbar">
           {workers.map((w) => {
-            const isSelected = currentWorker?.id === w.id || currentWorker?.name === w.name;
+            const isSelected = currentWorker?.id === w.id;
             const group = getWorkerColorGroup(w);
             const badge = getBadgeInfo(w);
 

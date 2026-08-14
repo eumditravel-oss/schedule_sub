@@ -8,6 +8,7 @@ import { PrintColorMode, getPrintStatusBadgeStyle, getPrintGanttBarStyle, resolv
 import { resolveWorkDayStatus } from '../../utils/workCalendar';
 import { resolveReportProjectProgress } from '../../utils/reportProgress';
 import { parseISO, format, addDays, differenceInCalendarDays } from 'date-fns';
+import { officialProjectEnd, officialProjectStart, officialTaskEnd, officialTaskStart } from '../../utils/officialForecastDates';
 
 export interface PrintCombinedProjectsA3Props {
   selectedProjects: Project[];
@@ -44,8 +45,8 @@ export const PrintCombinedProjectsA3: React.FC<PrintCombinedProjectsA3Props> = (
   let maxEnd = addDays(minStart, 29);
 
   if (selectedProjects.length > 0) {
-    const starts = selectedProjects.map((p) => p.start_date ? parseISO(p.start_date) : new Date()).filter(Boolean);
-    const ends = selectedProjects.map((p) => p.end_date ? parseISO(p.end_date) : new Date()).filter(Boolean);
+    const starts = selectedProjects.map((p) => officialProjectStart(p) ? parseISO(officialProjectStart(p)!) : new Date()).filter(Boolean);
+    const ends = selectedProjects.map((p) => officialProjectEnd(p) ? parseISO(officialProjectEnd(p)!) : new Date()).filter(Boolean);
 
     if (starts.length > 0) minStart = new Date(Math.min(...starts.map((d) => d.getTime())));
     if (ends.length > 0) maxEnd = new Date(Math.max(...ends.map((d) => d.getTime())));
@@ -141,8 +142,8 @@ export const PrintCombinedProjectsA3: React.FC<PrintCombinedProjectsA3Props> = (
                       const picName = getProjectPicWithSupportSummary(pTasks, workerMap, lang);
                       const pName = isKo ? (project.name_ko || project.name) : (project.name_vi || project.name);
 
-                      const pStartStr = project.start_date;
-                      const pEndStr = project.end_date;
+                      const pStartStr = officialProjectStart(project);
+                      const pEndStr = officialProjectEnd(project);
                       const pBarStyle = getPrintGanttBarStyle(project.status, colorMode);
 
                       // Calculate span columns for band range
@@ -176,7 +177,7 @@ export const PrintCombinedProjectsA3: React.FC<PrintCombinedProjectsA3Props> = (
                               [Project] {pName}
                             </td>
                             <td className="border-r border-slate-300 px-1 py-1.5 text-center font-mono text-[9px]">
-                              {project.start_date?.substring(5)} ~ {project.end_date?.substring(5)}
+                              {pStartStr?.substring(5)} ~ {pEndStr?.substring(5)}
                             </td>
                             <td className="border-r border-slate-300 px-1 py-1.5 text-center">
                               <span
@@ -279,8 +280,8 @@ export const PrintCombinedProjectsA3: React.FC<PrintCombinedProjectsA3Props> = (
                             const tPic = picWorker ? picWorker.name : task.worker_name || '-';
                             const tName = isKo ? (task.task_name_ko || task.task_name) : (task.task_name_vi || task.task_name);
 
-                            const tStartStr = task.start_date;
-                            const tEndStr = task.end_date;
+                            const tStartStr = officialTaskStart(task);
+                            const tEndStr = officialTaskEnd(task);
                             const tClippedLeft = Boolean(tStartStr && tStartStr < bandStartStr);
                             const tClippedRight = Boolean(tEndStr && tEndStr > bandEndStr);
 
@@ -307,7 +308,7 @@ export const PrintCombinedProjectsA3: React.FC<PrintCombinedProjectsA3Props> = (
                                   ↳ {tName}
                                 </td>
                                 <td className="border-r border-slate-300 px-1 py-1 text-center font-mono text-[9px] text-slate-500">
-                                  {task.start_date?.substring(5)} ~ {task.end_date?.substring(5)}
+                                  {tStartStr?.substring(5)} ~ {tEndStr?.substring(5)}
                                 </td>
                                 <td className="border-r border-slate-300 px-1 py-1 text-center">
                                   <span

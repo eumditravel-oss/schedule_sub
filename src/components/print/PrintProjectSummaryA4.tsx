@@ -14,6 +14,7 @@ import {
 } from '../../utils/printVisualTokens';
 import { resolveReportProjectProgress, getCompletedTaskCount } from '../../utils/reportProgress';
 import { parseISO, format, eachWeekOfInterval, eachDayOfInterval, differenceInCalendarDays, addDays } from 'date-fns';
+import { officialProjectEnd, officialProjectStart, officialTaskEnd, officialTaskStart } from '../../utils/officialForecastDates';
 
 export interface PrintProjectSummaryA4Props {
   project: Project;
@@ -67,7 +68,7 @@ export const PrintProjectSummaryA4: React.FC<PrintProjectSummaryA4Props> = ({
   const completedTasks = getCompletedTaskCount(tasks);
   const blockedTasks = tasks.filter((t) => Boolean(t.is_blocked)).length;
   const delayedTasks = tasks.filter(
-    (t) => t.schedule_state === 'DELAYED' || (t.end_date && t.end_date < referenceDate && (t.actual_progress ?? t.progress ?? 0) < 100)
+    (t) => t.schedule_state === 'DELAYED' || (officialTaskEnd(t) && officialTaskEnd(t)! < referenceDate && (t.actual_progress ?? t.progress ?? 0) < 100)
   ).length;
   const inProgressTasks = tasks.filter((t) => t.schedule_state === 'IN_PROGRESS' && !t.is_blocked).length;
 
@@ -105,7 +106,7 @@ export const PrintProjectSummaryA4: React.FC<PrintProjectSummaryA4Props> = ({
     const gBlocked = gTasks.filter((t) => Boolean(t.is_blocked)).length;
     const gInProgress = gTasks.filter((t) => t.schedule_state === 'IN_PROGRESS' && !t.is_blocked).length;
     const gDelayed = gTasks.filter(
-      (t) => t.schedule_state === 'DELAYED' || (t.end_date && t.end_date < referenceDate && (t.actual_progress ?? t.progress ?? 0) < 100)
+      (t) => t.schedule_state === 'DELAYED' || (officialTaskEnd(t) && officialTaskEnd(t)! < referenceDate && (t.actual_progress ?? t.progress ?? 0) < 100)
     ).length;
 
     // Group progress percent - Single Source of Truth
@@ -151,8 +152,10 @@ export const PrintProjectSummaryA4: React.FC<PrintProjectSummaryA4Props> = ({
   const totalPageCount = 1 + detailPagesConfig.length;
 
   // Timeline Compression for Page 1 Executive Summary
-  const startDate = project.start_date ? parseISO(project.start_date) : new Date();
-  const endDate = project.end_date ? parseISO(project.end_date) : new Date();
+  const projectStart = officialProjectStart(project);
+  const projectEnd = officialProjectEnd(project);
+  const startDate = projectStart ? parseISO(projectStart) : new Date();
+  const endDate = projectEnd ? parseISO(projectEnd) : new Date();
   let timelineWeeks: Date[] = [];
   try {
     timelineWeeks = eachWeekOfInterval({ start: startDate, end: endDate }, { weekStartsOn: 1 });
@@ -207,7 +210,7 @@ export const PrintProjectSummaryA4: React.FC<PrintProjectSummaryA4Props> = ({
                 {isKo ? '프로젝트 기간' : 'Thời gian dự án'}
               </span>
               <span className="font-mono text-xs font-bold text-slate-800">
-                {project.start_date} ~ {project.end_date}
+                {projectStart || '-'} ~ {projectEnd || '-'}
               </span>
             </div>
 
@@ -335,7 +338,7 @@ export const PrintProjectSummaryA4: React.FC<PrintProjectSummaryA4Props> = ({
             <h3 className="font-bold text-slate-800 text-[11px] mb-1.5 flex items-center justify-between">
               <span>{isKo ? '주간 진행 요약' : 'Tiến trình tóm tắt theo tuần'}</span>
               <span className="text-[10px] font-normal text-slate-500">
-                {project.start_date} ~ {project.end_date}
+                {projectStart || '-'} ~ {projectEnd || '-'}
               </span>
             </h3>
 
@@ -376,8 +379,8 @@ export const PrintProjectSummaryA4: React.FC<PrintProjectSummaryA4Props> = ({
       {detailPagesConfig.map((pageConfig, pIdx) => {
         const currentPageNum = 2 + pIdx;
         const pageTasks = pageConfig.rows.map((row) => row.task);
-        const validTaskStarts = pageTasks.map((task) => task.start_date).filter(Boolean) as string[];
-        const validTaskEnds = pageTasks.map((task) => task.end_date).filter(Boolean) as string[];
+        const validTaskStarts = pageTasks.map((task) => officialTaskStart(task)).filter(Boolean) as string[];
+        const validTaskEnds = pageTasks.map((task) => officialTaskEnd(task)).filter(Boolean) as string[];
         const pageMinStart = validTaskStarts.length > 0
           ? new Date(Math.min(...validTaskStarts.map((date) => parseISO(date).getTime())))
           : startDate;
@@ -463,12 +466,14 @@ export const PrintProjectSummaryA4: React.FC<PrintProjectSummaryA4Props> = ({
                         const planned = task.planned_progress ?? task.progress ?? 0;
                         let taskStartColumn = 0;
                         let taskEndColumn = detailDaysArray.length - 1;
-                        if (task.start_date) {
-                          const index = detailDaysArray.findIndex((date) => format(date, 'yyyy-MM-dd') >= task.start_date!);
+                        const taskStart = officialTaskStart(task);
+                        const taskEnd = officialTaskEnd(task);
+                        if (taskStart) {
+                          const index = detailDaysArray.findIndex((date) => format(date, 'yyyy-MM-dd') >= taskStart);
                           if (index !== -1) taskStartColumn = index;
                         }
-                        if (task.end_date) {
-                          const index = detailDaysArray.findIndex((date) => format(date, 'yyyy-MM-dd') > task.end_date!);
+                        if (taskEnd) {
+                          const index = detailDaysArray.findIndex((date) => format(date, 'yyyy-MM-dd') > taskEnd);
                           if (index !== -1) taskEndColumn = Math.max(0, index - 1);
                         }
                         const taskColumnSpan = Math.max(1, taskEndColumn - taskStartColumn + 1);
@@ -481,7 +486,7 @@ export const PrintProjectSummaryA4: React.FC<PrintProjectSummaryA4Props> = ({
                               <div className="font-medium leading-tight">{taskName}</div>
                             </td>
                             <td className="border-r border-slate-300 px-1 py-1 text-slate-700 truncate">{taskPic}</td>
-                            <td className="border-r border-slate-300 px-1 py-1 text-center font-mono text-[8.5px] text-slate-500 whitespace-nowrap">{task.start_date?.substring(5)} ~ {task.end_date?.substring(5)}</td>
+                            <td className="border-r border-slate-300 px-1 py-1 text-center font-mono text-[8.5px] text-slate-500 whitespace-nowrap">{taskStart?.substring(5)} ~ {taskEnd?.substring(5)}</td>
                             <td className="border-r border-slate-300 px-1 py-1 text-center">
                               <span
                                 data-testid={`print-task-status-${task.id}`}

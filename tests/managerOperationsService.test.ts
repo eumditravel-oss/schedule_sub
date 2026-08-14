@@ -1,11 +1,19 @@
 import { describe, expect, it } from 'vitest';
-import { getManagerOperations, listManagerNotifications, markManagerNotificationRead, syncManagerNotifications } from '../worker/services/managerOperationsService';
+import { aggregateManagerShadowRows, getManagerOperations, listManagerNotifications, markManagerNotificationRead, syncManagerNotifications } from '../worker/services/managerOperationsService';
 
 function workerRow(id: string, manager = true) {
   return { id, access_role: 'EDITOR', can_manage_schedule_engine: manager ? 1 : 0, country_code: 'VN', is_active: 1 };
 }
 
 describe('Checkpoint 5 manager operations', () => {
+  it('aggregates all Shadow projects for a multi-project employee', () => {
+    const result = aggregateManagerShadowRows([
+      { employee_id: 'wrk_01', status: 'CURRENT', schedule_variance_workdays: 0, approval_classification: 'NO_CHANGE' },
+      { employee_id: 'wrk_01', status: 'BLOCKED', schedule_variance_workdays: 2, approval_classification: 'APPROVAL_REQUIRED' },
+    ]).get('wrk_01');
+    expect(result).toMatchObject({ status: 'BLOCKED', schedule_variance_workdays: 2, approval_classification: 'APPROVAL_REQUIRED' });
+  });
+
   it('rejects a non-manager actor', async () => {
     const db: any = { prepare: () => ({ bind: () => ({ first: async () => workerRow('wrk_03', false) }) }) };
     await expect(getManagerOperations(db, { actorEmployeeId: 'wrk_03' } as any)).rejects.toMatchObject({ code: 'MANAGER_PERMISSION_DENIED' });

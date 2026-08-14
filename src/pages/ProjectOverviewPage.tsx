@@ -35,7 +35,6 @@ import { MobileWeekView } from '../components/mobile/MobileWeekView';
 import { MobileThirtyDayGanttView } from '../components/mobile/MobileThirtyDayGanttView';
 import { CalendarLegend } from '../components/common/CalendarLegend';
 import { DateHeaderInfoPanel } from '../components/modals/DateHeaderInfoPanel';
-import { TodaySummaryCard } from '../components/common/TodaySummaryCard';
 import { IntegrationManagerModal } from '../components/modals/IntegrationManagerModal';
 import { Plus, ChevronRight, ChevronLeft, Calendar, Lock, Pencil, Trash2, KeyRound, Users } from 'lucide-react';
 import { BuildVersionIndicator } from '../components/common/BuildVersionIndicator';
@@ -48,9 +47,8 @@ import { calculateTaskWorkdayBreakdown } from '../utils/workCalendar';
 import { ProjectDeleteConfirmModal } from '../components/modals/ProjectDeleteConfirmModal';
 import { ProjectCompleteConfirmModal } from '../components/modals/ProjectCompleteConfirmModal';
 import { PrintDropdownMenu } from '../components/print/PrintDropdownMenu';
-import { TodayWorklogNavButton } from '../components/worklog/TodayWorklogNavButton';
-import { TodayWorklogEntryCard } from '../components/worklog/TodayWorklogEntryCard';
 import { usePilotAuth } from '../auth/PilotAuthContext';
+import { officialProjectEnd, officialProjectStart } from '../utils/officialForecastDates';
 
 export type MobileViewMode = 'SUMMARY' | 'WEEK' | 'GANTT';
 
@@ -93,7 +91,6 @@ export const ProjectOverviewPage: React.FC = () => {
 
   // Worker & Modal States
   const [currentWorker, setCurrentWorker] = useState<Worker | null>(null);
-  const isWorklogManager = Boolean(currentWorker && (currentWorker.access_role === 'VIEWER' || (currentWorker.access_role === 'EDITOR' && Number(currentWorker.can_manage_schedule_engine) === 1)));
   const [isCalendarModalOpen, setIsCalendarModalOpen] = useState(false);
   const [isIntegrationModalOpen, setIsIntegrationModalOpen] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -480,8 +477,6 @@ export const ProjectOverviewPage: React.FC = () => {
               <span>{lang === 'vi' ? 'Công suất' : '인력 현황'}</span>
             </button>
 
-            <TodayWorklogNavButton worker={currentWorker} language={lang === 'vi' ? 'vi' : 'ko'} onOpen={() => navigate('/worklog/today')} />
-
             {/* [0.6] Print Output System Dropdown */}
             <PrintDropdownMenu
               selectedProjectIds={selectedProjectIds}
@@ -668,7 +663,6 @@ export const ProjectOverviewPage: React.FC = () => {
         {isMobileView ? (
           /* Dedicated Mutually Exclusive Mobile & Fold Views */
           <div className="w-full flex-1 flex flex-col">
-            <div className="mb-3"><TodayWorklogEntryCard currentWorker={currentWorker} language={lang === 'vi' ? 'vi' : 'ko'} onOpen={() => navigate(isWorklogManager ? '/manager/worklog-approvals' : '/worklog/today')} /></div>
             {mobileViewMode === 'SUMMARY' && (
               <MobileSummaryView
                 mode="OVERVIEW"
@@ -704,14 +698,6 @@ export const ProjectOverviewPage: React.FC = () => {
         ) : (
           /* Desktop Table View */
           <div className="space-y-3 flex-1 flex flex-col">
-            <TodayWorklogEntryCard currentWorker={currentWorker} language={lang === 'vi' ? 'vi' : 'ko'} onOpen={() => navigate(isWorklogManager ? '/manager/worklog-approvals' : '/worklog/today')} />
-            {/* Today Summary Card */}
-            <TodaySummaryCard
-              currentWorker={currentWorker}
-              holidays={[...krHolidays, ...vnHolidays]}
-              overrides={calendarOverrides}
-            />
-
             {/* Desktop Dedicated Gantt Control Row (Grid Centered Controls & Right Navigation) */}
             <div
               data-testid="overview-gantt-control-row"
@@ -1005,14 +991,16 @@ export const ProjectOverviewPage: React.FC = () => {
                     projects.map((project) => {
                       const displayName = getDisplayName(project);
                       const isFallback = isFallbackOriginal(project);
+                      const displayedProjectStart = officialProjectStart(project);
+                      const displayedProjectEnd = officialProjectEnd(project);
 
                       return (
                         <div
                           key={project.id}
                           role="row"
                           data-testid={`project-row-${project.id}`}
-                          data-project-start={project.start_date}
-                          data-project-end={project.end_date}
+                          data-project-start={displayedProjectStart || undefined}
+                          data-project-end={displayedProjectEnd || undefined}
                           onClick={() => navigate(`/projects/${project.id}`)}
                           style={{ position: 'relative', isolation: 'isolate', minHeight: '72px', height: 'auto' }}
                           className="flex items-stretch hover:bg-blue-50/50 transition cursor-pointer group"
@@ -1281,13 +1269,15 @@ export const ProjectOverviewPage: React.FC = () => {
                             {/* Layer 10: ScheduleBar. The fill is actual progress only;
                                 elapsed calendar time must never manufacture actual work. */}
                             {(() => {
-                              const spanInfo = getGanttSpanColumns(project.start_date, project.end_date, dateColumns);
+                              const scheduleStart = displayedProjectStart || '';
+                              const scheduleEnd = displayedProjectEnd || '';
+                              const spanInfo = getGanttSpanColumns(scheduleStart, scheduleEnd, dateColumns);
                               if (!spanInfo) return null;
 
                               const prjBreakdown = calculateTaskWorkdayBreakdown(
                                 currentWorker,
-                                project.start_date,
-                                project.end_date,
+                                scheduleStart,
+                                scheduleEnd,
                                 [...krHolidays, ...vnHolidays],
                                 calendarOverrides
                               );
@@ -1306,8 +1296,8 @@ export const ProjectOverviewPage: React.FC = () => {
                                   >
                                     <ScheduleBar
                                       title={displayName}
-                                      startDate={project.start_date}
-                                      endDate={project.end_date}
+                                      startDate={scheduleStart}
+                                      endDate={scheduleEnd}
                                       calendarSpanDays={prjBreakdown.calendar_span_days}
                                       plannedWorkingDays={prjBreakdown.planned_working_days}
                                       plannedProgress={project.planned_progress ?? project.progress ?? 0}
@@ -1323,8 +1313,8 @@ export const ProjectOverviewPage: React.FC = () => {
                             {/* Layer 5: Country-off hatch stays behind the schedule bar */}
                             <ProjectCalendarHatchOverlay
                               projectId={project.id}
-                              startDate={project.start_date}
-                              endDate={project.end_date}
+                              startDate={displayedProjectStart || project.start_date || ''}
+                              endDate={displayedProjectEnd || project.end_date || ''}
                               dateColumns={dateColumns}
                               calendarOverrides={calendarOverrides}
                               countryHolidays={[...krHolidays, ...vnHolidays]}
