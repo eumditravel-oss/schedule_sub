@@ -68,8 +68,9 @@ async function createNotification(db: any, input: any) {
 
 export async function syncManagerNotifications(db: any, options: { localDate?: string } = {}) {
   const date = localDate(options.localDate);
-  const summaries = await db.prepare(`SELECT s.*,r.source_worklog_id,r.source_revision_id
+  const summaries = await db.prepare(`SELECT s.*,req.source_worklog_id,req.source_revision_id
     FROM shadow_impact_summaries s JOIN schedule_recalculation_runs r ON r.run_id=s.run_id
+    LEFT JOIN schedule_recalculation_requests req ON req.request_id=r.request_id
     WHERE (s.created_at>=? OR s.source_worklog_id IN (SELECT id FROM daily_worklogs WHERE local_work_date=?))
     ORDER BY s.created_at DESC LIMIT 100`).bind(`${date}T00:00:00`, date).all();
   let created = 0;
