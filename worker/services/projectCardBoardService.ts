@@ -61,7 +61,7 @@ export async function getProjectCardBoard(db: any, actor: BoardActor) {
     db.prepare(`SELECT svt.*,sv.version_number FROM schedule_version_tasks svt JOIN schedule_versions sv ON sv.id=svt.version_id ORDER BY sv.project_id,sv.version_number DESC,svt.task_id`).all(),
     db.prepare(`SELECT project_id,status,approval_classification,data_confidence,shadow_forecast_start_date,shadow_forecast_end_date,schedule_variance_workdays,created_at FROM shadow_schedule_versions ORDER BY project_id,created_at DESC`).all().catch(() => ({ results: [] })),
     db.prepare(`SELECT e.project_id,w.approval_status,COUNT(*) AS count FROM daily_worklog_entries e JOIN daily_worklogs w ON w.id=e.worklog_id WHERE e.project_id IS NOT NULL GROUP BY e.project_id,w.approval_status`).all().catch(() => ({ results: [] })),
-    db.prepare(`SELECT id,name,name_ko,name_vi,country_code,ui_language,access_role,can_manage_schedule_engine FROM workers WHERE is_active=1 ORDER BY sort_order,name`).all(),
+    db.prepare(`SELECT id,name,country_code,ui_language,access_role,can_manage_schedule_engine FROM workers WHERE is_active=1 ORDER BY sort_order,name`).all(),
     getAllProjectProgressFoundationsServer(db, today).catch(() => new Map()),
     db.prepare(`SELECT project_id,COUNT(*) AS count FROM schedule_adjustment_events WHERE classification IN ('APPROVAL_REQUIRED','BLOCKED','NO_CHANGE') GROUP BY project_id`).all().catch(() => ({ results: [] })),
   ]);
