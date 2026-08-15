@@ -115,6 +115,7 @@ import {
 } from './services/managerOperationsService';
 import { getScheduleComparison } from './services/scheduleComparisonService';
 import { resolveQaRequestNow } from './services/testClock';
+import { getProjectCardBoard } from './services/projectCardBoardService';
 
 export type WorkerEnv = Env & {
   KASI_HOLIDAY_API_KEY?: string;
@@ -530,6 +531,13 @@ export default {
         if (isCountryCalendarMutation(method, cleanPath) && !canManageCountryCalendar(sessionActor.worker)) {
           return errorResponse('Country calendar management permission is required.', 403, 'CALENDAR_MANAGER_REQUIRED');
         }
+      }
+
+      // Read-only Project Card Board projection. It is intentionally separate
+      // from /projects so the existing timeline Scheduler route stays intact.
+      if (method === 'GET' && cleanPath === '/api/v3/project-card-board') {
+        const boardActor = await resolveAuthenticatedActor(request, env);
+        return jsonResponse(await getProjectCardBoard(db, boardActor));
       }
 
       // Checkpoint 5 Manager Operations. Reads are available to schedule
