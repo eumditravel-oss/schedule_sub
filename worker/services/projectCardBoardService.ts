@@ -98,7 +98,7 @@ export async function getProjectCardBoard(db: any, actor: BoardActor) {
         id: task.id,
         project_id: task.project_id,
         task_group_id: group,
-        task_group_name: group ? (groupMap.get(group)?.group_name_ko || groupMap.get(group)?.group_name || null) : null,
+        task_group_name: group ? ((groupMap.get(group) as any)?.group_name_ko || (groupMap.get(group) as any)?.group_name || null) : null,
         task_sort_order: task.task_sort_order,
         task_name: task.task_name,
         task_name_ko: task.task_name_ko,
