@@ -55,6 +55,48 @@ Delayed, blocked, and review-required values remain attention badges and never b
 - Browser evidence: [desktop board](../../qa/v31-project-kanban-board-redesign-pilot.png), [mobile 390px](../../qa/v31-project-kanban-board-redesign/pilot-mobile-390.png), [Task Drawer](../../qa/v31-project-kanban-board-redesign/pilot-drawer.png).
 - Scheduler handoff verified at `/projects/:projectId?taskId=:taskId`; no official schedule mutation was performed.
 
+## Final gate matrix
+
+| Gate | Result |
+| --- | --- |
+| Four status lanes | PASS |
+| Single-lane uniqueness (visible board) | PASS |
+| Compact cards / no inline expansion | PASS |
+| Task Drawer and exact context links | PASS |
+| Scheduler compatibility | PASS (deep-link smoke; Scheduler source untouched) |
+| Worklog compatibility | PASS (exact project/task query parameters) |
+| Board load write-zero | PASS (Pilot authority revision 777 before/after; D1 metadata reported `rows_written=0`) |
+| Duplicate visible project/task identities | PASS (5 visible projects, 93 unique tasks, 93 unique Official Task identities) |
+| Mobile 375 / 390 / 430 | PASS (status tabs, one lane, one-column card screenshots) |
+| AUTO_APPLY | PASS (`false`) |
+| Production Worker / D1 | PASS (unchanged) |
+
+Pilot contains one pre-existing marker-owned project named `[V3.1 UX PILOT QA] ...` with an Official Forecast history row but no tasks. CEO/COO read scope therefore sees six Pilot rows, while the production-like employee/manager board scope used for this release sees five projects and 93 tasks. It was not deleted because the existing history-protection guard correctly rejects deletion of a project with Official Forecast history; no manual destructive SQL was used.
+
+## Findings
+
+- Fixed: old three-column large-card grid, inline Task expansion, duplicated filter row, and Scheduler-only Project Add navigation.
+- Fixed: future-start project classification, completed-project separation, worker-ID assignee deduplication, localized project display selection, and mobile lane presentation.
+- Deferred/non-blocking: the existing Pilot marker fixture is retained as history-protected evidence; it is not part of the visible production-like employee/manager board scope.
+
+## Release recommendation
+
+`PROJECT_KANBAN_REFERENCE_CONFORMANCE: PASS`
+
+`FOUR_LANE_PROJECT_BOARD: PASS`
+
+`COMPACT_PROJECT_CARD: PASS`
+
+`PROJECT_TASK_DRAWER: PASS`
+
+`SCHEDULER_COMPATIBILITY: PASS`
+
+`WORKLOG_COMPATIBILITY: PASS`
+
+`ZERO_DUPLICATE_DATA: PASS`
+
+`READY_FOR_V31_PROJECT_KANBAN_GITHUB_MERGE: YES`
+
 ## Deferred / non-blocking
 
 - Browser screenshots and responsive measurements are captured only against the Pilot deployment; Production remains unchanged.
