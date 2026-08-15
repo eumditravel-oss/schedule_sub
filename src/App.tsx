@@ -11,6 +11,9 @@ import { resolveLandingRoute } from './utils/roleLanding';
 const ProjectOverviewPage = lazy(() =>
   import('./pages/ProjectOverviewPage').then((module) => ({ default: module.ProjectOverviewPage }))
 );
+const ProjectCardBoardPage = lazy(() =>
+  import('./pages/ProjectCardBoardPage').then((module) => ({ default: module.ProjectCardBoardPage }))
+);
 const ProjectDetailPage = lazy(() =>
   import('./pages/ProjectDetailPage').then((module) => ({ default: module.ProjectDetailPage }))
 );
@@ -91,6 +94,14 @@ export function App() {
             }
           />
           <Route path="/worklog" element={<Navigate to="/worklog/today" replace />} />
+          <Route
+            path="/project-board"
+            element={
+              <ErrorBoundary fallbackViewName="Project Card Board">
+                <RequirePilotAuth><ProjectCardBoardPage /></RequirePilotAuth>
+              </ErrorBoundary>
+            }
+          />
           <Route
             path="/projects"
             element={

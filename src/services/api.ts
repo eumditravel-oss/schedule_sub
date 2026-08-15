@@ -481,6 +481,11 @@ export const api = {
     return handleResponse<Project[]>(res);
   },
 
+  async getProjectCardBoard(): Promise<any> {
+    const res = await fetch('/api/v3/project-card-board');
+    return handleResponse<any>(res);
+  },
+
   async getCompletedYears(): Promise<string[]> {
     const projects = await this.getProjects('COMPLETED');
     const years = new Set<string>();
