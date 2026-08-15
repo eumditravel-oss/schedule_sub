@@ -52,7 +52,7 @@ Delayed, blocked, and review-required values remain attention badges and never b
 - Pilot Worker version: `76e08b8e-670e-4c5d-82fa-b960a321b751`
 - `/api/build-info`: `b97c747`, `environment=pilot`, `AUTO_APPLY=false`, `accessMode=open_test`.
 - Read-only board checks for manager and employee actors: 5 projects / 93 tasks; `COMPLETED=3`, `PRE_WORK=1`, `IN_PROGRESS=1`, `REVISION=0`; no duplicate assignee within a card.
-- Browser evidence: [desktop board](../../qa/v31-project-kanban-board-redesign-pilot.png), [mobile 390px](../../qa/v31-project-kanban-board-redesign/pilot-mobile-390.png), [Task Drawer](../../qa/v31-project-kanban-board-redesign/pilot-drawer.png).
+- Browser evidence: [desktop board](../../qa/v31-project-kanban-board-redesign-pilot.png), [mobile 375px](../../qa/v31-project-kanban-board-redesign/pilot-mobile-375.png), [mobile 390px](../../qa/v31-project-kanban-board-redesign/pilot-mobile-390.png), [mobile 430px](../../qa/v31-project-kanban-board-redesign/pilot-mobile-430.png), [Task Drawer](../../qa/v31-project-kanban-board-redesign/pilot-drawer.png).
 - Scheduler handoff verified at `/projects/:projectId?taskId=:taskId`; no official schedule mutation was performed.
 
 ## Final gate matrix
