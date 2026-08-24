@@ -5,7 +5,7 @@ export { GANTT_DAY_WIDTH_PX } from '../utils/ganttGeometry';
 /**
  * Row Height Constants for Compact Gantt Layout (Desktop)
  */
-export const TASK_ROW_HEIGHT_PX = 34;
+export const TASK_ROW_HEIGHT_PX = 44;
 export const TASK_GROUP_ROW_HEIGHT_PX = 36;
 export const EMPTY_GROUP_ROW_HEIGHT_PX = 32;
 

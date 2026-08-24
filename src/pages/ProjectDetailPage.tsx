@@ -40,6 +40,13 @@ import { resolvePrimaryWorkerId } from '../utils/crossProjectConflictDetector';
 import { calculateDateVarianceDays, formatVarianceBadgeText } from '../utils/scheduleBaseline';
 import { ScheduleComparisonPanel } from '../components/gantt/ScheduleComparisonPanel';
 import { canShowDashboardNavigation } from '../utils/roleLanding';
+import {
+  getDetailLeftGridTemplate,
+  resolveDetailProjectEnd,
+  resolveDetailProjectStart,
+  resolveDetailTaskEnd,
+  resolveDetailTaskStart,
+} from '../utils/detailGanttPresentation';
 
 function resolvePrimaryWorkerObj(taskItem: Task, workers: Worker[]): Worker | null {
   if (!taskItem || !Array.isArray(workers)) return null;
@@ -51,16 +58,6 @@ function resolvePrimaryWorkerObj(taskItem: Task, workers: Worker[]): Worker | nu
   return workers.find((w) => w.name === taskItem.worker_name) || null;
 }
 
-// Checkpoint 3B keeps the original task record immutable.  The Gantt uses the
-// latest append-only Official Forecast snapshot when present, while edit forms
-// continue to receive the original task fields.
-function officialTaskStart(taskItem: Task): string | null | undefined {
-  return taskItem.official_forecast_start || taskItem.start_date;
-}
-
-function officialTaskEnd(taskItem: Task): string | null | undefined {
-  return taskItem.official_forecast_end || taskItem.end_date;
-}
 import { AlertOctagon, BookmarkCheck } from 'lucide-react';
 import { WorkerDayCellBackground } from '../components/gantt/WorkerDayCellBackground';
 import { GanttViewControls } from '../components/common/GanttViewControls';
@@ -208,13 +205,10 @@ const SortableTaskRow: React.FC<SortableTaskRowProps> = ({
     }
   }
 
-  const forecastStart = officialTaskStart(tItem);
-  const forecastEnd = officialTaskEnd(tItem);
-  const spanInfo = getGanttSpanColumns(forecastStart, forecastEnd, dateColumns);
-
-  const taskNameColWidth = leftPanelWidth >= 564 ? 260 : leftPanelWidth >= 504 ? 230 : 210;
-  const workerColWidth = leftPanelWidth >= 564 ? 240 : leftPanelWidth >= 504 ? 210 : 170;
-  const gridTemplateColumns = `${taskNameColWidth}px ${workerColWidth}px 64px`;
+  const displayStart = resolveDetailTaskStart(tItem);
+  const displayEnd = resolveDetailTaskEnd(tItem);
+  const spanInfo = getGanttSpanColumns(displayStart, displayEnd, dateColumns);
+  const gridTemplateColumns = getDetailLeftGridTemplate(leftPanelWidth);
 
   return (
     <div
@@ -258,69 +252,73 @@ const SortableTaskRow: React.FC<SortableTaskRowProps> = ({
           }}
         />
         {/* 1. Task Name Column Cell */}
-        <div className="flex items-center gap-[4px] min-w-0 pl-[6px] pr-[4px] py-0.5 overflow-hidden h-full">
+        <div className="grid h-full min-w-0 grid-cols-[auto_auto_minmax(0,1fr)] items-center gap-x-[4px] overflow-hidden py-0.5 pl-[6px] pr-[4px]">
           {!isViewer && !isCompleted && (
             <button
               type="button"
               data-testid={`task-row-drag-handle-${tItem.id}`}
               {...attributes}
               {...listeners}
-              className="w-[18px] h-[24px] flex items-center justify-center rounded-xs text-slate-300 hover:text-slate-600 hover:bg-slate-100 cursor-grab active:cursor-grabbing shrink-0 transition"
+              className="row-span-2 flex h-[24px] w-[18px] shrink-0 cursor-grab items-center justify-center self-center rounded-xs text-slate-300 transition hover:bg-slate-100 hover:text-slate-600 active:cursor-grabbing"
               title="드래그하여 공정 이동 또는 순서 변경"
             >
               <GripVertical className="w-3 h-3" />
             </button>
           )}
-          <span className="font-bold text-slate-400 shrink-0 text-[11px] mr-1">{taskNumStr}</span>
-          <span className="font-extrabold text-slate-800 text-[11px] leading-[16px] whitespace-normal break-words py-0.5" title={taskTitle}>
-            {taskTitle}
-          </span>
-          {tItem.schedule_state === 'UPCOMING' && (
-            <span
-              data-testid="upcoming-task-badge"
-              className="px-1.5 py-0.5 rounded bg-slate-100 border border-slate-300 text-slate-600 font-extrabold text-[10px] shrink-0 ml-1 select-none"
-              title={lang === 'vi' ? 'Chưa đến ngày bắt đầu công việc. (Tỷ lệ thực tế: 0%)' : '프로젝트/작업 시작 전입니다. (실제 공정률: 0%)'}
-            >
-              {lang === 'vi' ? 'Chưa bắt đầu' : '시작 전'}
+          <span className={`${!isViewer && !isCompleted ? 'col-start-2' : 'col-start-1'} row-span-2 shrink-0 self-center text-[11px] font-bold text-slate-400`}>{taskNumStr}</span>
+          <div className={`${!isViewer && !isCompleted ? 'col-start-3' : 'col-start-2 col-span-2'} flex h-full min-w-0 flex-col justify-center gap-[1px] overflow-hidden`}>
+            <span className="block w-full min-w-0 truncate text-[11px] font-extrabold leading-[16px] text-slate-800" title={taskTitle}>
+              {taskTitle}
             </span>
-          )}
-          {(tItem.schedule_status === 'UNSCHEDULED' || (!forecastStart && !forecastEnd)) && (
-            <span
-              data-testid="unscheduled-task-badge"
-              className="px-1.5 py-0.5 rounded bg-amber-100 border border-amber-300 text-amber-800 font-extrabold text-[10px] shrink-0 ml-1"
-            >
-              {lang === 'vi' ? 'Chưa xác định' : '일정 미정'}
-            </span>
-          )}
-          {Boolean(tItem.is_blocked) && (
-            <span
-              data-testid={`task-blocked-badge-${tItem.id}`}
-              title={tItem.blocked_reason || (lang === 'vi' ? 'Công việc bị tắc nghẽn' : '작업 진행 막힘')}
-              className="px-1.5 py-0.5 rounded bg-rose-100 border border-rose-300 text-rose-800 font-extrabold text-[10px] shrink-0 ml-1 flex items-center gap-0.5"
-            >
-              <AlertOctagon className="w-3 h-3 text-rose-600 shrink-0" />
-              <span>{lang === 'vi' ? 'Tắc nghẽn' : '막힘'}</span>
-            </span>
-          )}
-          {tItem.legacy_bootstrap_info && (
-            <span
-              data-testid={`task-legacy-bootstrap-${tItem.id}`}
-              title={`${lang === 'vi' ? 'Hệ thống tạo' : '시스템 생성'} · ${tItem.legacy_bootstrap_info.cutover_date} · ${tItem.legacy_bootstrap_info.legacy_progress_source} · ${tItem.legacy_bootstrap_info.bootstrap_rule} · ${lang === 'vi' ? 'Không phải nhật ký công việc nhân viên' : '직원 업무일지 아님'}`}
-              className="px-1.5 py-0.5 rounded bg-violet-50 border border-violet-200 text-violet-700 font-bold text-[9px] shrink-0 ml-1"
-            >
-              {lang === 'vi' ? 'Cơ sở chuyển đổi' : '전환 기준 데이터'}
-            </span>
-          )}
-          {tItem.baseline_end_date && forecastEnd && tItem.baseline_end_date !== forecastEnd && (
-            <span
-              data-testid={`task-baseline-badge-${tItem.id}`}
-              className={`px-1.5 py-0.5 rounded text-[10px] shrink-0 ml-1 border ${
-                formatVarianceBadgeText(calculateDateVarianceDays(tItem.baseline_end_date, forecastEnd), lang === 'vi' ? 'vi' : 'ko').colorClass
-              }`}
-            >
-              {formatVarianceBadgeText(calculateDateVarianceDays(tItem.baseline_end_date, forecastEnd), lang === 'vi' ? 'vi' : 'ko').text}
-            </span>
-          )}
+            <div className="flex h-[18px] min-w-0 items-center gap-1 overflow-hidden whitespace-nowrap">
+              {tItem.schedule_state === 'UPCOMING' && (
+                <span
+                  data-testid="upcoming-task-badge"
+                  className="shrink-0 select-none rounded border border-slate-300 bg-slate-100 px-1.5 py-0.5 text-[9px] font-extrabold leading-[12px] text-slate-600"
+                  title={lang === 'vi' ? 'Chưa đến ngày bắt đầu công việc. (Tỷ lệ thực tế: 0%)' : '프로젝트/작업 시작 전입니다. (실제 공정률: 0%)'}
+                >
+                  {lang === 'vi' ? 'Chưa bắt đầu' : '시작 전'}
+                </span>
+              )}
+              {(tItem.schedule_status === 'UNSCHEDULED' || (!displayStart && !displayEnd)) && (
+                <span
+                  data-testid="unscheduled-task-badge"
+                  className="shrink-0 rounded border border-amber-300 bg-amber-100 px-1.5 py-0.5 text-[9px] font-extrabold leading-[12px] text-amber-800"
+                >
+                  {lang === 'vi' ? 'Chưa xác định' : '일정 미정'}
+                </span>
+              )}
+              {Boolean(tItem.is_blocked) && (
+                <span
+                  data-testid={`task-blocked-badge-${tItem.id}`}
+                  title={tItem.blocked_reason || (lang === 'vi' ? 'Công việc bị tắc nghẽn' : '작업 진행 막힘')}
+                  className="flex shrink-0 items-center gap-0.5 rounded border border-rose-300 bg-rose-100 px-1.5 py-0.5 text-[9px] font-extrabold leading-[12px] text-rose-800"
+                >
+                  <AlertOctagon className="h-3 w-3 shrink-0 text-rose-600" />
+                  <span>{lang === 'vi' ? 'Tắc nghẽn' : '막힘'}</span>
+                </span>
+              )}
+              {tItem.legacy_bootstrap_info && (
+                <span
+                  data-testid={`task-legacy-bootstrap-${tItem.id}`}
+                  title={`${lang === 'vi' ? 'Hệ thống tạo' : '시스템 생성'} · ${tItem.legacy_bootstrap_info.cutover_date} · ${tItem.legacy_bootstrap_info.legacy_progress_source} · ${tItem.legacy_bootstrap_info.bootstrap_rule} · ${lang === 'vi' ? 'Không phải nhật ký công việc nhân viên' : '직원 업무일지 아님'}`}
+                  className="shrink-0 rounded border border-violet-200 bg-violet-50 px-1.5 py-0.5 text-[9px] font-bold leading-[12px] text-violet-700"
+                >
+                  {lang === 'vi' ? 'Cơ sở chuyển đổi' : '전환 기준 데이터'}
+                </span>
+              )}
+              {tItem.baseline_end_date && displayEnd && tItem.baseline_end_date !== displayEnd && (
+                <span
+                  data-testid={`task-baseline-badge-${tItem.id}`}
+                  className={`shrink-0 rounded border px-1.5 py-0.5 text-[9px] leading-[12px] ${
+                    formatVarianceBadgeText(calculateDateVarianceDays(tItem.baseline_end_date, displayEnd), lang === 'vi' ? 'vi' : 'ko').colorClass
+                  }`}
+                >
+                  {formatVarianceBadgeText(calculateDateVarianceDays(tItem.baseline_end_date, displayEnd), lang === 'vi' ? 'vi' : 'ko').text}
+                </span>
+              )}
+            </div>
+          </div>
         </div>
 
         {/* 2. Worker Assignees Column Cell */}
@@ -423,9 +421,9 @@ const SortableTaskRow: React.FC<SortableTaskRowProps> = ({
           style={{ gridTemplateColumns: dateGridTemplate }}
         >
           {(() => {
-            const isUnscheduled = tItem.schedule_status === 'UNSCHEDULED' || !forecastStart || !forecastEnd;
+            const isUnscheduled = tItem.schedule_status === 'UNSCHEDULED' || !displayStart || !displayEnd;
             return dateColumns.map((col, cIdx) => {
-              const isInRange = !isUnscheduled && col.dateStr >= forecastStart! && col.dateStr <= forecastEnd!;
+              const isInRange = !isUnscheduled && col.dateStr >= displayStart! && col.dateStr <= displayEnd!;
               const workerObj = resolvePrimaryWorkerObj(tItem, workers);
               const dayStatus = resolveWorkDayStatus(col.dateStr, (workerObj || { id: tItem.worker_name, name: tItem.worker_name }) as any, countryHolidays, calendarOverrides);
               const isMonthStart = isMonthStartColumn(dateColumns, cIdx);
@@ -459,8 +457,8 @@ const SortableTaskRow: React.FC<SortableTaskRowProps> = ({
             >
               <ScheduleBar
                 title={taskTitle}
-                startDate={forecastStart || ''}
-                endDate={forecastEnd || ''}
+                startDate={displayStart || ''}
+                endDate={displayEnd || ''}
                 calendarSpanDays={spanInfo.spanCount}
                 plannedWorkingDays={tItem.planned_working_days || spanInfo.spanCount}
                 plannedProgress={tItem.planned_progress ?? tItem.progress ?? 0}
@@ -486,8 +484,8 @@ const SortableTaskRow: React.FC<SortableTaskRowProps> = ({
                 key={cIdx}
                 dateStr={col.dateStr}
                 taskId={tItem.id}
-                taskStartDate={forecastStart}
-                taskEndDate={forecastEnd}
+                taskStartDate={displayStart}
+                taskEndDate={displayEnd}
                 worker={workerObj as any}
                 assignees={tItem.assignees}
                 availabilityPolicy={tItem.availability_policy}
@@ -1115,8 +1113,8 @@ export const ProjectDetailPage: React.FC = () => {
   };
 
   const detailDateColumns = useMemo(() => {
-    const ganttStart = project?.current_forecast_start_date || project?.start_date;
-    const ganttEnd = project?.current_forecast_end_date || project?.end_date;
+    const ganttStart = resolveDetailProjectStart(project);
+    const ganttEnd = resolveDetailProjectEnd(project);
     if (!ganttStart || !ganttEnd) return [];
     const cols = [];
     let cur = new Date(`${ganttStart}T00:00:00Z`);
@@ -2323,7 +2321,7 @@ export const ProjectDetailPage: React.FC = () => {
                     minHeight: `${GANTT_HEADER_TOTAL_HEIGHT_PX}px`,
                     maxHeight: `${GANTT_HEADER_TOTAL_HEIGHT_PX}px`,
                     display: 'grid',
-                    gridTemplateColumns: DETAIL_LEFT_WIDTH >= 564 ? '260px 240px 64px' : DETAIL_LEFT_WIDTH >= 504 ? '230px 210px 64px' : '210px 170px 64px',
+                    gridTemplateColumns: getDetailLeftGridTemplate(DETAIL_LEFT_WIDTH),
                     alignItems: 'center',
                     alignSelf: 'stretch',
                     position: 'sticky',
@@ -2457,7 +2455,7 @@ export const ProjectDetailPage: React.FC = () => {
               </div>
 
               {/* Global Country Background Overlay Layer (z-0) */}
-              {project && (project.current_forecast_start_date || project.start_date) && (project.current_forecast_end_date || project.end_date) && (
+              {project && resolveDetailProjectStart(project) && resolveDetailProjectEnd(project) && (
                 <div
                   style={{
                     position: 'absolute',
@@ -2471,8 +2469,8 @@ export const ProjectDetailPage: React.FC = () => {
                 >
                   <GlobalCountryCalendarOverlay
                     projectId={project.id}
-                    startDate={project.current_forecast_start_date || project.start_date}
-                    endDate={project.current_forecast_end_date || project.end_date}
+                    startDate={resolveDetailProjectStart(project)!}
+                    endDate={resolveDetailProjectEnd(project)!}
                     dateColumns={dateColumns}
                     calendarOverrides={calendarOverrides}
                     countryHolidays={countryHolidays}
@@ -2606,8 +2604,8 @@ export const ProjectDetailPage: React.FC = () => {
         onClose={() => setInfoSheetState({ isOpen: false, task: null })}
         title={infoSheetState.task ? getTaskDisplayName(infoSheetState.task) : ''}
         subtitle={infoSheetState.task?.worker_name}
-        startDate={infoSheetState.task ? officialTaskStart(infoSheetState.task) || undefined : undefined}
-        endDate={infoSheetState.task ? officialTaskEnd(infoSheetState.task) || undefined : undefined}
+        startDate={infoSheetState.task ? resolveDetailTaskStart(infoSheetState.task) || undefined : undefined}
+        endDate={infoSheetState.task ? resolveDetailTaskEnd(infoSheetState.task) || undefined : undefined}
         progress={infoSheetState.task?.progress}
         workerName={infoSheetState.task?.worker_name}
         isReadOnly={isViewer || isCompleted}
