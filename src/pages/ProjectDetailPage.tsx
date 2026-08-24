@@ -235,7 +235,7 @@ const SortableTaskRow: React.FC<SortableTaskRowProps> = ({
           backgroundClip: 'padding-box',
           isolation: 'isolate',
         }}
-        className="sticky left-0 bg-white hover:!bg-[#f8fafc] border-r border-slate-200 shrink-0 h-full items-center relative py-1"
+        className="sticky left-0 bg-white hover:!bg-[#f8fafc] border-r border-slate-200 shrink-0 h-full items-center relative py-0"
       >
         <div
           data-testid="gantt-sticky-occlusion-rail"
@@ -252,21 +252,21 @@ const SortableTaskRow: React.FC<SortableTaskRowProps> = ({
           }}
         />
         {/* 1. Task Name Column Cell */}
-        <div className="grid h-full min-w-0 grid-cols-[auto_auto_minmax(0,1fr)] items-center gap-x-[4px] overflow-hidden py-0.5 pl-[6px] pr-[4px]">
+        <div className="flex h-full min-w-0 items-center gap-[4px] overflow-hidden py-0.5 pl-[6px] pr-[4px]">
           {!isViewer && !isCompleted && (
             <button
               type="button"
               data-testid={`task-row-drag-handle-${tItem.id}`}
               {...attributes}
               {...listeners}
-              className="row-span-2 flex h-[24px] w-[18px] shrink-0 cursor-grab items-center justify-center self-center rounded-xs text-slate-300 transition hover:bg-slate-100 hover:text-slate-600 active:cursor-grabbing"
+              className="flex h-[24px] w-[18px] shrink-0 cursor-grab items-center justify-center rounded-xs text-slate-300 transition hover:bg-slate-100 hover:text-slate-600 active:cursor-grabbing"
               title="드래그하여 공정 이동 또는 순서 변경"
             >
               <GripVertical className="w-3 h-3" />
             </button>
           )}
-          <span className={`${!isViewer && !isCompleted ? 'col-start-2' : 'col-start-1'} row-span-2 shrink-0 self-center text-[11px] font-bold text-slate-400`}>{taskNumStr}</span>
-          <div className={`${!isViewer && !isCompleted ? 'col-start-3' : 'col-start-2 col-span-2'} flex h-full min-w-0 flex-col justify-center gap-[1px] overflow-hidden`}>
+          <span className="shrink-0 text-[11px] font-bold text-slate-400">{taskNumStr}</span>
+          <div className="flex h-[38px] min-w-0 flex-1 flex-col justify-center gap-[1px] overflow-hidden">
             <span className="block w-full min-w-0 truncate text-[11px] font-extrabold leading-[16px] text-slate-800" title={taskTitle}>
               {taskTitle}
             </span>
