@@ -1,6 +1,7 @@
 // src/hooks/useAutoTranslation.ts
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { api } from '../services/api';
+import { shouldAutomaticallyTranslate } from '../utils/translationControl';
 
 export type TranslationUiStatus = 'IDLE' | 'PENDING' | 'TRANSLATING' | 'COMPLETED' | 'FAILED' | 'MANUAL';
 
@@ -10,6 +11,7 @@ interface UseAutoTranslationProps {
   initialTargetText?: string;
   initialStatus?: 'PENDING' | 'COMPLETED' | 'FAILED' | 'MANUAL';
   debounceMs?: number;
+  autoTranslateEnabled?: boolean;
 }
 
 export function useAutoTranslation({
@@ -18,6 +20,7 @@ export function useAutoTranslation({
   initialTargetText = '',
   initialStatus = 'COMPLETED',
   debounceMs = 700,
+  autoTranslateEnabled = true,
 }: UseAutoTranslationProps) {
   const [translatedText, setTranslatedText] = useState(initialTargetText);
   const [status, setStatus] = useState<TranslationUiStatus>(initialStatus);
@@ -54,6 +57,7 @@ export function useAutoTranslation({
         setTranslatedText(res.translated_text || '');
         setStatus('COMPLETED');
         setError(null);
+        initialSourceRef.current = trimmed;
         return res.translated_text || '';
       }
     } catch (err: any) {
@@ -68,14 +72,19 @@ export function useAutoTranslation({
 
   useEffect(() => {
     const trimmedSource = sourceText.trim();
-    if (!trimmedSource) {
-      setTranslatedText('');
-      setStatus('IDLE');
+    if (!autoTranslateEnabled) {
+      cancelTranslation();
       return;
     }
 
-    // Check if source text changed from initial
-    if (trimmedSource !== initialSourceRef.current) {
+    if (!trimmedSource) {
+      setTranslatedText('');
+      setStatus('IDLE');
+      initialSourceRef.current = '';
+      return;
+    }
+
+    if (shouldAutomaticallyTranslate(trimmedSource, initialSourceRef.current, autoTranslateEnabled)) {
       // Source changed: invalidate old target translation immediately!
       setTranslatedText('');
       setStatus('PENDING');
@@ -93,7 +102,7 @@ export function useAutoTranslation({
     return () => {
       cancelTranslation();
     };
-  }, [sourceText, sourceLanguage, debounceMs, cancelTranslation, executeTranslation]);
+  }, [sourceText, sourceLanguage, debounceMs, autoTranslateEnabled, cancelTranslation, executeTranslation]);
 
   const setManualText = (text: string) => {
     cancelTranslation();
@@ -109,6 +118,19 @@ export function useAutoTranslation({
     return await executeTranslation(sourceText, requestIdRef.current);
   };
 
+  const resetTranslation = useCallback((
+    nextSourceText: string,
+    nextTargetText = '',
+    nextStatus: TranslationUiStatus = 'COMPLETED',
+  ) => {
+    cancelTranslation();
+    requestIdRef.current += 1;
+    initialSourceRef.current = nextSourceText.trim();
+    setTranslatedText(nextTargetText);
+    setStatus(nextSourceText.trim() ? nextStatus : 'IDLE');
+    setError(null);
+  }, [cancelTranslation]);
+
   return {
     translatedText,
     status,
@@ -116,6 +138,7 @@ export function useAutoTranslation({
     isSourceChanged,
     setManualText,
     translateNow,
+    resetTranslation,
     cancelTranslation,
   };
 }

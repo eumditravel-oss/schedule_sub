@@ -83,7 +83,7 @@ describe('Real-time Translation Synchronization Tests', () => {
     expect(isSourceChanged).toBe(false);
   });
 
-  it('5. Source modification clears old MANUAL translation and forces auto-translation', async () => {
+  it('5. Explicit Translate Again replaces an old MANUAL translation', async () => {
     const oldManualVi = 'Bản dịch thủ công cũ';
     const newSourceKo = '신규 시스템 구축 건';
 

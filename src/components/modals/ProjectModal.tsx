@@ -50,6 +50,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
   const [endDate, setEndDate] = useState('');
   const [progress, setProgress] = useState(0);
   const [saving, setSaving] = useState(false);
+  const [manualLock, setManualLock] = useState(false);
   const [cascadeDetails, setCascadeDetails] = useState<CascadeConfirmDetails | null>(null);
   const [pendingPayload, setPendingPayload] = useState<Partial<Project> | null>(null);
 
@@ -61,20 +62,25 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
     translatedText: autoTranslatedText,
     status: autoStatus,
     setManualText,
+    translateNow,
+    resetTranslation,
   } = useAutoTranslation({
     sourceText: nameInput,
     sourceLanguage: inputLang,
     initialTargetText: targetText,
     debounceMs: 700,
+    autoTranslateEnabled: !manualLock,
   });
 
   useEffect(() => {
-    if (autoStatus === 'TRANSLATING') {
-      setTargetText('');
-    } else if (autoTranslatedText) {
-      setTargetText(autoTranslatedText);
+    if (!manualLock) {
+      if (autoStatus === 'TRANSLATING') {
+        setTargetText('');
+      } else if (autoTranslatedText) {
+        setTargetText(autoTranslatedText);
+      }
     }
-  }, [autoTranslatedText, autoStatus]);
+  }, [autoTranslatedText, autoStatus, manualLock]);
 
   useEffect(() => {
     const src = currentWorker?.ui_language || (project?.source_language as 'ko' | 'vi') || workerLang;
@@ -89,6 +95,8 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
 
       setNameInput(initialSourceText || '');
       setTargetText(initialTransText || '');
+      setManualLock(project.translation_status === 'MANUAL');
+      resetTranslation(initialSourceText || '', initialTransText || '', project.translation_status || 'COMPLETED');
       setStartDate(project.start_date || '');
       setEndDate(project.end_date || '');
       setProgress(project.progress || 0);
@@ -100,11 +108,13 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
 
       setNameInput('');
       setTargetText('');
+      setManualLock(false);
+      resetTranslation('', '', 'IDLE');
       setStartDate(todayStr);
       setEndDate(futureStr);
       setProgress(0);
     }
-  }, [project, isOpen, currentWorker, workerLang]);
+  }, [project, isOpen, currentWorker, workerLang, resetTranslation]);
 
   if (!isOpen) return null;
 
@@ -117,7 +127,17 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
     const val = e.target.value;
     setTargetText(val);
     setManualText(val);
+    setManualLock(true);
     setSaveError(null);
+  };
+
+  const handleTranslateAgain = async () => {
+    setSaveError(null);
+    const nextTranslation = await translateNow();
+    if (nextTranslation) {
+      setTargetText(nextTranslation);
+      setManualLock(false);
+    }
   };
 
   const handleStartDateChange = (val: string) => {
@@ -154,7 +174,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
         start_date: startDate,
         end_date: endDate,
         source_language: inputLang,
-        translation_status: autoStatus === 'MANUAL' ? 'MANUAL' : 'COMPLETED',
+        translation_status: manualLock || autoStatus === 'MANUAL' ? 'MANUAL' : 'COMPLETED',
       };
 
       if (inputLang === 'ko') {
@@ -400,14 +420,35 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
                     </span>
                   )}
                 </div>
-                <input
-                  type="text"
-                  data-testid="project-translated-input"
-                  value={targetText}
-                  onChange={handleTargetTextChange}
-                  placeholder={t('automaticTranslationPlaceholder')}
-                  className="w-full h-10 px-3 rounded-lg border border-slate-200 bg-slate-50 font-medium text-slate-800 focus:outline-none focus:border-blue-500"
-                />
+                <div>
+                  <input
+                    type="text"
+                    data-testid="project-translated-input"
+                    value={targetText}
+                    onChange={handleTargetTextChange}
+                    placeholder={t('automaticTranslationPlaceholder')}
+                    className={`w-full h-10 px-3 rounded-lg border font-medium text-slate-800 focus:outline-none focus:border-blue-500 ${
+                      manualLock ? 'border-amber-400 bg-amber-50/30' : 'border-slate-200 bg-slate-50'
+                    }`}
+                  />
+                  <div className="mt-2 flex items-center justify-end gap-2">
+                    {manualLock && (
+                      <span className="text-[10px] font-semibold text-amber-700">
+                        {lang === 'vi' ? 'Đã chỉnh sửa thủ công' : '수동 수정됨'}
+                      </span>
+                    )}
+                    <button
+                      type="button"
+                      data-testid="project-translation-regenerate-btn"
+                      onClick={handleTranslateAgain}
+                      disabled={!nameInput.trim() || autoStatus === 'TRANSLATING'}
+                      className="inline-flex items-center gap-1 rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-[10px] font-bold text-blue-700 transition hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <RefreshCw className={`w-3 h-3 ${autoStatus === 'TRANSLATING' ? 'animate-spin' : ''}`} />
+                      <span>{t('retryTranslation')}</span>
+                    </button>
+                  </div>
+                </div>
               </div>
 
               {/* Dates */}

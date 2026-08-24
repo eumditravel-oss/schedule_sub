@@ -44,11 +44,14 @@ export const TaskGroupModal: React.FC<TaskGroupModalProps> = ({
     translatedText: autoTranslatedText,
     status: autoStatus,
     setManualText,
+    translateNow,
+    resetTranslation,
   } = useAutoTranslation({
     sourceText: groupNameInput,
     sourceLanguage: inputLang,
     initialTargetText: targetText,
     debounceMs: 700,
+    autoTranslateEnabled: !manualLock,
   });
 
   useEffect(() => {
@@ -70,16 +73,18 @@ export const TaskGroupModal: React.FC<TaskGroupModalProps> = ({
 
       setGroupNameInput(initialSource || '');
       setTargetText(initialTarget || '');
+      resetTranslation(initialSource || '', initialTarget || '', group.translation_status || 'COMPLETED');
       setColorKey(group.color_key || 'BLUE');
       setManualLock(group.translation_status === 'MANUAL');
     } else {
       setInputLang(workerLang);
       setGroupNameInput('');
       setTargetText('');
+      resetTranslation('', '', 'IDLE');
       setColorKey('BLUE');
       setManualLock(false);
     }
-  }, [group, isOpen, currentWorker, workerLang]);
+  }, [group, isOpen, currentWorker, workerLang, resetTranslation]);
 
   if (!isOpen) return null;
 
@@ -94,9 +99,12 @@ export const TaskGroupModal: React.FC<TaskGroupModalProps> = ({
     setManualLock(true);
   };
 
-  const handleRegenerate = () => {
-    setManualLock(false);
-    setManualText('');
+  const handleRegenerate = async () => {
+    const nextTranslation = await translateNow();
+    if (nextTranslation) {
+      setTargetText(nextTranslation);
+      setManualLock(false);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -198,11 +206,12 @@ export const TaskGroupModal: React.FC<TaskGroupModalProps> = ({
                 type="button"
                 data-testid="task-translation-regenerate-btn"
                 onClick={handleRegenerate}
+                disabled={!groupNameInput.trim() || autoStatus === 'TRANSLATING'}
                 title={lang === 'vi' ? 'Dịch tự động lại' : '자동번역 다시 생성'}
-                className="absolute right-1.5 top-1.5 bottom-1.5 px-2 text-[10px] font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded border border-blue-200 transition flex items-center gap-1"
+                className="absolute right-1.5 top-1.5 bottom-1.5 px-2 text-[10px] font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded border border-blue-200 transition flex items-center gap-1 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                <RefreshCw className="w-3 h-3" />
-                <span>{lang === 'vi' ? 'Dịch lại' : '재생성'}</span>
+                <RefreshCw className={`w-3 h-3 ${autoStatus === 'TRANSLATING' ? 'animate-spin' : ''}`} />
+                <span>{t('retryTranslation')}</span>
               </button>
             </div>
           </div>

@@ -71,11 +71,15 @@ export const TaskModal: React.FC<TaskModalProps> = ({
   const {
     translatedText: autoTranslatedText,
     status: autoStatus,
+    setManualText,
+    translateNow,
+    resetTranslation,
   } = useAutoTranslation({
     sourceText: taskNameInput,
     sourceLanguage: inputLang,
     initialTargetText: targetText,
     debounceMs: 700,
+    autoTranslateEnabled: !manualLock,
   });
 
   useEffect(() => {
@@ -108,6 +112,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
 
       setTaskNameInput(initialSourceText || '');
       setTargetText(initialTransText || '');
+      resetTranslation(initialSourceText || '', initialTransText || '', task.translation_status || 'COMPLETED');
       const isUnsch = task.schedule_status === 'UNSCHEDULED' || (!task.start_date && !task.end_date);
       setScheduleStatus(isUnsch ? 'UNSCHEDULED' : 'SCHEDULED');
       setStartDate(task.start_date || '');
@@ -140,6 +145,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
 
       setTaskNameInput('');
       setTargetText('');
+      resetTranslation('', '', 'IDLE');
       setScheduleStatus('SCHEDULED');
       setStartDate(defaultStart);
       setEndDate(defaultEnd);
@@ -150,7 +156,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
       setIsBlocked(false);
       setBlockedReason('');
     }
-  }, [isOpen, task, initialTaskGroupId, taskGroups, currentWorker, project, workerLang, workers, activeEditors]);
+  }, [isOpen, task, initialTaskGroupId, taskGroups, currentWorker, project, workerLang, workers, activeEditors, resetTranslation]);
 
   const handlePrimaryChange = (newPrimaryId: string) => {
     setPrimaryWorkerId(newPrimaryId);
@@ -187,9 +193,20 @@ export const TaskModal: React.FC<TaskModalProps> = ({
   };
 
   const handleTargetTextChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setTargetText(e.target.value);
+    const value = e.target.value;
+    setTargetText(value);
+    setManualText(value);
     setManualLock(true);
     setSaveError(null);
+  };
+
+  const handleTranslateAgain = async () => {
+    setSaveError(null);
+    const nextTranslation = await translateNow();
+    if (nextTranslation) {
+      setTargetText(nextTranslation);
+      setManualLock(false);
+    }
   };
 
   const primaryWorkerObj = workers.find((w) => w.id === primaryWorkerId) || currentWorker;
@@ -566,7 +583,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
                   </span>
                 )}
               </div>
-              <div className="relative">
+              <div>
                 <input
                   type="text"
                   data-testid="task-translated-input"
@@ -577,10 +594,27 @@ export const TaskModal: React.FC<TaskModalProps> = ({
                       ? (lang === 'vi' ? 'Đang dịch...' : '번역 중...')
                       : (targetLang === 'vi' ? 'Bản dịch tự động' : '자동 번역 내용')
                   }
-                  className={`w-full h-10 px-3 pr-20 rounded-lg border font-medium text-slate-900 ${
+                  className={`w-full h-10 px-3 rounded-lg border font-medium text-slate-900 ${
                     manualLock ? 'border-amber-400 bg-amber-50/30' : 'border-slate-300 bg-slate-50'
                   }`}
                 />
+                <div className="mt-2 flex items-center justify-end gap-2">
+                  {manualLock && (
+                    <span className="text-[10px] font-semibold text-amber-700">
+                      {lang === 'vi' ? 'Đã chỉnh sửa thủ công' : '수동 수정됨'}
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    data-testid="task-translation-regenerate-btn"
+                    onClick={handleTranslateAgain}
+                    disabled={!taskNameInput.trim() || autoStatus === 'TRANSLATING'}
+                    className="inline-flex items-center gap-1 rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-[10px] font-bold text-blue-700 transition hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <RefreshCw className={`w-3 h-3 ${autoStatus === 'TRANSLATING' ? 'animate-spin' : ''}`} />
+                    <span>{t('retryTranslation')}</span>
+                  </button>
+                </div>
               </div>
             </div>
 
