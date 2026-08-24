@@ -1,6 +1,12 @@
 // worker/schemas/validation.ts
 import { z } from 'zod';
 
+export const translationRequestSchema = z.object({
+  text: z.string().trim().min(1, '번역할 내용을 입력해 주세요.').max(5000, '번역할 내용은 5000자 이하여야 합니다.'),
+  source_lang: z.enum(['ko', 'vi']),
+  target_lang: z.enum(['ko', 'vi']),
+});
+
 export const projectSchema = z.object({
   name: z.string().min(1, '프로젝트명을 입력해 주세요.').max(200),
   start_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, '시작일 형식이 올바르지 않습니다.'),

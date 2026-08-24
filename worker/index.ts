@@ -1,5 +1,5 @@
 // worker/index.ts
-import { projectSchema, updateProjectSchema, taskSchema, updateTaskSchema, dailyStatusSchema } from './schemas/validation';
+import { projectSchema, updateProjectSchema, taskSchema, updateTaskSchema, dailyStatusSchema, translationRequestSchema } from './schemas/validation';
 import { translateText } from './services/translation';
 import { resolveWorkDayStatusServer } from './services/workCalendar';
 import { fetchKrHolidaysKasi, fetchHolidaysNager, SyncedHoliday } from './services/holidayApi';
@@ -530,6 +530,35 @@ export default {
         }
         if (isCountryCalendarMutation(method, cleanPath) && !canManageCountryCalendar(sessionActor.worker)) {
           return errorResponse('Country calendar management permission is required.', 403, 'CALENDAR_MANAGER_REQUIRED');
+        }
+      }
+
+      // Authenticated on-demand translation for project/task editing. The
+      // browser auth middleware above also enforces CSRF for this POST route.
+      if (method === 'POST' && cleanPath === '/api/translate') {
+        const body: any = await request.json().catch(() => ({}));
+        const input = translationRequestSchema.parse(body);
+        try {
+          const result = await translateText({
+            text: input.text,
+            sourceLanguage: input.source_lang,
+            targetLanguage: input.target_lang,
+            env: { AI: env.AI },
+          });
+          return jsonResponse({
+            translated_text: result.translatedText,
+            source_lang: result.sourceLanguage,
+            target_lang: result.targetLanguage,
+            provider: result.provider,
+          });
+        } catch (err: any) {
+          console.error(JSON.stringify({
+            event: 'translation_failed',
+            source_lang: input.source_lang,
+            target_lang: input.target_lang,
+            error: err?.message || String(err),
+          }));
+          return errorResponse('자동 번역에 실패했습니다.', 502, 'TRANSLATION_FAILED');
         }
       }
 
